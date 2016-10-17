@@ -2,9 +2,12 @@ plugins {
     id 'me.champeau.gradle.jmh' version '0.2.0'
 }
 
+apply plugin: 'application'
 apply plugin: 'me.champeau.gradle.jmh'
 apply plugin: 'idea'
 apply plugin: 'eclipse'
+
+mainClassName = "minijava.Main"
 
 test {
     //jvmArgs = ['-XX:+PrintCompilation']
