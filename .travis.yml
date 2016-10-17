@@ -1,7 +1,11 @@
 language: java
-
-script: 
-- |
-  chmod +x ./gradlew
-  ./gradlew test
-  ./gradlew jmh
+jdk:
+  - oraclejdk8
+env:
+  - TERM=dumb
+script:
+  - cd visibility/
+  - chmod +x ./gradlew
+  - ./gradlew test --stacktrace
+  - ./gradlew jmh
+  - cat build/reports/jmh/human.txt
