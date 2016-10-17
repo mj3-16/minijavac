@@ -6,10 +6,6 @@ apply plugin: 'me.champeau.gradle.jmh'
 apply plugin: 'idea'
 apply plugin: 'eclipse'
 
-javafx {
-    jvmArgs = ['-ea', '-Xmx4g', '-XshowSettings:vm']
-}
-
 test {
     //jvmArgs = ['-XX:+PrintCompilation']
 }
