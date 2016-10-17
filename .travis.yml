@@ -5,7 +5,6 @@ env:
   - TERM=dumb
 before_install:
   - chmod +x ./gradlew
-  - ./gradlew assemble
 script:
   - ./gradlew test --stacktrace
   - ./gradlew jmh
