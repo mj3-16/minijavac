@@ -3,8 +3,6 @@ jdk:
   - oraclejdk8
 env:
   - TERM=dumb
-before_install:
-  - chmod +x ./gradlew
 script:
   - ./gradlew test --stacktrace
   - ./gradlew jmh
