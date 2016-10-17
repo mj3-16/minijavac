@@ -1,0 +1,40 @@
+plugins {
+    id 'me.champeau.gradle.jmh' version '0.2.0'
+}
+
+apply from: 'https://dl.bintray.com/shemnon/javafx-gradle/8.1.1/javafx.plugin'
+apply plugin: 'me.champeau.gradle.jmh'
+apply plugin: 'idea'
+apply plugin: 'eclipse'
+
+javafx {
+    jvmArgs = ['-ea', '-Xmx4g', '-XshowSettings:vm']
+}
+
+test {
+    //jvmArgs = ['-XX:+PrintCompilation']
+}
+
+jmh {
+    fork = 0
+    warmupIterations = 2
+    iterations = 10
+    benchmarkMode = 'avgt'
+    timeUnit = 'ns'
+    include=''
+    jvmArgs = ['-Xmx4g'] // set max heap size to 4 gigs
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile 'commons-io:commons-io:2.4'
+    compile 'com.intellij:annotations:5.1'
+    compile 'org.jooq:jool:0.9.9'
+    compile 'org.slf4j:slf4j-nop:1.7.13'
+    testCompile 'com.pholser:junit-quickcheck-core:0.6-alpha-3'
+    testCompile 'com.pholser:junit-quickcheck-generators:0.6-alpha-3'
+    testCompile 'junit:junit:4.12'
+}
