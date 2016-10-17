@@ -3,7 +3,6 @@ plugins {
 }
 
 apply plugin: 'application'
-apply plugin: 'me.champeau.gradle.jmh'
 apply plugin: 'idea'
 apply plugin: 'eclipse'
 
