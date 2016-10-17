@@ -4,7 +4,6 @@ jdk:
 env:
   - TERM=dumb
 script:
-  - cd visibility/
   - chmod +x ./gradlew
   - ./gradlew test --stacktrace
   - ./gradlew jmh
