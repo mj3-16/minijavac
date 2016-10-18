@@ -28,5 +28,6 @@ public class CliTest {
 		process.waitFor();
 		assertEquals(0, process.exitValue());
 		assertEquals('t', process.getInputStream().read());
+		tmpFile.delete();
 	}
 }
