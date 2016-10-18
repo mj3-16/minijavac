@@ -1,7 +1,3 @@
-plugins {
-    id 'me.champeau.gradle.jmh' version '0.3.1'
-}
-
 apply plugin: 'application'
 apply plugin: 'idea'
 apply plugin: 'eclipse'
@@ -13,17 +9,6 @@ buildDir = 'build_dir'
 
 test {
     //jvmArgs = ['-XX:+PrintCompilation']
-}
-
-jmh {
-    fork = 0
-    warmupIterations = 2
-    iterations = 10
-    benchmarkMode = ['avgt']
-    timeUnit = 'ns'
-    include=''
-    jvmArgs = ['-Xmx4g'] // set max heap size to 4 gigs
-    humanOutputFile = project.file("${project.buildDir}/reports/jmh/human.txt")
 }
 
 repositories {
