@@ -1,15 +1,20 @@
-plugins {
-    id 'me.champeau.gradle.jmh' version '0.3.1'
+buildscript {
+  repositories {
+    maven {
+      url "https://plugins.gradle.org/m2/"
+    }
+  }
+  dependencies {
+    classpath "me.champeau.gradle:jmh-gradle-plugin:0.3.1"
+  }
 }
 
 apply plugin: 'application'
+apply plugin: 'me.champeau.gradle.jmh'
 apply plugin: 'idea'
 apply plugin: 'eclipse'
 
 mainClassName = "minijava.Main"
-
-// policy is to have a 'build' script; that requires us to have a non-default build directory
-buildDir = 'build_dir'
 
 test {
     //jvmArgs = ['-XX:+PrintCompilation']
