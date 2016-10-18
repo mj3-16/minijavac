@@ -5,5 +5,5 @@ env:
   - TERM=dumb
 script:
   - ./gradlew test --stacktrace
-  - ./gradlew jmh
-  - cat build/reports/jmh/human.txt
+#  - ./gradlew jmh
+#  - cat build_dir/reports/jmh/human.txt
