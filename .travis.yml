@@ -6,4 +6,4 @@ env:
 script:
   - ./gradlew test --stacktrace
   - ./gradlew jmh
-  - cat build/reports/jmh/human.txt
+  - cat build_dir/reports/jmh/human.txt
