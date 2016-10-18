@@ -2,31 +2,31 @@ package minijava;
 
 import org.junit.Test;
 
-import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileWriter;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
+/**
+ * Basic tests of the cli.
+ */
 public class CliTest {
 
 	/**
-	 * Tests the `--echo` option of the cli
+	 * Tests the `--echo` option of the cli by calling the `run` script
      */
 	@Test
 	public void echo() throws Exception {
-		ByteArrayOutputStream output = new ByteArrayOutputStream();
-		Cli cli = new Cli(output, System.err, new String[]{"--echo", p("empty_file")});
-		assertEquals("Exit code", 0, cli.run());
-		assertEquals("Empty file should result in no output", "", output.toString());
-		output = new ByteArrayOutputStream();
-		cli = new Cli(output, System.err, new String[]{"--echo", p("non_empty_file")});
-		assertEquals("Exit code", 0, cli.run());
-		assertEquals("Non empty file should result in output", "test", output.toString());
-		cli = new Cli(output, new ByteArrayOutputStream(), new String[]{"--echo", p("non_existing_file")});
-		assertTrue("Exit code should by > 0 for non existing file", cli.run() > 0);
-	}
-
-	private String p(String fileName){
-		return "src/test/resources/minijava/Cli/" + fileName;
+		Process process = Runtime.getRuntime().exec(new String[]{"./run", "--echo", "non_existing_file"});
+		process.waitFor();
+		assertEquals("Error code for invalid --echo call", 1, process.exitValue());
+		File tmpFile = File.createTempFile("tmp", "tmp");
+		FileWriter writer = new FileWriter(tmpFile);
+		writer.write("t");
+		writer.close();
+		process = Runtime.getRuntime().exec(new String[]{"./run", "--echo", tmpFile.getAbsolutePath()});
+		process.waitFor();
+		assertEquals(0, process.exitValue());
+		assertEquals('t', process.getInputStream().read());
 	}
 }
