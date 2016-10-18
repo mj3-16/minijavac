@@ -9,6 +9,9 @@ buildscript {
   }
 }
 
+// policy is to have a 'build' script; that requires us to have a non-default build directory
+buildDir = 'build_dir'
+
 apply plugin: 'application'
 apply plugin: 'me.champeau.gradle.jmh'
 apply plugin: 'idea'
