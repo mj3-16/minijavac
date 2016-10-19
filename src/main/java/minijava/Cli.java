@@ -3,8 +3,11 @@ package minijava;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 
+import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
 class Cli {
     @Parameter(names = "--echo", description = "print given file on stdout")
@@ -33,8 +36,12 @@ class Cli {
             return 0;
         }
         if (echoPath != null) {
-            // TODO: implement echo
-            out.println("--echo " + echoPath);
+            try {
+                out.print(String.join("\n", Files.readAllLines(Paths.get(echoPath))));
+            } catch (IOException e) {
+                e.printStackTrace(err);
+                return 1;
+            }
         }
         return 0;
     }
