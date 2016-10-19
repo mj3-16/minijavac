@@ -2,6 +2,7 @@ package minijava;
 
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
+import com.beust.jcommander.ParameterException;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -21,18 +22,23 @@ class Cli {
     private final PrintStream err;
     private final JCommander jCommander;
 
-
-    Cli(OutputStream out, OutputStream err, String... args) {
+    private Cli(OutputStream out, OutputStream err, String... args) {
         this.out = new PrintStream(out);
         this.err = new PrintStream(err);
         this.jCommander = new JCommander(this, args);
     }
 
+    public static Cli create(OutputStream out, OutputStream err, String... args) throws InvalidCommandLineArguments {
+        try {
+            return new Cli(out, err, args);
+        } catch (ParameterException ex){
+            throw new InvalidCommandLineArguments(ex.getMessage());
+        }
+    }
+
     int run() {
         if(help) {
-            StringBuilder sb = new StringBuilder();
-            jCommander.usage(sb);
-            out.print(sb.toString());
+            out.print(getUsageInfo());
             return 0;
         }
         if (echoPath != null) {
@@ -44,6 +50,12 @@ class Cli {
             }
         }
         return 0;
+    }
+
+    public static String getUsageInfo(){
+        StringBuilder sb = new StringBuilder();
+        new Cli(System.out, System.err).jCommander.usage(sb);
+        return sb.toString();
     }
 
 }
