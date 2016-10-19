@@ -1,5 +1,6 @@
 package minijava;
 
+import org.apache.commons.io.IOUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -8,6 +9,7 @@ import java.io.FileWriter;
 import java.nio.file.Files;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Basic tests of the cli.
@@ -55,5 +57,17 @@ public class CliTest {
 		process.waitFor();
 		assertEquals("Error code", 0, process.exitValue());
 		assertEquals('t', process.getInputStream().read());
+	}
+
+	/**
+	 * Tests the output of the cli for invalid arguments.
+	 */
+	@Test
+	public void invalidArguments() throws Exception {
+		Process process = Runtime.getRuntime().exec(new String[]{"./run", "-invalid_argument_!"});
+		process.waitFor();
+		assertEquals("Error code", 1, process.exitValue());
+		boolean containsUsageInfo = IOUtils.toString(process.getErrorStream()).contains("Usage:");
+		assertTrue("Error stream should contain \"Usage:\"", containsUsageInfo);
 	}
 }

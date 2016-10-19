@@ -21,38 +21,24 @@ class Cli {
     private final PrintStream out;
     private final PrintStream err;
     private final JCommander jCommander;
-    /**
-     * Did the command argument parsing fail?
-     */
-    private final boolean invalidArguments;
 
-
-    Cli(OutputStream out, OutputStream err, String... args) {
+    private Cli(OutputStream out, OutputStream err, String... args) {
         this.out = new PrintStream(out);
         this.err = new PrintStream(err);
-        JCommander commander;
+        this.jCommander = new JCommander(this, args);
+    }
+
+    public static Cli create(OutputStream out, OutputStream err, String... args) throws InvalidCommandLineArguments {
         try {
-            commander = new JCommander(this, args);
+            return new Cli(out, err, args);
         } catch (ParameterException ex){
-            commander = null;
-            this.err.println(ex.getMessage());
-            this.err.println();
+            throw new InvalidCommandLineArguments(ex.getMessage());
         }
-        this.jCommander = new JCommander(this);
-        this.invalidArguments = commander == null;
     }
 
     int run() {
-        if (invalidArguments){
-            StringBuilder sb = new StringBuilder();
-            jCommander.usage(sb);
-            err.print(sb.toString());
-            return 1;
-        }
         if(help) {
-            StringBuilder sb = new StringBuilder();
-            jCommander.usage(sb);
-            out.print(sb.toString());
+            out.print(getUsageInfo());
             return 0;
         }
         if (echoPath != null) {
@@ -64,6 +50,12 @@ class Cli {
             }
         }
         return 0;
+    }
+
+    public static String getUsageInfo(){
+        StringBuilder sb = new StringBuilder();
+        new Cli(System.out, System.err).jCommander.usage(sb);
+        return sb.toString();
     }
 
 }
