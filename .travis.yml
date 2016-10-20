@@ -4,4 +4,4 @@ jdk:
 env:
   - TERM=dumb
 script:
-  - ./gradlew test --stacktrace
+  - ./gradlew check --stacktrace
