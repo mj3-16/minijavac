@@ -3,8 +3,10 @@ package minijava;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
+import com.google.common.io.ByteStreams;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.nio.file.Files;
@@ -43,7 +45,9 @@ class Cli {
         }
         if (echoPath != null) {
             try {
-                out.print(String.join("\n", Files.readAllLines(Paths.get(echoPath))));
+                InputStream in = Files.newInputStream(Paths.get(echoPath));
+                ByteStreams.copy(in, out);
+                in.close();
             } catch (IOException e) {
                 e.printStackTrace(err);
                 return 1;
