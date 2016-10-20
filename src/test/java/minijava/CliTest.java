@@ -4,10 +4,14 @@ import org.apache.commons.io.IOUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -69,5 +73,19 @@ public class CliTest {
 		assertEquals("Error code", 1, process.exitValue());
 		boolean containsUsageInfo = IOUtils.toString(process.getErrorStream()).contains("Usage:");
 		assertTrue("Error stream should contain \"Usage:\"", containsUsageInfo);
+	}
+
+	@Test
+	public void fileContentIsPrintedToOutAsIs() throws Exception {
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		ByteArrayOutputStream err = new ByteArrayOutputStream();
+		Path file = Files.createTempFile("minijavac", "tmp");
+
+		byte[] content = "windows\r\nstyle\r\nline\r\nfeed\r\n".getBytes(StandardCharsets.US_ASCII);
+		Files.write(file, content);
+		Cli.create(out, err, "--echo", file.toAbsolutePath().toString()).run();
+		Files.delete(file);
+
+		assertArrayEquals(content, out.toByteArray());
 	}
 }
