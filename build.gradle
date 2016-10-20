@@ -32,3 +32,8 @@ dependencies {
 }
 
 tasks.test.dependsOn installDist
+
+task installGitHooks(type: Copy) {
+    from file('git-hooks/pre-commit')
+    into { file('.git/hooks') }
+}

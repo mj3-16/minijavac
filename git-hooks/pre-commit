@@ -1,0 +1,5 @@
+#!/bin/sh
+#
+# Format code using google-java-format
+echo "pre-commit code format"
+./gradlew googleJavaFormat
