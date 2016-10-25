@@ -15,6 +15,7 @@ public class SimpleLexer implements Lexer {
   private Location location;
   private List<Token> lookAheadBuffer = new ArrayList<>();
   private Map<Integer, Terminal> keywordTerms = new HashMap<>();
+  private int numberOfEOFs = 0;
 
   public SimpleLexer(LexerInput input) {
     this.input = input;
@@ -45,6 +46,9 @@ public class SimpleLexer implements Lexer {
       return createToken(Terminal.EOF, "");
     }
     omitWS();
+    if (input.current() <= 0) {
+      return createToken(Terminal.EOF, "");
+    }
     location = input.getCurrentLocation();
     char cur = (char) input.current();
     if (Character.isDigit(cur)) {
@@ -128,7 +132,8 @@ public class SimpleLexer implements Lexer {
         input.next();
         return parsePipe();
       default:
-        throw new LexerError(location, String.format("Unexpected character '%s'", cur + ""));
+        throw new LexerError(
+            location, String.format("Unexpected character '%s'(%d)", cur, input.current()));
     }
   }
 
@@ -220,6 +225,7 @@ public class SimpleLexer implements Lexer {
       int next = input.next();
       if (cur == '*' && next == '/') {
         input.next();
+        break;
       }
     }
   }
@@ -344,6 +350,9 @@ public class SimpleLexer implements Lexer {
   public Token current() {
     if (current == null) {
       current = parseNextToken();
+      if (current.isEOF()) {
+        numberOfEOFs++;
+      }
     }
     return current;
   }
@@ -375,7 +384,7 @@ public class SimpleLexer implements Lexer {
 
   @Override
   public boolean hasNext() {
-    return current == null || !current().isEOF();
+    return numberOfEOFs < 1;
   }
 
   @Override
@@ -383,6 +392,9 @@ public class SimpleLexer implements Lexer {
     current = nextToken();
     if (!lookAheadBuffer.isEmpty()) {
       lookAheadBuffer.remove(0);
+    }
+    if (current.isEOF()) {
+      numberOfEOFs++;
     }
     return current;
   }
