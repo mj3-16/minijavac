@@ -11,3 +11,7 @@ A pull request may not be merged by the person who opened it. For a non-trivial 
 3. Implement the feature in your usual git workflow
 4. `git push --set-upstream origin my-feature`
 5. Open a PR
+
+## Code Style
+We use [`google-java-format`](https://github.com/google/google-java-format/) to ensure a consistent formatting style. Installing the git hooks (`./gradlew installGitHooks`) will make sure that you only commit correctly formatted code.
+You can always trigger formatting manually by running `./gradlew gJF`.
