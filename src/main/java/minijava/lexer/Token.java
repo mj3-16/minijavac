@@ -22,7 +22,7 @@ public class Token {
         return content;
     }
 
-    public String getContentString(){
+    public String getContentString() {
         return stringTable.getString(content);
     }
 
@@ -38,11 +38,11 @@ public class Token {
         return terminal;
     }
 
-    public boolean isTerminal(Terminal otherTerminal){
+    public boolean isTerminal(Terminal otherTerminal) {
         return terminal.equals(otherTerminal);
     }
 
-    public boolean isEOF(){
+    public boolean isEOF() {
         return terminal.equals(Terminal.EOF);
     }
 
@@ -54,7 +54,7 @@ public class Token {
     /**
      * Returns a string that only consists of the terminal description belonging to this token.
      */
-    public String toSimpleString(){
+    public String toSimpleString() {
         return terminal.getDescription();
     }
 }

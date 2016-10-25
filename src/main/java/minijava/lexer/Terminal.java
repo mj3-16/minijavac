@@ -78,7 +78,7 @@ public enum Terminal {
     private final String description;
     private final TerminalType type;
 
-    private Terminal(String description, TerminalType type){
+    private Terminal(String description, TerminalType type) {
         this.description = description;
         this.type = type;
     }
@@ -89,7 +89,7 @@ public enum Terminal {
 
     private static Terminal[] terminals = values();
 
-    public static Terminal valueOf(int id){
+    public static Terminal valueOf(int id) {
         return terminals[id];
     }
 
@@ -97,7 +97,7 @@ public enum Terminal {
         return type;
     }
 
-    public boolean isType(TerminalType type){
+    public boolean isType(TerminalType type) {
         return this.type == type;
     }
 }

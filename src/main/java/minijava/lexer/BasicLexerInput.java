@@ -28,7 +28,7 @@ public class BasicLexerInput implements LexerInput {
     public Integer next() {
         try {
             currentChar = stream.read();
-            if (currentChar == '\n'){
+            if (currentChar == '\n') {
                 currentColumn = 0;
                 currentLine++;
             } else {
@@ -42,7 +42,7 @@ public class BasicLexerInput implements LexerInput {
 
     @Override
     public int current() {
-        if (currentChar == -2){
+        if (currentChar == -2) {
             next();
         }
         return currentChar;
@@ -57,7 +57,7 @@ public class BasicLexerInput implements LexerInput {
         }
     }
 
-    public Location getCurrentLocation(){
+    public Location getCurrentLocation() {
         return new Location(currentLine, currentColumn);
     }
 }

@@ -5,11 +5,11 @@ package minijava;
  */
 public class MJError extends Error {
 
-    public MJError(Exception wrapped){
+    public MJError(Exception wrapped) {
         super(wrapped);
     }
 
-    public MJError(String message){
+    public MJError(String message) {
         super(message);
     }
 }

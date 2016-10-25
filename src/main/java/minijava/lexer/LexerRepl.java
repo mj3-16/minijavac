@@ -12,8 +12,7 @@ import java.util.stream.StreamSupport;
 import minijava.MJError;
 
 /**
- * Read eval print loop for a lexer.
- * Useful to test and debug the lexer.
+ * Read eval print loop for a lexer. Useful to test and debug the lexer.
  *
  * The user can end the REPL by entering an empty line.
  */
@@ -36,17 +35,17 @@ public class LexerRepl {
      *
      * The user can end the REPL by entering an empty line.
      */
-    public void run(){
+    public void run() {
         BufferedReader input = new BufferedReader(new InputStreamReader(System.in));
         String line = "";
         System.out.println("--- Lexer REPL, exit by entering an empty line");
         try {
-            while ((line = input.readLine()) != null && !line.equals("")){
+            while ((line = input.readLine()) != null && !line.equals("")) {
                 Lexer lexer = createLexer(line);
                 try {
                     System.out.print("=> " + createTokenStream(line)
                             .map(Token::toString).collect(Collectors.joining(" ")));
-                } catch (MJError ex){
+                } catch (MJError ex) {
                     System.out.print("Caught error: " + ex.getMessage());
                 }
                 System.out.print("\n");
@@ -56,11 +55,11 @@ public class LexerRepl {
         }
     }
 
-    public Lexer createLexer(String input){
+    public Lexer createLexer(String input) {
         return lexerCreator.apply(new BasicLexerInput(new ByteArrayInputStream(input.getBytes())));
     }
 
-    public Stream<Token> createTokenStream(String input){
+    public Stream<Token> createTokenStream(String input) {
         final Lexer lexer = createLexer(input);
         final Iterable<Token> iterable = () -> lexer;
         return StreamSupport.stream(iterable.spliterator(), false);

@@ -29,7 +29,7 @@ public class StringTable {
     public static final int NULL_KEYWORD_ID = addDefaultString("null");
     public static final int STRING_KEYWORD_ID = addDefaultString("String");
 
-    public StringTable(){
+    public StringTable() {
         this.idCounter = defaultStrings.size();
         for (String str : defaultStrings.keySet()) {
             stringIds.put(str, defaultStrings.get(str));
@@ -40,39 +40,39 @@ public class StringTable {
     /**
      * Returns the id of a given string and adds the string to the table if needed.
      */
-    int getStringId(String str){
-        if (!stringIds.containsKey(str)){
+    int getStringId(String str) {
+        if (!stringIds.containsKey(str)) {
             return addString(str);
         }
         return stringIds.get(str);
     }
 
-    int addString(String str){
+    int addString(String str) {
         int newId = generateNewId();
         stringIds.put(str, newId);
         idToString.put(newId, str);
         return newId;
     }
 
-    private static int addDefaultString(String str){
+    private static int addDefaultString(String str) {
         int id = defaultStrings.size();
         defaultStrings.put(str, id);
         return id;
     }
-    
-    public String getString(int id){
+
+    public String getString(int id) {
         return idToString.get(id);
     }
 
-    public boolean hasId(int id){
+    public boolean hasId(int id) {
         return idToString.containsKey(id);
     }
 
-    public boolean hasString(String str){
+    public boolean hasString(String str) {
         return stringIds.containsKey(str);
     }
 
-    private int generateNewId(){
+    private int generateNewId() {
         return idCounter++;
     }
 }
