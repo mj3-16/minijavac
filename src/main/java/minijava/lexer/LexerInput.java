@@ -12,14 +12,6 @@ public interface LexerInput extends Iterator<Integer> {
 
   int current();
 
-  default Location getLocation(int charId) {
-    return new Location(0, 0);
-  }
-
-  default int getCurrentCharacterId() {
-    return 0;
-  }
-
   default boolean isCurrentChar(char... eitherChars) {
     for (char eitherChar : eitherChars) {
       if (eitherChar == current()) {

@@ -5,6 +5,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import minijava.MJError;
+
 /** SLL(1) parser style lexer implementation. */
 public class SimpleLexer implements Lexer {
 
@@ -132,9 +134,14 @@ public class SimpleLexer implements Lexer {
         input.next();
         return parsePipe();
       default:
-        throw new LexerError(
-            location, String.format("Unexpected character '%s'(%d)", cur, input.current()));
+        throw createError();
     }
+  }
+
+  private MJError createError(){
+    return new LexerError(
+            input.getCurrentLocation(),
+            String.format("Unexpected character '%s'(%d)", input.current(), input.current()));
   }
 
   private void omitWS() {
@@ -223,6 +230,9 @@ public class SimpleLexer implements Lexer {
     while (true) {
       int cur = input.current();
       int next = input.next();
+      if (cur <= 0 || next <= 0 || cur > 127 || next > 127){
+        throw createError();
+      }
       if (cur == '*' && next == '/') {
         input.next();
         break;
