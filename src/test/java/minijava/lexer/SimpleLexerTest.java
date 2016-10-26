@@ -1,17 +1,17 @@
 package minijava.lexer;
 
-import org.junit.Assert;
-import org.junit.Test;
-
-import java.util.List;
-import java.util.stream.Collectors;
-
 import static minijava.lexer.Terminal.EOF;
 import static minijava.lexer.Terminal.IDENT;
 import static minijava.lexer.Terminal.INVERT;
 import static minijava.lexer.Terminal.MULTIPLY;
 import static minijava.lexer.Terminal.RESERVED_IDENTIFIER;
 import static minijava.lexer.Terminal.RESERVED_OPERATORS;
+
+import java.util.List;
+import java.util.stream.Collectors;
+import minijava.MJError;
+import org.junit.Assert;
+import org.junit.Test;
 
 /** Lexer test cases */
 public class SimpleLexerTest {
@@ -28,6 +28,22 @@ public class SimpleLexerTest {
     check("_volatile", IDENT);
     check("|=", array(RESERVED_OPERATORS), array("|="));
     check("*abc", array(MULTIPLY, IDENT), array("*", "abc"));
+  }
+
+  @Test
+  public void checkInvalid() throws Exception {
+    fail("ä", "/*", "`", "–", "/**", "/** *d/");
+  }
+
+  private void fail(String... inputs) {
+    for (String input : inputs) {
+      try {
+        SimpleLexer.getAllTokens(input);
+      } catch (MJError error) {
+        continue;
+      }
+      Assert.fail(String.format("Didn't fail with input \"%s\"", input));
+    }
   }
 
   private void check(String input, Terminal... expectedOutput) {

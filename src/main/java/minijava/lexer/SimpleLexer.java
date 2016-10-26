@@ -1,15 +1,14 @@
 package minijava.lexer;
 
+import static minijava.lexer.Terminal.INVERT;
+import static minijava.lexer.Terminal.RESERVED_OPERATORS;
+
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 import minijava.MJError;
-
-import static minijava.lexer.Terminal.INVERT;
-import static minijava.lexer.Terminal.RESERVED_OPERATORS;
 
 /** SLL(1) parser style lexer implementation. */
 public class SimpleLexer implements Lexer {
