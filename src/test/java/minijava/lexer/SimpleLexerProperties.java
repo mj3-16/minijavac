@@ -24,21 +24,29 @@ public class SimpleLexerProperties {
   @Property(trials = 1000)
   public void prettyPrintingAndLexingTokenStreamIsIdentity(
       @Size(min = 0, max = 2000) List<@From(TokenGenerator.class) Token> tokens) {
+
     StringTable strings = new StringTable();
-    List<Terminal> notWanted = Arrays.asList(Terminal.EOF, Terminal.COMMENT, Terminal.WS);
-    List<Token> expected =
+    List<Token> printable =
         seq(tokens)
-            .filter(t -> !notWanted.contains(t.getTerminal()))
+            .filter(t -> t.getTerminal() != Terminal.EOF)
             .append(new Token(Terminal.EOF, new Location(0, 0), strings.addString(""), strings))
             .toList();
 
-    String input = prettyPrint(expected);
+    String input = prettyPrint(printable);
+
+    // printable is basically the expected output modulo comments and whitespace.
+    List<Terminal> cutOut = Arrays.asList(Terminal.COMMENT, Terminal.WS);
+    List<Token> expected = seq(printable).filter(t -> !cutOut.contains(t.getTerminal())).toList();
+
     List<Token> actual = seq(SimpleLexer.getAllTokens(input)).toList();
 
     // Some printfs for debugging:
     // System.out.println("input:    " + input);
     // System.out.println("expected: " + Iterables.toString(expected));
     // System.out.println("actual:   " + Iterables.toString(actual));
+
+    // We can't directly compare Tokens because we haven't estimated source code locations.
+    // Terminals and lexed strings have to match, though.
 
     // It should output the same terminal sequence:
     Assert.assertArrayEquals(
@@ -51,6 +59,13 @@ public class SimpleLexerProperties {
         seq(actual).<String>map(Token::getContentString).toArray());
   }
 
+  /**
+   * Convert a token stream into a string from which that token stream might have originated (modulo
+   * mandatory separating spaces).
+   *
+   * @param tokens A token stream we want to pretty print, so that we can parse it again.
+   * @return a pretty printed string of the token stream
+   */
   private String prettyPrint(Iterable<Token> tokens) {
     char last = ' '; // so that we don't start with a space
     Terminal term = Terminal.EOF;
@@ -62,6 +77,10 @@ public class SimpleLexerProperties {
         if (Character.isJavaIdentifierPart(text.charAt(0)) && Character.isJavaIdentifierPart(last)
             || t.isType(Terminal.TerminalType.OPERATOR)
                 && term.isType(Terminal.TerminalType.OPERATOR)) {
+          // Consider an identifier directly following an identifier.
+          // In this case we have to insert a space for separation.
+          // In the general case, we want to preserve what's in tokens!
+          // e.g. identifiers may directly be followed by operators.
           sb.append(' ');
         }
         sb.append(text);
@@ -72,6 +91,10 @@ public class SimpleLexerProperties {
     return sb.toString();
   }
 
+  /**
+   * Generates a random @Token@, with random content. Also makes sure that the content is actually
+   * lexed as the corresponding @Terminal@.
+   */
   public static class TokenGenerator extends Generator<Token> {
     private final StringTable strings = new StringTable();
 
@@ -128,6 +151,8 @@ public class SimpleLexerProperties {
     private static String asString(Collection<Character> chars) {
       return new String(Chars.toArray(chars));
     }
+
+    // Now for the ugly part ...
 
     private static final Character[] IDENT_FIRST_CHAR =
         IntStream.concat(
