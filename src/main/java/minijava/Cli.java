@@ -1,5 +1,16 @@
 package minijava;
 
+import static minijava.lexer.Terminal.FALSE;
+import static minijava.lexer.Terminal.NULL;
+import static minijava.lexer.Terminal.RESERVED_IDENTIFIER;
+import static minijava.lexer.Terminal.THIS;
+import static minijava.lexer.Terminal.TRUE;
+import static minijava.lexer.Terminal.TerminalType.CONTROL_FLOW;
+import static minijava.lexer.Terminal.TerminalType.HIDDEN;
+import static minijava.lexer.Terminal.TerminalType.OPERATOR;
+import static minijava.lexer.Terminal.TerminalType.SYNTAX_ELEMENT;
+import static minijava.lexer.Terminal.TerminalType.TYPE;
+
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
@@ -11,7 +22,7 @@ import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import minijava.lexer.BasicLexerInput;
-import minijava.lexer.LexerUtils;
+import minijava.lexer.Lexer;
 import minijava.lexer.SimpleLexer;
 
 class Cli {
@@ -70,7 +81,7 @@ class Cli {
   private int lexTest() {
     try {
       InputStream in = Files.newInputStream(Paths.get(lextestPath));
-      LexerUtils.getTokenStrings(new SimpleLexer(new BasicLexerInput(in))).forEach(out::println);
+      outputLexerTokens(new SimpleLexer(new BasicLexerInput(in)));
       return 0;
     } catch (IOException e) {
       e.printStackTrace();
@@ -79,6 +90,40 @@ class Cli {
       err.println(e.getMessage());
       return 1;
     }
+  }
+
+  private void outputLexerTokens(Lexer lexer) {
+    lexer
+        .stream()
+        .forEach(
+            token -> {
+              if (token.isType(HIDDEN)) { // ws or comments
+                return;
+              }
+              if (token.isEOF()) {
+                out.println("EOF");
+              }
+              if (token.isType(OPERATOR)
+                  || token.isType(SYNTAX_ELEMENT)
+                  || token.isType(TYPE)
+                  || token.isTerminal(NULL)
+                  || token.isTerminal(TRUE)
+                  || token.isTerminal(FALSE)
+                  || token.isTerminal(RESERVED_IDENTIFIER)
+                  || token.isType(CONTROL_FLOW)
+                  || token.isTerminal(THIS)) {
+                out.println(token.getContentString());
+                return;
+              }
+              switch (token.getTerminal()) {
+                case IDENT:
+                  out.println("identifier " + token.getContentString());
+                  break;
+                case INTEGER_LITERAL:
+                  out.println("integer literal " + token.getContentString());
+                  break;
+              }
+            });
   }
 
   public static String getUsageInfo() {

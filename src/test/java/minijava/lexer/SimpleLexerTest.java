@@ -35,7 +35,7 @@ public class SimpleLexerTest {
 
   @Test
   public void checkInvalid() throws Exception {
-    fail("ä", "/*", "`", "–", "/**", "/** *d/");
+    fail("ä", "/*", "`", "–", "/**", "/** *d/", "/*/");
   }
 
   @Test
