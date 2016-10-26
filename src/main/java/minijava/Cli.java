@@ -11,7 +11,6 @@ import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import minijava.lexer.BasicLexerInput;
-import minijava.lexer.LexerUtils;
 import minijava.lexer.SimpleLexer;
 
 class Cli {
@@ -70,7 +69,7 @@ class Cli {
   private int lexTest() {
     try {
       InputStream in = Files.newInputStream(Paths.get(lextestPath));
-      LexerUtils.getTokenStrings(new SimpleLexer(new BasicLexerInput(in))).forEach(out::println);
+      new SimpleLexer(new BasicLexerInput(in)).stream().forEach(out::println);
       return 0;
     } catch (IOException e) {
       e.printStackTrace();
