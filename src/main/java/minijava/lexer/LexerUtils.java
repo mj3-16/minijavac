@@ -2,7 +2,10 @@ package minijava.lexer;
 
 import static minijava.lexer.Terminal.FALSE;
 import static minijava.lexer.Terminal.NULL;
+import static minijava.lexer.Terminal.RESERVED_IDENTIFIER;
+import static minijava.lexer.Terminal.THIS;
 import static minijava.lexer.Terminal.TRUE;
+import static minijava.lexer.Terminal.TerminalType.CONTROL_FLOW;
 import static minijava.lexer.Terminal.TerminalType.HIDDEN;
 import static minijava.lexer.Terminal.TerminalType.OPERATOR;
 import static minijava.lexer.Terminal.TerminalType.SYNTAX_ELEMENT;
@@ -30,7 +33,10 @@ public class LexerUtils {
           || token.isType(TYPE)
           || token.isTerminal(NULL)
           || token.isTerminal(TRUE)
-          || token.isTerminal(FALSE)) {
+          || token.isTerminal(FALSE)
+          || token.isTerminal(RESERVED_IDENTIFIER)
+          || token.isType(CONTROL_FLOW)
+          || token.isTerminal(THIS)) {
         strings.add(token.getContentString());
       }
       switch (token.getTerminal()) {

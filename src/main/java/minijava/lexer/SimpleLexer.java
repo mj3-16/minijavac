@@ -1,5 +1,9 @@
 package minijava.lexer;
 
+import static minijava.lexer.Terminal.INVERT;
+import static minijava.lexer.Terminal.RESERVED_OPERATORS;
+
+import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -107,7 +111,7 @@ public class SimpleLexer implements Lexer {
         return createToken(Terminal.COMMA, ",");
       case '%':
         input.next();
-        return createToken(Terminal.MODULO, "%");
+        return parseModulo();
       case '.':
         input.next();
         return createToken(Terminal.DOT, ".");
@@ -119,19 +123,22 @@ public class SimpleLexer implements Lexer {
         return parseEqual();
       case '!':
         input.next();
-        return createToken(Terminal.IDENT, "!");
+        return parseInvert();
       case '&':
         input.next();
         return parseAnd();
       case '~':
         input.next();
-        return createToken(Terminal.RESERVED_OPERATORS, "~");
+        return createToken(RESERVED_OPERATORS, "~");
       case '*':
         input.next();
         return parseStar();
       case '|':
         input.next();
         return parsePipe();
+      case '^':
+        input.next();
+        return parseCaret();
       default:
         throw createError();
     }
@@ -146,6 +153,36 @@ public class SimpleLexer implements Lexer {
   private void omitWS() {
     while (input.isCurrentChar(' ', '\n', '\r', '\t')) {
       input.next();
+    }
+  }
+
+  private Token parseInvert() {
+    switch (input.current()) {
+      case '=':
+        input.next();
+        return createToken(RESERVED_OPERATORS, "!=");
+      default:
+        return createToken(INVERT, "!");
+    }
+  }
+
+  private Token parseCaret() {
+    switch (input.current()) {
+      case '=':
+        input.next();
+        return createToken(RESERVED_OPERATORS, "^=");
+      default:
+        return createToken(RESERVED_OPERATORS, "^");
+    }
+  }
+
+  private Token parseModulo() {
+    switch (input.current()) {
+      case '=':
+        input.next();
+        return createToken(Terminal.RESERVED_OPERATORS, "%=");
+      default:
+        return createToken(Terminal.MODULO, "%");
     }
   }
 
@@ -174,10 +211,10 @@ public class SimpleLexer implements Lexer {
     switch (input.current()) {
       case '+':
         input.next();
-        return createToken(Terminal.RESERVED_OPERATORS, "++");
+        return createToken(RESERVED_OPERATORS, "++");
       case '=':
         input.next();
-        return createToken(Terminal.RESERVED_OPERATORS, "+=");
+        return createToken(RESERVED_OPERATORS, "+=");
       default:
         return createToken(Terminal.PLUS, "+");
     }
@@ -193,19 +230,19 @@ public class SimpleLexer implements Lexer {
             switch (input.current()) {
               case '=':
                 input.next();
-                return createToken(Terminal.RESERVED_OPERATORS, ">>>=");
+                return createToken(RESERVED_OPERATORS, ">>>=");
               default:
-                return createToken(Terminal.RESERVED_OPERATORS, ">>>");
+                return createToken(RESERVED_OPERATORS, ">>>");
             }
           case '=':
             input.next();
-            return createToken(Terminal.RESERVED_OPERATORS, ">>=");
+            return createToken(RESERVED_OPERATORS, ">>=");
           default:
-            return createToken(Terminal.RESERVED_OPERATORS, ">>");
+            return createToken(RESERVED_OPERATORS, ">>");
         }
       case '=':
         input.next();
-        return createToken(Terminal.RESERVED_OPERATORS, ">=");
+        return createToken(RESERVED_OPERATORS, ">=");
       default:
         return createToken(Terminal.LOWER, ">");
     }
@@ -219,7 +256,7 @@ public class SimpleLexer implements Lexer {
         return null;
       case '=':
         input.next();
-        return createToken(Terminal.RESERVED_OPERATORS, "/=");
+        return createToken(RESERVED_OPERATORS, "/=");
       default:
         return createToken(Terminal.DIVIDE, "/");
     }
@@ -243,10 +280,10 @@ public class SimpleLexer implements Lexer {
     switch (input.current()) {
       case '=':
         input.next();
-        return createToken(Terminal.RESERVED_OPERATORS, "-=");
+        return createToken(RESERVED_OPERATORS, "-=");
       case '-':
         input.next();
-        return createToken(Terminal.RESERVED_OPERATORS, "--");
+        return createToken(RESERVED_OPERATORS, "--");
       default:
         return createToken(Terminal.MINUS, "-");
     }
@@ -259,13 +296,13 @@ public class SimpleLexer implements Lexer {
         switch (input.current()) {
           case '=':
             input.next();
-            return createToken(Terminal.RESERVED_OPERATORS, "<<=");
+            return createToken(RESERVED_OPERATORS, "<<=");
           default:
-            return createToken(Terminal.RESERVED_OPERATORS, "<<");
+            return createToken(RESERVED_OPERATORS, "<<");
         }
       case '=':
         input.next();
-        return createToken(Terminal.RESERVED_OPERATORS, "<=");
+        return createToken(RESERVED_OPERATORS, "<=");
       default:
         return createToken(Terminal.LOWER, "<");
     }
@@ -288,9 +325,9 @@ public class SimpleLexer implements Lexer {
         return createToken(Terminal.AND, "&&");
       case '=':
         input.next();
-        return createToken(Terminal.RESERVED_OPERATORS, "&=");
+        return createToken(RESERVED_OPERATORS, "&=");
       default:
-        return createToken(Terminal.RESERVED_OPERATORS, "&");
+        return createToken(RESERVED_OPERATORS, "&");
     }
   }
 
@@ -298,9 +335,8 @@ public class SimpleLexer implements Lexer {
     switch (input.current()) {
       case '=':
         input.next();
-        return createToken(Terminal.RESERVED_OPERATORS, "*=");
+        return createToken(RESERVED_OPERATORS, "*=");
       default:
-        input.next();
         return createToken(Terminal.MULTIPLY, "*");
     }
   }
@@ -310,8 +346,11 @@ public class SimpleLexer implements Lexer {
       case '|':
         input.next();
         return createToken(Terminal.OR, "||");
+      case '=':
+        input.next();
+        return createToken(RESERVED_OPERATORS, "|=");
       default:
-        return createToken(Terminal.RESERVED_OPERATORS, "|");
+        return createToken(RESERVED_OPERATORS, "|");
     }
   }
 
@@ -338,6 +377,9 @@ public class SimpleLexer implements Lexer {
     Terminal actualTerminal = Terminal.IDENT;
     if (keywordTerms.containsKey(stringId)) {
       actualTerminal = keywordTerms.get(stringId);
+    }
+    if (stringTable.isReservedIdentifier(stringId)) {
+      actualTerminal = Terminal.RESERVED_IDENTIFIER;
     }
     return new Token(actualTerminal, location, stringId, stringTable);
   }
@@ -406,5 +448,10 @@ public class SimpleLexer implements Lexer {
       numberOfEOFs++;
     }
     return current;
+  }
+
+  public static List<Token> getAllTokens(String input) {
+    return LexerUtils.getAllTokens(
+        new SimpleLexer(new BasicLexerInput(new ByteArrayInputStream(input.getBytes()))));
   }
 }

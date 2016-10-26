@@ -44,6 +44,7 @@ public enum Terminal {
   COMMA(",", SYNTAX_ELEMENT),
   DOT(".", SYNTAX_ELEMENT),
   RESERVED_OPERATORS("reserved operator", OPERATOR),
+  RESERVED_IDENTIFIER("reserved identifiert", LITERAL),
   BOOLEAN("boolean", TYPE),
   INT("int", TYPE),
   NEW("new", SYNTAX_ELEMENT),

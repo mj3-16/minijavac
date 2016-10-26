@@ -9,6 +9,8 @@ public class StringTable {
   private int idCounter;
   private Map<String, Integer> stringIds = new HashMap<>();
   private Map<Integer, String> idToString = new HashMap<>();
+  private static int reservedIdentifierStartId;
+  private static int reservedIdentifierEndId;
   private static Map<String, Integer> defaultStrings = new HashMap<>();
   public static final int BOOLEAN_KEYWORD_ID = addDefaultString("boolean");
   public static final int INT_KEYWORD_ID = addDefaultString("int");
@@ -26,6 +28,48 @@ public class StringTable {
   public static final int VOID_KEYWORD_ID = addDefaultString("void");
   public static final int NULL_KEYWORD_ID = addDefaultString("null");
   public static final int STRING_KEYWORD_ID = addDefaultString("String");
+
+  static {
+    setReservedIdentifiers(
+        "abstract",
+        "assert",
+        "break",
+        "byte",
+        "case",
+        "catch",
+        "char",
+        "const",
+        "continue",
+        "default",
+        "double",
+        "do",
+        "enum",
+        "extends",
+        "finally",
+        "final",
+        "float",
+        "for",
+        "goto",
+        "implements",
+        "import",
+        "instanceof",
+        "interface",
+        "long",
+        "native",
+        "package",
+        "private",
+        "protected",
+        "short",
+        "strictfp",
+        "super",
+        "switch",
+        "synchronized",
+        "throw",
+        "throws",
+        "transient",
+        "try",
+        "volatile");
+  }
 
   public StringTable() {
     this.idCounter = defaultStrings.size();
@@ -56,6 +100,13 @@ public class StringTable {
     return id;
   }
 
+  private static void setReservedIdentifiers(String... idents) {
+    reservedIdentifierStartId = addDefaultString(idents[0]);
+    for (int i = 1; i < idents.length; i++) {
+      reservedIdentifierEndId = addDefaultString(idents[i]);
+    }
+  }
+
   public String getString(int id) {
     return idToString.get(id);
   }
@@ -70,5 +121,9 @@ public class StringTable {
 
   private int generateNewId() {
     return idCounter++;
+  }
+
+  public boolean isReservedIdentifier(int id) {
+    return id >= reservedIdentifierStartId && id <= reservedIdentifierEndId;
   }
 }
