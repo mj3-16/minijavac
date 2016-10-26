@@ -7,7 +7,6 @@ import static minijava.lexer.Terminal.MULTIPLY;
 import static minijava.lexer.Terminal.RESERVED_IDENTIFIER;
 import static minijava.lexer.Terminal.RESERVED_OPERATORS;
 
-import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -40,38 +39,37 @@ public class SimpleLexerTest {
   }
 
   @Test
-  public void checkSimpleLexerParseInt_Success()
-  {
+  public void checkSimpleLexerParseInt_Success() {
     /*InputStream inputStream = new ByteArrayInputStream("123".getBytes());
-      BasicLexerInput lexerInput = new BasicLexerInput(inputStream);
-      SimpleLexer simpleLexer = new SimpleLexer(lexerInput);
-      LexerUtils.getAllTokens(simpleLexer);*/
+    BasicLexerInput lexerInput = new BasicLexerInput(inputStream);
+    SimpleLexer simpleLexer = new SimpleLexer(lexerInput);
+    LexerUtils.getAllTokens(simpleLexer);*/
     SimpleLexer.getAllTokens("123");
   }
 
   @Test
   public void checkSimpleLexerLookAhead_StringInput_LookAheadAndNextMethodsProvideSameTokens() {
-      String input = "if(5==5)";
-      int tokenCount = SimpleLexer.getAllTokens(input).size();
+    String input = "if(5==5)";
+    int tokenCount = SimpleLexer.getAllTokens(input).size();
 
-      InputStream inputStream = new ByteArrayInputStream(input.getBytes());
-      BasicLexerInput lexerInput = new BasicLexerInput(inputStream);
-      SimpleLexer simpleLexer = new SimpleLexer(lexerInput);
+    InputStream inputStream = new ByteArrayInputStream(input.getBytes());
+    BasicLexerInput lexerInput = new BasicLexerInput(inputStream);
+    SimpleLexer simpleLexer = new SimpleLexer(lexerInput);
 
-      List<Token> lookAheadTokenList = new ArrayList<>();
-      List<Token> nextTokenList = new ArrayList<>();
-      lookAheadTokenList.add(simpleLexer.current());
-      nextTokenList.add(simpleLexer.current());
+    List<Token> lookAheadTokenList = new ArrayList<>();
+    List<Token> nextTokenList = new ArrayList<>();
+    lookAheadTokenList.add(simpleLexer.current());
+    nextTokenList.add(simpleLexer.current());
 
-      for (int i = 1; i < tokenCount; i++) {
-          lookAheadTokenList.add(simpleLexer.lookAhead(i));
-      }
+    for (int i = 1; i < tokenCount; i++) {
+      lookAheadTokenList.add(simpleLexer.lookAhead(i));
+    }
 
-      while(simpleLexer.hasNext()) {
-        nextTokenList.add(simpleLexer.next());
-      }
+    while (simpleLexer.hasNext()) {
+      nextTokenList.add(simpleLexer.next());
+    }
 
-      Assert.assertArrayEquals(lookAheadTokenList.toArray(), nextTokenList.toArray());
+    Assert.assertArrayEquals(lookAheadTokenList.toArray(), nextTokenList.toArray());
   }
 
   private void fail(String... inputs) {
