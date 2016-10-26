@@ -1,5 +1,6 @@
 package minijava.lexer;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import minijava.MJError;
@@ -13,7 +14,7 @@ public class BasicLexerInput implements LexerInput {
   private int currentColumn = 0;
 
   public BasicLexerInput(InputStream stream) {
-    this.stream = stream;
+    this.stream = new BufferedInputStream(stream);
   }
 
   @Override

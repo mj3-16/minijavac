@@ -6,8 +6,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
+
 import minijava.MJError;
 
 /**
@@ -43,7 +42,7 @@ public class LexerRepl {
         try {
           System.out.print(
               "=> "
-                  + createTokenStream(line).map(Token::toString).collect(Collectors.joining(" ")));
+                  + createLexer(line).stream().map(Token::toString).collect(Collectors.joining(" ")));
         } catch (MJError ex) {
           System.out.print("Caught error: " + ex.getMessage());
         }
@@ -54,13 +53,7 @@ public class LexerRepl {
     }
   }
 
-  public Lexer createLexer(String input) {
+  private Lexer createLexer(String input) {
     return lexerCreator.apply(new BasicLexerInput(new ByteArrayInputStream(input.getBytes())));
-  }
-
-  public Stream<Token> createTokenStream(String input) {
-    final Lexer lexer = createLexer(input);
-    final Iterable<Token> iterable = () -> lexer;
-    return StreamSupport.stream(iterable.spliterator(), false);
   }
 }

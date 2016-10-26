@@ -1,7 +1,7 @@
 package minijava.lexer;
 
 /** Location in the source file. */
-public class Location {
+class Location {
 
   public final int line;
   public final int column;

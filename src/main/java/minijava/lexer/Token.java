@@ -8,7 +8,7 @@ public class Token {
   private final int content;
   private final StringTable stringTable;
 
-  public Token(Terminal terminal, Location location, int content, StringTable stringTable) {
+  Token(Terminal terminal, Location location, int content, StringTable stringTable) {
     this.terminal = terminal;
     this.location = location;
     this.content = content;

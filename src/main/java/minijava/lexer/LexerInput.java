@@ -3,7 +3,7 @@ package minijava.lexer;
 import java.util.Iterator;
 
 /** Input for a lexer (a stream of integers) it stops after the EOF character is read. */
-public interface LexerInput extends Iterator<Integer> {
+interface LexerInput extends Iterator<Integer> {
 
   /** Close the underlying streams and clean up if needed. */
   void close();
