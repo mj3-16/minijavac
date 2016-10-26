@@ -17,6 +17,13 @@ test {
 
 repositories {
     mavenCentral()
+    maven {
+        url 'https://oss.sonatype.org/content/repositories/snapshots/'
+    }
+}
+
+googleJavaFormat {
+    toolVersion '1.2-SNAPSHOT'
 }
 
 dependencies {

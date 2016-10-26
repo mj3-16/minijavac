@@ -2,32 +2,24 @@ package minijava.lexer;
 
 import static org.jooq.lambda.Seq.seq;
 
-import com.google.common.collect.Iterables;
-import com.google.common.primitives.Bytes;
 import com.google.common.primitives.Chars;
 import com.pholser.junit.quickcheck.From;
 import com.pholser.junit.quickcheck.Property;
 import com.pholser.junit.quickcheck.generator.GenerationStatus;
 import com.pholser.junit.quickcheck.generator.Generator;
 import com.pholser.junit.quickcheck.generator.Size;
-import com.pholser.junit.quickcheck.generator.java.util.ListGenerator;
 import com.pholser.junit.quickcheck.random.SourceOfRandomness;
 import com.pholser.junit.quickcheck.runner.JUnitQuickcheck;
-
-import java.io.*;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
 import java.util.stream.IntStream;
-
-import org.apache.commons.io.IOUtils;
 import org.jooq.lambda.Seq;
 import org.junit.Assert;
 import org.junit.runner.RunWith;
 
 @RunWith(JUnitQuickcheck.class)
 public class SimpleLexerProperties {
-  private static List<Byte> asByteStream(String s) {
-    return Bytes.asList(s.getBytes());
-  }
 
   @Property(trials = 1000)
   public void prettyPrintingAndLexingTokenStreamIsIdentity(
@@ -37,7 +29,7 @@ public class SimpleLexerProperties {
     List<Token> expected =
         seq(tokens)
             .filter(t -> !notWanted.contains(t.getTerminal()))
-            .append(new Token(Terminal.EOF, new Location(0,0), strings.addString(""), strings))
+            .append(new Token(Terminal.EOF, new Location(0, 0), strings.addString(""), strings))
             .toList();
 
     String input = prettyPrint(expected);
@@ -49,10 +41,14 @@ public class SimpleLexerProperties {
     // System.out.println("actual:   " + Iterables.toString(actual));
 
     // It should output the same terminal sequence:
-    Assert.assertArrayEquals(seq(expected).map(Token::getTerminal).toArray(), seq(actual).map(Token::getTerminal).toArray());
+    Assert.assertArrayEquals(
+        seq(expected).map(Token::getTerminal).toArray(),
+        seq(actual).map(Token::getTerminal).toArray());
 
     // It should also (maybe?) output the same sequence of strings. Not sure about how long this holds, though
-    Assert.assertArrayEquals(seq(expected).<String>map(Token::getContentString).toArray(), seq(actual).<String>map(Token::getContentString).toArray());
+    Assert.assertArrayEquals(
+        seq(expected).<String>map(Token::getContentString).toArray(),
+        seq(actual).<String>map(Token::getContentString).toArray());
   }
 
   private String prettyPrint(Iterable<Token> tokens) {
@@ -63,10 +59,9 @@ public class SimpleLexerProperties {
     for (Token t : tokens) {
       String text = t.getContentString();
       if (text.length() > 0) {
-        if (Character.isJavaIdentifierPart(text.charAt(0))
-          && Character.isJavaIdentifierPart(last)
-          || t.isType(Terminal.TerminalType.OPERATOR)
-          && term.isType(Terminal.TerminalType.OPERATOR)) {
+        if (Character.isJavaIdentifierPart(text.charAt(0)) && Character.isJavaIdentifierPart(last)
+            || t.isType(Terminal.TerminalType.OPERATOR)
+                && term.isType(Terminal.TerminalType.OPERATOR)) {
           sb.append(' ');
         }
         sb.append(text);
@@ -89,7 +84,7 @@ public class SimpleLexerProperties {
       Terminal[] terminals = Terminal.values();
       Terminal terminal = random.choose(terminals);
       int content = strings.addString(generateString(terminal, random));
-      return new Token(terminal, new Location(0,0), content, strings);
+      return new Token(terminal, new Location(0, 0), content, strings);
     }
 
     private static String generateString(Terminal t, SourceOfRandomness random) {
@@ -97,25 +92,25 @@ public class SimpleLexerProperties {
         case EOF:
           return "";
         case COMMENT:
-          Character[] choice = Seq.of(WHITESPACE).concat(Seq.of(IDENT_FOLLOWING_CHARS)).toArray(Character[]::new);
-          return "/*" +
-                  asString(Seq.generate(() -> random.choose(choice))
-                          .limit(random.nextInt(1, 30))
-                          .toList()) +
-                  "*/";
+          Character[] choice =
+              Seq.of(WHITESPACE).concat(Seq.of(IDENT_FOLLOWING_CHARS)).toArray(Character[]::new);
+          return "/*"
+              + asString(
+                  Seq.generate(() -> random.choose(choice)).limit(random.nextInt(1, 30)).toList())
+              + "*/";
         case WS:
           return asString(
-                  Seq.generate(() -> random.choose(WHITESPACE))
-                    .limit(random.nextInt(1, 5))
-                    .toList());
+              Seq.generate(() -> random.choose(WHITESPACE)).limit(random.nextInt(1, 5)).toList());
         case INTEGER_LITERAL:
           return random.nextBigInteger(random.nextInt(1, 64)).abs().toString();
         case IDENT:
           while (true) {
-            String id = asString(Seq.of(random.choose(IDENT_FIRST_CHAR))
-                    .concat(Seq.generate(() -> random.choose(IDENT_FOLLOWING_CHARS)))
-                    .limit(random.nextInt(1, 30))
-                    .toList());
+            String id =
+                asString(
+                    Seq.of(random.choose(IDENT_FIRST_CHAR))
+                        .concat(Seq.generate(() -> random.choose(IDENT_FOLLOWING_CHARS)))
+                        .limit(random.nextInt(1, 30))
+                        .toList());
             if (!Arrays.asList(KEYWORDS).contains(id)) {
               // In this case we haven't generated a keyword and are good to go.
               return id;
@@ -152,72 +147,52 @@ public class SimpleLexerProperties {
             .toArray(Character[]::new);
 
     private static final String[] RESERVED_OPS = {
-            "*=",
-            "++",
-            "+=",
-            "-=",
-            "--",
-            "/=",
-            "<<=",
-            "<<",
-            ">>=",
-            ">>>=",
-            ">>>",
-            ">>",
-            "%=",
-            "&=",
-            "&",
-            "^=",
-            "^",
-            "~",
-            "|=",
-            "|",
+      "*=", "++", "+=", "-=", "--", "/=", "<<=", "<<", ">>=", ">>>=", ">>>", ">>", "%=", "&=", "&",
+      "^=", "^", "~", "|=", "|",
     };
 
     private static final String[] RESERVED_IDS = {
-            "abstract",
-            "assert",
-            "break",
-            "byte",
-            "case",
-            "catch",
-            "char",
-            "const",
-            "continue",
-            "default",
-            "double",
-            "do",
-            "enum",
-            "extends",
-            "finally",
-            "final",
-            "float",
-            "for",
-            "goto",
-            "implements",
-            "import",
-            "instanceof",
-            "interface",
-            "long",
-            "native",
-            "package",
-            "private",
-            "protected",
-            "short",
-            "strictfp",
-            "super",
-            "switch",
-            "synchronized",
-            "throws",
-            "throw",
-            "transient",
-            "try",
-            "volatile",
+      "abstract",
+      "assert",
+      "break",
+      "byte",
+      "case",
+      "catch",
+      "char",
+      "const",
+      "continue",
+      "default",
+      "double",
+      "do",
+      "enum",
+      "extends",
+      "finally",
+      "final",
+      "float",
+      "for",
+      "goto",
+      "implements",
+      "import",
+      "instanceof",
+      "interface",
+      "long",
+      "native",
+      "package",
+      "private",
+      "protected",
+      "short",
+      "strictfp",
+      "super",
+      "switch",
+      "synchronized",
+      "throws",
+      "throw",
+      "transient",
+      "try",
+      "volatile",
     };
 
-    private static final Character[] WHITESPACE = {
-            ' ', '\r', '\n', '\t'
-    };
+    private static final Character[] WHITESPACE = {' ', '\r', '\n', '\t'};
 
     private static final String[] KEYWORDS = {
       "abstract",
