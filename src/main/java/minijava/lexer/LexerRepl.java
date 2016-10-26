@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
 import minijava.MJError;
 
 /**
@@ -42,7 +41,10 @@ public class LexerRepl {
         try {
           System.out.print(
               "=> "
-                  + createLexer(line).stream().map(Token::toString).collect(Collectors.joining(" ")));
+                  + createLexer(line)
+                      .stream()
+                      .map(Token::toString)
+                      .collect(Collectors.joining(" ")));
         } catch (MJError ex) {
           System.out.print("Caught error: " + ex.getMessage());
         }
