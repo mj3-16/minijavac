@@ -1,4 +1,3 @@
-/** Auto generated, don't edit it manually. */
 package minijava.lexer;
 
 import static minijava.lexer.Terminal.TerminalType.CONTROL_FLOW;
@@ -9,7 +8,7 @@ import static minijava.lexer.Terminal.TerminalType.OPERATOR;
 import static minijava.lexer.Terminal.TerminalType.SYNTAX_ELEMENT;
 import static minijava.lexer.Terminal.TerminalType.TYPE;
 
-/** Auto generated automaton table for the lexer. */
+/** Enum of terminals used by the Lexer. */
 public enum Terminal {
   EOF("eof", MISC),
   COMMENT("comment", HIDDEN),
