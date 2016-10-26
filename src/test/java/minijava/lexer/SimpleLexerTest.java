@@ -1,16 +1,17 @@
 package minijava.lexer;
 
+import org.junit.Assert;
+import org.junit.Test;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
 import static minijava.lexer.Terminal.EOF;
 import static minijava.lexer.Terminal.IDENT;
 import static minijava.lexer.Terminal.INVERT;
 import static minijava.lexer.Terminal.MULTIPLY;
 import static minijava.lexer.Terminal.RESERVED_IDENTIFIER;
 import static minijava.lexer.Terminal.RESERVED_OPERATORS;
-
-import java.util.List;
-import java.util.stream.Collectors;
-import org.junit.Assert;
-import org.junit.Test;
 
 /** Lexer test cases */
 public class SimpleLexerTest {
@@ -33,7 +34,7 @@ public class SimpleLexerTest {
     List<Terminal> ret =
         SimpleLexer.getAllTokens(input)
             .stream()
-            .map(t -> t.getTerminal())
+            .map(Token::getTerminal)
             .collect(Collectors.toList());
     ret.remove(EOF);
     Assert.assertArrayEquals("Input: " + input, ret.toArray(new Terminal[0]), expectedOutput);

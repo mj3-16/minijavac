@@ -1,14 +1,15 @@
 package minijava.lexer;
 
-import static minijava.lexer.Terminal.INVERT;
-import static minijava.lexer.Terminal.RESERVED_OPERATORS;
-
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 import minijava.MJError;
+
+import static minijava.lexer.Terminal.INVERT;
+import static minijava.lexer.Terminal.RESERVED_OPERATORS;
 
 /** SLL(1) parser style lexer implementation. */
 public class SimpleLexer implements Lexer {
@@ -55,7 +56,7 @@ public class SimpleLexer implements Lexer {
       return createToken(Terminal.EOF, "");
     }
     location = input.getCurrentLocation();
-    char cur = (char) input.current();
+    byte cur = (byte) input.current();
     if (Character.isDigit(cur)) {
       return parseInt();
     }
@@ -191,14 +192,14 @@ public class SimpleLexer implements Lexer {
     builder.appendCodePoint(input.current());
     if (input.current() == '0') {
       input.next();
-      int cur = input.current();
+      byte cur = input.current();
       while (cur >= '1' && cur <= '9') {
         builder.appendCodePoint(cur);
         cur = input.next();
       }
     } else {
       input.next();
-      int cur = input.current();
+      byte cur = input.current();
       while (cur >= '0' && cur <= '9') {
         builder.appendCodePoint(cur);
         cur = input.next();
@@ -264,9 +265,9 @@ public class SimpleLexer implements Lexer {
 
   private void parseCommentRest() {
     while (true) {
-      int cur = input.current();
-      int next = input.next();
-      if (cur <= 0 || next <= 0 || cur > 127 || next > 127) {
+      byte cur = input.current();
+      byte next = input.next();
+      if (cur <= 0 || next <= 0) {
         throw createError();
       }
       if (cur == '*' && next == '/') {
@@ -357,15 +358,15 @@ public class SimpleLexer implements Lexer {
   private Token parseIdent() {
     StringBuilder builder = new StringBuilder();
     builder.appendCodePoint(input.current());
-    char cur = (char) (int) input.next();
+    byte cur = (byte) (int) input.next();
     while (input.current() != -1 && (isAlphabet(cur) || cur == '_' || Character.isDigit(cur))) {
       builder.appendCodePoint(cur);
-      cur = (char) (int) input.next();
+      cur = (byte) (int) input.next();
     }
     return createToken(Terminal.IDENT, builder.toString());
   }
 
-  private boolean isAlphabet(char c) {
+  private boolean isAlphabet(byte c) {
     return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
   }
 

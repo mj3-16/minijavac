@@ -9,7 +9,7 @@ import minijava.MJError;
 public class BasicLexerInput implements LexerInput {
 
   private final InputStream stream;
-  private int currentChar = -2;
+  private byte currentChar = -2;
   private int currentLine = 1;
   private int currentColumn = 0;
 
@@ -23,9 +23,14 @@ public class BasicLexerInput implements LexerInput {
   }
 
   @Override
-  public Integer next() {
+  public Byte next() {
     try {
-      currentChar = stream.read();
+      int c = stream.read();
+      if (c > 127) {
+        throw new LexerError(
+            getCurrentLocation(), String.format("Unsupported character with code %d", c));
+      }
+      currentChar = (byte) c;
       if (currentChar == '\n') {
         currentColumn = 0;
         currentLine++;
@@ -39,7 +44,7 @@ public class BasicLexerInput implements LexerInput {
   }
 
   @Override
-  public int current() {
+  public byte current() {
     if (currentChar == -2) {
       next();
     }
