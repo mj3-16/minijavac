@@ -39,15 +39,6 @@ public class SimpleLexerTest {
   }
 
   @Test
-  public void checkSimpleLexerParseInt_Success() {
-    /*InputStream inputStream = new ByteArrayInputStream("123".getBytes());
-    BasicLexerInput lexerInput = new BasicLexerInput(inputStream);
-    SimpleLexer simpleLexer = new SimpleLexer(lexerInput);
-    LexerUtils.getAllTokens(simpleLexer);*/
-    SimpleLexer.getAllTokens("123");
-  }
-
-  @Test
   public void checkSimpleLexerLookAhead_StringInput_LookAheadAndNextMethodsProvideSameTokens() {
     String input = "if(5==5)";
     int tokenCount = SimpleLexer.getAllTokens(input).size();
