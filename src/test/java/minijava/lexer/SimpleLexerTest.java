@@ -1,12 +1,12 @@
 package minijava.lexer;
 
+import static minijava.lexer.Terminal.*;
+
 import java.util.List;
 import java.util.stream.Collectors;
 import minijava.MJError;
 import org.junit.Assert;
 import org.junit.Test;
-
-import static minijava.lexer.Terminal.*;
 
 /** Lexer test cases */
 public class SimpleLexerTest {
