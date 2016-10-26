@@ -48,10 +48,12 @@ public class SimpleLexer implements Lexer {
           input.getCurrentLocation(), String.format("Invalid char number %d", input.current()));
     }
     if (input.current() <= 0) {
+      location = input.getCurrentLocation();
       return createToken(Terminal.EOF, "");
     }
     omitWS();
     if (input.current() <= 0) {
+      location = input.getCurrentLocation();
       return createToken(Terminal.EOF, "");
     }
     location = input.getCurrentLocation();
@@ -160,9 +162,9 @@ public class SimpleLexer implements Lexer {
     switch (input.current()) {
       case '=':
         input.next();
-        return createToken(RESERVED_OPERATORS, "!=");
+        return createToken(Terminal.UNEQUALS, "!=");
       default:
-        return createToken(INVERT, "!");
+        return createToken(Terminal.INVERT, "!");
     }
   }
 
@@ -242,9 +244,9 @@ public class SimpleLexer implements Lexer {
         }
       case '=':
         input.next();
-        return createToken(RESERVED_OPERATORS, ">=");
+        return createToken(Terminal.GREATER_EQUALS, ">=");
       default:
-        return createToken(Terminal.LOWER, ">");
+        return createToken(Terminal.GREATER, ">");
     }
   }
 
@@ -302,7 +304,7 @@ public class SimpleLexer implements Lexer {
         }
       case '=':
         input.next();
-        return createToken(RESERVED_OPERATORS, "<=");
+        return createToken(Terminal.LOWER_EQUALS, "<=");
       default:
         return createToken(Terminal.LOWER, "<");
     }

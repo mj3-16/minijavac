@@ -1,11 +1,6 @@
 package minijava.lexer;
 
-import static minijava.lexer.Terminal.EOF;
-import static minijava.lexer.Terminal.IDENT;
-import static minijava.lexer.Terminal.INVERT;
-import static minijava.lexer.Terminal.MULTIPLY;
-import static minijava.lexer.Terminal.RESERVED_IDENTIFIER;
-import static minijava.lexer.Terminal.RESERVED_OPERATORS;
+import static minijava.lexer.Terminal.*;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -24,7 +19,7 @@ public class SimpleLexerTest {
     check("!", INVERT);
     check("catch", RESERVED_IDENTIFIER);
     check("const", RESERVED_IDENTIFIER);
-    check("!=", array(RESERVED_OPERATORS), array("!="));
+    check("!=", array(UNEQUALS), array("!="));
     check("|=", RESERVED_OPERATORS);
     check("^", RESERVED_OPERATORS);
     check("%=", RESERVED_OPERATORS);
