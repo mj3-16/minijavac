@@ -441,9 +441,6 @@ public class SimpleLexer implements Lexer {
   @Override
   public Token next() {
     current = nextToken();
-    if (!lookAheadBuffer.isEmpty()) {
-      lookAheadBuffer.remove(0);
-    }
     if (current.isEOF()) {
       numberOfEOFs++;
     }
