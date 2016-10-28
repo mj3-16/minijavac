@@ -1,6 +1,5 @@
 package minijava.lexer;
 
-import static minijava.lexer.Terminal.INVERT;
 import static minijava.lexer.Terminal.RESERVED_OPERATORS;
 
 import java.io.ByteArrayInputStream;
