@@ -1,6 +1,5 @@
 package minijava.lexer;
 
-import static minijava.lexer.Terminal.INVERT;
 import static minijava.lexer.Terminal.RESERVED_OPERATORS;
 
 import java.io.ByteArrayInputStream;
@@ -193,14 +192,9 @@ public class SimpleLexer implements Lexer {
     builder.appendCodePoint(input.current());
     if (input.current() == '0') {
       input.next();
-      byte cur = input.current();
-      while (cur >= '1' && cur <= '9') {
-        builder.appendCodePoint(cur);
-        cur = input.next();
-      }
     } else {
-      input.next();
-      byte cur = input.current();
+      // range [1-9]
+      byte cur = input.next();
       while (cur >= '0' && cur <= '9') {
         builder.appendCodePoint(cur);
         cur = input.next();
