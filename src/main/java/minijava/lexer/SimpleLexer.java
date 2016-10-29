@@ -1,28 +1,30 @@
 package minijava.lexer;
 
+import static minijava.lexer.TaggedWithLocation.tagBytes;
 import static minijava.lexer.Terminal.RESERVED_OPERATORS;
 
 import java.io.ByteArrayInputStream;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import minijava.MJError;
+import minijava.util.InputStreamIterator;
+import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /** SLL(1) parser style lexer implementation. */
 public class SimpleLexer implements Lexer {
 
-  private LexerInput input;
-  private StringTable stringTable = new StringTable();
-  private Token current = null;
-  private List<Character> characters = new ArrayList<>();
-  private Location location;
-  private List<Token> lookAheadBuffer = new ArrayList<>();
-  private Map<Integer, Terminal> keywordTerms = new HashMap<>();
-  private int numberOfEOFs = 0;
+  private static final List<Character> WHITESPACE = Arrays.asList(' ', '\n', '\r', '\t');
+  private final Iterator<TaggedWithLocation<Byte>> input;
+  private final StringTable stringTable = new StringTable();
+  private final Map<Integer, Terminal> keywordTerms = new HashMap<>();
+  /** Null if and only if either - We haven't yet called input.next() - input.hasNext() == false */
+  private TaggedWithLocation<Byte> current;
+  /** Null if and only if we haven't lexed the next token yet. See hasNext. */
+  private Token leftOver;
 
-  public SimpleLexer(LexerInput input) {
-    this.input = input;
+  public SimpleLexer(Iterator<Byte> input) {
+    this.input = tagBytes(input);
     keywordTerms.put(StringTable.BOOLEAN_KEYWORD_ID, Terminal.BOOLEAN);
     keywordTerms.put(StringTable.INT_KEYWORD_ID, Terminal.INT);
     keywordTerms.put(StringTable.CLASS_KEYWORD_ID, Terminal.CLASS);
@@ -41,336 +43,476 @@ public class SimpleLexer implements Lexer {
     keywordTerms.put(StringTable.STRING_KEYWORD_ID, Terminal.STRING);
   }
 
+  @Override
+  public StringTable getStringTable() {
+    return stringTable;
+  }
+
+  @Override
+  public boolean hasNext() {
+    // Since we emit no tokens for whitespace and comments, we have to actually lex the next token
+    if (leftOver == null) {
+      if (current == null) {
+        if (!input.hasNext()) {
+          return false;
+        }
+        // current is null if and only if we haven't yet started iteration or we previously reached end of input.
+        // We made sure there is still input, so we haven't yet started iteration. Normally, only parseNextToken
+        // should bump the iterator.
+        current = input.next();
+      }
+      leftOver = parseNextToken();
+    }
+    return leftOver != null;
+  }
+
+  @Override
+  @NotNull
+  public Token next() {
+    if (!hasNext()) {
+      throw new NoSuchElementException();
+    }
+
+    // hasNext will set leftOver, which we can just return
+    Token t = leftOver;
+    leftOver = null;
+    return t;
+  }
+
+  private boolean tryAdvance() {
+    if (input.hasNext()) {
+      current = input.next();
+      return true;
+    } else {
+      current = null;
+      return false;
+    }
+  }
+
+  @Nullable
   private Token parseNextToken() {
-    if (input.current() > 127) {
-      throw new LexerError(
-          input.getCurrentLocation(), String.format("Invalid char number %d", input.current()));
+    assert current != null;
+
+    // This will modify `current` as we go through `tryAdvance()`
+
+    while (WHITESPACE.contains((char) (byte) current.tagged)) {
+      if (!tryAdvance()) return null;
     }
-    if (input.current() <= 0) {
-      location = input.getCurrentLocation();
-      return createToken(Terminal.EOF, "");
+
+    assert current != null;
+
+    byte cur = current.tagged;
+    Location location = current.loc;
+
+    if (cur <= 0) {
+      throw new LexerError(location, String.format("Invalid char %c %d", (char) cur, cur & 255));
     }
-    omitWS();
-    if (input.current() <= 0) {
-      location = input.getCurrentLocation();
-      return createToken(Terminal.EOF, "");
-    }
-    location = input.getCurrentLocation();
-    byte cur = (byte) input.current();
-    if (Character.isDigit(cur)) {
+
+    if (isDigit(cur)) {
       return parseInt();
     }
     if (isAlphabet(cur) || cur == '_') {
       return parseIdent();
     }
+
     switch (cur) {
       case '+':
-        input.next();
         return parsePlus();
       case '>':
-        input.next();
         return parseGreater();
       case '(':
-        input.next();
-        return createToken(Terminal.LPAREN, "(");
+        tryAdvance();
+        return createToken(Terminal.LPAREN, location, "(");
       case ')':
-        input.next();
-        return createToken(Terminal.RPAREN, ")");
+        tryAdvance();
+        return createToken(Terminal.RPAREN, location, ")");
       case '?':
-        input.next();
-        return createToken(Terminal.QUESTION_MARK, "?");
+        tryAdvance();
+        return createToken(Terminal.QUESTION_MARK, location, "?");
       case ';':
-        input.next();
-        return createToken(Terminal.SEMICOLON, ";");
+        tryAdvance();
+        return createToken(Terminal.SEMICOLON, location, ";");
       case '[':
-        input.next();
-        return createToken(Terminal.LBRACKET, "[");
+        tryAdvance();
+        return createToken(Terminal.LBRACKET, location, "[");
       case ']':
-        input.next();
-        return createToken(Terminal.RBRACKET, "]");
+        tryAdvance();
+        return createToken(Terminal.RBRACKET, location, "]");
       case '/':
-        input.next();
         Token token = parseSlash();
         if (token != null) {
           return token;
         }
-        return parseNextToken();
+        return current != null ? parseNextToken() : null;
       case '-':
-        input.next();
         return parseMinus();
       case '{':
-        input.next();
-        return createToken(Terminal.LCURLY, "{");
+        tryAdvance();
+        return createToken(Terminal.LCURLY, location, "{");
       case '}':
-        input.next();
-        return createToken(Terminal.RCURLY, "}");
+        tryAdvance();
+        return createToken(Terminal.RCURLY, location, "}");
       case ':':
-        input.next();
-        return createToken(Terminal.COLON, ":");
+        tryAdvance();
+        return createToken(Terminal.COLON, location, ":");
       case ',':
-        input.next();
-        return createToken(Terminal.COMMA, ",");
+        tryAdvance();
+        return createToken(Terminal.COMMA, location, ",");
       case '%':
-        input.next();
         return parseModulo();
       case '.':
-        input.next();
-        return createToken(Terminal.DOT, ".");
+        tryAdvance();
+        return createToken(Terminal.DOT, location, ".");
       case '<':
-        input.next();
         return parseLower();
       case '=':
-        input.next();
         return parseEqual();
       case '!':
-        input.next();
         return parseInvert();
       case '&':
-        input.next();
         return parseAnd();
       case '~':
-        input.next();
-        return createToken(RESERVED_OPERATORS, "~");
+        tryAdvance();
+        return createToken(RESERVED_OPERATORS, location, "~");
       case '*':
-        input.next();
         return parseStar();
       case '|':
-        input.next();
         return parsePipe();
       case '^':
-        input.next();
         return parseCaret();
       default:
-        throw createError();
+        throw createError(current);
     }
   }
 
-  private MJError createError() {
+  @Contract("_ -> !null")
+  private static MJError createError(TaggedWithLocation<Byte> current) {
     return new LexerError(
-        input.getCurrentLocation(),
-        String.format("Unexpected character '%s'(%d)", input.current(), input.current()));
+        current.loc,
+        String.format(
+            "Unexpected character '%s'(%d)", (char) (byte) current.tagged, current.tagged));
   }
 
   private void omitWS() {
-    while (input.isCurrentChar(' ', '\n', '\r', '\t')) {
-      input.next();
-    }
+    //noinspection StatementWithEmptyBody
   }
 
+  @NotNull
   private Token parseInvert() {
-    switch (input.current()) {
-      case '=':
-        input.next();
-        return createToken(Terminal.UNEQUALS, "!=");
-      default:
-        return createToken(Terminal.INVERT, "!");
+    assert current.tagged == '!';
+
+    Location location = current.loc;
+
+    if (tryAdvance() && current.tagged == '=') {
+      tryAdvance();
+      return createToken(Terminal.UNEQUALS, location, "!=");
     }
+
+    return createToken(Terminal.INVERT, location, "!");
   }
 
+  @NotNull
   private Token parseCaret() {
-    switch (input.current()) {
-      case '=':
-        input.next();
-        return createToken(RESERVED_OPERATORS, "^=");
-      default:
-        return createToken(RESERVED_OPERATORS, "^");
+    assert current.tagged == '^';
+
+    Location location = current.loc;
+
+    if (tryAdvance() && current.tagged == '=') {
+      tryAdvance();
+      return createToken(RESERVED_OPERATORS, location, "^=");
     }
+
+    return createToken(RESERVED_OPERATORS, location, "^");
   }
 
+  @NotNull
   private Token parseModulo() {
-    switch (input.current()) {
-      case '=':
-        input.next();
-        return createToken(Terminal.RESERVED_OPERATORS, "%=");
-      default:
-        return createToken(Terminal.MODULO, "%");
+    assert current.tagged == '%';
+
+    Location location = current.loc;
+
+    if (tryAdvance() && current.tagged == '=') {
+      tryAdvance();
+      return createToken(Terminal.RESERVED_OPERATORS, location, "%=");
     }
+
+    return createToken(Terminal.MODULO, location, "%");
   }
 
+  @NotNull
   private Token parseInt() {
+    assert isDigit(current.tagged);
+
+    Location location = current.loc;
+
+    // absorb leading zeros
+    while (current.tagged == '0') {
+      if (!tryAdvance() || !isDigit(current.tagged)) {
+        // We reached end of input or have only parsed zeros
+        return createToken(Terminal.INTEGER_LITERAL, location, "0");
+      }
+    }
+
+    assert '1' <= current.tagged && current.tagged <= '9';
+
+    // Now lex the actual number
+
     StringBuilder builder = new StringBuilder();
-    builder.appendCodePoint(input.current());
-    if (input.current() == '0') {
-      input.next();
-      byte cur = input.current();
-      while (cur >= '1' && cur <= '9') {
-        builder.appendCodePoint(cur);
-        cur = input.next();
-      }
-    } else {
-      input.next();
-      byte cur = input.current();
-      while (cur >= '0' && cur <= '9') {
-        builder.appendCodePoint(cur);
-        cur = input.next();
-      }
+    builder.appendCodePoint(current.tagged);
+    while (tryAdvance() && current.tagged >= '0' && current.tagged <= '9') {
+      builder.appendCodePoint(current.tagged);
     }
-    return createToken(Terminal.INTEGER_LITERAL, builder.toString());
+    return createToken(Terminal.INTEGER_LITERAL, location, builder.toString());
   }
 
+  @NotNull
   private Token parsePlus() {
-    switch (input.current()) {
+    assert current.tagged == '+';
+
+    Location location = current.loc;
+
+    if (!tryAdvance()) {
+      return createToken(Terminal.PLUS, location, "+");
+    }
+
+    switch (current.tagged) {
       case '+':
-        input.next();
-        return createToken(RESERVED_OPERATORS, "++");
+        tryAdvance();
+        return createToken(RESERVED_OPERATORS, location, "++");
       case '=':
-        input.next();
-        return createToken(RESERVED_OPERATORS, "+=");
+        tryAdvance();
+        return createToken(RESERVED_OPERATORS, location, "+=");
       default:
-        return createToken(Terminal.PLUS, "+");
+        return createToken(Terminal.PLUS, location, "+");
     }
   }
 
+  @NotNull
   private Token parseGreater() {
-    switch (input.current()) {
+    assert current.tagged == '>';
+
+    Location location = current.loc;
+
+    if (!tryAdvance()) {
+      return createToken(Terminal.GREATER, location, ">");
+    }
+
+    switch (current.tagged) {
       case '>':
-        input.next();
-        switch (input.current()) {
+        if (!tryAdvance()) {
+          return createToken(RESERVED_OPERATORS, location, ">>");
+        }
+
+        switch (current.tagged) {
           case '>':
-            input.next();
-            switch (input.current()) {
-              case '=':
-                input.next();
-                return createToken(RESERVED_OPERATORS, ">>>=");
-              default:
-                return createToken(RESERVED_OPERATORS, ">>>");
+            if (tryAdvance() && current.tagged == '=') {
+              tryAdvance();
+              return createToken(RESERVED_OPERATORS, location, ">>>=");
             }
+
+            return createToken(RESERVED_OPERATORS, location, ">>>");
           case '=':
-            input.next();
-            return createToken(RESERVED_OPERATORS, ">>=");
+            tryAdvance();
+            return createToken(RESERVED_OPERATORS, location, ">>=");
           default:
-            return createToken(RESERVED_OPERATORS, ">>");
+            return createToken(RESERVED_OPERATORS, location, ">>");
         }
       case '=':
-        input.next();
-        return createToken(Terminal.GREATER_EQUALS, ">=");
+        tryAdvance();
+        return createToken(Terminal.GREATER_EQUALS, location, ">=");
       default:
-        return createToken(Terminal.GREATER, ">");
+        return createToken(Terminal.GREATER, location, ">");
     }
   }
 
+  @Nullable
   private Token parseSlash() {
-    switch (input.current()) {
+    assert current.tagged == '/';
+
+    Location location = current.loc;
+
+    if (!tryAdvance()) {
+      return createToken(Terminal.DIVIDE, location, "/");
+    }
+
+    switch (current.tagged) {
       case '*':
-        input.next();
-        parseCommentRest();
+        tryAdvance();
+        parseCommentRest(location);
         return null;
       case '=':
-        input.next();
-        return createToken(RESERVED_OPERATORS, "/=");
+        tryAdvance();
+        return createToken(RESERVED_OPERATORS, location, "/=");
       default:
-        return createToken(Terminal.DIVIDE, "/");
+        return createToken(Terminal.DIVIDE, location, "/");
     }
   }
 
-  private void parseCommentRest() {
-    while (true) {
-      byte cur = input.current();
-      byte next = input.next();
-      if (cur <= 0 || next <= 0) {
-        throw createError();
-      }
-      if (cur == '*' && next == '/') {
-        input.next();
-        break;
-      }
-    }
-  }
-
-  private Token parseMinus() {
-    switch (input.current()) {
-      case '=':
-        input.next();
-        return createToken(RESERVED_OPERATORS, "-=");
-      case '-':
-        input.next();
-        return createToken(RESERVED_OPERATORS, "--");
-      default:
-        return createToken(Terminal.MINUS, "-");
-    }
-  }
-
-  private Token parseLower() {
-    switch (input.current()) {
-      case '<':
-        input.next();
-        switch (input.current()) {
-          case '=':
-            input.next();
-            return createToken(RESERVED_OPERATORS, "<<=");
-          default:
-            return createToken(RESERVED_OPERATORS, "<<");
+  private void parseCommentRest(Location location) {
+    if (current != null) {
+      byte last = current.tagged;
+      while (tryAdvance()) {
+        if (last == '*' && current.tagged == '/') {
+          tryAdvance();
+          return;
         }
+        last = current.tagged;
+      }
+    }
+
+    throw new LexerError(location, "Unclosed comment");
+  }
+
+  @NotNull
+  private Token parseMinus() {
+    assert current.tagged == '-';
+
+    Location location = current.loc;
+
+    if (!tryAdvance()) {
+      return createToken(Terminal.MINUS, location, "-");
+    }
+
+    switch (current.tagged) {
       case '=':
-        input.next();
-        return createToken(Terminal.LOWER_EQUALS, "<=");
+        tryAdvance();
+        return createToken(RESERVED_OPERATORS, location, "-=");
+      case '-':
+        tryAdvance();
+        return createToken(RESERVED_OPERATORS, location, "--");
       default:
-        return createToken(Terminal.LOWER, "<");
+        return createToken(Terminal.MINUS, location, "-");
     }
   }
 
+  @NotNull
+  private Token parseLower() {
+    assert current.tagged == '<';
+
+    Location location = current.loc;
+
+    if (!tryAdvance()) {
+      return createToken(Terminal.LOWER, location, "<");
+    }
+
+    switch (current.tagged) {
+      case '<':
+        if (tryAdvance() && current.tagged == '=') {
+          tryAdvance();
+          return createToken(RESERVED_OPERATORS, location, "<<=");
+        }
+
+        return createToken(RESERVED_OPERATORS, location, "<<");
+      case '=':
+        tryAdvance();
+        return createToken(Terminal.LOWER_EQUALS, location, "<=");
+      default:
+        return createToken(Terminal.LOWER, location, "<");
+    }
+  }
+
+  @NotNull
   private Token parseEqual() {
-    switch (input.current()) {
-      case '=':
-        input.next();
-        return createToken(Terminal.EQUALS, "==");
-      default:
-        return createToken(Terminal.EQUAL_SIGN, "=");
+    assert current.tagged == '=';
+
+    Location location = current.loc;
+
+    if (tryAdvance() && current.tagged == '=') {
+      tryAdvance();
+      return createToken(Terminal.EQUALS, location, "==");
     }
+
+    return createToken(Terminal.EQUAL_SIGN, location, "=");
   }
 
+  @NotNull
   private Token parseAnd() {
-    switch (input.current()) {
+    assert current.tagged == '&';
+
+    Location location = current.loc;
+
+    if (!tryAdvance()) {
+      return createToken(RESERVED_OPERATORS, location, "&");
+    }
+
+    switch (current.tagged) {
       case '&':
-        input.next();
-        return createToken(Terminal.AND, "&&");
+        tryAdvance();
+        return createToken(Terminal.AND, location, "&&");
       case '=':
-        input.next();
-        return createToken(RESERVED_OPERATORS, "&=");
+        tryAdvance();
+        return createToken(RESERVED_OPERATORS, location, "&=");
       default:
-        return createToken(RESERVED_OPERATORS, "&");
+        return createToken(RESERVED_OPERATORS, location, "&");
     }
   }
 
+  @NotNull
   private Token parseStar() {
-    switch (input.current()) {
-      case '=':
-        input.next();
-        return createToken(RESERVED_OPERATORS, "*=");
-      default:
-        return createToken(Terminal.MULTIPLY, "*");
+    assert current.tagged == '*';
+
+    Location location = current.loc;
+
+    if (tryAdvance() && current.tagged == '=') {
+      tryAdvance();
+      return createToken(RESERVED_OPERATORS, location, "*=");
     }
+
+    return createToken(Terminal.MULTIPLY, location, "*");
   }
 
+  @NotNull
   private Token parsePipe() {
-    switch (input.current()) {
+    assert current.tagged == '|';
+
+    Location location = current.loc;
+
+    if (!tryAdvance()) {
+      return createToken(RESERVED_OPERATORS, location, "|");
+    }
+
+    switch (current.tagged) {
       case '|':
-        input.next();
-        return createToken(Terminal.OR, "||");
+        tryAdvance();
+        return createToken(Terminal.OR, location, "||");
       case '=':
-        input.next();
-        return createToken(RESERVED_OPERATORS, "|=");
+        tryAdvance();
+        return createToken(RESERVED_OPERATORS, location, "|=");
       default:
-        return createToken(RESERVED_OPERATORS, "|");
+        return createToken(RESERVED_OPERATORS, location, "|");
     }
   }
 
+  @NotNull
   private Token parseIdent() {
+    assert isAlphabet(current.tagged) || current.tagged == '_';
+
+    Location location = current.loc;
+
     StringBuilder builder = new StringBuilder();
-    builder.appendCodePoint(input.current());
-    byte cur = (byte) (int) input.next();
-    while (input.current() != -1 && (isAlphabet(cur) || cur == '_' || Character.isDigit(cur))) {
-      builder.appendCodePoint(cur);
-      cur = (byte) (int) input.next();
+    builder.appendCodePoint(current.tagged);
+
+    while (tryAdvance()
+        && (isAlphabet(current.tagged)
+            || current.tagged == '_'
+            || Character.isDigit(current.tagged))) {
+      builder.appendCodePoint(current.tagged);
     }
-    return createToken(Terminal.IDENT, builder.toString());
+
+    return createToken(Terminal.IDENT, location, builder.toString());
   }
 
-  private boolean isAlphabet(byte c) {
+  @Contract(pure = true)
+  private static boolean isAlphabet(byte c) {
     return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
   }
 
-  private Token createToken(Terminal terminal, String content) {
+  @Contract(pure = true)
+  private static boolean isDigit(byte c) {
+    return '0' <= c && c <= '9';
+  }
+
+  private Token createToken(Terminal terminal, Location location, String content) {
     int stringId = stringTable.getStringId(content);
     if (terminal != Terminal.IDENT) {
       return new Token(terminal, location, stringId, stringTable);
@@ -385,74 +527,8 @@ public class SimpleLexer implements Lexer {
     return new Token(actualTerminal, location, stringId, stringTable);
   }
 
-  private Token nextToken() {
-    if (current != null && current.isEOF()) {
-      return current;
-    }
-    if (lookAheadBuffer.size() > 0) {
-      current = lookAheadBuffer.get(0);
-      lookAheadBuffer.remove(0);
-    } else {
-      current = parseNextToken();
-    }
-    return current;
-  }
-
-  @Override
-  public Token current() {
-    if (current == null) {
-      current = parseNextToken();
-      if (current.isEOF()) {
-        numberOfEOFs++;
-      }
-    }
-    return current;
-  }
-
-  @Override
-  public Token lookAhead(int lookAhead) {
-    if (lookAhead <= 0) {
-      return current();
-    }
-    if (current().isEOF()) {
-      return current();
-    }
-    Token curToken = current();
-    while (lookAheadBuffer.size() < lookAhead && !curToken.isEOF()) {
-      curToken = parseNextToken();
-      lookAheadBuffer.add(curToken);
-    }
-    if (lookAheadBuffer.size() >= lookAhead) {
-      return lookAheadBuffer.get(lookAhead - 1);
-    } else {
-      return lookAheadBuffer.get(lookAheadBuffer.size() - 1);
-    }
-  }
-
-  @Override
-  public StringTable getStringTable() {
-    return stringTable;
-  }
-
-  @Override
-  public boolean hasNext() {
-    return numberOfEOFs < 1;
-  }
-
-  @Override
-  public Token next() {
-    current = nextToken();
-    if (!lookAheadBuffer.isEmpty()) {
-      lookAheadBuffer.remove(0);
-    }
-    if (current.isEOF()) {
-      numberOfEOFs++;
-    }
-    return current;
-  }
-
   public static List<Token> getAllTokens(String input) {
     return LexerUtils.getAllTokens(
-        new SimpleLexer(new BasicLexerInput(new ByteArrayInputStream(input.getBytes()))));
+        new SimpleLexer(new InputStreamIterator(new ByteArrayInputStream(input.getBytes()))));
   }
 }

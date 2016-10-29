@@ -25,12 +25,7 @@ public class SimpleLexerProperties {
   public void prettyPrintingAndLexingTokenStreamIsIdentity(
       @Size(min = 0, max = 2000) List<@From(TokenGenerator.class) Token> tokens) {
 
-    StringTable strings = new StringTable();
-    List<Token> printable =
-        seq(tokens)
-            .filter(t -> t.getTerminal() != Terminal.EOF)
-            .append(new Token(Terminal.EOF, new Location(0, 0), strings.addString(""), strings))
-            .toList();
+    List<Token> printable = seq(tokens).filter(t -> t.getTerminal() != Terminal.EOF).toList();
 
     String input = prettyPrint(printable);
 

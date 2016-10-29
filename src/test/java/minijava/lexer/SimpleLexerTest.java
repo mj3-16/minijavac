@@ -53,8 +53,8 @@ public class SimpleLexerTest {
 
   private void check(String input, Terminal[] expectedTerminals, String[] expectedMatchedStrings) {
     List<Token> ret = SimpleLexer.getAllTokens(input);
-    Terminal[] terminals = new Terminal[ret.size() - 1];
-    String[] matchedStrings = new String[ret.size() - 1];
+    Terminal[] terminals = new Terminal[ret.size()];
+    String[] matchedStrings = new String[ret.size()];
     for (int i = 0; i < terminals.length; i++) {
       terminals[i] = ret.get(i).getTerminal();
       matchedStrings[i] = ret.get(i).getContentString();
