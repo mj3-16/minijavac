@@ -14,6 +14,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.IntStream;
+import minijava.token.Position;
+import minijava.token.Terminal;
+import minijava.token.Token;
 import org.jooq.lambda.Seq;
 import org.junit.Assert;
 import org.junit.runner.RunWith;
@@ -28,15 +31,15 @@ public class SimpleLexerProperties {
     StringTable strings = new StringTable();
     List<Token> printable =
         seq(tokens)
-            .filter(t -> t.getTerminal() != Terminal.EOF)
-            .append(new Token(Terminal.EOF, new Location(0, 0), strings.addString(""), strings))
+            .filter(t -> t.terminal != Terminal.EOF)
+            .append(new Token(Terminal.EOF, new Position(0, 0), ""))
             .toList();
 
     String input = prettyPrint(printable);
 
     // printable is basically the expected output modulo comments and whitespace.
     List<Terminal> cutOut = Arrays.asList(Terminal.COMMENT, Terminal.WS);
-    List<Token> expected = seq(printable).filter(t -> !cutOut.contains(t.getTerminal())).toList();
+    List<Token> expected = seq(printable).filter(t -> !cutOut.contains(t.terminal)).toList();
 
     List<Token> actual = seq(SimpleLexer.getAllTokens(input)).toList();
 
@@ -50,13 +53,12 @@ public class SimpleLexerProperties {
 
     // It should output the same terminal sequence:
     Assert.assertArrayEquals(
-        seq(expected).map(Token::getTerminal).toArray(),
-        seq(actual).map(Token::getTerminal).toArray());
+        seq(expected).map(t -> t.terminal).toArray(), seq(actual).map(t -> t.terminal).toArray());
 
     // It should also (maybe?) output the same sequence of strings. Not sure about how long this holds, though
     Assert.assertArrayEquals(
-        seq(expected).<String>map(Token::getContentString).toArray(),
-        seq(actual).<String>map(Token::getContentString).toArray());
+        seq(expected).<String>map(t -> t.lexval).toArray(),
+        seq(actual).<String>map(t -> t.lexval).toArray());
   }
 
   /**
@@ -72,7 +74,7 @@ public class SimpleLexerProperties {
 
     StringBuilder sb = new StringBuilder(4096);
     for (Token t : tokens) {
-      String text = t.getContentString();
+      String text = t.lexval;
       if (text.length() > 0) {
         if (Character.isJavaIdentifierPart(text.charAt(0)) && Character.isJavaIdentifierPart(last)
             || t.isType(Terminal.TerminalType.OPERATOR)
@@ -85,7 +87,7 @@ public class SimpleLexerProperties {
         }
         sb.append(text);
         last = text.charAt(text.length() - 1);
-        term = t.getTerminal();
+        term = t.terminal;
       }
     }
     return sb.toString();
@@ -107,7 +109,7 @@ public class SimpleLexerProperties {
       Terminal[] terminals = Terminal.values();
       Terminal terminal = random.choose(terminals);
       int content = strings.addString(generateString(terminal, random));
-      return new Token(terminal, new Location(0, 0), content, strings);
+      return new Token(terminal, new Position(0, 0), strings.getString(content));
     }
 
     private static String generateString(Terminal t, SourceOfRandomness random) {

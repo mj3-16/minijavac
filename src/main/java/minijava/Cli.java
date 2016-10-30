@@ -1,6 +1,6 @@
 package minijava;
 
-import static minijava.lexer.Terminal.TerminalType.HIDDEN;
+import static minijava.token.Terminal.TerminalType.HIDDEN;
 
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
@@ -19,7 +19,7 @@ import java.util.List;
 import minijava.lexer.BasicLexerInput;
 import minijava.lexer.Lexer;
 import minijava.lexer.SimpleLexer;
-import minijava.lexer.Token;
+import minijava.token.Token;
 
 class Cli {
 
@@ -100,7 +100,7 @@ class Cli {
       return "EOF";
     }
     StringBuilder sb = new StringBuilder();
-    switch (t.getTerminal()) {
+    switch (t.terminal) {
       case IDENT:
         sb.append("identifier ");
         break;
@@ -108,7 +108,7 @@ class Cli {
         sb.append("integer literal ");
         break;
     }
-    sb.append(t.getContentString());
+    sb.append(t.lexval);
     return sb.toString();
   }
 

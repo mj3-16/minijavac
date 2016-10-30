@@ -7,6 +7,7 @@ import java.io.InputStreamReader;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import minijava.MJError;
+import minijava.token.Token;
 
 /**
  * Read eval print loop for a lexer. Useful to test and debug the lexer.

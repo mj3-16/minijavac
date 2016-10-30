@@ -4,6 +4,7 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import minijava.MJError;
+import minijava.token.Position;
 
 /** A basic lexer input stream without advanced buffering. */
 public class BasicLexerInput implements LexerInput {
@@ -28,7 +29,7 @@ public class BasicLexerInput implements LexerInput {
       int c = stream.read();
       if (c > 127) {
         throw new LexerError(
-            getCurrentLocation(), String.format("Unsupported character with code %d", c));
+            getCurrentPosition(), String.format("Unsupported character with code %d", c));
       }
       currentChar = (byte) c;
       if (currentChar == '\n') {
@@ -60,7 +61,7 @@ public class BasicLexerInput implements LexerInput {
     }
   }
 
-  public Location getCurrentLocation() {
-    return new Location(currentLine, currentColumn);
+  public Position getCurrentPosition() {
+    return new Position(currentLine, currentColumn);
   }
 }

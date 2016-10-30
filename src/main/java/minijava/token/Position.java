@@ -1,12 +1,12 @@
-package minijava.lexer;
+package minijava.token;
 
-/** Location in the source file. */
-class Location {
+/** Position in the source file. Instances of this class are immutable. */
+public class Position {
 
   public final int line;
   public final int column;
 
-  public Location(int line, int column) {
+  public Position(int line, int column) {
     this.line = line;
     this.column = column;
   }

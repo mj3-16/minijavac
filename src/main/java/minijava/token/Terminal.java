@@ -1,12 +1,12 @@
-package minijava.lexer;
+package minijava.token;
 
-import static minijava.lexer.Terminal.TerminalType.CONTROL_FLOW;
-import static minijava.lexer.Terminal.TerminalType.HIDDEN;
-import static minijava.lexer.Terminal.TerminalType.LITERAL;
-import static minijava.lexer.Terminal.TerminalType.MISC;
-import static minijava.lexer.Terminal.TerminalType.OPERATOR;
-import static minijava.lexer.Terminal.TerminalType.SYNTAX_ELEMENT;
-import static minijava.lexer.Terminal.TerminalType.TYPE;
+import static minijava.token.Terminal.TerminalType.CONTROL_FLOW;
+import static minijava.token.Terminal.TerminalType.HIDDEN;
+import static minijava.token.Terminal.TerminalType.LITERAL;
+import static minijava.token.Terminal.TerminalType.MISC;
+import static minijava.token.Terminal.TerminalType.OPERATOR;
+import static minijava.token.Terminal.TerminalType.SYNTAX_ELEMENT;
+import static minijava.token.Terminal.TerminalType.TYPE;
 
 /** Enum of terminals used by the Lexer. */
 public enum Terminal {
