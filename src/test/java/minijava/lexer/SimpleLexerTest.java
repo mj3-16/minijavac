@@ -1,6 +1,6 @@
 package minijava.lexer;
 
-import static minijava.lexer.Terminal.*;
+import static minijava.token.Terminal.*;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import minijava.MJError;
+import minijava.token.Terminal;
+import minijava.token.Token;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -71,10 +73,7 @@ public class SimpleLexerTest {
 
   private void check(String input, Terminal... expectedOutput) {
     List<Terminal> ret =
-        SimpleLexer.getAllTokens(input)
-            .stream()
-            .map(Token::getTerminal)
-            .collect(Collectors.toList());
+        SimpleLexer.getAllTokens(input).stream().map(t -> t.terminal).collect(Collectors.toList());
     ret.remove(EOF);
     Assert.assertArrayEquals("Input: " + input, ret.toArray(new Terminal[0]), expectedOutput);
   }
@@ -84,8 +83,8 @@ public class SimpleLexerTest {
     Terminal[] terminals = new Terminal[ret.size() - 1];
     String[] matchedStrings = new String[ret.size() - 1];
     for (int i = 0; i < terminals.length; i++) {
-      terminals[i] = ret.get(i).getTerminal();
-      matchedStrings[i] = ret.get(i).getContentString();
+      terminals[i] = ret.get(i).terminal;
+      matchedStrings[i] = ret.get(i).lexval;
     }
     String msg = String.format("Input \"%s\"", input);
     Assert.assertArrayEquals(msg, expectedTerminals, terminals);

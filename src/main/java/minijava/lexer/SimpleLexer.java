@@ -1,6 +1,6 @@
 package minijava.lexer;
 
-import static minijava.lexer.Terminal.RESERVED_OPERATORS;
+import static minijava.token.Terminal.RESERVED_OPERATORS;
 
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
@@ -8,6 +8,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import minijava.MJError;
+import minijava.token.Position;
+import minijava.token.Terminal;
+import minijava.token.Token;
 
 /** SLL(1) parser style lexer implementation. */
 public class SimpleLexer implements Lexer {
@@ -16,7 +19,7 @@ public class SimpleLexer implements Lexer {
   private StringTable stringTable = new StringTable();
   private Token current = null;
   private List<Character> characters = new ArrayList<>();
-  private Location location;
+  private Position position;
   private List<Token> lookAheadBuffer = new ArrayList<>();
   private Map<Integer, Terminal> keywordTerms = new HashMap<>();
   private int numberOfEOFs = 0;
@@ -44,18 +47,18 @@ public class SimpleLexer implements Lexer {
   private Token parseNextToken() {
     if (input.current() > 127) {
       throw new LexerError(
-          input.getCurrentLocation(), String.format("Invalid char number %d", input.current()));
+          input.getCurrentPosition(), String.format("Invalid char number %d", input.current()));
     }
     if (input.current() <= 0) {
-      location = input.getCurrentLocation();
+      position = input.getCurrentPosition();
       return createToken(Terminal.EOF, "");
     }
     omitWS();
     if (input.current() <= 0) {
-      location = input.getCurrentLocation();
+      position = input.getCurrentPosition();
       return createToken(Terminal.EOF, "");
     }
-    location = input.getCurrentLocation();
+    position = input.getCurrentPosition();
     byte cur = (byte) input.current();
     if (Character.isDigit(cur)) {
       return parseInt();
@@ -147,7 +150,7 @@ public class SimpleLexer implements Lexer {
 
   private MJError createError() {
     return new LexerError(
-        input.getCurrentLocation(),
+        input.getCurrentPosition(),
         String.format("Unexpected character '%s'(%d)", input.current(), input.current()));
   }
 
@@ -368,7 +371,7 @@ public class SimpleLexer implements Lexer {
   private Token createToken(Terminal terminal, String content) {
     int stringId = stringTable.getStringId(content);
     if (terminal != Terminal.IDENT) {
-      return new Token(terminal, location, stringId, stringTable);
+      return new Token(terminal, position, stringTable.getString(stringId));
     }
     Terminal actualTerminal = Terminal.IDENT;
     if (keywordTerms.containsKey(stringId)) {
@@ -377,7 +380,7 @@ public class SimpleLexer implements Lexer {
     if (stringTable.isReservedIdentifier(stringId)) {
       actualTerminal = Terminal.RESERVED_IDENTIFIER;
     }
-    return new Token(actualTerminal, location, stringId, stringTable);
+    return new Token(actualTerminal, position, stringTable.getString(stringId));
   }
 
   private Token nextToken() {

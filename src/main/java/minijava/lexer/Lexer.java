@@ -3,6 +3,7 @@ package minijava.lexer;
 import java.util.Iterator;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import minijava.token.Token;
 
 /** Basic interface of a lexer. */
 public interface Lexer extends Iterator<Token> {
