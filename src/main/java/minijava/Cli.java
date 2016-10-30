@@ -1,90 +1,93 @@
 package minijava;
 
-import static minijava.lexer.Terminal.FALSE;
-import static minijava.lexer.Terminal.NULL;
-import static minijava.lexer.Terminal.RESERVED_IDENTIFIER;
-import static minijava.lexer.Terminal.THIS;
-import static minijava.lexer.Terminal.TRUE;
-import static minijava.lexer.Terminal.TerminalType.CONTROL_FLOW;
 import static minijava.lexer.Terminal.TerminalType.HIDDEN;
-import static minijava.lexer.Terminal.TerminalType.OPERATOR;
-import static minijava.lexer.Terminal.TerminalType.SYNTAX_ELEMENT;
-import static minijava.lexer.Terminal.TerminalType.TYPE;
 
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
-import com.google.common.io.ByteStreams;
+import com.google.common.base.Joiner;
+import com.google.common.primitives.Booleans;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.nio.file.FileSystem;
 import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import minijava.lexer.BasicLexerInput;
 import minijava.lexer.Lexer;
 import minijava.lexer.SimpleLexer;
+import minijava.lexer.Token;
 
 class Cli {
-  @Parameter(names = "--echo", description = "print given file on stdout")
-  private String echoPath;
 
-  @Parameter(
-    names = "--lextest",
-    description = "lex given file and print the resulting tokens on stdout"
-  )
-  private String lextestPath;
-
-  @Parameter(names = "--help", help = true, description = "print this usage information")
-  private boolean help;
+  static final String usage =
+      Joiner.on(System.lineSeparator())
+          .join(
+              new String[] {
+                "Usage: minijavac [--echo|--lextest] [--help] file",
+                "",
+                "  --echo     write file's content to stdout",
+                "  --lextest  run lexical analysis on file's content and print tokens to stdout",
+                "  --help     display this help and exit",
+                "",
+                "  One (and only one) of --echo or --lextest is required."
+              });
 
   private final PrintStream out;
   private final PrintStream err;
-  private final JCommander jCommander;
+  private final FileSystem fileSystem;
 
-  private Cli(OutputStream out, OutputStream err, String... args) {
+  Cli(OutputStream out, OutputStream err, FileSystem fileSystem) {
     this.out = new PrintStream(out);
     this.err = new PrintStream(err);
-    this.jCommander = new JCommander(this, args);
+    this.fileSystem = fileSystem;
   }
 
-  public static Cli create(OutputStream out, OutputStream err, String... args)
-      throws InvalidCommandLineArguments {
-    try {
-      return new Cli(out, err, args);
-    } catch (ParameterException ex) {
-      throw new InvalidCommandLineArguments(ex.getMessage());
+  int run(String... args) {
+    Parameters params = Parameters.parse(args);
+    if (!params.valid()) {
+      err.println(usage);
+      return 1;
     }
-  }
-
-  int run() {
-    if (help) {
-      out.print(getUsageInfo());
+    if (params.help) {
+      out.println(usage);
       return 0;
     }
-    if (echoPath != null) {
-      try {
-        InputStream in = Files.newInputStream(Paths.get(echoPath));
-        ByteStreams.copy(in, out);
-        in.close();
-      } catch (IOException e) {
-        e.printStackTrace(err);
-        return 1;
-      }
+    Path path = fileSystem.getPath(params.file);
+    if (!Files.exists(path)) {
+      err.println("File '" + params.file + "' doesn't exist!");
+      return 1;
     }
-    if (lextestPath != null) {
-      return lexTest();
+    if (params.echo) {
+      return echo(path);
+    }
+    if (params.lextest) {
+      return lextest(path);
+    }
+    // we shouldn't get here
+    throw new AssertionError();
+  }
+
+  private int echo(Path path) {
+    try {
+      Files.copy(path, out);
+    } catch (IOException e) {
+      e.printStackTrace(err);
+      return 1;
     }
     return 0;
   }
 
-  private int lexTest() {
-    try {
-      InputStream in = Files.newInputStream(Paths.get(lextestPath));
-      outputLexerTokens(new SimpleLexer(new BasicLexerInput(in)));
+  private int lextest(Path path) {
+    try (InputStream in = Files.newInputStream(path)) {
+      Lexer lexer = new SimpleLexer(new BasicLexerInput(in));
+      lexer.stream().filter(t -> !t.isType(HIDDEN)).map(this::format).forEach(out::println);
       return 0;
     } catch (IOException e) {
-      e.printStackTrace();
+      e.printStackTrace(err);
       return 1;
     } catch (MJError e) {
       err.println(e.getMessage());
@@ -92,43 +95,62 @@ class Cli {
     }
   }
 
-  private void outputLexerTokens(Lexer lexer) {
-    lexer
-        .stream()
-        .forEach(
-            token -> {
-              if (token.isType(HIDDEN)) { // ws or comments
-                return;
-              }
-              if (token.isEOF()) {
-                out.println("EOF");
-              }
-              if (token.isType(OPERATOR)
-                  || token.isType(SYNTAX_ELEMENT)
-                  || token.isType(TYPE)
-                  || token.isTerminal(NULL)
-                  || token.isTerminal(TRUE)
-                  || token.isTerminal(FALSE)
-                  || token.isTerminal(RESERVED_IDENTIFIER)
-                  || token.isType(CONTROL_FLOW)
-                  || token.isTerminal(THIS)) {
-                out.println(token.getContentString());
-                return;
-              }
-              switch (token.getTerminal()) {
-                case IDENT:
-                  out.println("identifier " + token.getContentString());
-                  break;
-                case INTEGER_LITERAL:
-                  out.println("integer literal " + token.getContentString());
-                  break;
-              }
-            });
+  private String format(Token t) {
+    if (t.isEOF()) {
+      return "EOF";
+    }
+    StringBuilder sb = new StringBuilder();
+    switch (t.getTerminal()) {
+      case IDENT:
+        sb.append("identifier ");
+        break;
+      case INTEGER_LITERAL:
+        sb.append("integer literal ");
+        break;
+    }
+    sb.append(t.getContentString());
+    return sb.toString();
   }
 
-  public static String getUsageInfo() {
-    StringBuilder sb = new StringBuilder();
-    new Cli(System.out, System.err).jCommander.usage(sb);
-    return sb.toString();
+  private static class Parameters {
+    private Parameters() {}
+
+    /** True if the --echo option was set */
+    @Parameter(names = "--echo")
+    boolean echo;
+
+    /** True if the --lextest option was set */
+    @Parameter(names = "--lextest")
+    boolean lextest;
+
+    /** True if the --help option was set */
+    @Parameter(names = "--help")
+    boolean help;
+
+    @Parameter private List<String> mainParameters = new ArrayList<>();
+
+    /** The path of the file to process, possibly relative to the current working directory */
+    String file;
+
+    // set to true, if parsing arguments failed
+    private boolean invalid;
+
+    /** Returns true if the parameter values represent a valid set */
+    boolean valid() {
+      return !invalid && (help || ((Booleans.countTrue(echo, lextest) == 1) && (file != null)));
+    }
+
+    static Parameters parse(String... args) {
+      Parameters params = new Parameters();
+      try {
+        new JCommander(params, args);
+        if (params.mainParameters.size() == 1) {
+          params.file = params.mainParameters.get(0);
+        }
+      } catch (ParameterException e) {
+        params.invalid = true;
+      }
+      return params;
+    }
   }
 }

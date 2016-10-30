@@ -1,83 +1,89 @@
 package minijava;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.*;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileWriter;
+import com.google.common.jimfs.Jimfs;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import org.apache.commons.io.IOUtils;
-import org.junit.BeforeClass;
+import org.apache.commons.io.output.ByteArrayOutputStream;
+import org.junit.Before;
 import org.junit.Test;
 
-/** Basic tests of the cli. */
 public class CliTest {
 
-  /** Temporary file that should just contain the string "test" */
-  private static File tmpFile;
+  ByteArrayOutputStream out;
+  ByteArrayOutputStream err;
+  FileSystem fs;
+  Cli cli;
 
-  @BeforeClass
-  public static void setUp() throws Exception {
-    tmpFile = File.createTempFile("tmp", "tmp");
-    tmpFile.deleteOnExit();
-    FileWriter writer = new FileWriter(tmpFile);
-    writer.write("t");
-    writer.close();
-  }
-
-  /** Tests the `--echo` option of the cli by calling the `run` script */
-  @Test
-  public void echo() throws Exception {
-    Process process =
-        Runtime.getRuntime().exec(new String[] {"./run", "--echo", "non_existing_file"});
-    process.waitFor();
-    assertEquals("Error code for invalid --echo call", 1, process.exitValue());
-
-    process =
-        Runtime.getRuntime().exec(new String[] {"./run", "--echo", tmpFile.getAbsolutePath()});
-    process.waitFor();
-    assertEquals(0, process.exitValue());
-    assertEquals('t', process.getInputStream().read());
+  @Before
+  public void setup() {
+    out = new ByteArrayOutputStream();
+    err = new ByteArrayOutputStream();
+    fs = Jimfs.newFileSystem();
+    cli = new Cli(out, err, fs);
   }
 
   @Test
-  public void echoFromATemporaryDirectory() throws Exception {
-    File tmpDirectory = Files.createTempDirectory("test").toFile();
-    tmpDirectory.deleteOnExit();
-    ProcessBuilder builder =
-        new ProcessBuilder(new File("run").getAbsolutePath(), "--echo", tmpFile.getAbsolutePath());
-    builder.directory(tmpDirectory);
-    Process process = builder.start();
-    process.waitFor();
-    assertEquals("Error code", 0, process.exitValue());
-    assertEquals('t', process.getInputStream().read());
-  }
-
-  /** Tests the output of the cli for invalid arguments. */
-  @Test
-  public void invalidArguments() throws Exception {
-    Process process = Runtime.getRuntime().exec(new String[] {"./run", "-invalid_argument_!"});
-    process.waitFor();
-    assertEquals("Error code", 1, process.exitValue());
-    boolean containsUsageInfo = IOUtils.toString(process.getErrorStream()).contains("Usage:");
-    assertTrue("Error stream should contain \"Usage:\"", containsUsageInfo);
+  public void nonExistingOption_printUsageAndSingalFailure() throws Exception {
+    int status = cli.run("--foo");
+    assertThat(status, is(not(0)));
+    assertThat(err.toString(), containsString(Cli.usage));
   }
 
   @Test
-  public void fileContentIsPrintedToOutAsIs() throws Exception {
-    ByteArrayOutputStream out = new ByteArrayOutputStream();
-    ByteArrayOutputStream err = new ByteArrayOutputStream();
-    Path file = Files.createTempFile("minijavac", "tmp");
+  public void fileDoesNotExist_printErrorMessageAndSingalFailure() throws Exception {
+    String filename = "non-existing-file";
+    int status = cli.run("--echo", filename);
+    assertThat(status, is(not(0)));
+    assertThat(err.toString(), allOf(containsString(filename), containsString("doesn't exist")));
+  }
 
-    byte[] content = "windows\r\nstyle\r\nline\r\nfeed\r\n".getBytes(StandardCharsets.US_ASCII);
+  @Test
+  public void multipleMainArguments_printUsageAndSingalFailure() throws Exception {
+    int status = cli.run("--echo", "foo", "bar");
+    assertThat(status, is(not(0)));
+    assertThat(err.toString(), containsString(Cli.usage));
+  }
+
+  @Test
+  public void bothLextestAndEchoOptionSet_printUsageAndSingalFailure() throws Exception {
+    Path file = fs.getPath("file");
+    Files.createFile(file);
+    int status = cli.run("--lextest", "--echo", file.toString());
+    assertThat(status, is(not(0)));
+    assertThat(err.toString(), containsString(Cli.usage));
+  }
+
+  @Test
+  public void helpAndInvalidOptionCombinationIsSet_printUsageAndSingalSuccess() throws Exception {
+    int status = cli.run("--lextest", "--help", "--echo", "arg1", "arg2");
+    assertThat(status, is(0));
+    assertThat(out.toString(), containsString(Cli.usage));
+  }
+
+  @Test
+  public void echoFile_contentWasWrittenToOut() throws Exception {
+    Path file = fs.getPath("file");
+    byte[] content = {5, 123, 100, 58, 39, 69, 26};
     Files.write(file, content);
-    Cli.create(out, err, "--echo", file.toAbsolutePath().toString()).run();
-    Files.delete(file);
+    int status = cli.run("--echo", file.toString());
+    assertThat(status, is(0));
+    assertThat(out.toByteArray(), equalTo(content));
+  }
 
-    assertArrayEquals(content, out.toByteArray());
+  @Test
+  public void lextestFile_tokensAreWrittenToOut() throws Exception {
+    Path file = fs.getPath("file");
+    byte[] content = "asd 01 void   /* comment */".getBytes(StandardCharsets.US_ASCII);
+    Files.write(file, content);
+    int status = cli.run("--lextest", file.toString());
+    assertThat(status, is(0));
+    assertThat(
+        out.toString(),
+        equalTo("identifier asd\ninteger literal 0\ninteger literal 1\nvoid\nEOF\n"));
   }
 }
