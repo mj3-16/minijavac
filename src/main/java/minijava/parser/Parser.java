@@ -1,6 +1,7 @@
 package minijava.parser;
 
 import minijava.lexer.Lexer;
+import minijava.token.Terminal;
 import minijava.token.Token;
 
 public class Parser {
@@ -11,21 +12,70 @@ public class Parser {
         this.lexer = lexer;
     }
 
+    private void consumeToken()
+    {
+        this.currentToken = lexer.next();
+    }
+
+    private void expectTerminal(Terminal terminal){
+        if(currentToken.isTerminal(terminal)){
+            //throw ParserException
+        }
+        consumeToken();
+    }
+
+    private boolean isCurrentTokenTypeOf(Terminal terminal){
+        if(currentToken.isTerminal(terminal)){
+            return true;
+        }
+        return false;
+    }
+
+    private boolean isCurrentTokenNotTypeOf(Terminal terminal){
+        return !isCurrentTokenTypeOf(terminal);
+    }
+
     public void parse(){
-        currentToken = lexer.next();
+        consumeToken();
         parseProgramm();
     }
 
+    /**
+     * Program -> ClassDeclaration*
+     */
     private void parseProgramm(){
-
+        // while it is not EOF it must be a ClassDeclaration
+        while(isCurrentTokenNotTypeOf(Terminal.EOF))
+        {
+            parseClassDeclaration();
+        }
+        expectTerminal(Terminal.EOF);
     }
 
+    /**
+     *  ClassDeclaration -> class IDENT { ClassMember* }
+     */
     private void parseClassDeclaration(){
-
+        expectTerminal(Terminal.CLASS);
+        expectTerminal(Terminal.IDENT);
+        expectTerminal(Terminal.LCURLY);
+        // No ClassMember
+        if(isCurrentTokenTypeOf(Terminal.RCURLY)){
+            consumeToken();
+        }
+        else {
+            while(isCurrentTokenNotTypeOf(Terminal.RCURLY) && isCurrentTokenNotTypeOf(Terminal.EOF)){
+                parseClassMember();
+            }
+        }
     }
 
+    /**
+     * ClassMember -> Field | Method | MainMethod
+     */
     private void parseClassMember(){
-
+        expectTerminal(Terminal.PUBLIC);
+        
     }
 
     private void parseField(){
