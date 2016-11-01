@@ -34,12 +34,12 @@ public class Parser {
     return !isCurrentTokenTypeOf(terminal);
   }
 
-    private boolean isCurrentTokenBinaryOperator() {
-        if(currentToken.isType(Terminal.TerminalType.OPERATOR)) {
-            return true;
-        }
-        return false;
+  private boolean isCurrentTokenBinaryOperator() {
+    if (currentToken.isType(Terminal.TerminalType.OPERATOR)) {
+      return true;
     }
+    return false;
+  }
 
   public void parse() {
     consumeToken();
@@ -150,17 +150,17 @@ public class Parser {
   private void parseBasicType() {
     switch (currentToken.terminal) {
       case INT:
-          expectTokenAndConsume(Terminal.INT);
-          break;
+        expectTokenAndConsume(Terminal.INT);
+        break;
       case BOOLEAN:
-          expectTokenAndConsume(Terminal.BOOLEAN);
-          break;
+        expectTokenAndConsume(Terminal.BOOLEAN);
+        break;
       case VOID:
-          expectTokenAndConsume(Terminal.VOID);
-          break;
+        expectTokenAndConsume(Terminal.VOID);
+        break;
       case IDENT:
-          expectTokenAndConsume(Terminal.IDENT);
-          break;
+        expectTokenAndConsume(Terminal.IDENT);
+        break;
     }
   }
 
@@ -274,18 +274,19 @@ public class Parser {
   }
 
   private void parseExpressionWithPrecedenceClimbing(int minPrecedence) {
-      int result;
-      parsePrimaryExpression();
+    int result;
+    parsePrimaryExpression();
 
-      while(isCurrentTokenBinaryOperator() && isOperatorPrecedenceGreaterOrEqualThan(minPrecedence)) {
-          //int precedence = currentToken
+    while (isCurrentTokenBinaryOperator()
+        && isOperatorPrecedenceGreaterOrEqualThan(minPrecedence)) {
+      //int precedence = currentToken
 
-      }
+    }
   }
 
   private boolean isOperatorPrecedenceGreaterOrEqualThan(int precedence) {
-      //if(currentToken.terminal)
-      return false;
+    //if(currentToken.terminal)
+    return false;
   }
 
   /** AssignmentExpression -> LogicalOrExpression (= AssignmentExpression)? */
@@ -310,154 +311,158 @@ public class Parser {
 
   private void parseMultiplicativeExpression() {}
 
-    /** UnaryExpression -> PostfixExpression | (! | -) UnaryExpression */
+  /** UnaryExpression -> PostfixExpression | (! | -) UnaryExpression */
   private void parseUnaryExpression() {
-      switch(currentToken.terminal) {
-          case INVERT:
-          case MINUS:
-              parseUnaryExpression();
-              break;
-          default:
-              parsePostfixExpression();
-              break;
-      }
+    switch (currentToken.terminal) {
+      case INVERT:
+      case MINUS:
+        parseUnaryExpression();
+        break;
+      default:
+        parsePostfixExpression();
+        break;
+    }
   }
 
   /** PostfixExpression -> PrimaryExpression (PostfixOp)* */
   private void parsePostfixExpression() {
-      parsePrimaryExpression();
-      while((isCurrentTokenTypeOf(Terminal.LBRACKET) || isCurrentTokenTypeOf(Terminal.DOT)) && isCurrentTokenNotTypeOf(Terminal.EOF)) {
-          parsePostfixOp();
-      }
+    parsePrimaryExpression();
+    while ((isCurrentTokenTypeOf(Terminal.LBRACKET) || isCurrentTokenTypeOf(Terminal.DOT))
+        && isCurrentTokenNotTypeOf(Terminal.EOF)) {
+      parsePostfixOp();
+    }
   }
 
   /** PostfixOp -> MethodInvocation | FieldAccess | ArrayAccess */
   private void parsePostfixOp() {
-      switch(currentToken.terminal) {
-          case DOT:
-              parseDotIdentFieldAccessMethodInvocation();
-              break;
-          case LBRACKET:
-              parseArrayAccess();
-              break;
-      }
+    switch (currentToken.terminal) {
+      case DOT:
+        parseDotIdentFieldAccessMethodInvocation();
+        break;
+      case LBRACKET:
+        parseArrayAccess();
+        break;
+    }
   }
 
   /** DotIdentFieldAccessMethodInvocation -> . IDENT (MethodInvocation)? */
   private void parseDotIdentFieldAccessMethodInvocation() {
-      expectTokenAndConsume(Terminal.DOT);
-      expectTokenAndConsume(Terminal.IDENT);
-      // is it FieldAccess (false) or MethodInvocation (true)?
-      if(isCurrentTokenTypeOf(Terminal.LPAREN)) {
-          parseMethodInvocation();
-      }
+    expectTokenAndConsume(Terminal.DOT);
+    expectTokenAndConsume(Terminal.IDENT);
+    // is it FieldAccess (false) or MethodInvocation (true)?
+    if (isCurrentTokenTypeOf(Terminal.LPAREN)) {
+      parseMethodInvocation();
+    }
   }
 
   /** MethodInvocation -> ( Arguments ) */
   private void parseMethodInvocation() {
-      expectTokenAndConsume(Terminal.LPAREN);
-      parseArguments();
-      expectTokenAndConsume(Terminal.RPAREN);
+    expectTokenAndConsume(Terminal.LPAREN);
+    parseArguments();
+    expectTokenAndConsume(Terminal.RPAREN);
   }
 
   /** ArrayAccess -> [ Expression ] */
   private void parseArrayAccess() {
-      expectTokenAndConsume(Terminal.LBRACKET);
-      parseExpression();
-      expectTokenAndConsume(Terminal.RBRACKET);
+    expectTokenAndConsume(Terminal.LBRACKET);
+    parseExpression();
+    expectTokenAndConsume(Terminal.RBRACKET);
   }
 
   /** Arguments -> (Expression (,Expression)*)? */
   private void parseArguments() {
-      if(isCurrentTokenNotTypeOf(Terminal.RBRACKET)) {
-          parseExpression();
-          while(isCurrentTokenTypeOf(Terminal.COMMA) && isCurrentTokenNotTypeOf(Terminal.EOF)) {
-              parseExpression();
-          }
+    if (isCurrentTokenNotTypeOf(Terminal.RBRACKET)) {
+      parseExpression();
+      while (isCurrentTokenTypeOf(Terminal.COMMA) && isCurrentTokenNotTypeOf(Terminal.EOF)) {
+        parseExpression();
       }
+    }
   }
 
-  /** PrimaryExpression -> null | false | true | INTEGER_LITERAL | IDENT | IDENT ( Arguments ) | this | ( Expression ) | NewObjectArrayExpression */
+  /**
+   * PrimaryExpression -> null | false | true | INTEGER_LITERAL | IDENT | IDENT ( Arguments ) | this
+   * | ( Expression ) | NewObjectArrayExpression
+   */
   private void parsePrimaryExpression() {
-      switch(currentToken.terminal) {
-          case NULL:
-              expectTokenAndConsume(Terminal.NULL);
-              break;
-          case FALSE:
-              expectTokenAndConsume(Terminal.FALSE);
-              break;
-          case TRUE:
-              expectTokenAndConsume(Terminal.TRUE);
-              break;
-          case INTEGER_LITERAL:
-              expectTokenAndConsume(Terminal.INTEGER_LITERAL);
-              break;
-          case IDENT:
-              expectTokenAndConsume(Terminal.IDENT);
-              if(isCurrentTokenTypeOf(Terminal.LPAREN)) {
-                  expectTokenAndConsume(Terminal.LPAREN);
-                  parseArguments();
-                  expectTokenAndConsume(Terminal.RPAREN);
-              }
-              break;
-          case THIS:
-              expectTokenAndConsume(Terminal.THIS);
-              break;
-          case LPAREN:
-              expectTokenAndConsume(Terminal.LPAREN);
-              parseExpression();
-              expectTokenAndConsume(Terminal.RPAREN);
-              break;
-          case NEW:
-              parseNewObjectArrayExpression();
-              break;
-      }
+    switch (currentToken.terminal) {
+      case NULL:
+        expectTokenAndConsume(Terminal.NULL);
+        break;
+      case FALSE:
+        expectTokenAndConsume(Terminal.FALSE);
+        break;
+      case TRUE:
+        expectTokenAndConsume(Terminal.TRUE);
+        break;
+      case INTEGER_LITERAL:
+        expectTokenAndConsume(Terminal.INTEGER_LITERAL);
+        break;
+      case IDENT:
+        expectTokenAndConsume(Terminal.IDENT);
+        if (isCurrentTokenTypeOf(Terminal.LPAREN)) {
+          expectTokenAndConsume(Terminal.LPAREN);
+          parseArguments();
+          expectTokenAndConsume(Terminal.RPAREN);
+        }
+        break;
+      case THIS:
+        expectTokenAndConsume(Terminal.THIS);
+        break;
+      case LPAREN:
+        expectTokenAndConsume(Terminal.LPAREN);
+        parseExpression();
+        expectTokenAndConsume(Terminal.RPAREN);
+        break;
+      case NEW:
+        parseNewObjectArrayExpression();
+        break;
+    }
   }
 
   /** NewObjectArrayExpression -> BasicType NewArrayExpression | IDENT NewObjectExpression */
   private void parseNewObjectArrayExpression() {
-      expectTokenAndConsume(Terminal.NEW);
-      switch(currentToken.terminal) {
-          case INT:
-              expectTokenAndConsume(Terminal.INT);
-              parseNewArrayExpression();
-              break;
-          case BOOLEAN:
-              expectTokenAndConsume(Terminal.BOOLEAN);
-              parseNewArrayExpression();
-              break;
-          case VOID:
-              expectTokenAndConsume(Terminal.VOID);
-              parseNewArrayExpression();
-              break;
-          case IDENT:
-              expectTokenAndConsume(Terminal.IDENT);
-              switch(currentToken.terminal) {
-                  case LPAREN:
-                      parseNewObjectExpression();
-                      break;
-                  case LBRACKET:
-                      parseNewArrayExpression();
-                      break;
-              }
-              break;
-      }
+    expectTokenAndConsume(Terminal.NEW);
+    switch (currentToken.terminal) {
+      case INT:
+        expectTokenAndConsume(Terminal.INT);
+        parseNewArrayExpression();
+        break;
+      case BOOLEAN:
+        expectTokenAndConsume(Terminal.BOOLEAN);
+        parseNewArrayExpression();
+        break;
+      case VOID:
+        expectTokenAndConsume(Terminal.VOID);
+        parseNewArrayExpression();
+        break;
+      case IDENT:
+        expectTokenAndConsume(Terminal.IDENT);
+        switch (currentToken.terminal) {
+          case LPAREN:
+            parseNewObjectExpression();
+            break;
+          case LBRACKET:
+            parseNewArrayExpression();
+            break;
+        }
+        break;
+    }
   }
 
   /** NewObjectExpression -> ( ) */
   private void parseNewObjectExpression() {
-      expectTokenAndConsume(Terminal.LPAREN);
-      expectTokenAndConsume(Terminal.RPAREN);
+    expectTokenAndConsume(Terminal.LPAREN);
+    expectTokenAndConsume(Terminal.RPAREN);
   }
 
   /** NewArrayExpression -> [ Expression ] ([])* */
   private void parseNewArrayExpression() {
+    expectTokenAndConsume(Terminal.LBRACKET);
+    parseExpression();
+    expectTokenAndConsume(Terminal.RBRACKET);
+    while (isCurrentTokenTypeOf(Terminal.LBRACKET) && isCurrentTokenNotTypeOf(Terminal.EOF)) {
       expectTokenAndConsume(Terminal.LBRACKET);
-      parseExpression();
       expectTokenAndConsume(Terminal.RBRACKET);
-      while(isCurrentTokenTypeOf(Terminal.LBRACKET) && isCurrentTokenNotTypeOf(Terminal.EOF)) {
-          expectTokenAndConsume(Terminal.LBRACKET);
-          expectTokenAndConsume(Terminal.RBRACKET);
-      }
+    }
   }
 }
