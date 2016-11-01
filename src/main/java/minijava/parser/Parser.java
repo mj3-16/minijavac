@@ -281,7 +281,7 @@ public class Parser {
   }
 
   private void parseExpressionWithPrecedenceClimbing(int minPrecedence) {
-    parsePrimaryExpression();
+    parseUnaryExpression();
     while (isCurrentTokenBinaryOperator()
         && isOperatorPrecedenceGreaterOrEqualThan(minPrecedence)) {
       int precedence = currentToken.terminal.getPrecedence();
