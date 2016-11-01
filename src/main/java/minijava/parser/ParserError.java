@@ -4,7 +4,7 @@ import minijava.MJError;
 
 class ParserError extends MJError {
 
-    ParserError(String message) {
-        super("ParserError:" + message);
-    }
+  ParserError(String message) {
+    super("ParserError:" + message);
+  }
 }
