@@ -50,32 +50,75 @@ public class Parser {
     expectTokenAndConsume(Terminal.EOF);
   }
 
-  /** ClassDeclaration -> class IDENT { ClassMember* } */
+  /** ClassDeclaration -> class IDENT { PublicClassMember* } */
   private void parseClassDeclaration() {
     expectTokenAndConsume(Terminal.CLASS);
     expectTokenAndConsume(Terminal.IDENT);
     expectTokenAndConsume(Terminal.LCURLY);
     while (isCurrentTokenNotTypeOf(Terminal.RCURLY) && isCurrentTokenNotTypeOf(Terminal.EOF)) {
-      parseClassMember();
+      parsePublicClassMember();
     }
     expectTokenAndConsume(Terminal.RCURLY);
   }
 
-  /** ClassMember -> Field | Method | MainMethod */
-  private void parseClassMember() {
+  /** PublicClassMember -> public ClassMember */
+  private void parsePublicClassMember() {
     expectTokenAndConsume(Terminal.PUBLIC);
-    if (isCurrentTokenTypeOf(Terminal.STATIC)) {
-
-    } else {
-      //isCurrentTokenTypeOf(Terminal)
-    }
+    parseClassMember();
   }
 
-  private void parseField() {}
+  /** ClassMember -> MainMethod | FieldOrMethod */
+  private void parseClassMember() {
+      switch(currentToken.terminal){
+          case STATIC:
+              parseMainMethod();
+              break;
+          default:
+              parseTypeIdentFieldOrMethod();
+              break;
+      }
+  }
 
-  private void parseMainMethod() {}
+  /** MainMethod -> static void IDENT ( String [] IDENT ) Block */
+  private void parseMainMethod() {
+    expectTokenAndConsume(Terminal.STATIC);
+      expectTokenAndConsume(Terminal.VOID);
+      expectTokenAndConsume(Terminal.IDENT);
+      expectTokenAndConsume(Terminal.LPAREN);
+      expectTokenAndConsume(Terminal.STRING);
+      expectTokenAndConsume(Terminal.LBRACKET);
+      expectTokenAndConsume(Terminal.RBRACKET);
+      expectTokenAndConsume(Terminal.IDENT);
+      expectTokenAndConsume(Terminal.RPAREN);
+      parseBlock();
+  }
 
-  private void parseMethod() {}
+    /** TypeIdentFieldOrMethod -> Type IDENT FieldOrMethod */
+  private void parseTypeIdentFieldOrMethod() {
+      parseType();
+      expectTokenAndConsume(Terminal.IDENT);
+      parseFieldOrMethod();
+  }
+
+  /** FieldOrMethod -> ; | Method */
+  private void parseFieldOrMethod() {
+      if(isCurrentTokenTypeOf(Terminal.SEMICOLON)) {
+          expectTokenAndConsume(Terminal.SEMICOLON);
+      }
+      else {
+          parseMethod();
+      }
+  }
+
+  /** Method -> ( Parameters? ) Block */
+  private void parseMethod() {
+    expectTokenAndConsume(Terminal.LPAREN);
+      if(isCurrentTokenNotTypeOf(Terminal.RPAREN)) {
+        parseParameters();
+      }
+      expectTokenAndConsume(Terminal.RPAREN);
+      parseBlock();
+  }
 
   /** Parameters -> Parameter | Parameter , Parameters */
   private void parseParameters() {
@@ -91,10 +134,10 @@ public class Parser {
     expectTokenAndConsume(Terminal.IDENT);
   }
 
-  /** Type -> BasicType | BasicType [] */
+  /** Type -> BasicType ([])* */
   private void parseType() {
     parseBasicType();
-    if (isCurrentTokenTypeOf(Terminal.LBRACKET)) {
+    while (isCurrentTokenTypeOf(Terminal.LBRACKET) && isCurrentTokenNotTypeOf(Terminal.EOF)) {
       expectTokenAndConsume(Terminal.LBRACKET);
       expectTokenAndConsume(Terminal.RBRACKET);
     }
@@ -136,7 +179,7 @@ public class Parser {
         parseReturnStatement();
         break;
       default:
-        parseExpression();
+        parseExpressionStatement();
         break;
     }
   }
