@@ -41,12 +41,12 @@ public class Parser {
     return false;
   }
 
-    private boolean isOperatorPrecedenceGreaterOrEqualThan(int precedence) {
-        if(currentToken.terminal.getPrecedence() >= precedence) {
-            return true;
-        }
-        return false;
+  private boolean isOperatorPrecedenceGreaterOrEqualThan(int precedence) {
+    if (currentToken.terminal.getPrecedence() >= precedence) {
+      return true;
     }
+    return false;
+  }
 
   public void parse() {
     consumeToken();
@@ -281,14 +281,15 @@ public class Parser {
   }
 
   private void parseExpressionWithPrecedenceClimbing(int minPrecedence) {
-      parsePrimaryExpression();
-      while (isCurrentTokenBinaryOperator() && isOperatorPrecedenceGreaterOrEqualThan(minPrecedence)) {
-        int precedence = currentToken.terminal.getPrecedence();
-        if(currentToken.terminal.isLeftAssociative()) {
-            precedence++;
-        }
-        consumeToken();
-        parseExpressionWithPrecedenceClimbing(precedence);
+    parsePrimaryExpression();
+    while (isCurrentTokenBinaryOperator()
+        && isOperatorPrecedenceGreaterOrEqualThan(minPrecedence)) {
+      int precedence = currentToken.terminal.getPrecedence();
+      if (currentToken.terminal.isLeftAssociative()) {
+        precedence++;
+      }
+      consumeToken();
+      parseExpressionWithPrecedenceClimbing(precedence);
     }
   }
 
