@@ -41,6 +41,13 @@ public class Parser {
     return false;
   }
 
+    private boolean isOperatorPrecedenceGreaterOrEqualThan(int precedence) {
+        if(currentToken.terminal.getPrecedence() >= precedence) {
+            return true;
+        }
+        return false;
+    }
+
   public void parse() {
     consumeToken();
     parseProgramm();
@@ -274,42 +281,16 @@ public class Parser {
   }
 
   private void parseExpressionWithPrecedenceClimbing(int minPrecedence) {
-    int result;
-    parsePrimaryExpression();
-
-    while (isCurrentTokenBinaryOperator()
-        && isOperatorPrecedenceGreaterOrEqualThan(minPrecedence)) {
-      //int precedence = currentToken
-
+      parsePrimaryExpression();
+      while (isCurrentTokenBinaryOperator() && isOperatorPrecedenceGreaterOrEqualThan(minPrecedence)) {
+        int precedence = currentToken.terminal.getPrecedence();
+        if(currentToken.terminal.isLeftAssociative()) {
+            precedence++;
+        }
+        consumeToken();
+        parseExpressionWithPrecedenceClimbing(precedence);
     }
   }
-
-  private boolean isOperatorPrecedenceGreaterOrEqualThan(int precedence) {
-    //if(currentToken.terminal)
-    return false;
-  }
-
-  /** AssignmentExpression -> LogicalOrExpression (= AssignmentExpression)? */
-  private void parseAssignmentExpression() {
-    parseLogicalOrExpression();
-    if (isCurrentTokenTypeOf(Terminal.EQUAL_SIGN)) {
-      expectTokenAndConsume(Terminal.EQUAL_SIGN);
-      parseAssignmentExpression();
-    }
-  }
-
-  /** LogicalOrExpression -> (LogicalOrExpression ||)? LogicalAndExpression */
-  private void parseLogicalOrExpression() {}
-
-  private void parseLogicalAndExpression() {}
-
-  private void parseEqualityExpression() {}
-
-  private void parseRelationalExpression() {}
-
-  private void parseAdditiveExpression() {}
-
-  private void parseMultiplicativeExpression() {}
 
   /** UnaryExpression -> PostfixExpression | (! | -) UnaryExpression */
   private void parseUnaryExpression() {
