@@ -69,55 +69,54 @@ public class Parser {
 
   /** ClassMember -> MainMethod | FieldOrMethod */
   private void parseClassMember() {
-      switch(currentToken.terminal){
-          case STATIC:
-              parseMainMethod();
-              break;
-          default:
-              parseTypeIdentFieldOrMethod();
-              break;
-      }
+    switch (currentToken.terminal) {
+      case STATIC:
+        parseMainMethod();
+        break;
+      default:
+        parseTypeIdentFieldOrMethod();
+        break;
+    }
   }
 
   /** MainMethod -> static void IDENT ( String [] IDENT ) Block */
   private void parseMainMethod() {
     expectTokenAndConsume(Terminal.STATIC);
-      expectTokenAndConsume(Terminal.VOID);
-      expectTokenAndConsume(Terminal.IDENT);
-      expectTokenAndConsume(Terminal.LPAREN);
-      expectTokenAndConsume(Terminal.STRING);
-      expectTokenAndConsume(Terminal.LBRACKET);
-      expectTokenAndConsume(Terminal.RBRACKET);
-      expectTokenAndConsume(Terminal.IDENT);
-      expectTokenAndConsume(Terminal.RPAREN);
-      parseBlock();
+    expectTokenAndConsume(Terminal.VOID);
+    expectTokenAndConsume(Terminal.IDENT);
+    expectTokenAndConsume(Terminal.LPAREN);
+    expectTokenAndConsume(Terminal.STRING);
+    expectTokenAndConsume(Terminal.LBRACKET);
+    expectTokenAndConsume(Terminal.RBRACKET);
+    expectTokenAndConsume(Terminal.IDENT);
+    expectTokenAndConsume(Terminal.RPAREN);
+    parseBlock();
   }
 
-    /** TypeIdentFieldOrMethod -> Type IDENT FieldOrMethod */
+  /** TypeIdentFieldOrMethod -> Type IDENT FieldOrMethod */
   private void parseTypeIdentFieldOrMethod() {
-      parseType();
-      expectTokenAndConsume(Terminal.IDENT);
-      parseFieldOrMethod();
+    parseType();
+    expectTokenAndConsume(Terminal.IDENT);
+    parseFieldOrMethod();
   }
 
   /** FieldOrMethod -> ; | Method */
   private void parseFieldOrMethod() {
-      if(isCurrentTokenTypeOf(Terminal.SEMICOLON)) {
-          expectTokenAndConsume(Terminal.SEMICOLON);
-      }
-      else {
-          parseMethod();
-      }
+    if (isCurrentTokenTypeOf(Terminal.SEMICOLON)) {
+      expectTokenAndConsume(Terminal.SEMICOLON);
+    } else {
+      parseMethod();
+    }
   }
 
   /** Method -> ( Parameters? ) Block */
   private void parseMethod() {
     expectTokenAndConsume(Terminal.LPAREN);
-      if(isCurrentTokenNotTypeOf(Terminal.RPAREN)) {
-        parseParameters();
-      }
-      expectTokenAndConsume(Terminal.RPAREN);
-      parseBlock();
+    if (isCurrentTokenNotTypeOf(Terminal.RPAREN)) {
+      parseParameters();
+    }
+    expectTokenAndConsume(Terminal.RPAREN);
+    parseBlock();
   }
 
   /** Parameters -> Parameter | Parameter , Parameters */
