@@ -41,7 +41,6 @@ public class SimpleLexer implements Lexer {
     keywordTerms.put(StringTable.STATIC_KEYWORD_ID, Terminal.STATIC);
     keywordTerms.put(StringTable.VOID_KEYWORD_ID, Terminal.VOID);
     keywordTerms.put(StringTable.NULL_KEYWORD_ID, Terminal.NULL);
-    keywordTerms.put(StringTable.STRING_KEYWORD_ID, Terminal.STRING);
   }
 
   private Token parseNextToken() {

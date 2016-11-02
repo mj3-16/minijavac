@@ -27,7 +27,6 @@ public class StringTable {
   public static final int STATIC_KEYWORD_ID = addDefaultString("static");
   public static final int VOID_KEYWORD_ID = addDefaultString("void");
   public static final int NULL_KEYWORD_ID = addDefaultString("null");
-  public static final int STRING_KEYWORD_ID = addDefaultString("String");
 
   static {
     setReservedIdentifiers(

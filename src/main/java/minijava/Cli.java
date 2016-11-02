@@ -28,14 +28,14 @@ class Cli {
       Joiner.on(System.lineSeparator())
           .join(
               new String[] {
-                "Usage: minijavac [--echo|--lextest] [--help] file",
+                "Usage: minijavac [--echo|--lextest|--parsetest] [--help] file",
                 "",
                 "  --echo     write file's content to stdout",
                 "  --lextest  run lexical analysis on file's content and print tokens to stdout",
                 "  --parsetest  run syntacital analysis on file's content",
                 "  --help     display this help and exit",
                 "",
-                "  One (and only one) of --echo or --lextest is required."
+                "  One (and only one) of --echo, --lextest or --parsetest is required."
               });
 
   private final PrintStream out;
@@ -160,7 +160,8 @@ class Cli {
 
     /** Returns true if the parameter values represent a valid set */
     boolean valid() {
-      return !invalid && (help || ((Booleans.countTrue(echo, lextest) == 1) && (file != null)));
+      return !invalid
+          && (help || ((Booleans.countTrue(echo, lextest, parsetest) == 1) && (file != null)));
     }
 
     static Parameters parse(String... args) {

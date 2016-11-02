@@ -26,6 +26,14 @@ public class Parser {
     consumeToken();
   }
 
+  private void expectAndConsume(Terminal terminal, String value) {
+    if (!currentToken.isTerminal(terminal) || !currentToken.hasValue(value)) {
+      throw new ParserError(
+          Thread.currentThread().getStackTrace()[2].getMethodName(), terminal, value, currentToken);
+    }
+    consumeToken();
+  }
+
   private boolean isCurrentTokenTypeOf(Terminal terminal) {
     if (currentToken.isTerminal(terminal)) {
       return true;
@@ -108,7 +116,7 @@ public class Parser {
     expectAndConsume(VOID);
     expectAndConsume(IDENT);
     expectAndConsume(LPAREN);
-    expectAndConsume(STRING);
+    expectAndConsume(IDENT, "String");
     expectAndConsume(LBRACKET);
     expectAndConsume(RBRACKET);
     expectAndConsume(IDENT);
