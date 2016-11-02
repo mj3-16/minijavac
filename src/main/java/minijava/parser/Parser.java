@@ -1,19 +1,19 @@
 package minijava.parser;
 
-import minijava.lexer.Lexer;
+import java.util.Iterator;
 import minijava.token.Terminal;
 import minijava.token.Token;
 
 public class Parser {
   private Token currentToken;
-  private Lexer lexer;
+  private Iterator<Token> tokens;
 
-  public Parser(Lexer lexer) {
-    this.lexer = lexer;
+  public Parser(Iterator<Token> tokens) {
+    this.tokens = tokens;
   }
 
   private void consumeToken() {
-    this.currentToken = lexer.next();
+    this.currentToken = tokens.next();
   }
 
   private void expectTokenAndConsume(Terminal terminal) {

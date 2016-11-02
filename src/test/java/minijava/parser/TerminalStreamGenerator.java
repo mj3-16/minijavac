@@ -19,6 +19,7 @@ public class TerminalStreamGenerator {
     return Seq.generate(() -> genClassDeclaration(random))
         .limit(status.size())
         .flatMap(cd -> cd) // No flatten?!
+        .append(EOF)
         .toList();
   }
 
@@ -288,6 +289,16 @@ public class TerminalStreamGenerator {
   // . IDENT ( Arguments )
   private static Seq<Terminal> genMethodInvocation(SourceOfRandomness random) {
     return Seq.of(DOT, IDENT, LPAREN).append(genArguments(random)).append(RPAREN);
+  }
+
+  // . IDENT
+  private static Seq<Terminal> genFieldAccess(SourceOfRandomness random) {
+    return Seq.of(DOT, IDENT);
+  }
+
+  // [ Expression ]
+  private static Seq<Terminal> genArrayAccess(SourceOfRandomness random) {
+    return Seq.of(LBRACKET).append(genExpression(random)).append(RBRACKET);
   }
 
   // (Expression (, Expression)*)?
