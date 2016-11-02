@@ -1,10 +1,10 @@
 package minijava.parser;
 
-import static minijava.token.Terminal.*;
-
 import minijava.lexer.Lexer;
 import minijava.token.Terminal;
 import minijava.token.Token;
+
+import static minijava.token.Terminal.*;
 
 public class Parser {
   private Token currentToken;
@@ -154,6 +154,7 @@ public class Parser {
   private void parseParameters() {
     parseParameter();
     if (isCurrentTokenTypeOf(COMMA)) {
+      consumeToken();
       parseParameters();
     }
   }
@@ -310,16 +311,10 @@ public class Parser {
 
   /** UnaryExpression -> PostfixExpression | (! | -) UnaryExpression */
   private void parseUnaryExpression() {
-    switch (currentToken.terminal) {
-      case INVERT:
-      case MINUS:
-        consumeToken();
-        parseUnaryExpression();
-        break;
-      default:
-        parsePostfixExpression();
-        break;
+    while (currentToken.isOneOf(INVERT, MINUS)){
+      consumeToken();
     }
+    parsePostfixExpression();
   }
 
   /** PostfixExpression -> PrimaryExpression (PostfixOp)* */
@@ -371,7 +366,8 @@ public class Parser {
   private void parseArguments() {
     if (isCurrentTokenNotTypeOf(RBRACKET)) {
       parseExpression();
-      while (isCurrentTokenTypeOf(COMMA) && isCurrentTokenNotTypeOf(EOF)) {
+      while (isCurrentTokenTypeOf(COMMA)) {
+        consumeToken();
         parseExpression();
       }
     }

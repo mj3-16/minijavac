@@ -1,12 +1,16 @@
 package minijava;
 
-import static minijava.token.Terminal.TerminalType.HIDDEN;
-
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
 import com.google.common.base.Joiner;
 import com.google.common.primitives.Booleans;
+import minijava.lexer.BasicLexerInput;
+import minijava.lexer.Lexer;
+import minijava.lexer.SimpleLexer;
+import minijava.parser.Parser;
+import minijava.token.Token;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -16,11 +20,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import minijava.lexer.BasicLexerInput;
-import minijava.lexer.Lexer;
-import minijava.lexer.SimpleLexer;
-import minijava.parser.Parser;
-import minijava.token.Token;
+
+import static minijava.token.Terminal.TerminalType.HIDDEN;
 
 class Cli {
 
