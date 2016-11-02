@@ -10,7 +10,7 @@ public class Token {
   public Token(Terminal terminal, Position position, String lexval) {
     this.terminal = terminal;
     this.position = position;
-    this.lexval = lexval;
+    this.lexval = lexval.intern();
   }
 
   public boolean isTerminal(Terminal otherTerminal) {
@@ -33,5 +33,18 @@ public class Token {
   /** Returns a string that only consists of the terminal description belonging to this token. */
   public String toSimpleString() {
     return terminal.getDescription();
+  }
+
+  public boolean isOneOf(Terminal... terminals) {
+    for (Terminal terminal1 : terminals) {
+      if (terminal == terminal1) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  public boolean hasValue(String str) {
+    return lexval.equals(str);
   }
 }

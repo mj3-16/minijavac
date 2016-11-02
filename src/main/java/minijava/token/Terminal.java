@@ -57,7 +57,6 @@ public enum Terminal {
   STATIC("static", SYNTAX_ELEMENT),
   VOID("void", TYPE),
   NULL("null", LITERAL),
-  STRING("String", TYPE),
   CLASS("class", SYNTAX_ELEMENT);
 
   public static enum TerminalType {

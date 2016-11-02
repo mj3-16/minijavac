@@ -37,19 +37,15 @@ public class TerminalStreamGenerator {
     return selectWithRandomWeight(
         random,
         tuple(0.5, TerminalStreamGenerator::genField),
-        tuple(0.4, TerminalStreamGenerator::genMethod),
-        tuple(0.1, TerminalStreamGenerator::genMainMethod));
+        tuple(0.4, TerminalStreamGenerator::genMethod));
+    // We can't really generate the identifier String without specifying a concrete Token...
+    // Fortunately, this is easy enough to test manually.
+    // tuple(0.1, TerminalStreamGenerator::genMainMethod));
   }
 
   // public Type IDENT ;
   private static Seq<Terminal> genField(SourceOfRandomness random) {
     return Seq.of(PUBLIC).append(genType(random)).append(IDENT, SEMICOLON);
-  }
-
-  // public static void IDENT ( String [ ] IDENT ) Block
-  private static Seq<Terminal> genMainMethod(SourceOfRandomness random) {
-    return Seq.of(PUBLIC, STATIC, VOID, IDENT, LPAREN, STRING, LBRACKET, RBRACKET, IDENT, RPAREN)
-        .append(genBlock(random));
   }
 
   // public Type IDENT ( Parameters? ) Block

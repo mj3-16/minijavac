@@ -41,7 +41,6 @@ public class SimpleLexer implements Lexer {
     keywordTerms.put(StringTable.STATIC_KEYWORD_ID, Terminal.STATIC);
     keywordTerms.put(StringTable.VOID_KEYWORD_ID, Terminal.VOID);
     keywordTerms.put(StringTable.NULL_KEYWORD_ID, Terminal.NULL);
-    keywordTerms.put(StringTable.STRING_KEYWORD_ID, Terminal.STRING);
   }
 
   private Token parseNextToken() {
@@ -405,26 +404,6 @@ public class SimpleLexer implements Lexer {
       }
     }
     return current;
-  }
-
-  @Override
-  public Token lookAhead(int lookAhead) {
-    if (lookAhead <= 0) {
-      return current();
-    }
-    if (current().isEOF()) {
-      return current();
-    }
-    Token curToken = current();
-    while (lookAheadBuffer.size() < lookAhead && !curToken.isEOF()) {
-      curToken = parseNextToken();
-      lookAheadBuffer.add(curToken);
-    }
-    if (lookAheadBuffer.size() >= lookAhead) {
-      return lookAheadBuffer.get(lookAhead - 1);
-    } else {
-      return lookAheadBuffer.get(lookAheadBuffer.size() - 1);
-    }
   }
 
   @Override
