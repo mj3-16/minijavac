@@ -19,6 +19,7 @@ import java.util.List;
 import minijava.lexer.BasicLexerInput;
 import minijava.lexer.Lexer;
 import minijava.lexer.SimpleLexer;
+import minijava.parser.Parser;
 import minijava.token.Token;
 
 class Cli {
@@ -31,6 +32,7 @@ class Cli {
                 "",
                 "  --echo     write file's content to stdout",
                 "  --lextest  run lexical analysis on file's content and print tokens to stdout",
+                "  --parsetest  run syntacital analysis on file's content",
                 "  --help     display this help and exit",
                 "",
                 "  One (and only one) of --echo or --lextest is required."
@@ -67,6 +69,9 @@ class Cli {
     if (params.lextest) {
       return lextest(path);
     }
+    if (params.parsetest) {
+      return parsetest(path);
+    }
     // we shouldn't get here
     throw new AssertionError();
   }
@@ -85,6 +90,20 @@ class Cli {
     try (InputStream in = Files.newInputStream(path)) {
       Lexer lexer = new SimpleLexer(new BasicLexerInput(in));
       lexer.stream().filter(t -> !t.isType(HIDDEN)).map(this::format).forEach(out::println);
+      return 0;
+    } catch (IOException e) {
+      e.printStackTrace(err);
+      return 1;
+    } catch (MJError e) {
+      err.println(e.getMessage());
+      return 1;
+    }
+  }
+
+  private int parsetest(Path path) {
+    try (InputStream in = Files.newInputStream(path)) {
+      Lexer lexer = new SimpleLexer(new BasicLexerInput(in));
+      new Parser(lexer).parse();
       return 0;
     } catch (IOException e) {
       e.printStackTrace(err);
@@ -122,6 +141,10 @@ class Cli {
     /** True if the --lextest option was set */
     @Parameter(names = "--lextest")
     boolean lextest;
+
+    /** True if the --parsetest option was set */
+    @Parameter(names = "--parsetest")
+    boolean parsetest;
 
     /** True if the --help option was set */
     @Parameter(names = "--help")

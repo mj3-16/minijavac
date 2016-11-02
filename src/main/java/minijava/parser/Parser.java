@@ -17,8 +17,8 @@ public class Parser {
   }
 
   private void expectTokenAndConsume(Terminal terminal) {
-    if (currentToken.isTerminal(terminal)) {
-      throw new ParserError("");
+    if (!currentToken.isTerminal(terminal)) {
+      throw new ParserError(terminal, currentToken);
     }
     consumeToken();
   }
