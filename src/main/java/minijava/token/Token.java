@@ -10,7 +10,7 @@ public class Token {
   public Token(Terminal terminal, Position position, String lexval) {
     this.terminal = terminal;
     this.position = position;
-    this.lexval = lexval;
+    this.lexval = lexval.intern();
   }
 
   public boolean isTerminal(Terminal otherTerminal) {
@@ -42,5 +42,9 @@ public class Token {
       }
     }
     return false;
+  }
+
+  public boolean hasValue(String str) {
+    return lexval.equals(str);
   }
 }
