@@ -1,86 +1,119 @@
 package minijava.parser;
 
 import static minijava.token.Terminal.*;
+import static org.jooq.lambda.Seq.seq;
 import static org.jooq.lambda.tuple.Tuple.tuple;
 
-import com.pholser.junit.quickcheck.generator.GenerationStatus;
 import com.pholser.junit.quickcheck.random.SourceOfRandomness;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
+import java.util.function.Consumer;
 import minijava.token.Terminal;
-import org.jooq.lambda.Seq;
 import org.jooq.lambda.tuple.Tuple2;
 
 public class TerminalStreamGenerator {
 
+  /* If we encountered this many stack overflows while
+   * generating, we try to take all shortcuts in the grammar that are possible.
+   */
+  private static final int MAX_OVERFLOWS = 50;
+  private final List<Terminal> ret = new ArrayList<>();
+  private final int sizeHint;
+  private int overflows = 0;
+
+  private TerminalStreamGenerator(int sizeHint) {
+    this.sizeHint = sizeHint;
+  }
+
   // ClassDeclaration*
-  public static List<Terminal> generateProgram(SourceOfRandomness random, GenerationStatus status) {
-    return Seq.generate(() -> genClassDeclaration(random))
-        .limit(status.size())
-        .flatMap(cd -> cd) // No flatten?!
-        .append(EOF)
-        .toList();
+  public static List<Terminal> generateProgram(SourceOfRandomness random, int sizeHint) {
+
+    TerminalStreamGenerator gen = new TerminalStreamGenerator(sizeHint);
+
+    int n = gen.nextArity(random, 10);
+    for (int i = 0; i < n; ++i) {
+      gen.genClassDeclaration(random);
+    }
+    gen.ret.add(EOF);
+
+    return gen.ret;
   }
 
   // class IDENT { ClassMember* }
-  private static Seq<Terminal> genClassDeclaration(SourceOfRandomness random) {
-    int numberOfClassMembers = random.nextInt(0, 10);
-    Seq<Terminal> classMembers =
-        Seq.generate(() -> genClassMember(random)).limit(numberOfClassMembers).flatMap(cm -> cm);
+  private void genClassDeclaration(SourceOfRandomness random) {
+    ret.add(CLASS);
+    ret.add(IDENT);
+    ret.add(LCURLY);
 
-    return Seq.of(CLASS, IDENT, LCURLY).append(classMembers).append(RCURLY);
+    int numberOfClassMembers = nextArity(random, 10);
+    for (int i = 0; i < numberOfClassMembers; ++i) {
+      genClassMember(random);
+    }
+
+    ret.add(RCURLY);
   }
 
   // Field | Method | MainMethod
-  private static Seq<Terminal> genClassMember(SourceOfRandomness random) {
-    return selectWithRandomWeight(
-        random,
-        tuple(0.5, TerminalStreamGenerator::genField),
-        tuple(0.4, TerminalStreamGenerator::genMethod));
+  private void genClassMember(SourceOfRandomness random) {
+    selectWithRandomWeight(random, tuple(0.5, this::genField), tuple(0.4, this::genMethod));
     // We can't really generate the identifier String without specifying a concrete Token...
     // Fortunately, this is easy enough to test manually.
     // tuple(0.1, TerminalStreamGenerator::genMainMethod));
   }
 
   // public Type IDENT ;
-  private static Seq<Terminal> genField(SourceOfRandomness random) {
-    return Seq.of(PUBLIC).append(genType(random)).append(IDENT, SEMICOLON);
+  private void genField(SourceOfRandomness random) {
+    ret.add(PUBLIC);
+    genType(random);
+    ret.add(IDENT);
+    ret.add(SEMICOLON);
   }
 
   // public Type IDENT ( Parameters? ) Block
-  private static Seq<Terminal> genMethod(SourceOfRandomness random) {
-    return Seq.of(PUBLIC)
-        .append(genType(random))
-        .append(IDENT, LPAREN)
-        // Inlined Parameters here, because it's easier to generate this way.
-        // (Parameter | Parameter , Parameters)?
-        .append(
-            Seq.generate(() -> genParameter(random))
-                .limit(random.nextInt(0, 4))
-                .intersperse(Seq.of(COMMA))
-                .flatMap(param -> param))
-        .append(RPAREN)
-        .append(genBlock(random));
+  private void genMethod(SourceOfRandomness random) {
+    ret.add(PUBLIC);
+    genType(random);
+    ret.add(IDENT);
+    ret.add(LPAREN);
+
+    int n = nextArity(random, 2);
+    if (n-- > 0) {
+      genParameter(random);
+      for (int i = 0; i < n; ++i) {
+        ret.add(COMMA);
+        genParameter(random);
+      }
+    }
+
+    ret.add(RPAREN);
+    genBlock(random);
   }
 
   // Type IDENT
-  private static Seq<Terminal> genParameter(SourceOfRandomness random) {
-    return genType(random).append(IDENT);
+  private void genParameter(SourceOfRandomness random) {
+    genType(random);
+    ret.add(IDENT);
   }
 
   // Type [ ] | BasicType
-  private static Seq<Terminal> genType(SourceOfRandomness random) {
-    return selectWithRandomWeight(
+  private void genType(SourceOfRandomness random) {
+    selectWithRandomWeight(
         random,
-        tuple(0.8, TerminalStreamGenerator::genBasicType),
+        tuple(0.8, this::genBasicType),
         // There won't be stack overflow with high probability :>
-        tuple(0.2, r -> genType(r).append(LBRACKET, RBRACKET)));
+        tuple(
+            0.2,
+            r -> {
+              genType(r);
+              ret.add(LBRACKET);
+              ret.add(RBRACKET);
+            }));
   }
 
   // int | boolean | void | IDENT
-  private static Seq<Terminal> genBasicType(SourceOfRandomness random) {
-    return Seq.of(random.choose(Arrays.asList(INT, BOOLEAN, VOID, IDENT)));
+  private void genBasicType(SourceOfRandomness random) {
+    ret.add(random.choose(Arrays.asList(INT, BOOLEAN, VOID, IDENT)));
   }
 
   /*
@@ -91,94 +124,147 @@ public class TerminalStreamGenerator {
   | WhileStatement
   | ReturnStatement
   */
-  private static Seq<Terminal> genStatement(SourceOfRandomness random) {
-    return selectWithRandomWeight(
+  private void genStatement(SourceOfRandomness random) {
+    selectWithRandomWeight(
         random,
-        tuple(0.1, TerminalStreamGenerator::genBlock),
-        tuple(0.1, TerminalStreamGenerator::genEmptyStatement),
-        tuple(0.2, TerminalStreamGenerator::genIfStatement),
-        tuple(0.5, TerminalStreamGenerator::genExpressionStatement),
-        tuple(0.2, TerminalStreamGenerator::genWhileStatement),
-        tuple(0.1, TerminalStreamGenerator::genReturnStatement));
+        tuple(0.1, this::genEmptyStatement),
+        tuple(1.0, this::genExpressionStatement),
+        tuple(0.1, this::genBlock),
+        tuple(0.1, this::genIfStatement),
+        tuple(0.1, this::genWhileStatement),
+        tuple(0.1, this::genReturnStatement));
   }
 
   // { BlockStatement * }
-  private static Seq<Terminal> genBlock(SourceOfRandomness random) {
-    return Seq.generate(() -> genBlockStatement(random))
-        .limit(random.nextInt(0, 10))
-        .flatMap(bs -> bs);
+  private void genBlock(SourceOfRandomness random) {
+    ret.add(LCURLY);
+    int n = nextArity(random, 3);
+    for (int i = 0; i < n; ++i) {
+      genBlockStatement(random);
+    }
+    ret.add(RCURLY);
   }
 
   // Statement | LocalVariableDeclarationStatement
-  private static Seq<Terminal> genBlockStatement(SourceOfRandomness random) {
-    return selectWithRandomWeight(
-        random,
-        tuple(0.7, TerminalStreamGenerator::genStatement),
-        tuple(0.3, TerminalStreamGenerator::genLocalVariableStatement));
+  private void genBlockStatement(SourceOfRandomness random) {
+    selectWithRandomWeight(
+        random, tuple(0.3, this::genLocalVariableStatement), tuple(0.7, this::genStatement));
   }
 
   // Type IDENT (= Expression)? ;
-  private static Seq<Terminal> genLocalVariableStatement(SourceOfRandomness random) {
-    Seq<Terminal> prefix = genType(random).append(IDENT);
-    return selectWithRandomWeight(
+  private void genLocalVariableStatement(SourceOfRandomness random) {
+    genType(random);
+    ret.add(IDENT);
+    selectWithRandomWeight(
         random,
-        tuple(0.3, r -> prefix),
-        tuple(0.7, r -> prefix.append(EQUAL_SIGN).append(genExpression(r))));
+        tuple(
+            0.4,
+            r -> {
+            }),
+        tuple(
+            0.6,
+            r -> {
+              ret.add(EQUAL_SIGN);
+              genExpression(r);
+            }));
+    ret.add(SEMICOLON);
   }
 
   // ;
-  private static Seq<Terminal> genEmptyStatement(SourceOfRandomness random) {
-    return Seq.of(SEMICOLON);
+  private void genEmptyStatement(SourceOfRandomness random) {
+    ret.add(SEMICOLON);
   }
 
   // while ( Expression ) Statement
-  private static Seq<Terminal> genWhileStatement(SourceOfRandomness random) {
-    return Seq.of(WHILE, LPAREN)
-        .append(genExpression(random))
-        .append(RPAREN)
-        .append(genStatement(random));
+  private void genWhileStatement(SourceOfRandomness random) {
+    ret.add(WHILE);
+    ret.add(LPAREN);
+    genExpression(random);
+    ret.add(RPAREN);
+    genStatement(random);
   }
 
   // if ( Expression ) Statement (else Statement)?
-  private static Seq<Terminal> genIfStatement(SourceOfRandomness random) {
-    Seq<Terminal> prefix =
-        Seq.of(IF, LPAREN)
-            .append(genExpression(random))
-            .append(RPAREN)
-            .append(genStatement(random));
+  private void genIfStatement(SourceOfRandomness random) {
+    ret.add(IF);
+    ret.add(LPAREN);
+    genExpression(random);
+    ret.add(RPAREN);
+    genStatement(random);
 
-    return selectWithRandomWeight(
+    selectWithRandomWeight(
         random,
-        tuple(0.3, r -> prefix),
-        tuple(0.7, r -> prefix.append(ELSE).append(genStatement(r))));
+        tuple(
+            0.3,
+            r -> {
+            }),
+        tuple(
+            0.7,
+            r -> {
+              ret.add(ELSE);
+              genStatement(r);
+            }));
   }
 
   // Expression ;
-  private static Seq<Terminal> genExpressionStatement(SourceOfRandomness random) {
-    return genExpression(random).append(SEMICOLON);
+  private void genExpressionStatement(SourceOfRandomness random) {
+    genExpression(random);
+    ret.add(SEMICOLON);
   }
 
   // return Expression? ;
-  private static Seq<Terminal> genReturnStatement(SourceOfRandomness random) {
-    return selectWithRandomWeight(
+  private void genReturnStatement(SourceOfRandomness random) {
+    ret.add(RETURN);
+    selectWithRandomWeight(
         random,
-        tuple(0.3, r -> Seq.of(RETURN, SEMICOLON)),
-        tuple(0.7, r -> Seq.of(RETURN).append(genExpression(r)).append(SEMICOLON)));
+        tuple(0.3, r -> ret.add(SEMICOLON)),
+        tuple(
+            0.7,
+            r -> {
+              genExpression(r);
+              ret.add(SEMICOLON);
+            }));
   }
 
   // AssignmentExpression
-  private static Seq<Terminal> genExpression(SourceOfRandomness random) {
-    return genAssignmentExpression(random);
+  private void genExpression(SourceOfRandomness random) {
+    while (true) {
+      List<Terminal> backup = new ArrayList<>(ret);
+      try {
+        genAssignmentExpression(random);
+        break;
+      } catch (StackOverflowError e) {
+        ret.clear();
+        ret.addAll(backup);
+        overflows++; // This is so that we eventually terminate. See followShortcuts().
+        // The more overflows we have, the more likely we are to just bubble up further
+        double overflowRatio =
+            1 - Math.min(1, Math.max(0, overflows / (double) (MAX_OVERFLOWS + 1)));
+        if (random.nextDouble() < overflowRatio) {
+          // Just try again
+          continue;
+        }
+        // Make more room on the stack
+        throw e;
+      }
+    }
   }
 
   // LogicalOrExpression (= AssignmentExpression)?
-  private static Seq<Terminal> genAssignmentExpression(SourceOfRandomness random) {
-    return selectWithRandomWeight(
+  private void genAssignmentExpression(SourceOfRandomness random) {
+    genLogicalOrExpression(random);
+    selectWithRandomWeight(
         random,
-        tuple(0.7, TerminalStreamGenerator::genLogicalOrExpression),
+        tuple(
+            0.7,
+            r -> {
+            }),
         tuple(
             0.3,
-            r -> genLogicalOrExpression(r).append(EQUAL_SIGN).append(genAssignmentExpression(r))));
+            r -> {
+              ret.add(EQUAL_SIGN);
+              genAssignmentExpression(r);
+            }));
   }
 
   /**
@@ -188,85 +274,92 @@ public class TerminalStreamGenerator {
    *
    * <p>So we abstract it.
    */
-  private static Seq<Terminal> chooseExpressionLike(
+  private void chooseExpressionLike(
       SourceOfRandomness random,
-      Function<SourceOfRandomness, Seq<Terminal>> nextPrecedence,
+      Consumer<SourceOfRandomness> nextPrecedence,
       Terminal... operators) {
-    final Function<SourceOfRandomness, Seq<Terminal>> recurse =
+    final Consumer<SourceOfRandomness> recurse =
         r -> chooseExpressionLike(r, nextPrecedence, operators);
-    return selectWithRandomWeight(
-        random,
-        // Drops down one level in precedence (e.g. from LogicalOrExpression to LogicalAndExpression).
-        // This is the non-recursive case, so should have a rel. high weight.
-        Seq.of(tuple(0.8, nextPrecedence))
-            .append(
-                Seq.of(operators)
-                    .map(
-                        op ->
-                            // In the other cases, we will recurse while also intercalating an operator.
-                            // Think LogicalOrExpression || LogicalAndExpression
-                            //           recurse         op     nextPrecedence
-                            tuple(
-                                0.1,
-                                r ->
-                                    recurse.apply(r).append(op).append(nextPrecedence.apply(r))))));
+
+    List<Tuple2<Double, Consumer<SourceOfRandomness>>> choices = new ArrayList<>();
+    // Drops down one level in precedence (e.g. from LogicalOrExpression to LogicalAndExpression).
+    // This is the non-recursive case, so should have a rel. high weight.
+    choices.add(tuple(2.0, nextPrecedence));
+
+    for (Terminal op : operators) {
+      choices.add(
+          tuple(
+              0.1,
+              r -> {
+                // In the other cases, we will recurse while also intercalating an operator.
+                // Think LogicalOrExpression || LogicalAndExpression
+                //           recurse         op     nextPrecedence
+                chooseExpressionLike(r, nextPrecedence, operators);
+                ret.add(op);
+                nextPrecedence.accept(r);
+              }));
+    }
+
+    selectWithRandomWeight(random, choices);
   }
 
   // (LogicalOrExpression ||)? LogicalAndExpression
-  private static Seq<Terminal> genLogicalOrExpression(SourceOfRandomness random) {
-    return chooseExpressionLike(random, TerminalStreamGenerator::genLogicalAndExpression, OR);
+  private void genLogicalOrExpression(SourceOfRandomness random) {
+    chooseExpressionLike(random, this::genLogicalAndExpression, OR);
   }
 
   // (LogicalAndExpression &&)? EqualityExpression
-  private static Seq<Terminal> genLogicalAndExpression(SourceOfRandomness random) {
-    return chooseExpressionLike(random, TerminalStreamGenerator::genEqualityExpression, AND);
+  private void genLogicalAndExpression(SourceOfRandomness random) {
+    chooseExpressionLike(random, this::genEqualityExpression, AND);
   }
 
   // (EqualityExpression (== | !=))? RelationalExpression
-  private static Seq<Terminal> genEqualityExpression(SourceOfRandomness random) {
-    return chooseExpressionLike(
-        random, TerminalStreamGenerator::genRelationalExpression, EQUALS, UNEQUALS);
+  private void genEqualityExpression(SourceOfRandomness random) {
+    chooseExpressionLike(random, this::genRelationalExpression, EQUALS, UNEQUALS);
   }
 
   // (RelationalExpression (< | <= | > | >=))? AdditiveExpression
-  private static Seq<Terminal> genRelationalExpression(SourceOfRandomness random) {
-    return chooseExpressionLike(
-        random,
-        TerminalStreamGenerator::genAdditiveExpression,
-        LOWER,
-        LOWER_EQUALS,
-        GREATER,
-        GREATER_EQUALS);
+  private void genRelationalExpression(SourceOfRandomness random) {
+    chooseExpressionLike(
+        random, this::genAdditiveExpression, LOWER, LOWER_EQUALS, GREATER, GREATER_EQUALS);
   }
 
   // (AdditiveExpression (+ | -))? MultiplicativeExpression
-  private static Seq<Terminal> genAdditiveExpression(SourceOfRandomness random) {
-    return chooseExpressionLike(
-        random, TerminalStreamGenerator::genMultiplicativeExpression, PLUS, MINUS);
+  private void genAdditiveExpression(SourceOfRandomness random) {
+    chooseExpressionLike(random, this::genMultiplicativeExpression, PLUS, MINUS);
   }
 
   // (MultiplicativeExpression (* | / | %))? UnaryExpression
-  private static Seq<Terminal> genMultiplicativeExpression(SourceOfRandomness random) {
-    return chooseExpressionLike(
-        random, TerminalStreamGenerator::genUnaryExpression, MULTIPLY, DIVIDE, MODULO);
+  private void genMultiplicativeExpression(SourceOfRandomness random) {
+    chooseExpressionLike(random, this::genUnaryExpression, MULTIPLY, DIVIDE, MODULO);
   }
 
   // PostfixExpression | (! | -) UnaryExpression
-  private static Seq<Terminal> genUnaryExpression(SourceOfRandomness random) {
-    return selectWithRandomWeight(
+  private void genUnaryExpression(SourceOfRandomness random) {
+    selectWithRandomWeight(
         random,
-        tuple(0.8, TerminalStreamGenerator::genPostfixExpression),
-        tuple(0.1, r -> Seq.of(INVERT).append(genUnaryExpression(r))),
-        tuple(0.1, r -> Seq.of(INVERT).append(genUnaryExpression(r))));
+        tuple(0.8, this::genPostfixExpression),
+        tuple(
+            0.1,
+            r -> {
+              ret.add(INVERT);
+              genUnaryExpression(r);
+            }),
+        tuple(
+            0.1,
+            r -> {
+              ret.add(INVERT);
+              genUnaryExpression(r);
+            }));
   }
 
   // PrimaryExpression (PostfixOp)*
-  private static Seq<Terminal> genPostfixExpression(SourceOfRandomness random) {
-    return genPrimaryExpression(random)
-        .append(
-            Seq.generate(() -> genPostfixOp(random))
-                .limit(random.nextInt(0, 3))
-                .flatMap(pfe -> pfe));
+  private void genPostfixExpression(SourceOfRandomness random) {
+    genPrimaryExpression(random);
+    int postfixOps = nextArity(random, 3);
+    for (int i = 0; i < postfixOps; ++i) {
+      genPostfixOp(random);
+    }
   }
 
   /*
@@ -274,34 +367,47 @@ public class TerminalStreamGenerator {
   | FieldAccess
   | ArrayAccess
    */
-  private static Seq<Terminal> genPostfixOp(SourceOfRandomness random) {
-    return selectWithRandomWeight(
+  private void genPostfixOp(SourceOfRandomness random) {
+    selectWithRandomWeight(
         random,
-        tuple(0.6, TerminalStreamGenerator::genMethodInvocation),
-        tuple(0.2, TerminalStreamGenerator::genFieldAccess),
-        tuple(0.2, TerminalStreamGenerator::genArrayAccess));
+        tuple(0.2, this::genFieldAccess),
+        tuple(0.6, this::genMethodInvocation),
+        tuple(0.2, this::genArrayAccess));
   }
 
   // . IDENT ( Arguments )
-  private static Seq<Terminal> genMethodInvocation(SourceOfRandomness random) {
-    return Seq.of(DOT, IDENT, LPAREN).append(genArguments(random)).append(RPAREN);
+  private void genMethodInvocation(SourceOfRandomness random) {
+    ret.add(DOT);
+    ret.add(IDENT);
+    ret.add(LPAREN);
+    genArguments(random);
+    ret.add(RPAREN);
   }
 
   // . IDENT
-  private static Seq<Terminal> genFieldAccess(SourceOfRandomness random) {
-    return Seq.of(DOT, IDENT);
+  private void genFieldAccess(SourceOfRandomness random) {
+    ret.add(DOT);
+    ret.add(IDENT);
   }
 
   // [ Expression ]
-  private static Seq<Terminal> genArrayAccess(SourceOfRandomness random) {
-    return Seq.of(LBRACKET).append(genExpression(random)).append(RBRACKET);
+  private void genArrayAccess(SourceOfRandomness random) {
+    ret.add(LBRACKET);
+    genExpression(random);
+    ret.add(RBRACKET);
   }
 
   // (Expression (, Expression)*)?
-  private static Seq<Terminal> genArguments(SourceOfRandomness random) {
-    return Seq.generate(() -> genExpression(random))
-        .limit(random.nextInt(0, 4))
-        .flatMap(arg -> arg);
+  private void genArguments(SourceOfRandomness random) {
+    int n = nextArity(random, 3);
+
+    if (n-- > 0) {
+      genExpression(random);
+      for (int i = 0; i < n; ++i) {
+        ret.add(COMMA);
+        genExpression(random);
+      }
+    }
   }
 
   /*
@@ -316,60 +422,105 @@ public class TerminalStreamGenerator {
   | NewObjectExpression
   | NewArrayExpression
    */
-  private static Seq<Terminal> genPrimaryExpression(SourceOfRandomness random) {
-    return selectWithRandomWeight(
+  private void genPrimaryExpression(SourceOfRandomness random) {
+    selectWithRandomWeight(
         random,
-        tuple(0.1, r -> Seq.of(NULL)),
-        tuple(0.1, r -> Seq.of(FALSE)),
-        tuple(0.1, r -> Seq.of(TRUE)),
-        tuple(0.1, r -> Seq.of(INTEGER_LITERAL)),
-        tuple(0.1, r -> Seq.of(IDENT)),
-        tuple(0.1, r -> Seq.of(IDENT, LPAREN).append(genArguments(r)).append(RPAREN)),
-        tuple(0.1, r -> Seq.of(THIS)),
-        tuple(0.1, r -> Seq.of(LPAREN).append(genExpression(r)).append(RPAREN)),
-        tuple(0.1, TerminalStreamGenerator::genNewObjectExpression),
-        tuple(0.1, TerminalStreamGenerator::genNewArrayExpression));
+        tuple(0.1, r -> ret.add(NULL)),
+        tuple(0.1, r -> ret.add(FALSE)),
+        tuple(0.1, r -> ret.add(TRUE)),
+        tuple(0.1, r -> ret.add(INTEGER_LITERAL)),
+        tuple(0.1, r -> ret.add(IDENT)),
+        tuple(
+            0.1,
+            r -> {
+              ret.add(IDENT);
+              ret.add(LPAREN);
+              genArguments(r);
+              ret.add(RPAREN);
+            }),
+        tuple(0.1, r -> ret.add(THIS)),
+        tuple(
+            0.1,
+            r -> {
+              ret.add(LPAREN);
+              genExpression(r);
+              ret.add(RPAREN);
+            }),
+        tuple(0.1, this::genNewObjectExpression),
+        tuple(0.1, this::genNewArrayExpression));
   }
 
   // new IDENT ( )
-  private static Seq<Terminal> genNewObjectExpression(SourceOfRandomness random) {
-    return Seq.of(NEW, IDENT, LPAREN, RPAREN);
+  private void genNewObjectExpression(SourceOfRandomness random) {
+    ret.add(NEW);
+    ret.add(IDENT);
+    ret.add(LPAREN);
+    ret.add(RPAREN);
   }
 
   // new BasicType [ Expression ] ([ ])*
-  private static Seq<Terminal> genNewArrayExpression(SourceOfRandomness random) {
-    return Seq.of(NEW)
-        .append(genBasicType(random))
-        .append(LBRACKET)
-        .append(genExpression(random))
-        .append(RBRACKET)
-        .append(Seq.of(LBRACKET, RBRACKET).cycle().limit(2 * random.nextInt(0, 3)));
+  private void genNewArrayExpression(SourceOfRandomness random) {
+    ret.add(NEW);
+    genBasicType(random);
+    ret.add(LBRACKET);
+    genExpression(random);
+    ret.add(RBRACKET);
+
+    int n = nextArity(random, 2);
+    for (int i = 0; i < n; ++i) {
+      ret.add(LBRACKET);
+      ret.add(RBRACKET);
+    }
   }
 
   // Convenience wrapper
   @SafeVarargs
-  private static <T> T selectWithRandomWeight(
-      SourceOfRandomness random, Tuple2<Double, Function<SourceOfRandomness, T>>... items) {
-    return selectWithRandomWeight(random, Seq.of(items));
+  private final void selectWithRandomWeight(
+      SourceOfRandomness random, Tuple2<Double, Consumer<SourceOfRandomness>>... items) {
+    selectWithRandomWeight(random, Arrays.asList(items));
   }
 
   /**
    * Draws randomly a function from a weighted sequence of items and applies @random@ to it. This
    * could be simpler and more general without the @Function@ bit, but Java's inference sucks balls.
    */
-  private static <T> T selectWithRandomWeight(
-      SourceOfRandomness random, Seq<Tuple2<Double, Function<SourceOfRandomness, T>>> items) {
-    double sumOfWeights = items.map(Tuple2::v1).sum().orElse(0.0);
+  private void selectWithRandomWeight(
+      SourceOfRandomness random, List<Tuple2<Double, Consumer<SourceOfRandomness>>> items) {
+
+    // We silently assume that the first case is always the base-case, e.g. the case breaking the loop.
+    // This way we can avoid growing the stack too deep.
+    if (followShortcuts()) {
+      seq(items).findFirst().get().v2.accept(random);
+      return;
+    }
+
+    double sumOfWeights = seq(items).map(Tuple2::v1).sum().orElse(0.0);
     double roll = random.nextDouble(0, sumOfWeights);
-    for (Tuple2<Double, Function<SourceOfRandomness, T>> item : items) {
+    for (Tuple2<Double, Consumer<SourceOfRandomness>> item : items) {
       if (roll <= item.v1) {
-        return item.v2.apply(random);
+        item.v2.accept(random);
+        return;
       }
       roll -= item.v1;
     }
 
     // This point will be reached either if rounding errors accumulated (in case we bias towards the last item)
     // or when there are no items to choose from, in which case .get() will throw.
-    return items.map(Tuple2::v2).reverse().findFirst().get().apply(random);
+    seq(items).map(Tuple2::v2).reverse().findFirst().get().accept(random);
+  }
+
+  /**
+   * Arity in the sense, that the number will be used to determine how many children to spawn. If we
+   * don't cap this at some point, chances are pretty high we will never terminate.
+   */
+  private int nextArity(SourceOfRandomness random, int max) {
+    double sizeRatio = 1 - Math.min(1, Math.max(0, ret.size() / (double) (sizeHint + 1)));
+    double overflowRatio = 1 - Math.min(1, Math.max(0, overflows / (double) (MAX_OVERFLOWS + 1)));
+    double ratio = Math.min(sizeRatio, overflowRatio);
+    return (int) (random.nextInt(0, max) * ratio);
+  }
+
+  private boolean followShortcuts() {
+    return ret.size() > sizeHint || overflows >= MAX_OVERFLOWS;
   }
 }

@@ -18,7 +18,11 @@ public class Parser {
   }
 
   private void consumeToken() {
-    this.currentToken = tokens.next();
+    if (tokens.hasNext()) {
+      this.currentToken = tokens.next();
+    } else {
+      this.currentToken = EOF_TOKEN;
+    }
   }
 
   private void expectAndConsume(Terminal terminal) {
@@ -156,8 +160,9 @@ public class Parser {
   /** Parameters -> Parameter | Parameter , Parameters */
   private void parseParameters() {
     parseParameter();
-    if (isCurrentTokenTypeOf(COMMA)) {
-      parseParameters();
+    while (isCurrentTokenTypeOf(COMMA)) {
+      expectAndConsume(COMMA);
+      parseParameter();
     }
   }
 
@@ -233,7 +238,8 @@ public class Parser {
   /** BlockStatement -> Statement | LocalVariableDeclarationStatement */
   private void parseBlockStatement() {
     if (currentToken.isOneOf(INT, BOOLEAN, VOID)
-        || matchCurrentAndLookAhead(IDENT, LBRACKET, RBRACKET)) {
+        || matchCurrentAndLookAhead(IDENT, LBRACKET, RBRACKET)
+        || matchCurrentAndLookAhead(IDENT, IDENT)) {
       parseLocalVariableDeclarationStatement();
     } else {
       parseStatement();
@@ -375,6 +381,7 @@ public class Parser {
     if (isCurrentTokenNotTypeOf(RBRACKET)) {
       parseExpression();
       while (isCurrentTokenTypeOf(COMMA) && isCurrentTokenNotTypeOf(EOF)) {
+        expectAndConsume(COMMA);
         parseExpression();
       }
     }
@@ -461,7 +468,7 @@ public class Parser {
     expectAndConsume(LBRACKET);
     parseExpression();
     expectAndConsume(RBRACKET);
-    while (isCurrentTokenTypeOf(LBRACKET) && isCurrentTokenNotTypeOf(EOF)) {
+    while (matchCurrentAndLookAhead(LBRACKET, RBRACKET)) {
       expectAndConsume(LBRACKET);
       expectAndConsume(RBRACKET);
     }
