@@ -13,23 +13,23 @@ public enum Terminal {
   EOF("eof", MISC),
   COMMENT("comment", HIDDEN),
   WS("white space", HIDDEN),
-  LOWER_EQUALS("<=", OPERATOR),
-  GREATER_EQUALS(">=", OPERATOR),
-  MODULO("%", OPERATOR),
+  LOWER_EQUALS("<=", OPERATOR, 5, true),
+  GREATER_EQUALS(">=", OPERATOR, 5, true),
+  MODULO("%", OPERATOR, 7, true),
   LBRACKET("[", SYNTAX_ELEMENT),
   RBRACKET("]", SYNTAX_ELEMENT),
-  PLUS("+", OPERATOR),
-  MINUS("-", OPERATOR),
-  DIVIDE("/", OPERATOR),
-  MULTIPLY("*", OPERATOR),
-  EQUAL_SIGN("=", OPERATOR),
-  EQUALS("==", OPERATOR),
-  UNEQUALS("!=", OPERATOR),
-  INVERT("!", OPERATOR),
-  LOWER("<", OPERATOR),
-  GREATER(">", OPERATOR),
-  AND("&&", OPERATOR),
-  OR("||", OPERATOR),
+  PLUS("+", OPERATOR, 6, true),
+  MINUS("-", OPERATOR, 6, true),
+  DIVIDE("/", OPERATOR, 7, true),
+  MULTIPLY("*", OPERATOR, 7, true),
+  EQUAL_SIGN("=", OPERATOR, 1, false),
+  EQUALS("==", OPERATOR, 4, true),
+  UNEQUALS("!=", OPERATOR, 4, true),
+  INVERT("!", OPERATOR, 0, true),
+  LOWER("<", OPERATOR, 5, true),
+  GREATER(">", OPERATOR, 5, true),
+  AND("&&", OPERATOR, 3, true),
+  OR("||", OPERATOR, 2, true),
   LPAREN("(", SYNTAX_ELEMENT),
   RPAREN(")", SYNTAX_ELEMENT),
   QUESTION_MARK("?", SYNTAX_ELEMENT),
@@ -71,11 +71,20 @@ public enum Terminal {
   }
 
   private final String description;
-  private final TerminalType type;
+  private final TerminalType terminalType;
+  private final int precedence;
+  private final boolean leftAssociative;
 
-  private Terminal(String description, TerminalType type) {
+  private Terminal(
+      String description, TerminalType terminalType, int precedence, boolean leftAssociative) {
     this.description = description;
-    this.type = type;
+    this.terminalType = terminalType;
+    this.precedence = precedence;
+    this.leftAssociative = leftAssociative;
+  }
+
+  private Terminal(String description, TerminalType terminalType) {
+    this(description, terminalType, -1, true);
   }
 
   public String getDescription() {
@@ -89,10 +98,18 @@ public enum Terminal {
   }
 
   public TerminalType getType() {
-    return type;
+    return terminalType;
   }
 
-  public boolean isType(TerminalType type) {
-    return this.type == type;
+  public boolean isType(TerminalType terminalType) {
+    return this.terminalType == terminalType;
+  }
+
+  public int getPrecedence() {
+    return this.precedence;
+  }
+
+  public boolean isLeftAssociative() {
+    return this.leftAssociative;
   }
 }
