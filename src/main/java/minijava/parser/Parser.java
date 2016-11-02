@@ -1,10 +1,10 @@
 package minijava.parser;
 
+import static minijava.token.Terminal.*;
+
 import minijava.lexer.Lexer;
 import minijava.token.Terminal;
 import minijava.token.Token;
-
-import static minijava.token.Terminal.*;
 
 public class Parser {
   private Token currentToken;
@@ -311,7 +311,7 @@ public class Parser {
 
   /** UnaryExpression -> PostfixExpression | (! | -) UnaryExpression */
   private void parseUnaryExpression() {
-    while (currentToken.isOneOf(INVERT, MINUS)){
+    while (currentToken.isOneOf(INVERT, MINUS)) {
       consumeToken();
     }
     parsePostfixExpression();
