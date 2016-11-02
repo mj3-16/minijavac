@@ -1,12 +1,16 @@
 package minijava;
 
-import static minijava.token.Terminal.TerminalType.HIDDEN;
-
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
 import com.google.common.base.Joiner;
 import com.google.common.primitives.Booleans;
+import minijava.lexer.BasicLexerInput;
+import minijava.lexer.Lexer;
+import minijava.lexer.SimpleLexer;
+import minijava.parser.Parser;
+import minijava.token.Token;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -16,11 +20,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import minijava.lexer.BasicLexerInput;
-import minijava.lexer.Lexer;
-import minijava.lexer.SimpleLexer;
-import minijava.parser.Parser;
-import minijava.token.Token;
+
+import static minijava.token.Terminal.TerminalType.HIDDEN;
 
 class Cli {
 
@@ -28,14 +29,14 @@ class Cli {
       Joiner.on(System.lineSeparator())
           .join(
               new String[] {
-                "Usage: minijavac [--echo|--lextest] [--help] file",
+                "Usage: minijavac [--echo|--lextest|--parsetest] [--help] file",
                 "",
                 "  --echo     write file's content to stdout",
                 "  --lextest  run lexical analysis on file's content and print tokens to stdout",
                 "  --parsetest  run syntacital analysis on file's content",
                 "  --help     display this help and exit",
                 "",
-                "  One (and only one) of --echo or --lextest is required."
+                "  One (and only one) of --echo, --lextest or --parsetest is required."
               });
 
   private final PrintStream out;
@@ -160,7 +161,7 @@ class Cli {
 
     /** Returns true if the parameter values represent a valid set */
     boolean valid() {
-      return !invalid && (help || ((Booleans.countTrue(echo, lextest) == 1) && (file != null)));
+      return !invalid && (help || ((Booleans.countTrue(echo, lextest, parsetest) == 1) && (file != null)));
     }
 
     static Parameters parse(String... args) {
