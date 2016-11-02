@@ -1,5 +1,7 @@
 package minijava.parser;
 
+import static minijava.token.Terminal.*;
+
 import minijava.lexer.Lexer;
 import minijava.token.Terminal;
 import minijava.token.Token;
@@ -16,9 +18,10 @@ public class Parser {
     this.currentToken = lexer.next();
   }
 
-  private void expectTokenAndConsume(Terminal terminal) {
+  private void expectAndConsume(Terminal terminal) {
     if (!currentToken.isTerminal(terminal)) {
-      throw new ParserError(terminal, currentToken);
+      throw new ParserError(
+          Thread.currentThread().getStackTrace()[2].getMethodName(), terminal, currentToken);
     }
     consumeToken();
   }
@@ -35,7 +38,7 @@ public class Parser {
   }
 
   private boolean isCurrentTokenBinaryOperator() {
-    if (currentToken.isType(Terminal.TerminalType.OPERATOR)) {
+    if (currentToken.isType(TerminalType.OPERATOR)) {
       return true;
     }
     return false;
@@ -48,6 +51,15 @@ public class Parser {
     return false;
   }
 
+  private boolean matchCurrentAndLookAhead(Terminal... terminals) {
+    for (int i = 0; i < terminals.length; i++) {
+      if (!lexer.lookAhead(i).isTerminal(terminals[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   public void parse() {
     consumeToken();
     parseProgramm();
@@ -55,26 +67,26 @@ public class Parser {
 
   /** Program -> ClassDeclaration* */
   private void parseProgramm() {
-    while (isCurrentTokenNotTypeOf(Terminal.EOF)) {
+    while (isCurrentTokenNotTypeOf(EOF)) {
       parseClassDeclaration();
     }
-    expectTokenAndConsume(Terminal.EOF);
+    expectAndConsume(EOF);
   }
 
   /** ClassDeclaration -> class IDENT { PublicClassMember* } */
   private void parseClassDeclaration() {
-    expectTokenAndConsume(Terminal.CLASS);
-    expectTokenAndConsume(Terminal.IDENT);
-    expectTokenAndConsume(Terminal.LCURLY);
-    while (isCurrentTokenNotTypeOf(Terminal.RCURLY) && isCurrentTokenNotTypeOf(Terminal.EOF)) {
+    expectAndConsume(CLASS);
+    expectAndConsume(IDENT);
+    expectAndConsume(LCURLY);
+    while (isCurrentTokenNotTypeOf(RCURLY) && isCurrentTokenNotTypeOf(EOF)) {
       parsePublicClassMember();
     }
-    expectTokenAndConsume(Terminal.RCURLY);
+    expectAndConsume(RCURLY);
   }
 
   /** PublicClassMember -> public ClassMember */
   private void parsePublicClassMember() {
-    expectTokenAndConsume(Terminal.PUBLIC);
+    expectAndConsume(PUBLIC);
     parseClassMember();
   }
 
@@ -92,29 +104,29 @@ public class Parser {
 
   /** MainMethod -> static void IDENT ( String [] IDENT ) Block */
   private void parseMainMethod() {
-    expectTokenAndConsume(Terminal.STATIC);
-    expectTokenAndConsume(Terminal.VOID);
-    expectTokenAndConsume(Terminal.IDENT);
-    expectTokenAndConsume(Terminal.LPAREN);
-    expectTokenAndConsume(Terminal.STRING);
-    expectTokenAndConsume(Terminal.LBRACKET);
-    expectTokenAndConsume(Terminal.RBRACKET);
-    expectTokenAndConsume(Terminal.IDENT);
-    expectTokenAndConsume(Terminal.RPAREN);
+    expectAndConsume(STATIC);
+    expectAndConsume(VOID);
+    expectAndConsume(IDENT);
+    expectAndConsume(LPAREN);
+    expectAndConsume(STRING);
+    expectAndConsume(LBRACKET);
+    expectAndConsume(RBRACKET);
+    expectAndConsume(IDENT);
+    expectAndConsume(RPAREN);
     parseBlock();
   }
 
   /** TypeIdentFieldOrMethod -> Type IDENT FieldOrMethod */
   private void parseTypeIdentFieldOrMethod() {
     parseType();
-    expectTokenAndConsume(Terminal.IDENT);
+    expectAndConsume(IDENT);
     parseFieldOrMethod();
   }
 
   /** FieldOrMethod -> ; | Method */
   private void parseFieldOrMethod() {
-    if (isCurrentTokenTypeOf(Terminal.SEMICOLON)) {
-      expectTokenAndConsume(Terminal.SEMICOLON);
+    if (isCurrentTokenTypeOf(SEMICOLON)) {
+      expectAndConsume(SEMICOLON);
     } else {
       parseMethod();
     }
@@ -122,18 +134,18 @@ public class Parser {
 
   /** Method -> ( Parameters? ) Block */
   private void parseMethod() {
-    expectTokenAndConsume(Terminal.LPAREN);
-    if (isCurrentTokenNotTypeOf(Terminal.RPAREN)) {
+    expectAndConsume(LPAREN);
+    if (isCurrentTokenNotTypeOf(RPAREN)) {
       parseParameters();
     }
-    expectTokenAndConsume(Terminal.RPAREN);
+    expectAndConsume(RPAREN);
     parseBlock();
   }
 
   /** Parameters -> Parameter | Parameter , Parameters */
   private void parseParameters() {
     parseParameter();
-    if (isCurrentTokenTypeOf(Terminal.COMMA)) {
+    if (isCurrentTokenTypeOf(COMMA)) {
       parseParameters();
     }
   }
@@ -141,15 +153,15 @@ public class Parser {
   /** Parameter -> Type IDENT */
   private void parseParameter() {
     parseType();
-    expectTokenAndConsume(Terminal.IDENT);
+    expectAndConsume(IDENT);
   }
 
   /** Type -> BasicType ([])* */
   private void parseType() {
     parseBasicType();
-    while (isCurrentTokenTypeOf(Terminal.LBRACKET) && isCurrentTokenNotTypeOf(Terminal.EOF)) {
-      expectTokenAndConsume(Terminal.LBRACKET);
-      expectTokenAndConsume(Terminal.RBRACKET);
+    while (isCurrentTokenTypeOf(LBRACKET) && isCurrentTokenNotTypeOf(EOF)) {
+      expectAndConsume(LBRACKET);
+      expectAndConsume(RBRACKET);
     }
   }
 
@@ -157,16 +169,16 @@ public class Parser {
   private void parseBasicType() {
     switch (currentToken.terminal) {
       case INT:
-        expectTokenAndConsume(Terminal.INT);
+        expectAndConsume(INT);
         break;
       case BOOLEAN:
-        expectTokenAndConsume(Terminal.BOOLEAN);
+        expectAndConsume(BOOLEAN);
         break;
       case VOID:
-        expectTokenAndConsume(Terminal.VOID);
+        expectAndConsume(VOID);
         break;
       case IDENT:
-        expectTokenAndConsume(Terminal.IDENT);
+        expectAndConsume(IDENT);
         break;
     }
   }
@@ -200,62 +212,57 @@ public class Parser {
 
   /** Block -> { BlockStatement* } */
   private void parseBlock() {
-    expectTokenAndConsume(Terminal.LCURLY);
-    while (isCurrentTokenNotTypeOf(Terminal.RCURLY) && isCurrentTokenNotTypeOf(Terminal.EOF)) {
+    expectAndConsume(LCURLY);
+    while (isCurrentTokenNotTypeOf(RCURLY) && isCurrentTokenNotTypeOf(EOF)) {
       parseBlockStatement();
     }
-    expectTokenAndConsume(Terminal.RCURLY);
+    expectAndConsume(RCURLY);
   }
 
   /** BlockStatement -> Statement | LocalVariableDeclarationStatement */
   private void parseBlockStatement() {
-    switch (currentToken.terminal) {
-      case INT:
-      case BOOLEAN:
-      case VOID:
-      case IDENT:
-        parseLocalVariableDeclarationStatement();
-        break;
-      default:
-        parseStatement();
-        break;
+    if (currentToken.isOneOf(INT, BOOLEAN, VOID)
+        || matchCurrentAndLookAhead(IDENT, LBRACKET, RBRACKET)) {
+      parseLocalVariableDeclarationStatement();
+    } else {
+      parseStatement();
     }
   }
 
   /** LocalVariableDeclarationStatement -> Type IDENT (= Expression)? ; */
   private void parseLocalVariableDeclarationStatement() {
     parseType();
-    expectTokenAndConsume(Terminal.IDENT);
-    if (isCurrentTokenTypeOf(Terminal.EQUAL_SIGN)) {
-      expectTokenAndConsume(Terminal.EQUAL_SIGN);
+    expectAndConsume(IDENT);
+    if (isCurrentTokenTypeOf(EQUAL_SIGN)) {
+      expectAndConsume(EQUAL_SIGN);
       parseExpression();
     }
-    expectTokenAndConsume(Terminal.SEMICOLON);
+    expectAndConsume(SEMICOLON);
   }
 
   /** EmptyStatement -> ; */
   private void parseEmptyStatement() {
-    expectTokenAndConsume(Terminal.SEMICOLON);
+    expectAndConsume(SEMICOLON);
   }
 
   /** WhileStatement -> while ( Expression ) Statement */
   private void parseWhileStatement() {
-    expectTokenAndConsume(Terminal.WHILE);
-    expectTokenAndConsume(Terminal.LPAREN);
+    expectAndConsume(WHILE);
+    expectAndConsume(LPAREN);
     parseExpression();
-    expectTokenAndConsume(Terminal.RPAREN);
+    expectAndConsume(RPAREN);
     parseStatement();
   }
 
   /** IfStatement -> if ( Expression ) Statement (else Statement)? */
   private void parseIfStatement() {
-    expectTokenAndConsume(Terminal.IF);
-    expectTokenAndConsume(Terminal.LPAREN);
+    expectAndConsume(IF);
+    expectAndConsume(LPAREN);
     parseExpression();
-    expectTokenAndConsume(Terminal.RPAREN);
+    expectAndConsume(RPAREN);
     parseStatement();
-    if (isCurrentTokenTypeOf(Terminal.ELSE)) {
-      expectTokenAndConsume(Terminal.ELSE);
+    if (isCurrentTokenTypeOf(ELSE)) {
+      expectAndConsume(ELSE);
       parseStatement();
     }
   }
@@ -263,16 +270,16 @@ public class Parser {
   /** ExpressionStatement -> Expression ; */
   private void parseExpressionStatement() {
     parseExpression();
-    expectTokenAndConsume(Terminal.SEMICOLON);
+    expectAndConsume(SEMICOLON);
   }
 
   /** ReturnStatement -> return Expression? ; */
   private void parseReturnStatement() {
-    expectTokenAndConsume(Terminal.RETURN);
-    if (isCurrentTokenNotTypeOf(Terminal.SEMICOLON)) {
+    expectAndConsume(RETURN);
+    if (isCurrentTokenNotTypeOf(SEMICOLON)) {
       parseExpression();
     }
-    expectTokenAndConsume(Terminal.SEMICOLON);
+    expectAndConsume(SEMICOLON);
   }
 
   /** Expression is parsed with Precedence Climbing */
@@ -298,6 +305,7 @@ public class Parser {
     switch (currentToken.terminal) {
       case INVERT:
       case MINUS:
+        consumeToken();
         parseUnaryExpression();
         break;
       default:
@@ -309,8 +317,8 @@ public class Parser {
   /** PostfixExpression -> PrimaryExpression (PostfixOp)* */
   private void parsePostfixExpression() {
     parsePrimaryExpression();
-    while ((isCurrentTokenTypeOf(Terminal.LBRACKET) || isCurrentTokenTypeOf(Terminal.DOT))
-        && isCurrentTokenNotTypeOf(Terminal.EOF)) {
+    while ((isCurrentTokenTypeOf(LBRACKET) || isCurrentTokenTypeOf(DOT))
+        && isCurrentTokenNotTypeOf(EOF)) {
       parsePostfixOp();
     }
   }
@@ -329,33 +337,33 @@ public class Parser {
 
   /** DotIdentFieldAccessMethodInvocation -> . IDENT (MethodInvocation)? */
   private void parseDotIdentFieldAccessMethodInvocation() {
-    expectTokenAndConsume(Terminal.DOT);
-    expectTokenAndConsume(Terminal.IDENT);
+    expectAndConsume(DOT);
+    expectAndConsume(IDENT);
     // is it FieldAccess (false) or MethodInvocation (true)?
-    if (isCurrentTokenTypeOf(Terminal.LPAREN)) {
+    if (isCurrentTokenTypeOf(LPAREN)) {
       parseMethodInvocation();
     }
   }
 
   /** MethodInvocation -> ( Arguments ) */
   private void parseMethodInvocation() {
-    expectTokenAndConsume(Terminal.LPAREN);
+    expectAndConsume(LPAREN);
     parseArguments();
-    expectTokenAndConsume(Terminal.RPAREN);
+    expectAndConsume(RPAREN);
   }
 
   /** ArrayAccess -> [ Expression ] */
   private void parseArrayAccess() {
-    expectTokenAndConsume(Terminal.LBRACKET);
+    expectAndConsume(LBRACKET);
     parseExpression();
-    expectTokenAndConsume(Terminal.RBRACKET);
+    expectAndConsume(RBRACKET);
   }
 
   /** Arguments -> (Expression (,Expression)*)? */
   private void parseArguments() {
-    if (isCurrentTokenNotTypeOf(Terminal.RBRACKET)) {
+    if (isCurrentTokenNotTypeOf(RBRACKET)) {
       parseExpression();
-      while (isCurrentTokenTypeOf(Terminal.COMMA) && isCurrentTokenNotTypeOf(Terminal.EOF)) {
+      while (isCurrentTokenTypeOf(COMMA) && isCurrentTokenNotTypeOf(EOF)) {
         parseExpression();
       }
     }
@@ -368,32 +376,32 @@ public class Parser {
   private void parsePrimaryExpression() {
     switch (currentToken.terminal) {
       case NULL:
-        expectTokenAndConsume(Terminal.NULL);
+        expectAndConsume(NULL);
         break;
       case FALSE:
-        expectTokenAndConsume(Terminal.FALSE);
+        expectAndConsume(FALSE);
         break;
       case TRUE:
-        expectTokenAndConsume(Terminal.TRUE);
+        expectAndConsume(TRUE);
         break;
       case INTEGER_LITERAL:
-        expectTokenAndConsume(Terminal.INTEGER_LITERAL);
+        expectAndConsume(INTEGER_LITERAL);
         break;
       case IDENT:
-        expectTokenAndConsume(Terminal.IDENT);
-        if (isCurrentTokenTypeOf(Terminal.LPAREN)) {
-          expectTokenAndConsume(Terminal.LPAREN);
+        expectAndConsume(IDENT);
+        if (isCurrentTokenTypeOf(LPAREN)) {
+          expectAndConsume(LPAREN);
           parseArguments();
-          expectTokenAndConsume(Terminal.RPAREN);
+          expectAndConsume(RPAREN);
         }
         break;
       case THIS:
-        expectTokenAndConsume(Terminal.THIS);
+        expectAndConsume(THIS);
         break;
       case LPAREN:
-        expectTokenAndConsume(Terminal.LPAREN);
+        expectAndConsume(LPAREN);
         parseExpression();
-        expectTokenAndConsume(Terminal.RPAREN);
+        expectAndConsume(RPAREN);
         break;
       case NEW:
         parseNewObjectArrayExpression();
@@ -403,22 +411,22 @@ public class Parser {
 
   /** NewObjectArrayExpression -> BasicType NewArrayExpression | IDENT NewObjectExpression */
   private void parseNewObjectArrayExpression() {
-    expectTokenAndConsume(Terminal.NEW);
+    expectAndConsume(NEW);
     switch (currentToken.terminal) {
       case INT:
-        expectTokenAndConsume(Terminal.INT);
+        expectAndConsume(INT);
         parseNewArrayExpression();
         break;
       case BOOLEAN:
-        expectTokenAndConsume(Terminal.BOOLEAN);
+        expectAndConsume(BOOLEAN);
         parseNewArrayExpression();
         break;
       case VOID:
-        expectTokenAndConsume(Terminal.VOID);
+        expectAndConsume(VOID);
         parseNewArrayExpression();
         break;
       case IDENT:
-        expectTokenAndConsume(Terminal.IDENT);
+        expectAndConsume(IDENT);
         switch (currentToken.terminal) {
           case LPAREN:
             parseNewObjectExpression();
@@ -433,18 +441,18 @@ public class Parser {
 
   /** NewObjectExpression -> ( ) */
   private void parseNewObjectExpression() {
-    expectTokenAndConsume(Terminal.LPAREN);
-    expectTokenAndConsume(Terminal.RPAREN);
+    expectAndConsume(LPAREN);
+    expectAndConsume(RPAREN);
   }
 
   /** NewArrayExpression -> [ Expression ] ([])* */
   private void parseNewArrayExpression() {
-    expectTokenAndConsume(Terminal.LBRACKET);
+    expectAndConsume(LBRACKET);
     parseExpression();
-    expectTokenAndConsume(Terminal.RBRACKET);
-    while (isCurrentTokenTypeOf(Terminal.LBRACKET) && isCurrentTokenNotTypeOf(Terminal.EOF)) {
-      expectTokenAndConsume(Terminal.LBRACKET);
-      expectTokenAndConsume(Terminal.RBRACKET);
+    expectAndConsume(RBRACKET);
+    while (isCurrentTokenTypeOf(LBRACKET) && isCurrentTokenNotTypeOf(EOF)) {
+      expectAndConsume(LBRACKET);
+      expectAndConsume(RBRACKET);
     }
   }
 }

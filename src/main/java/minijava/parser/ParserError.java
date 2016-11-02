@@ -11,10 +11,10 @@ class ParserError extends MJError {
     super(String.format("Parser error at %s: %s", position, message));
   }
 
-  ParserError(Terminal expectedTerminal, Token actualToken) {
+  ParserError(String rule, Terminal expectedTerminal, Token actualToken) {
     super(
         String.format(
-            "Parser error at %s: expected %s but got %s",
-            actualToken.position, expectedTerminal, actualToken));
+            "Parser error at %s parsed via %s: expected %s but got %s",
+            actualToken.position, rule, expectedTerminal, actualToken));
   }
 }

@@ -34,4 +34,13 @@ public class Token {
   public String toSimpleString() {
     return terminal.getDescription();
   }
+
+  public boolean isOneOf(Terminal... terminals) {
+    for (Terminal terminal1 : terminals) {
+      if (terminal == terminal1) {
+        return true;
+      }
+    }
+    return false;
+  }
 }
