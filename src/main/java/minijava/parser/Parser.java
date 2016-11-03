@@ -2,20 +2,27 @@ package minijava.parser;
 
 import static minijava.token.Terminal.*;
 
-import minijava.lexer.Lexer;
+import java.util.Iterator;
+import minijava.token.Position;
 import minijava.token.Terminal;
 import minijava.token.Token;
+import minijava.util.LookAheadIterator;
 
 public class Parser {
+  private static final Token EOF_TOKEN = new Token(EOF, new Position(0, 0), "");
+  private final LookAheadIterator<Token> tokens;
   private Token currentToken;
-  private Lexer lexer;
 
-  public Parser(Lexer lexer) {
-    this.lexer = lexer;
+  public Parser(Iterator<Token> tokens) {
+    this.tokens = new LookAheadIterator<>(tokens);
   }
 
   private void consumeToken() {
-    this.currentToken = lexer.next();
+    if (tokens.hasNext()) {
+      this.currentToken = tokens.next();
+    } else {
+      this.currentToken = EOF_TOKEN;
+    }
   }
 
   private void expectAndConsume(Terminal terminal) {
@@ -61,7 +68,7 @@ public class Parser {
 
   private boolean matchCurrentAndLookAhead(Terminal... terminals) {
     for (int i = 0; i < terminals.length; i++) {
-      if (!lexer.lookAhead(i).isTerminal(terminals[i])) {
+      if (!tokens.lookAhead(i).orElse(EOF_TOKEN).isTerminal(terminals[i])) {
         return false;
       }
     }
@@ -153,8 +160,9 @@ public class Parser {
   /** Parameters -> Parameter | Parameter , Parameters */
   private void parseParameters() {
     parseParameter();
-    if (isCurrentTokenTypeOf(COMMA)) {
-      parseParameters();
+    while (isCurrentTokenTypeOf(COMMA)) {
+      expectAndConsume(COMMA);
+      parseParameter();
     }
   }
 
@@ -166,6 +174,8 @@ public class Parser {
 
   /** Type -> BasicType ([])* */
   private void parseType() {
+    // Only later call is in parseLocalVariableDeclarationStatement()
+    // parseType() does not recurse however, so we are safe.
     parseBasicType();
     while (isCurrentTokenTypeOf(LBRACKET) && isCurrentTokenNotTypeOf(EOF)) {
       expectAndConsume(LBRACKET);
@@ -196,6 +206,13 @@ public class Parser {
    * ReturnStatement
    */
   private void parseStatement() {
+    // Also called from BlockStatement, IfStatement and WhileStatement.
+    // There is possibility for endless recursion here, but that's OK
+    // because it's not tail recursive (which we have to optimize away
+    // with loops). A nested sequence of blocks (e.g. {{{...{{{ ; }}}...}}})
+    // will blow the parser up and there's nothing we can do about it,
+    // except for allocating more stack space/switching to a table-based
+    // parser.
     switch (currentToken.terminal) {
       case LCURLY:
         parseBlock();
@@ -230,7 +247,8 @@ public class Parser {
   /** BlockStatement -> Statement | LocalVariableDeclarationStatement */
   private void parseBlockStatement() {
     if (currentToken.isOneOf(INT, BOOLEAN, VOID)
-        || matchCurrentAndLookAhead(IDENT, LBRACKET, RBRACKET)) {
+        || matchCurrentAndLookAhead(IDENT, LBRACKET, RBRACKET)
+        || matchCurrentAndLookAhead(IDENT, IDENT)) {
       parseLocalVariableDeclarationStatement();
     } else {
       parseStatement();
@@ -296,6 +314,8 @@ public class Parser {
   }
 
   private void parseExpressionWithPrecedenceClimbing(int minPrecedence) {
+    // This is the other method that could possibly blow up the stack,
+    // which we can do nothing about.
     parseUnaryExpression();
     while (isCurrentTokenBinaryOperator()
         && isOperatorPrecedenceGreaterOrEqualThan(minPrecedence)) {
@@ -310,16 +330,10 @@ public class Parser {
 
   /** UnaryExpression -> PostfixExpression | (! | -) UnaryExpression */
   private void parseUnaryExpression() {
-    switch (currentToken.terminal) {
-      case INVERT:
-      case MINUS:
-        consumeToken();
-        parseUnaryExpression();
-        break;
-      default:
-        parsePostfixExpression();
-        break;
+    while (currentToken.isOneOf(INVERT, MINUS)) {
+      consumeToken();
     }
+    parsePostfixExpression();
   }
 
   /** PostfixExpression -> PrimaryExpression (PostfixOp)* */
@@ -372,6 +386,7 @@ public class Parser {
     if (isCurrentTokenNotTypeOf(RBRACKET)) {
       parseExpression();
       while (isCurrentTokenTypeOf(COMMA) && isCurrentTokenNotTypeOf(EOF)) {
+        expectAndConsume(COMMA);
         parseExpression();
       }
     }
@@ -458,7 +473,7 @@ public class Parser {
     expectAndConsume(LBRACKET);
     parseExpression();
     expectAndConsume(RBRACKET);
-    while (isCurrentTokenTypeOf(LBRACKET) && isCurrentTokenNotTypeOf(EOF)) {
+    while (matchCurrentAndLookAhead(LBRACKET, RBRACKET)) {
       expectAndConsume(LBRACKET);
       expectAndConsume(RBRACKET);
     }

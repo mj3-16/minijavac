@@ -407,26 +407,6 @@ public class SimpleLexer implements Lexer {
   }
 
   @Override
-  public Token lookAhead(int lookAhead) {
-    if (lookAhead <= 0) {
-      return current();
-    }
-    if (current().isEOF()) {
-      return current();
-    }
-    Token curToken = current();
-    while (lookAheadBuffer.size() < lookAhead && !curToken.isEOF()) {
-      curToken = parseNextToken();
-      lookAheadBuffer.add(curToken);
-    }
-    if (lookAheadBuffer.size() >= lookAhead) {
-      return lookAheadBuffer.get(lookAhead - 1);
-    } else {
-      return lookAheadBuffer.get(lookAheadBuffer.size() - 1);
-    }
-  }
-
-  @Override
   public StringTable getStringTable() {
     return stringTable;
   }

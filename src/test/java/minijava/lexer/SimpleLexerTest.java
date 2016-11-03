@@ -2,9 +2,6 @@ package minijava.lexer;
 
 import static minijava.token.Terminal.*;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import minijava.MJError;
@@ -33,31 +30,6 @@ public class SimpleLexerTest {
   @Test
   public void checkInvalid() throws Exception {
     fail("ä", "/*", "`", "–", "/**", "/** *d/", "/*/");
-  }
-
-  @Test
-  public void checkSimpleLexerLookAhead_StringInput_LookAheadAndNextMethodsProvideSameTokens() {
-    String input = "if(5==5)";
-    int tokenCount = SimpleLexer.getAllTokens(input).size();
-
-    InputStream inputStream = new ByteArrayInputStream(input.getBytes());
-    BasicLexerInput lexerInput = new BasicLexerInput(inputStream);
-    SimpleLexer simpleLexer = new SimpleLexer(lexerInput);
-
-    List<Token> lookAheadTokenList = new ArrayList<>();
-    List<Token> nextTokenList = new ArrayList<>();
-    lookAheadTokenList.add(simpleLexer.current());
-    nextTokenList.add(simpleLexer.current());
-
-    for (int i = 1; i < tokenCount; i++) {
-      lookAheadTokenList.add(simpleLexer.lookAhead(i));
-    }
-
-    while (simpleLexer.hasNext()) {
-      nextTokenList.add(simpleLexer.next());
-    }
-
-    Assert.assertArrayEquals(lookAheadTokenList.toArray(), nextTokenList.toArray());
   }
 
   private void fail(String... inputs) {
