@@ -174,6 +174,8 @@ public class Parser {
 
   /** Type -> BasicType ([])* */
   private void parseType() {
+    // Only later call is in parseLocalVariableDeclarationStatement()
+    // parseType() does not recurse however, so we are safe.
     parseBasicType();
     while (isCurrentTokenTypeOf(LBRACKET) && isCurrentTokenNotTypeOf(EOF)) {
       expectAndConsume(LBRACKET);
@@ -204,6 +206,13 @@ public class Parser {
    * ReturnStatement
    */
   private void parseStatement() {
+    // Also called from BlockStatement, IfStatement and WhileStatement.
+    // There is possibility for endless recursion here, but that's OK
+    // because it's not tail recursive (which we have to optimize away
+    // with loops). A nested sequence of blocks (e.g. {{{...{{{ ; }}}...}}})
+    // will blow the parser up and there's nothing we can do about it,
+    // except for allocating more stack space/switching to a table-based
+    // parser.
     switch (currentToken.terminal) {
       case LCURLY:
         parseBlock();
@@ -305,6 +314,8 @@ public class Parser {
   }
 
   private void parseExpressionWithPrecedenceClimbing(int minPrecedence) {
+    // This is the other method that could possibly blow up the stack,
+    // which we can do nothing about.
     parseUnaryExpression();
     while (isCurrentTokenBinaryOperator()
         && isOperatorPrecedenceGreaterOrEqualThan(minPrecedence)) {
@@ -319,16 +330,10 @@ public class Parser {
 
   /** UnaryExpression -> PostfixExpression | (! | -) UnaryExpression */
   private void parseUnaryExpression() {
-    switch (currentToken.terminal) {
-      case INVERT:
-      case MINUS:
-        consumeToken();
-        parseUnaryExpression();
-        break;
-      default:
-        parsePostfixExpression();
-        break;
+    while (currentToken.isOneOf(INVERT, MINUS)) {
+      consumeToken();
     }
+    parsePostfixExpression();
   }
 
   /** PostfixExpression -> PrimaryExpression (PostfixOp)* */
