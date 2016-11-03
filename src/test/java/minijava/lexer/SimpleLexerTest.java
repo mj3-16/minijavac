@@ -2,6 +2,10 @@ package minijava.lexer;
 
 import static minijava.token.Terminal.*;
 
+import com.google.common.math.IntMath;
+import java.io.ByteArrayInputStream;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.stream.Collectors;
 import minijava.MJError;
@@ -12,6 +16,20 @@ import org.junit.Test;
 
 /** Lexer test cases */
 public class SimpleLexerTest {
+
+  @Test
+  public void lexManyConsecutiveComments_noStackoverflowOccurs() {
+    ByteBuffer input = ByteBuffer.allocate(16 * IntMath.pow(2, 20)); // 16 MiB
+    byte[] comment = "/**/".getBytes(StandardCharsets.US_ASCII);
+    while (input.limit() - input.position() >= comment.length) {
+      input.put(comment);
+    }
+    SimpleLexer lexer =
+        new SimpleLexer(new BasicLexerInput(new ByteArrayInputStream(input.array())));
+    while (lexer.hasNext()) {
+      lexer.next();
+    }
+  }
 
   @Test
   public void checkOutput() throws Exception {
