@@ -40,7 +40,19 @@ dependencies {
     testCompile 'com.google.jimfs:jimfs:1.1'
 }
 
+task syntaxTest(type: Exec) {
+    workingDir './mjtest'
+    commandLine 'python3', './mjt.py', 'syntax', '../run'
+}
+
+task astTest(type: Exec) {
+    workingDir './mjtest'
+    commandLine 'python3', './mjt.py', 'ast', '../run'
+}
+
 tasks.test.dependsOn installDist
+tasks.check.dependsOn syntaxTest
+tasks.check.dependsOn astTest
 
 task installGitHooks(type: Copy) {
     from file('git-hooks/pre-commit')

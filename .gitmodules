@@ -1,0 +1,4 @@
+[submodule "mjtest"]
+	path = mjtest
+	url = https://github.com/mj3-16/mjtest
+	branch = master
