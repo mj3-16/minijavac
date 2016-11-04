@@ -1,5 +1,7 @@
 package minijava.lexer;
 
+import static org.jooq.lambda.Seq.seq;
+
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -41,11 +43,7 @@ public class LexerRepl {
         Lexer lexer = createLexer(line);
         try {
           System.out.print(
-              "=> "
-                  + createLexer(line)
-                      .stream()
-                      .map(Token::toString)
-                      .collect(Collectors.joining(" ")));
+              "=> " + seq(createLexer(line)).map(Token::toString).collect(Collectors.joining(" ")));
         } catch (MJError ex) {
           System.out.print("Caught error: " + ex.getMessage());
         }

@@ -1,5 +1,7 @@
 package minijava;
 
+import static org.jooq.lambda.Seq.seq;
+
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
@@ -12,7 +14,6 @@ import java.util.ArrayList;
 import java.util.List;
 import minijava.lexer.BasicLexerInput;
 import minijava.lexer.Lexer;
-import minijava.lexer.SimpleLexer;
 import minijava.parser.Parser;
 import minijava.token.Token;
 
@@ -85,8 +86,8 @@ class Cli {
   }
 
   private void lextest(InputStream in) {
-    Lexer lexer = new SimpleLexer(new BasicLexerInput(in));
-    lexer.stream().map(this::format).forEach(out::println);
+    Lexer lexer = new Lexer(new BasicLexerInput(in));
+    seq(lexer).map(this::format).forEach(out::println);
   }
 
   private String format(Token t) {
@@ -107,7 +108,7 @@ class Cli {
   }
 
   private void parsetest(InputStream in) {
-    Lexer lexer = new SimpleLexer(new BasicLexerInput(in));
+    Lexer lexer = new Lexer(new BasicLexerInput(in));
     new Parser(lexer).parse();
   }
 
@@ -130,7 +131,9 @@ class Cli {
     @Parameter(names = "--help")
     boolean help;
 
-    @Parameter private List<String> mainParameters = new ArrayList<>();
+    @SuppressWarnings("MismatchedQueryAndUpdateOfCollection")
+    @Parameter
+    private List<String> mainParameters = new ArrayList<>();
 
     /** The path of the file to process, possibly relative to the current working directory */
     String file;

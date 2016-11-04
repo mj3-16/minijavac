@@ -40,7 +40,7 @@ public class SimpleLexerProperties {
     List<Terminal> cutOut = Arrays.asList(Terminal.COMMENT, Terminal.WS);
     List<Token> expected = seq(printable).filter(t -> !cutOut.contains(t.terminal)).toList();
 
-    List<Token> actual = seq(SimpleLexer.getAllTokens(input)).toList();
+    List<Token> actual = seq(Lexer.getAllTokens(input)).toList();
 
     // Some printfs for debugging:
     // System.out.println("input:    " + input);
