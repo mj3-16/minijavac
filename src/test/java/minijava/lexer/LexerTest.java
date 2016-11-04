@@ -15,7 +15,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /** Lexer test cases */
-public class SimpleLexerTest {
+public class LexerTest {
 
   @Test
   public void lexManyConsecutiveComments_noStackoverflowOccurs() {
@@ -24,8 +24,7 @@ public class SimpleLexerTest {
     while (input.limit() - input.position() >= comment.length) {
       input.put(comment);
     }
-    SimpleLexer lexer =
-        new SimpleLexer(new BasicLexerInput(new ByteArrayInputStream(input.array())));
+    Lexer lexer = new Lexer(new BasicLexerInput(new ByteArrayInputStream(input.array())));
     while (lexer.hasNext()) {
       lexer.next();
     }
@@ -53,7 +52,7 @@ public class SimpleLexerTest {
   private void fail(String... inputs) {
     for (String input : inputs) {
       try {
-        SimpleLexer.getAllTokens(input);
+        Lexer.getAllTokens(input);
       } catch (MJError error) {
         continue;
       }
@@ -63,13 +62,13 @@ public class SimpleLexerTest {
 
   private void check(String input, Terminal... expectedOutput) {
     List<Terminal> ret =
-        SimpleLexer.getAllTokens(input).stream().map(t -> t.terminal).collect(Collectors.toList());
+        Lexer.getAllTokens(input).stream().map(t -> t.terminal).collect(Collectors.toList());
     ret.remove(EOF);
     Assert.assertArrayEquals("Input: " + input, ret.toArray(new Terminal[0]), expectedOutput);
   }
 
   private void check(String input, Terminal[] expectedTerminals, String[] expectedMatchedStrings) {
-    List<Token> ret = SimpleLexer.getAllTokens(input);
+    List<Token> ret = Lexer.getAllTokens(input);
     Terminal[] terminals = new Terminal[ret.size() - 1];
     String[] matchedStrings = new String[ret.size() - 1];
     for (int i = 0; i < terminals.length; i++) {
