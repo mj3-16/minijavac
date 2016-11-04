@@ -1,19 +1,13 @@
 package minijava;
 
-import static minijava.token.Terminal.TerminalType.HIDDEN;
-
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
 import com.google.common.base.Joiner;
+import com.google.common.io.ByteStreams;
 import com.google.common.primitives.Booleans;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.PrintStream;
-import java.nio.file.FileSystem;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.*;
+import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.List;
 import minijava.lexer.BasicLexerInput;
@@ -30,10 +24,10 @@ class Cli {
               new String[] {
                 "Usage: minijavac [--echo|--lextest|--parsetest] [--help] file",
                 "",
-                "  --echo     write file's content to stdout",
-                "  --lextest  run lexical analysis on file's content and print tokens to stdout",
+                "  --echo       write file's content to stdout",
+                "  --lextest    run lexical analysis on file's content and print tokens to stdout",
                 "  --parsetest  run syntacital analysis on file's content",
-                "  --help     display this help and exit",
+                "  --help       display this help and exit",
                 "",
                 "  One (and only one) of --echo, --lextest or --parsetest is required."
               });
@@ -59,59 +53,40 @@ class Cli {
       return 0;
     }
     Path path = fileSystem.getPath(params.file);
-    if (!Files.exists(path)) {
-      err.println("File '" + params.file + "' doesn't exist!");
+    try (InputStream in = Files.newInputStream(path)) {
+      if (params.echo) {
+        echo(in);
+      } else if (params.lextest) {
+        lextest(in);
+      } else if (params.parsetest) {
+        parsetest(in);
+      }
+    } catch (AccessDeniedException e) {
+      err.println("error: access to file '" + path + "' was denied");
       return 1;
-    }
-    if (params.echo) {
-      return echo(path);
-    }
-    if (params.lextest) {
-      return lextest(path);
-    }
-    if (params.parsetest) {
-      return parsetest(path);
-    }
-    // we shouldn't get here
-    throw new AssertionError();
-  }
-
-  private int echo(Path path) {
-    try {
-      Files.copy(path, out);
-    } catch (IOException e) {
-      e.printStackTrace(err);
+    } catch (MJError e) {
+      err.println(e.getMessage());
+      return 1;
+    } catch (NoSuchFileException e) {
+      err.println("error: file '" + path + "' doesn't exist");
+      return 1;
+    } catch (Throwable t) {
+      // print full stacktrace for any other error
+      // if a better description becomes necessary,
+      // add a another more specific catch block
+      t.printStackTrace(err);
       return 1;
     }
     return 0;
   }
 
-  private int lextest(Path path) {
-    try (InputStream in = Files.newInputStream(path)) {
-      Lexer lexer = new SimpleLexer(new BasicLexerInput(in));
-      lexer.stream().filter(t -> !t.isType(HIDDEN)).map(this::format).forEach(out::println);
-      return 0;
-    } catch (IOException e) {
-      e.printStackTrace(err);
-      return 1;
-    } catch (MJError e) {
-      err.println(e.getMessage());
-      return 1;
-    }
+  private void echo(InputStream in) throws IOException {
+    ByteStreams.copy(in, out);
   }
 
-  private int parsetest(Path path) {
-    try (InputStream in = Files.newInputStream(path)) {
-      Lexer lexer = new SimpleLexer(new BasicLexerInput(in));
-      new Parser(lexer).parse();
-      return 0;
-    } catch (IOException e) {
-      e.printStackTrace(err);
-      return 1;
-    } catch (MJError e) {
-      err.println(e.getMessage());
-      return 1;
-    }
+  private void lextest(InputStream in) {
+    Lexer lexer = new SimpleLexer(new BasicLexerInput(in));
+    lexer.stream().map(this::format).forEach(out::println);
   }
 
   private String format(Token t) {
@@ -129,6 +104,11 @@ class Cli {
     }
     sb.append(t.lexval);
     return sb.toString();
+  }
+
+  private void parsetest(InputStream in) {
+    Lexer lexer = new SimpleLexer(new BasicLexerInput(in));
+    new Parser(lexer).parse();
   }
 
   private static class Parameters {
