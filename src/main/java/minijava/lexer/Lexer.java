@@ -408,7 +408,7 @@ public class Lexer implements Iterator<Token> {
 
   @Override
   public boolean hasNext() {
-    return token != null && token.isEOF();
+    return token == null || !token.isEOF();
   }
 
   @Override
