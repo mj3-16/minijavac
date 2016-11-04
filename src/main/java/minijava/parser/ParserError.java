@@ -1,5 +1,6 @@
 package minijava.parser;
 
+import java.util.Arrays;
 import minijava.MJError;
 import minijava.token.Position;
 import minijava.token.Terminal;
@@ -25,10 +26,14 @@ class ParserError extends MJError {
             actualToken.position, rule, expectedTerminal, expectedValue, actualToken));
   }
 
-  ParserError(String rule, Token unexpectedToken) {
+  ParserError(String rule, Token unexpectedToken, Terminal[] expectedTerminals) {
     super(
         String.format(
-            "Parser error at %s parsed via %s: unexpected %s with value '%s'",
-            unexpectedToken.position, rule, unexpectedToken.terminal, unexpectedToken.lexval));
+            "Parser error at %s parsed via %s: unexpected %s with value '%s' expected one of %s",
+            unexpectedToken.position,
+            rule,
+            unexpectedToken.terminal,
+            unexpectedToken.lexval,
+            Arrays.toString(expectedTerminals)));
   }
 }

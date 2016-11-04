@@ -41,8 +41,9 @@ public class Parser {
     consumeToken();
   }
 
-  private void unexpectCurrentToken() {
-    throw new ParserError(Thread.currentThread().getStackTrace()[2].getMethodName(), currentToken);
+  private void unexpectCurrentToken(Terminal... expectedTerminals) {
+    throw new ParserError(
+        Thread.currentThread().getStackTrace()[2].getMethodName(), currentToken, expectedTerminals);
   }
 
   private boolean isCurrentTokenTypeOf(Terminal terminal) {
@@ -203,7 +204,7 @@ public class Parser {
         expectAndConsume(IDENT);
         break;
       default:
-        unexpectCurrentToken();
+        unexpectCurrentToken(INT, BOOLEAN, VOID, IDENT);
     }
   }
 
@@ -361,7 +362,7 @@ public class Parser {
         parseArrayAccess();
         break;
       default:
-        unexpectCurrentToken();
+        unexpectCurrentToken(DOT, LBRACKET);
     }
   }
 
@@ -438,7 +439,7 @@ public class Parser {
         parseNewObjectArrayExpression();
         break;
       default:
-        unexpectCurrentToken();
+        unexpectCurrentToken(NULL, FALSE, TRUE, INTEGER_LITERAL, IDENT, THIS, LPAREN, NEW);
     }
   }
 
@@ -467,10 +468,12 @@ public class Parser {
           case LBRACKET:
             parseNewArrayExpression();
             break;
+          default:
+            unexpectCurrentToken(LPAREN, LBRACKET);
         }
         break;
       default:
-        unexpectCurrentToken();
+        unexpectCurrentToken(INT, BOOLEAN, VOID, IDENT);
     }
   }
 
