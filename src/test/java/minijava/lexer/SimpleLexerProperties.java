@@ -28,7 +28,6 @@ public class SimpleLexerProperties {
   public void prettyPrintingAndLexingTokenStreamIsIdentity(
       @Size(min = 0, max = 2000) List<@From(TokenGenerator.class) Token> tokens) {
 
-    StringTable strings = new StringTable();
     List<Token> printable =
         seq(tokens)
             .filter(t -> t.terminal != Terminal.EOF)
@@ -98,7 +97,6 @@ public class SimpleLexerProperties {
    * lexed as the corresponding @Terminal@.
    */
   public static class TokenGenerator extends Generator<Token> {
-    private final StringTable strings = new StringTable();
 
     public TokenGenerator() {
       super(Token.class);
@@ -108,8 +106,7 @@ public class SimpleLexerProperties {
     public Token generate(SourceOfRandomness random, GenerationStatus status) {
       Terminal[] terminals = Terminal.values();
       Terminal terminal = random.choose(terminals);
-      int content = strings.addString(generateString(terminal, random));
-      return new Token(terminal, new Position(0, 0), strings.getString(content));
+      return new Token(terminal, new Position(0, 0), generateString(terminal, random));
     }
 
     private static String generateString(Terminal t, SourceOfRandomness random) {

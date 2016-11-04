@@ -11,8 +11,6 @@ public interface Lexer extends Iterator<Token> {
   /** Get the current token. */
   Token current();
 
-  StringTable getStringTable();
-
   default Stream<Token> stream() {
     final Iterable<Token> iterable = () -> this;
     return StreamSupport.stream(iterable.spliterator(), false);
