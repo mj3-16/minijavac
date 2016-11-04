@@ -264,7 +264,7 @@ public class SimpleLexer implements Lexer {
     while (true) {
       byte cur = input.current();
       byte next = input.next();
-      if (cur <= 0 || next <= 0) {
+      if (cur < 0 || next < 0) {
         throw createError();
       }
       if (cur == '*' && next == '/') {
@@ -404,26 +404,6 @@ public class SimpleLexer implements Lexer {
       }
     }
     return current;
-  }
-
-  @Override
-  public Token lookAhead(int lookAhead) {
-    if (lookAhead <= 0) {
-      return current();
-    }
-    if (current().isEOF()) {
-      return current();
-    }
-    Token curToken = current();
-    while (lookAheadBuffer.size() < lookAhead && !curToken.isEOF()) {
-      curToken = parseNextToken();
-      lookAheadBuffer.add(curToken);
-    }
-    if (lookAheadBuffer.size() >= lookAhead) {
-      return lookAheadBuffer.get(lookAhead - 1);
-    } else {
-      return lookAheadBuffer.get(lookAheadBuffer.size() - 1);
-    }
   }
 
   @Override
