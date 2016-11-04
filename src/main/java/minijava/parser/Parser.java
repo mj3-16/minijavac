@@ -1,13 +1,12 @@
 package minijava.parser;
 
+import static minijava.token.Terminal.*;
+
+import java.util.Iterator;
 import minijava.token.Position;
 import minijava.token.Terminal;
 import minijava.token.Token;
 import minijava.util.LookAheadIterator;
-
-import java.util.Iterator;
-
-import static minijava.token.Terminal.*;
 
 public class Parser {
   private static final Token EOF_TOKEN = new Token(EOF, new Position(0, 0), "");
@@ -42,8 +41,9 @@ public class Parser {
     consumeToken();
   }
 
-  private void unexpectCurrentToken() {
-    throw new ParserError(Thread.currentThread().getStackTrace()[2].getMethodName(), currentToken);
+  private void unexpectCurrentToken(Terminal... expectedTerminals) {
+    throw new ParserError(
+        Thread.currentThread().getStackTrace()[2].getMethodName(), currentToken, expectedTerminals);
   }
 
   private boolean isCurrentTokenTypeOf(Terminal terminal) {
@@ -204,7 +204,7 @@ public class Parser {
         expectAndConsume(IDENT);
         break;
       default:
-        unexpectCurrentToken();
+        unexpectCurrentToken(INT, BOOLEAN, VOID, IDENT);
     }
   }
 
@@ -362,7 +362,7 @@ public class Parser {
         parseArrayAccess();
         break;
       default:
-        unexpectCurrentToken();
+        unexpectCurrentToken(DOT, LBRACKET);
     }
   }
 
@@ -439,7 +439,7 @@ public class Parser {
         parseNewObjectArrayExpression();
         break;
       default:
-        unexpectCurrentToken();
+        unexpectCurrentToken(NULL, FALSE, TRUE, INTEGER_LITERAL, IDENT, THIS, LPAREN, NEW);
     }
   }
 
@@ -469,11 +469,11 @@ public class Parser {
             parseNewArrayExpression();
             break;
           default:
-            unexpectCurrentToken();
+            unexpectCurrentToken(LPAREN, LBRACKET);
         }
         break;
       default:
-        unexpectCurrentToken();
+        unexpectCurrentToken(INT, BOOLEAN, VOID, IDENT);
     }
   }
 
