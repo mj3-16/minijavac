@@ -50,9 +50,12 @@ task astTest(type: Exec) {
     commandLine 'python3', './mjt.py', 'ast', '../run'
 }
 
-tasks.test.dependsOn installDist
 tasks.check.dependsOn syntaxTest
 tasks.check.dependsOn astTest
+
+tasks.test.dependsOn installDist
+tasks.syntaxTest.dependsOn installDist
+tasks.astTest.dependsOn installDist
 
 task installGitHooks(type: Copy) {
     from file('git-hooks/pre-commit')
