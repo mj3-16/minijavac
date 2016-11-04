@@ -1,12 +1,13 @@
 package minijava.parser;
 
-import static minijava.token.Terminal.*;
-
-import java.util.Iterator;
 import minijava.token.Position;
 import minijava.token.Terminal;
 import minijava.token.Token;
 import minijava.util.LookAheadIterator;
+
+import java.util.Iterator;
+
+import static minijava.token.Terminal.*;
 
 public class Parser {
   private static final Token EOF_TOKEN = new Token(EOF, new Position(0, 0), "");
@@ -467,6 +468,8 @@ public class Parser {
           case LBRACKET:
             parseNewArrayExpression();
             break;
+          default:
+            unexpectCurrentToken();
         }
         break;
       default:
