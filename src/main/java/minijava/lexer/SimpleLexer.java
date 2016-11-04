@@ -1,5 +1,6 @@
 package minijava.lexer;
 
+import static minijava.token.Terminal.COMMENT;
 import static minijava.token.Terminal.RESERVED_OPERATORS;
 
 import java.io.ByteArrayInputStream;
@@ -92,11 +93,7 @@ public class SimpleLexer implements Lexer {
         return createToken(Terminal.RBRACKET, "]");
       case '/':
         input.next();
-        Token token = parseSlash();
-        if (token != null) {
-          return token;
-        }
-        return parseNextToken();
+        return parseSlash();
       case '-':
         input.next();
         return parseMinus();
@@ -250,8 +247,7 @@ public class SimpleLexer implements Lexer {
     switch (input.current()) {
       case '*':
         input.next();
-        parseCommentRest();
-        return null;
+        return parseCommentRest();
       case '=':
         input.next();
         return createToken(RESERVED_OPERATORS, "/=");
@@ -260,7 +256,7 @@ public class SimpleLexer implements Lexer {
     }
   }
 
-  private void parseCommentRest() {
+  private Token parseCommentRest() {
     while (true) {
       byte cur = input.current();
       byte next = input.next();
@@ -269,7 +265,7 @@ public class SimpleLexer implements Lexer {
       }
       if (cur == '*' && next == '/') {
         input.next();
-        break;
+        return createToken(COMMENT, "");
       }
     }
   }
@@ -419,6 +415,9 @@ public class SimpleLexer implements Lexer {
   @Override
   public Token next() {
     current = nextToken();
+    while (current.terminal == COMMENT) {
+      current = nextToken();
+    }
     if (current.isEOF()) {
       numberOfEOFs++;
     }
