@@ -24,4 +24,11 @@ class ParserError extends MJError {
             "Parser error at %s parsed via %s: expected %s with value '%s' but got %s",
             actualToken.position, rule, expectedTerminal, expectedValue, actualToken));
   }
+
+  ParserError(String rule, Token unexpectedToken) {
+    super(
+        String.format(
+            "Parser error at %s parsed via %s: unexpected %s with value '%s'",
+            unexpectedToken.position, rule, unexpectedToken.terminal, unexpectedToken.lexval));
+  }
 }

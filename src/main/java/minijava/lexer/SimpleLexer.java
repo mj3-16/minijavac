@@ -264,7 +264,7 @@ public class SimpleLexer implements Lexer {
     while (true) {
       byte cur = input.current();
       byte next = input.next();
-      if (cur <= 0 || next <= 0) {
+      if (cur < 0 || next < 0) {
         throw createError();
       }
       if (cur == '*' && next == '/') {

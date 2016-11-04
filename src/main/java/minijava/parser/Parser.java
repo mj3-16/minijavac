@@ -41,6 +41,10 @@ public class Parser {
     consumeToken();
   }
 
+  private void unexpectCurrentToken() {
+    throw new ParserError(Thread.currentThread().getStackTrace()[2].getMethodName(), currentToken);
+  }
+
   private boolean isCurrentTokenTypeOf(Terminal terminal) {
     if (currentToken.isTerminal(terminal)) {
       return true;
@@ -198,6 +202,8 @@ public class Parser {
       case IDENT:
         expectAndConsume(IDENT);
         break;
+      default:
+        unexpectCurrentToken();
     }
   }
 
@@ -354,6 +360,8 @@ public class Parser {
       case LBRACKET:
         parseArrayAccess();
         break;
+      default:
+        unexpectCurrentToken();
     }
   }
 
@@ -383,7 +391,7 @@ public class Parser {
 
   /** Arguments -> (Expression (,Expression)*)? */
   private void parseArguments() {
-    if (isCurrentTokenNotTypeOf(RBRACKET)) {
+    if (isCurrentTokenNotTypeOf(RPAREN)) {
       parseExpression();
       while (isCurrentTokenTypeOf(COMMA) && isCurrentTokenNotTypeOf(EOF)) {
         expectAndConsume(COMMA);
@@ -429,6 +437,8 @@ public class Parser {
       case NEW:
         parseNewObjectArrayExpression();
         break;
+      default:
+        unexpectCurrentToken();
     }
   }
 
@@ -459,6 +469,8 @@ public class Parser {
             break;
         }
         break;
+      default:
+        unexpectCurrentToken();
     }
   }
 
