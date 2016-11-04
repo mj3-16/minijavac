@@ -3,4 +3,4 @@
 # Format code using google-java-format
 echo "pre-commit code format"
 ./gradlew googleJavaFormat
-git add `git diff --cached --name-only`
+git add `git diff --cached --name-only | xargs -I {} sh -c "test -f {} && echo {}"`

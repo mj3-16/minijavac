@@ -7,7 +7,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import java.io.ByteArrayInputStream;
-import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
@@ -20,18 +19,16 @@ import minijava.token.Token;
 /** SLL(1) parser style lexer implementation. */
 public class Lexer implements Iterator<Token> {
 
-  private LexerInput input;
-  private Token current = null;
+  private final LexerInput input;
+  private Token token;
   private Position position;
-  private List<Token> lookAheadBuffer = new ArrayList<>();
-  private int numberOfEOFs = 0;
 
   static final ImmutableMap<String, Terminal> keywords =
       Maps.uniqueIndex(
           EnumSet.of(
               BOOLEAN, CLASS, ELSE, FALSE, IF, INT, NEW, NULL, PUBLIC, RETURN, STATIC, THIS, TRUE,
               VOID, WHILE),
-          token -> token.getDescription());
+          Terminal::getDescription);
 
   static final ImmutableSet<String> reservedIdentifiers =
       ImmutableSet.of(
@@ -409,34 +406,24 @@ public class Lexer implements Iterator<Token> {
     return new Token(terminal, position, content);
   }
 
-  private Token nextToken() {
-    if (current != null && current.isEOF()) {
-      return current;
-    }
-    if (lookAheadBuffer.size() > 0) {
-      current = lookAheadBuffer.get(0);
-      lookAheadBuffer.remove(0);
-    } else {
-      current = parseNextToken();
-    }
-    return current;
-  }
-
   @Override
   public boolean hasNext() {
-    return numberOfEOFs < 1;
+    return token != null && token.isEOF();
   }
 
   @Override
   public Token next() {
-    current = nextToken();
-    while (current.terminal == COMMENT) {
-      current = nextToken();
-    }
-    if (current.isEOF()) {
-      numberOfEOFs++;
-    }
-    return current;
+    do {
+      if (token != null && token.isEOF()) {
+        // In case we are at the EOF, we just keep returning that
+        return token;
+      }
+      // otherwise keep reading in the next token
+      token = parseNextToken();
+      // ... as long as we are hitting comments.
+    } while (token.terminal == COMMENT);
+
+    return token;
   }
 
   public static List<Token> getAllTokens(String input) {
