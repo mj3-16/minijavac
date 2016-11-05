@@ -38,11 +38,10 @@ public class LexerTest {
     String[] inputs = {"ä", "/*", "`", "–", "/**", "/** *d/", "/*/"};
     for (String input : inputs) {
       try {
-        Lexer l = new Lexer(input);
+        Lexer l = new Lexer(input.getBytes(StandardCharsets.UTF_8));
         while (l.hasNext()) {
           l.next();
         }
-        ;
       } catch (MJError e) {
         continue;
       }
