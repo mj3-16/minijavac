@@ -90,22 +90,7 @@ class Cli {
 
   private void lextest(InputStream in) {
     Lexer lexer = new Lexer(new BasicLexerInput(in));
-    seq(lexer).map(this::format).forEach(out::println);
-  }
-
-  private String format(Token t) {
-    switch (t.terminal) {
-      case IDENT:
-        return "identifier " + t.lexval;
-      case INTEGER_LITERAL:
-        return "integer literal " + t.lexval;
-      case RESERVED:
-        return t.lexval;
-      case EOF:
-        return "EOF";
-      default:
-        return t.terminal.string.get();
-    }
+    seq(lexer).map(Token::toString).forEach(out::println);
   }
 
   private void parsetest(InputStream in) {

@@ -3,8 +3,6 @@ package minijava.token;
 import static minijava.token.Terminal.Associativity.LEFT;
 import static minijava.token.Terminal.Associativity.RIGHT;
 
-import java.util.Optional;
-
 /** Enum of terminals used by the Lexer. */
 public enum Terminal {
 
@@ -26,31 +24,31 @@ public enum Terminal {
   WHILE("while"),
 
   // operators
-  INVERT("!", LEFT, 0),
-  EQUAL_SIGN("=", RIGHT, 1),
+  NOT("!", LEFT, 0),
+  ASSIGN("=", RIGHT, 1),
   OR("||", LEFT, 2),
   AND("&&", LEFT, 3),
-  EQUALS("==", LEFT, 4),
-  UNEQUALS("!=", LEFT, 4),
-  LOWER("<", LEFT, 5),
-  LOWER_EQUALS("<=", LEFT, 5),
-  GREATER(">", LEFT, 5),
-  GREATER_EQUALS(">=", LEFT, 5),
-  PLUS("+", LEFT, 6),
-  MINUS("-", LEFT, 6),
-  MULTIPLY("*", LEFT, 7),
-  DIVIDE("/", LEFT, 7),
-  MODULO("%", LEFT, 7),
+  EQL("==", LEFT, 4),
+  NEQ("!=", LEFT, 4),
+  LSS("<", LEFT, 5),
+  LEQ("<=", LEFT, 5),
+  GTR(">", LEFT, 5),
+  GEQ(">=", LEFT, 5),
+  ADD("+", LEFT, 6),
+  SUB("-", LEFT, 6),
+  MUL("*", LEFT, 7),
+  DIV("/", LEFT, 7),
+  MOD("%", LEFT, 7),
 
   // separators
   LPAREN("("),
   RPAREN(")"),
-  LBRACKET("["),
-  RBRACKET("]"),
-  LCURLY("{"),
-  RCURLY("}"),
-  DOT("."),
+  LBRACK("["),
+  RBRACK("]"),
+  LBRACE("{"),
+  RBRACE("}"),
   COMMA(","),
+  PERIOD("."),
   SEMICOLON(";"),
 
   // with dynamic string values (lexval in Token is not null for tokens of this types)
@@ -71,15 +69,15 @@ public enum Terminal {
     RIGHT
   }
 
-  public final Optional<String> string;
-  final Optional<Associativity> associativity;
-  final Optional<Integer> precedence;
+  public final String string;
+  final Associativity associativity;
+  final Integer precedence;
 
   Terminal(String string, Associativity associativity, Integer precedence) {
-    this.string = Optional.ofNullable(string);
-    this.associativity = Optional.ofNullable(associativity);
-    this.precedence = Optional.ofNullable(precedence);
-    assert this.associativity.isPresent() == this.precedence.isPresent();
+    assert (associativity == null) == (precedence == null);
+    this.string = string;
+    this.associativity = associativity;
+    this.precedence = precedence;
   }
 
   Terminal(String string) {

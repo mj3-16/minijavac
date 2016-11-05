@@ -49,15 +49,15 @@ public class LexerTest {
   public void lexValidInput_expectedTokensEmitted() throws Exception {
     ImmutableMultimap<String, Terminal> inputAndOutput =
         new ImmutableMultimap.Builder<String, Terminal>()
-            .put("!", INVERT)
+            .put("!", NOT)
             .put("catch", RESERVED)
             .put("const", RESERVED)
-            .put("!=", UNEQUALS)
+            .put("!=", NEQ)
             .put("|=", RESERVED)
             .put("^=", RESERVED)
             .put("%=", RESERVED)
             .put("_volatile", IDENT)
-            .putAll("*abc", MULTIPLY, IDENT)
+            .putAll("*abc", MUL, IDENT)
             .build();
 
     for (Map.Entry<String, Collection<Terminal>> e : inputAndOutput.asMap().entrySet()) {

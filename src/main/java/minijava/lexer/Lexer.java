@@ -28,7 +28,7 @@ public class Lexer implements Iterator<Token> {
           EnumSet.of(
               BOOLEAN, CLASS, ELSE, FALSE, IF, INT, NEW, NULL, PUBLIC, RETURN, STATIC, THIS, TRUE,
               VOID, WHILE),
-          terminal -> terminal.string.get());
+          t -> t.string);
 
   static final ImmutableSet<String> reservedIdentifiers =
       ImmutableSet.of(
@@ -118,10 +118,10 @@ public class Lexer implements Iterator<Token> {
         return createToken(SEMICOLON);
       case '[':
         input.next();
-        return createToken(LBRACKET);
+        return createToken(LBRACK);
       case ']':
         input.next();
-        return createToken(RBRACKET);
+        return createToken(RBRACK);
       case '/':
         input.next();
         return parseSlash();
@@ -130,10 +130,10 @@ public class Lexer implements Iterator<Token> {
         return parseMinus();
       case '{':
         input.next();
-        return createToken(LCURLY);
+        return createToken(LBRACE);
       case '}':
         input.next();
-        return createToken(RCURLY);
+        return createToken(RBRACE);
       case ':':
         input.next();
         return createToken(COLON);
@@ -145,7 +145,7 @@ public class Lexer implements Iterator<Token> {
         return parseModulo();
       case '.':
         input.next();
-        return createToken(DOT);
+        return createToken(PERIOD);
       case '<':
         input.next();
         return parseLower();
@@ -191,9 +191,9 @@ public class Lexer implements Iterator<Token> {
     switch (input.current()) {
       case '=':
         input.next();
-        return createToken(UNEQUALS);
+        return createToken(NEQ);
       default:
-        return createToken(INVERT);
+        return createToken(NOT);
     }
   }
 
@@ -213,7 +213,7 @@ public class Lexer implements Iterator<Token> {
         input.next();
         return createToken(RESERVED, "%=");
       default:
-        return createToken(MODULO);
+        return createToken(MOD);
     }
   }
 
@@ -242,7 +242,7 @@ public class Lexer implements Iterator<Token> {
         input.next();
         return createToken(RESERVED, "+=");
       default:
-        return createToken(PLUS);
+        return createToken(ADD);
     }
   }
 
@@ -268,9 +268,9 @@ public class Lexer implements Iterator<Token> {
         }
       case '=':
         input.next();
-        return createToken(GREATER_EQUALS);
+        return createToken(GEQ);
       default:
-        return createToken(GREATER);
+        return createToken(GTR);
     }
   }
 
@@ -283,7 +283,7 @@ public class Lexer implements Iterator<Token> {
         input.next();
         return createToken(RESERVED, "/=");
       default:
-        return createToken(DIVIDE);
+        return createToken(DIV);
     }
   }
 
@@ -310,7 +310,7 @@ public class Lexer implements Iterator<Token> {
         input.next();
         return createToken(RESERVED, "--");
       default:
-        return createToken(MINUS);
+        return createToken(SUB);
     }
   }
 
@@ -327,9 +327,9 @@ public class Lexer implements Iterator<Token> {
         }
       case '=':
         input.next();
-        return createToken(LOWER_EQUALS);
+        return createToken(LEQ);
       default:
-        return createToken(LOWER);
+        return createToken(LSS);
     }
   }
 
@@ -337,9 +337,9 @@ public class Lexer implements Iterator<Token> {
     switch (input.current()) {
       case '=':
         input.next();
-        return createToken(EQUALS);
+        return createToken(EQL);
       default:
-        return createToken(EQUAL_SIGN);
+        return createToken(ASSIGN);
     }
   }
 
@@ -362,7 +362,7 @@ public class Lexer implements Iterator<Token> {
         input.next();
         return createToken(RESERVED, "*=");
       default:
-        return createToken(MULTIPLY);
+        return createToken(MUL);
     }
   }
 

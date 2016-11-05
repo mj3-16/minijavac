@@ -98,11 +98,11 @@ public class Parser {
   private void parseClassDeclaration() {
     expectAndConsume(CLASS);
     expectAndConsume(IDENT);
-    expectAndConsume(LCURLY);
-    while (isCurrentTokenNotTypeOf(RCURLY) && isCurrentTokenNotTypeOf(EOF)) {
+    expectAndConsume(LBRACE);
+    while (isCurrentTokenNotTypeOf(RBRACE) && isCurrentTokenNotTypeOf(EOF)) {
       parsePublicClassMember();
     }
-    expectAndConsume(RCURLY);
+    expectAndConsume(RBRACE);
   }
 
   /** PublicClassMember -> public ClassMember */
@@ -130,8 +130,8 @@ public class Parser {
     expectAndConsume(IDENT);
     expectAndConsume(LPAREN);
     expectAndConsume(IDENT, "String");
-    expectAndConsume(LBRACKET);
-    expectAndConsume(RBRACKET);
+    expectAndConsume(LBRACK);
+    expectAndConsume(RBRACK);
     expectAndConsume(IDENT);
     expectAndConsume(RPAREN);
     parseBlock();
@@ -183,9 +183,9 @@ public class Parser {
     // Only later call is in parseLocalVariableDeclarationStatement()
     // parseType() does not recurse however, so we are safe.
     parseBasicType();
-    while (isCurrentTokenTypeOf(LBRACKET) && isCurrentTokenNotTypeOf(EOF)) {
-      expectAndConsume(LBRACKET);
-      expectAndConsume(RBRACKET);
+    while (isCurrentTokenTypeOf(LBRACK) && isCurrentTokenNotTypeOf(EOF)) {
+      expectAndConsume(LBRACK);
+      expectAndConsume(RBRACK);
     }
   }
 
@@ -222,7 +222,7 @@ public class Parser {
     // except for allocating more stack space/switching to a table-based
     // parser.
     switch (currentToken.terminal) {
-      case LCURLY:
+      case LBRACE:
         parseBlock();
         break;
       case SEMICOLON:
@@ -245,17 +245,17 @@ public class Parser {
 
   /** Block -> { BlockStatement* } */
   private void parseBlock() {
-    expectAndConsume(LCURLY);
-    while (isCurrentTokenNotTypeOf(RCURLY) && isCurrentTokenNotTypeOf(EOF)) {
+    expectAndConsume(LBRACE);
+    while (isCurrentTokenNotTypeOf(RBRACE) && isCurrentTokenNotTypeOf(EOF)) {
       parseBlockStatement();
     }
-    expectAndConsume(RCURLY);
+    expectAndConsume(RBRACE);
   }
 
   /** BlockStatement -> Statement | LocalVariableDeclarationStatement */
   private void parseBlockStatement() {
     if (currentToken.isOneOf(INT, BOOLEAN, VOID)
-        || matchCurrentAndLookAhead(IDENT, LBRACKET, RBRACKET)
+        || matchCurrentAndLookAhead(IDENT, LBRACK, RBRACK)
         || matchCurrentAndLookAhead(IDENT, IDENT)) {
       parseLocalVariableDeclarationStatement();
     } else {
@@ -267,8 +267,8 @@ public class Parser {
   private void parseLocalVariableDeclarationStatement() {
     parseType();
     expectAndConsume(IDENT);
-    if (isCurrentTokenTypeOf(EQUAL_SIGN)) {
-      expectAndConsume(EQUAL_SIGN);
+    if (isCurrentTokenTypeOf(ASSIGN)) {
+      expectAndConsume(ASSIGN);
       parseExpression();
     }
     expectAndConsume(SEMICOLON);
@@ -338,7 +338,7 @@ public class Parser {
 
   /** UnaryExpression -> PostfixExpression | (! | -) UnaryExpression */
   private void parseUnaryExpression() {
-    while (currentToken.isOneOf(INVERT, MINUS)) {
+    while (currentToken.isOneOf(NOT, SUB)) {
       consumeToken();
     }
     parsePostfixExpression();
@@ -347,7 +347,7 @@ public class Parser {
   /** PostfixExpression -> PrimaryExpression (PostfixOp)* */
   private void parsePostfixExpression() {
     parsePrimaryExpression();
-    while ((isCurrentTokenTypeOf(LBRACKET) || isCurrentTokenTypeOf(DOT))
+    while ((isCurrentTokenTypeOf(LBRACK) || isCurrentTokenTypeOf(PERIOD))
         && isCurrentTokenNotTypeOf(EOF)) {
       parsePostfixOp();
     }
@@ -356,20 +356,20 @@ public class Parser {
   /** PostfixOp -> MethodInvocation | FieldAccess | ArrayAccess */
   private void parsePostfixOp() {
     switch (currentToken.terminal) {
-      case DOT:
+      case PERIOD:
         parseDotIdentFieldAccessMethodInvocation();
         break;
-      case LBRACKET:
+      case LBRACK:
         parseArrayAccess();
         break;
       default:
-        unexpectCurrentToken(DOT, LBRACKET);
+        unexpectCurrentToken(PERIOD, LBRACK);
     }
   }
 
   /** DotIdentFieldAccessMethodInvocation -> . IDENT (MethodInvocation)? */
   private void parseDotIdentFieldAccessMethodInvocation() {
-    expectAndConsume(DOT);
+    expectAndConsume(PERIOD);
     expectAndConsume(IDENT);
     // is it FieldAccess (false) or MethodInvocation (true)?
     if (isCurrentTokenTypeOf(LPAREN)) {
@@ -386,9 +386,9 @@ public class Parser {
 
   /** ArrayAccess -> [ Expression ] */
   private void parseArrayAccess() {
-    expectAndConsume(LBRACKET);
+    expectAndConsume(LBRACK);
     parseExpression();
-    expectAndConsume(RBRACKET);
+    expectAndConsume(RBRACK);
   }
 
   /** Arguments -> (Expression (,Expression)*)? */
@@ -466,11 +466,11 @@ public class Parser {
           case LPAREN:
             parseNewObjectExpression();
             break;
-          case LBRACKET:
+          case LBRACK:
             parseNewArrayExpression();
             break;
           default:
-            unexpectCurrentToken(LPAREN, LBRACKET);
+            unexpectCurrentToken(LPAREN, LBRACK);
         }
         break;
       default:
@@ -486,12 +486,12 @@ public class Parser {
 
   /** NewArrayExpression -> [ Expression ] ([])* */
   private void parseNewArrayExpression() {
-    expectAndConsume(LBRACKET);
+    expectAndConsume(LBRACK);
     parseExpression();
-    expectAndConsume(RBRACKET);
-    while (matchCurrentAndLookAhead(LBRACKET, RBRACKET)) {
-      expectAndConsume(LBRACKET);
-      expectAndConsume(RBRACKET);
+    expectAndConsume(RBRACK);
+    while (matchCurrentAndLookAhead(LBRACK, RBRACK)) {
+      expectAndConsume(LBRACK);
+      expectAndConsume(RBRACK);
     }
   }
 }

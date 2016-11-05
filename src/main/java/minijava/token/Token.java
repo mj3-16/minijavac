@@ -1,6 +1,7 @@
 package minijava.token;
 
-import static minijava.token.Terminal.*;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static minijava.token.Terminal.Associativity;
 
 import java.util.Arrays;
 import org.jetbrains.annotations.Nullable;
@@ -13,58 +14,46 @@ public class Token {
   public final String lexval;
 
   public Token(Terminal terminal, Position position, @Nullable String lexval) {
-    this.terminal = terminal;
-    this.position = position;
+    this.terminal = checkNotNull(terminal);
+    this.position = checkNotNull(position);
     this.lexval = lexval == null ? null : lexval.intern();
+  }
+
+  public boolean isOperator() {
+    return terminal.associativity != null;
+  }
+
+  public Associativity associativity() {
+    if (terminal.associativity == null) {
+      throw new UnsupportedOperationException(terminal + " has no associativity");
+    }
+    return terminal.associativity;
+  }
+
+  public int precedence() {
+    if (terminal.precedence == null) {
+      throw new UnsupportedOperationException(terminal + " has no precedence");
+    }
+    return terminal.precedence;
+  }
+
+  public boolean isOneOf(Terminal... terminals) {
+    return Arrays.stream(terminals).anyMatch(t -> t == this.terminal);
   }
 
   @Override
   public String toString() {
-    StringBuilder sb = new StringBuilder();
-    sb.append(position.toString());
-    sb.append(" ");
     switch (terminal) {
       case IDENT:
-        sb.append("identifier (");
-        sb.append(lexval);
-        sb.append(")");
-        break;
+        return "identifier " + lexval;
       case INTEGER_LITERAL:
-        sb.append("integer literal (");
-        sb.append(lexval);
-        sb.append(")");
-        break;
+        return "integer literal " + lexval;
       case RESERVED:
-        sb.append(lexval);
-        break;
+        return lexval;
       case EOF:
-        sb.append("EOF");
-        break;
+        return "EOF";
       default:
-        sb.append(terminal.string.get());
+        return terminal.string;
     }
-    return sb.toString();
-  }
-
-  public boolean isOneOf(Terminal... terminals) {
-    return Arrays.stream(terminals).anyMatch(t -> terminal == t);
-  }
-
-  public boolean isOperator() {
-    return terminal.precedence.isPresent();
-  }
-
-  public int precedence() {
-    if (!terminal.precedence.isPresent()) {
-      throw new UnsupportedOperationException(terminal + " has no precedence");
-    }
-    return terminal.precedence.get();
-  }
-
-  public Associativity associativity() {
-    if (!terminal.associativity.isPresent()) {
-      throw new UnsupportedOperationException(terminal + " has no associativity");
-    }
-    return terminal.associativity.get();
   }
 }
