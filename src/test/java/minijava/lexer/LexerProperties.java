@@ -23,7 +23,7 @@ import org.junit.Assert;
 import org.junit.runner.RunWith;
 
 @RunWith(JUnitQuickcheck.class)
-public class SimpleLexerProperties {
+public class LexerProperties {
 
   private static final ImmutableSet<String> RESERVED_OPERATORS =
       ImmutableSet.of(
