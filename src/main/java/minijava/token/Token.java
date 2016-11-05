@@ -11,7 +11,7 @@ public class Token {
 
   public final Terminal terminal;
   public final Position position;
-  public final String lexval;
+  @Nullable public final String lexval;
 
   public Token(Terminal terminal, Position position, @Nullable String lexval) {
     this.terminal = checkNotNull(terminal);

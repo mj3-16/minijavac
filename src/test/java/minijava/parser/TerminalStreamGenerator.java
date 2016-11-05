@@ -44,14 +44,14 @@ public class TerminalStreamGenerator {
   private void genClassDeclaration(SourceOfRandomness random) {
     ret.add(CLASS);
     ret.add(IDENT);
-    ret.add(LCURLY);
+    ret.add(LBRACE);
 
     int numberOfClassMembers = nextArity(random, 10);
     for (int i = 0; i < numberOfClassMembers; ++i) {
       genClassMember(random);
     }
 
-    ret.add(RCURLY);
+    ret.add(RBRACE);
   }
 
   // Field | Method | MainMethod
@@ -106,8 +106,8 @@ public class TerminalStreamGenerator {
             0.2,
             r -> {
               genType(r);
-              ret.add(LBRACKET);
-              ret.add(RBRACKET);
+              ret.add(LBRACK);
+              ret.add(RBRACK);
             }));
   }
 
@@ -137,12 +137,12 @@ public class TerminalStreamGenerator {
 
   // { BlockStatement * }
   private void genBlock(SourceOfRandomness random) {
-    ret.add(LCURLY);
+    ret.add(LBRACE);
     int n = nextArity(random, 3);
     for (int i = 0; i < n; ++i) {
       genBlockStatement(random);
     }
-    ret.add(RCURLY);
+    ret.add(RBRACE);
   }
 
   // Statement | LocalVariableDeclarationStatement
@@ -164,7 +164,7 @@ public class TerminalStreamGenerator {
         tuple(
             0.6,
             r -> {
-              ret.add(EQUAL_SIGN);
+              ret.add(ASSIGN);
               genExpression(r);
             }));
     ret.add(SEMICOLON);
@@ -262,7 +262,7 @@ public class TerminalStreamGenerator {
         tuple(
             0.3,
             r -> {
-              ret.add(EQUAL_SIGN);
+              ret.add(ASSIGN);
               genAssignmentExpression(r);
             }));
   }
@@ -315,23 +315,22 @@ public class TerminalStreamGenerator {
 
   // (EqualityExpression (== | !=))? RelationalExpression
   private void genEqualityExpression(SourceOfRandomness random) {
-    chooseExpressionLike(random, this::genRelationalExpression, EQUALS, UNEQUALS);
+    chooseExpressionLike(random, this::genRelationalExpression, EQL, NEQ);
   }
 
   // (RelationalExpression (< | <= | > | >=))? AdditiveExpression
   private void genRelationalExpression(SourceOfRandomness random) {
-    chooseExpressionLike(
-        random, this::genAdditiveExpression, LOWER, LOWER_EQUALS, GREATER, GREATER_EQUALS);
+    chooseExpressionLike(random, this::genAdditiveExpression, LSS, LEQ, GTR, GEQ);
   }
 
   // (AdditiveExpression (+ | -))? MultiplicativeExpression
   private void genAdditiveExpression(SourceOfRandomness random) {
-    chooseExpressionLike(random, this::genMultiplicativeExpression, PLUS, MINUS);
+    chooseExpressionLike(random, this::genMultiplicativeExpression, ADD, SUB);
   }
 
   // (MultiplicativeExpression (* | / | %))? UnaryExpression
   private void genMultiplicativeExpression(SourceOfRandomness random) {
-    chooseExpressionLike(random, this::genUnaryExpression, MULTIPLY, DIVIDE, MODULO);
+    chooseExpressionLike(random, this::genUnaryExpression, MUL, DIV, MOD);
   }
 
   // PostfixExpression | (! | -) UnaryExpression
@@ -342,13 +341,13 @@ public class TerminalStreamGenerator {
         tuple(
             0.1,
             r -> {
-              ret.add(INVERT);
+              ret.add(NOT);
               genUnaryExpression(r);
             }),
         tuple(
             0.1,
             r -> {
-              ret.add(INVERT);
+              ret.add(NOT);
               genUnaryExpression(r);
             }));
   }
@@ -377,7 +376,7 @@ public class TerminalStreamGenerator {
 
   // . IDENT ( Arguments )
   private void genMethodInvocation(SourceOfRandomness random) {
-    ret.add(DOT);
+    ret.add(PERIOD);
     ret.add(IDENT);
     ret.add(LPAREN);
     genArguments(random);
@@ -386,15 +385,15 @@ public class TerminalStreamGenerator {
 
   // . IDENT
   private void genFieldAccess(SourceOfRandomness random) {
-    ret.add(DOT);
+    ret.add(PERIOD);
     ret.add(IDENT);
   }
 
   // [ Expression ]
   private void genArrayAccess(SourceOfRandomness random) {
-    ret.add(LBRACKET);
+    ret.add(LBRACK);
     genExpression(random);
-    ret.add(RBRACKET);
+    ret.add(RBRACK);
   }
 
   // (Expression (, Expression)*)?
@@ -462,14 +461,14 @@ public class TerminalStreamGenerator {
   private void genNewArrayExpression(SourceOfRandomness random) {
     ret.add(NEW);
     genBasicType(random);
-    ret.add(LBRACKET);
+    ret.add(LBRACK);
     genExpression(random);
-    ret.add(RBRACKET);
+    ret.add(RBRACK);
 
     int n = nextArity(random, 2);
     for (int i = 0; i < n; ++i) {
-      ret.add(LBRACKET);
-      ret.add(RBRACKET);
+      ret.add(LBRACK);
+      ret.add(RBRACK);
     }
   }
 

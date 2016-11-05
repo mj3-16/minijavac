@@ -23,14 +23,14 @@ public class Lexer implements Iterator<Token> {
   private Token token;
   private Position position;
 
-  static final ImmutableMap<String, Terminal> keywords =
+  static final ImmutableMap<String, Terminal> KEYWORDS =
       Maps.uniqueIndex(
           EnumSet.of(
               BOOLEAN, CLASS, ELSE, FALSE, IF, INT, NEW, NULL, PUBLIC, RETURN, STATIC, THIS, TRUE,
               VOID, WHILE),
           t -> t.string);
 
-  static final ImmutableSet<String> reservedIdentifiers =
+  static final ImmutableSet<String> RESERVED_IDENTIFIERS =
       ImmutableSet.of(
           "abstract",
           "assert",
@@ -112,7 +112,7 @@ public class Lexer implements Iterator<Token> {
         return createToken(RPAREN);
       case '?':
         input.next();
-        return createToken(QUESTION_MARK);
+        return createToken(RESERVED, "?");
       case ';':
         input.next();
         return createToken(SEMICOLON);
@@ -136,7 +136,7 @@ public class Lexer implements Iterator<Token> {
         return createToken(RBRACE);
       case ':':
         input.next();
-        return createToken(COLON);
+        return createToken(RESERVED, ":");
       case ',':
         input.next();
         return createToken(COMMA);
@@ -296,7 +296,7 @@ public class Lexer implements Iterator<Token> {
       }
       if (cur == '*' && next == '/') {
         input.next();
-        return createToken(COMMENT);
+        return null;
       }
     }
   }
@@ -388,11 +388,11 @@ public class Lexer implements Iterator<Token> {
       cur = (byte) (int) input.next();
     }
     String word = builder.toString();
-    Terminal keywordTerminal = keywords.get(word);
+    Terminal keywordTerminal = KEYWORDS.get(word);
     if (keywordTerminal != null) {
       return createToken(keywordTerminal, word);
     }
-    if (reservedIdentifiers.contains(word)) {
+    if (RESERVED_IDENTIFIERS.contains(word)) {
       return createToken(RESERVED, word);
     }
     return createToken(IDENT, builder.toString());
@@ -425,7 +425,7 @@ public class Lexer implements Iterator<Token> {
       // otherwise keep reading in the next token
       token = parseNextToken();
       // ... as long as we are hitting comments.
-    } while (token.terminal == COMMENT);
+    } while (token == null);
 
     return token;
   }

@@ -56,13 +56,8 @@ public enum Terminal {
   INTEGER_LITERAL,
   RESERVED, // reserved keyword or operator, parsing fails if tokens of this type exist
 
-  // others - possible candidates for removal (except for EOF)!
-  EOF,
-
-  COMMENT,
-  WS,
-  QUESTION_MARK("?"),
-  COLON(":");
+  // others
+  EOF;
 
   public enum Associativity {
     LEFT,
