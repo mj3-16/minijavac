@@ -42,7 +42,7 @@ public class LexerProperties {
 
     String input = prettyPrint(expected);
 
-    List<Token> actual = seq(Lexer.getAllTokens(input)).toList();
+    List<Token> actual = seq(new Lexer(input)).toList();
 
     // Some printfs for debugging:
     // System.out.println("input:    " + input);
