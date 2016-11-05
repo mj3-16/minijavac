@@ -8,7 +8,10 @@ import com.beust.jcommander.ParameterException;
 import com.google.common.base.Joiner;
 import com.google.common.io.ByteStreams;
 import com.google.common.primitives.Booleans;
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.PrintStream;
 import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -87,24 +90,7 @@ class Cli {
 
   private void lextest(InputStream in) {
     Lexer lexer = new Lexer(new BasicLexerInput(in));
-    seq(lexer).map(this::format).forEach(out::println);
-  }
-
-  private String format(Token t) {
-    if (t.isEOF()) {
-      return "EOF";
-    }
-    StringBuilder sb = new StringBuilder();
-    switch (t.terminal) {
-      case IDENT:
-        sb.append("identifier ");
-        break;
-      case INTEGER_LITERAL:
-        sb.append("integer literal ");
-        break;
-    }
-    sb.append(t.lexval);
-    return sb.toString();
+    seq(lexer).map(Token::toString).forEach(out::println);
   }
 
   private void parsetest(InputStream in) {

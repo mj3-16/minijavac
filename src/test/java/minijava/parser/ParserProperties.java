@@ -23,7 +23,7 @@ public class ParserProperties {
     List<Token> tokens = new ArrayList<>(program.terminals.size() + 1);
 
     for (int i = 0; i < program.terminals.size(); ++i) {
-      tokens.add(new Token(program.terminals.get(i), new Position(1, i), ""));
+      tokens.add(new Token(program.terminals.get(i), new Position(1, i), null));
     }
 
     // Debug printfs:

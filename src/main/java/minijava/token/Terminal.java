@@ -1,114 +1,85 @@
 package minijava.token;
 
-import static minijava.token.Terminal.TerminalType.CONTROL_FLOW;
-import static minijava.token.Terminal.TerminalType.HIDDEN;
-import static minijava.token.Terminal.TerminalType.LITERAL;
-import static minijava.token.Terminal.TerminalType.MISC;
-import static minijava.token.Terminal.TerminalType.OPERATOR;
-import static minijava.token.Terminal.TerminalType.SYNTAX_ELEMENT;
-import static minijava.token.Terminal.TerminalType.TYPE;
+import static minijava.token.Terminal.Associativity.LEFT;
+import static minijava.token.Terminal.Associativity.RIGHT;
 
 /** Enum of terminals used by the Lexer. */
 public enum Terminal {
-  EOF("eof", MISC),
-  COMMENT("comment", HIDDEN),
-  WS("white space", HIDDEN),
-  LOWER_EQUALS("<=", OPERATOR, 5, true),
-  GREATER_EQUALS(">=", OPERATOR, 5, true),
-  MODULO("%", OPERATOR, 7, true),
-  LBRACKET("[", SYNTAX_ELEMENT),
-  RBRACKET("]", SYNTAX_ELEMENT),
-  PLUS("+", OPERATOR, 6, true),
-  MINUS("-", OPERATOR, 6, true),
-  DIVIDE("/", OPERATOR, 7, true),
-  MULTIPLY("*", OPERATOR, 7, true),
-  EQUAL_SIGN("=", OPERATOR, 1, false),
-  EQUALS("==", OPERATOR, 4, true),
-  UNEQUALS("!=", OPERATOR, 4, true),
-  INVERT("!", OPERATOR, 0, true),
-  LOWER("<", OPERATOR, 5, true),
-  GREATER(">", OPERATOR, 5, true),
-  AND("&&", OPERATOR, 3, true),
-  OR("||", OPERATOR, 2, true),
-  LPAREN("(", SYNTAX_ELEMENT),
-  RPAREN(")", SYNTAX_ELEMENT),
-  QUESTION_MARK("?", SYNTAX_ELEMENT),
-  SEMICOLON(";", SYNTAX_ELEMENT),
-  INTEGER_LITERAL("int", LITERAL),
-  IDENT("identifier", LITERAL),
-  LCURLY("{", SYNTAX_ELEMENT),
-  RCURLY("}", SYNTAX_ELEMENT),
-  COLON(":", SYNTAX_ELEMENT),
-  COMMA(",", SYNTAX_ELEMENT),
-  DOT(".", SYNTAX_ELEMENT),
-  RESERVED_OPERATORS("reserved operator", OPERATOR),
-  RESERVED_IDENTIFIER("reserved identifier", LITERAL),
-  BOOLEAN("boolean", TYPE),
-  INT("int", TYPE),
-  NEW("new", SYNTAX_ELEMENT),
-  RETURN("return", SYNTAX_ELEMENT),
-  THIS("this", LITERAL),
-  IF("if", CONTROL_FLOW),
-  WHILE("while", CONTROL_FLOW),
-  ELSE("else", CONTROL_FLOW),
-  TRUE("true", LITERAL),
-  FALSE("false", LITERAL),
-  PUBLIC("public", SYNTAX_ELEMENT),
-  STATIC("static", SYNTAX_ELEMENT),
-  VOID("void", TYPE),
-  NULL("null", LITERAL),
-  CLASS("class", SYNTAX_ELEMENT);
 
-  public static enum TerminalType {
-    OPERATOR,
-    TYPE,
-    LITERAL,
-    SYNTAX_ELEMENT,
-    CONTROL_FLOW,
-    HIDDEN,
-    MISC
+  // keywords
+  BOOLEAN("boolean"),
+  CLASS("class"),
+  ELSE("else"),
+  FALSE("false"),
+  IF("if"),
+  INT("int"),
+  NEW("new"),
+  NULL("null"),
+  PUBLIC("public"),
+  RETURN("return"),
+  STATIC("static"),
+  THIS("this"),
+  TRUE("true"),
+  VOID("void"),
+  WHILE("while"),
+
+  // operators
+  NOT("!", LEFT, 0),
+  ASSIGN("=", RIGHT, 1),
+  OR("||", LEFT, 2),
+  AND("&&", LEFT, 3),
+  EQL("==", LEFT, 4),
+  NEQ("!=", LEFT, 4),
+  LSS("<", LEFT, 5),
+  LEQ("<=", LEFT, 5),
+  GTR(">", LEFT, 5),
+  GEQ(">=", LEFT, 5),
+  ADD("+", LEFT, 6),
+  SUB("-", LEFT, 6),
+  MUL("*", LEFT, 7),
+  DIV("/", LEFT, 7),
+  MOD("%", LEFT, 7),
+
+  // separators
+  LPAREN("("),
+  RPAREN(")"),
+  LBRACK("["),
+  RBRACK("]"),
+  LBRACE("{"),
+  RBRACE("}"),
+  COMMA(","),
+  PERIOD("."),
+  SEMICOLON(";"),
+
+  // with dynamic string values (lexval in Token is not null for tokens of this types)
+  IDENT,
+  INTEGER_LITERAL,
+  RESERVED, // reserved keyword or operator, parsing fails if tokens of this type exist
+
+  // others
+  EOF;
+
+  public enum Associativity {
+    LEFT,
+    RIGHT
   }
 
-  private final String description;
-  private final TerminalType terminalType;
-  private final int precedence;
-  private final boolean leftAssociative;
+  public final String string;
+  final Associativity associativity;
+  final Integer precedence;
 
-  private Terminal(
-      String description, TerminalType terminalType, int precedence, boolean leftAssociative) {
-    this.description = description;
-    this.terminalType = terminalType;
+  Terminal(String string, Associativity associativity, Integer precedence) {
+    assert (associativity == null) == (precedence == null);
+    this.string = string;
+    this.associativity = associativity;
     this.precedence = precedence;
-    this.leftAssociative = leftAssociative;
   }
 
-  private Terminal(String description, TerminalType terminalType) {
-    this(description, terminalType, -1, true);
+  Terminal(String string) {
+    this(string, null, null);
   }
 
-  public String getDescription() {
-    return description;
-  }
-
-  private static Terminal[] terminals = values();
-
-  public static Terminal valueOf(int id) {
-    return terminals[id];
-  }
-
-  public TerminalType getType() {
-    return terminalType;
-  }
-
-  public boolean isType(TerminalType terminalType) {
-    return this.terminalType == terminalType;
-  }
-
-  public int getPrecedence() {
-    return this.precedence;
-  }
-
-  public boolean isLeftAssociative() {
-    return this.leftAssociative;
+  Terminal() {
+    this(null, null, null);
   }
 }

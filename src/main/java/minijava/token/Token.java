@@ -1,50 +1,63 @@
 package minijava.token;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+import static minijava.token.Terminal.*;
+
+import java.util.Arrays;
+import org.jetbrains.annotations.Nullable;
+
 /** Instances of this class are immutable. */
 public class Token {
 
   public final Terminal terminal;
   public final Position position;
-  public final String lexval;
+  @Nullable public final String lexval;
 
-  public Token(Terminal terminal, Position position, String lexval) {
-    this.terminal = terminal;
-    this.position = position;
-    this.lexval = lexval.intern();
+  public Token(Terminal terminal, Position position, @Nullable String lexval) {
+    this.terminal = checkNotNull(terminal);
+    this.position = checkNotNull(position);
+    if (!isOneOf(IDENT, INTEGER_LITERAL, RESERVED) && lexval != null) {
+      throw new IllegalArgumentException(
+          "lexval may only be set for identifiers, integer literals or the reserved terminals");
+    }
+    this.lexval = lexval == null ? null : lexval.intern();
   }
 
-  public boolean isTerminal(Terminal otherTerminal) {
-    return terminal.equals(otherTerminal);
+  public boolean isOperator() {
+    return terminal.associativity != null;
   }
 
-  public boolean isEOF() {
-    return terminal.equals(Terminal.EOF);
+  public Associativity associativity() {
+    if (terminal.associativity == null) {
+      throw new UnsupportedOperationException(terminal + " has no associativity");
+    }
+    return terminal.associativity;
   }
 
-  public boolean isType(Terminal.TerminalType type) {
-    return terminal.isType(type);
+  public int precedence() {
+    if (terminal.precedence == null) {
+      throw new UnsupportedOperationException(terminal + " has no precedence");
+    }
+    return terminal.precedence;
+  }
+
+  public boolean isOneOf(Terminal... terminals) {
+    return Arrays.stream(terminals).anyMatch(t -> t == this.terminal);
   }
 
   @Override
   public String toString() {
-    return terminal.getDescription() + position.toString() + "(" + lexval + ")";
-  }
-
-  /** Returns a string that only consists of the terminal description belonging to this token. */
-  public String toSimpleString() {
-    return terminal.getDescription();
-  }
-
-  public boolean isOneOf(Terminal... terminals) {
-    for (Terminal terminal1 : terminals) {
-      if (terminal == terminal1) {
-        return true;
-      }
+    switch (terminal) {
+      case IDENT:
+        return "identifier " + lexval;
+      case INTEGER_LITERAL:
+        return "integer literal " + lexval;
+      case RESERVED:
+        return lexval;
+      case EOF:
+        return "EOF";
+      default:
+        return terminal.string;
     }
-    return false;
-  }
-
-  public boolean hasValue(String str) {
-    return lexval.equals(str);
   }
 }
