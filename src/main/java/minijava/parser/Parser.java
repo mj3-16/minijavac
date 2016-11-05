@@ -10,7 +10,7 @@ import minijava.token.Token;
 import minijava.util.LookAheadIterator;
 
 public class Parser {
-  private static final Token EOF_TOKEN = new Token(EOF, new Position(0, 0), "");
+  private static final Token EOF_TOKEN = new Token(EOF, new Position(0, 0), null);
   private final LookAheadIterator<Token> tokens;
   private Token currentToken;
 

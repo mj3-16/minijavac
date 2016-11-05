@@ -1,7 +1,7 @@
 package minijava.token;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static minijava.token.Terminal.Associativity;
+import static minijava.token.Terminal.*;
 
 import java.util.Arrays;
 import org.jetbrains.annotations.Nullable;
@@ -16,6 +16,10 @@ public class Token {
   public Token(Terminal terminal, Position position, @Nullable String lexval) {
     this.terminal = checkNotNull(terminal);
     this.position = checkNotNull(position);
+    if (!isOneOf(IDENT, INTEGER_LITERAL, RESERVED) && lexval != null) {
+      throw new IllegalArgumentException(
+          "lexval may only be set for identifiers, integer literals or the reserved terminals");
+    }
     this.lexval = lexval == null ? null : lexval.intern();
   }
 

@@ -390,7 +390,7 @@ public class Lexer implements Iterator<Token> {
     String word = builder.toString();
     Terminal keywordTerminal = KEYWORDS.get(word);
     if (keywordTerminal != null) {
-      return createToken(keywordTerminal, word);
+      return createToken(keywordTerminal);
     }
     if (RESERVED_IDENTIFIERS.contains(word)) {
       return createToken(RESERVED, word);
