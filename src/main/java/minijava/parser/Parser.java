@@ -1,6 +1,7 @@
 package minijava.parser;
 
 import static minijava.token.Terminal.*;
+import static minijava.token.Terminal.Associativity.*;
 
 import java.util.Iterator;
 import minijava.token.Position;
@@ -26,7 +27,7 @@ public class Parser {
   }
 
   private void expectAndConsume(Terminal terminal) {
-    if (!currentToken.isTerminal(terminal)) {
+    if (currentToken.terminal != terminal) {
       throw new ParserError(
           Thread.currentThread().getStackTrace()[2].getMethodName(), terminal, currentToken);
     }
@@ -34,7 +35,7 @@ public class Parser {
   }
 
   private void expectAndConsume(Terminal terminal, String value) {
-    if (!currentToken.isTerminal(terminal) || !currentToken.hasValue(value)) {
+    if (currentToken.terminal != terminal || !currentToken.lexval.equals(value)) {
       throw new ParserError(
           Thread.currentThread().getStackTrace()[2].getMethodName(), terminal, value, currentToken);
     }
@@ -47,7 +48,7 @@ public class Parser {
   }
 
   private boolean isCurrentTokenTypeOf(Terminal terminal) {
-    if (currentToken.isTerminal(terminal)) {
+    if (currentToken.terminal == terminal) {
       return true;
     }
     return false;
@@ -58,14 +59,14 @@ public class Parser {
   }
 
   private boolean isCurrentTokenBinaryOperator() {
-    if (currentToken.isType(TerminalType.OPERATOR)) {
+    if (currentToken.isOperator()) {
       return true;
     }
     return false;
   }
 
   private boolean isOperatorPrecedenceGreaterOrEqualThan(int precedence) {
-    if (currentToken.terminal.getPrecedence() >= precedence) {
+    if (currentToken.precedence() >= precedence) {
       return true;
     }
     return false;
@@ -73,7 +74,7 @@ public class Parser {
 
   private boolean matchCurrentAndLookAhead(Terminal... terminals) {
     for (int i = 0; i < terminals.length; i++) {
-      if (!tokens.lookAhead(i).orElse(EOF_TOKEN).isTerminal(terminals[i])) {
+      if (tokens.lookAhead(i).orElse(EOF_TOKEN).terminal != terminals[i]) {
         return false;
       }
     }
@@ -326,8 +327,8 @@ public class Parser {
     parseUnaryExpression();
     while (isCurrentTokenBinaryOperator()
         && isOperatorPrecedenceGreaterOrEqualThan(minPrecedence)) {
-      int precedence = currentToken.terminal.getPrecedence();
-      if (currentToken.terminal.isLeftAssociative()) {
+      int precedence = currentToken.precedence();
+      if (currentToken.associativity() == LEFT) {
         precedence++;
       }
       consumeToken();

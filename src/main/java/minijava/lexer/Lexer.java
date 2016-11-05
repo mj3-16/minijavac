@@ -28,7 +28,7 @@ public class Lexer implements Iterator<Token> {
           EnumSet.of(
               BOOLEAN, CLASS, ELSE, FALSE, IF, INT, NEW, NULL, PUBLIC, RETURN, STATIC, THIS, TRUE,
               VOID, WHILE),
-          Terminal::getDescription);
+          terminal -> terminal.string.get());
 
   static final ImmutableSet<String> reservedIdentifiers =
       ImmutableSet.of(
@@ -82,12 +82,12 @@ public class Lexer implements Iterator<Token> {
     }
     if (input.current() <= 0) {
       position = input.getCurrentPosition();
-      return createToken(EOF, "");
+      return createToken(EOF);
     }
     omitWS();
     if (input.current() <= 0) {
       position = input.getCurrentPosition();
-      return createToken(EOF, "");
+      return createToken(EOF);
     }
     position = input.getCurrentPosition();
     byte cur = input.current();
@@ -106,22 +106,22 @@ public class Lexer implements Iterator<Token> {
         return parseGreater();
       case '(':
         input.next();
-        return createToken(LPAREN, "(");
+        return createToken(LPAREN);
       case ')':
         input.next();
-        return createToken(RPAREN, ")");
+        return createToken(RPAREN);
       case '?':
         input.next();
-        return createToken(QUESTION_MARK, "?");
+        return createToken(QUESTION_MARK);
       case ';':
         input.next();
-        return createToken(SEMICOLON, ";");
+        return createToken(SEMICOLON);
       case '[':
         input.next();
-        return createToken(LBRACKET, "[");
+        return createToken(LBRACKET);
       case ']':
         input.next();
-        return createToken(RBRACKET, "]");
+        return createToken(RBRACKET);
       case '/':
         input.next();
         return parseSlash();
@@ -130,22 +130,22 @@ public class Lexer implements Iterator<Token> {
         return parseMinus();
       case '{':
         input.next();
-        return createToken(LCURLY, "{");
+        return createToken(LCURLY);
       case '}':
         input.next();
-        return createToken(RCURLY, "}");
+        return createToken(RCURLY);
       case ':':
         input.next();
-        return createToken(COLON, ":");
+        return createToken(COLON);
       case ',':
         input.next();
-        return createToken(COMMA, ",");
+        return createToken(COMMA);
       case '%':
         input.next();
         return parseModulo();
       case '.':
         input.next();
-        return createToken(DOT, ".");
+        return createToken(DOT);
       case '<':
         input.next();
         return parseLower();
@@ -160,7 +160,7 @@ public class Lexer implements Iterator<Token> {
         return parseAnd();
       case '~':
         input.next();
-        return createToken(RESERVED_OPERATORS, "~");
+        return createToken(RESERVED, "~");
       case '*':
         input.next();
         return parseStar();
@@ -191,9 +191,9 @@ public class Lexer implements Iterator<Token> {
     switch (input.current()) {
       case '=':
         input.next();
-        return createToken(UNEQUALS, "!=");
+        return createToken(UNEQUALS);
       default:
-        return createToken(INVERT, "!");
+        return createToken(INVERT);
     }
   }
 
@@ -201,9 +201,9 @@ public class Lexer implements Iterator<Token> {
     switch (input.current()) {
       case '=':
         input.next();
-        return createToken(RESERVED_OPERATORS, "^=");
+        return createToken(RESERVED, "^=");
       default:
-        return createToken(RESERVED_OPERATORS, "^");
+        return createToken(RESERVED, "^");
     }
   }
 
@@ -211,9 +211,9 @@ public class Lexer implements Iterator<Token> {
     switch (input.current()) {
       case '=':
         input.next();
-        return createToken(RESERVED_OPERATORS, "%=");
+        return createToken(RESERVED, "%=");
       default:
-        return createToken(MODULO, "%");
+        return createToken(MODULO);
     }
   }
 
@@ -237,12 +237,12 @@ public class Lexer implements Iterator<Token> {
     switch (input.current()) {
       case '+':
         input.next();
-        return createToken(RESERVED_OPERATORS, "++");
+        return createToken(RESERVED, "++");
       case '=':
         input.next();
-        return createToken(RESERVED_OPERATORS, "+=");
+        return createToken(RESERVED, "+=");
       default:
-        return createToken(PLUS, "+");
+        return createToken(PLUS);
     }
   }
 
@@ -256,21 +256,21 @@ public class Lexer implements Iterator<Token> {
             switch (input.current()) {
               case '=':
                 input.next();
-                return createToken(RESERVED_OPERATORS, ">>>=");
+                return createToken(RESERVED, ">>>=");
               default:
-                return createToken(RESERVED_OPERATORS, ">>>");
+                return createToken(RESERVED, ">>>");
             }
           case '=':
             input.next();
-            return createToken(RESERVED_OPERATORS, ">>=");
+            return createToken(RESERVED, ">>=");
           default:
-            return createToken(RESERVED_OPERATORS, ">>");
+            return createToken(RESERVED, ">>");
         }
       case '=':
         input.next();
-        return createToken(GREATER_EQUALS, ">=");
+        return createToken(GREATER_EQUALS);
       default:
-        return createToken(GREATER, ">");
+        return createToken(GREATER);
     }
   }
 
@@ -281,9 +281,9 @@ public class Lexer implements Iterator<Token> {
         return parseCommentRest();
       case '=':
         input.next();
-        return createToken(RESERVED_OPERATORS, "/=");
+        return createToken(RESERVED, "/=");
       default:
-        return createToken(DIVIDE, "/");
+        return createToken(DIVIDE);
     }
   }
 
@@ -296,7 +296,7 @@ public class Lexer implements Iterator<Token> {
       }
       if (cur == '*' && next == '/') {
         input.next();
-        return createToken(COMMENT, "");
+        return createToken(COMMENT);
       }
     }
   }
@@ -305,12 +305,12 @@ public class Lexer implements Iterator<Token> {
     switch (input.current()) {
       case '=':
         input.next();
-        return createToken(RESERVED_OPERATORS, "-=");
+        return createToken(RESERVED, "-=");
       case '-':
         input.next();
-        return createToken(RESERVED_OPERATORS, "--");
+        return createToken(RESERVED, "--");
       default:
-        return createToken(MINUS, "-");
+        return createToken(MINUS);
     }
   }
 
@@ -321,15 +321,15 @@ public class Lexer implements Iterator<Token> {
         switch (input.current()) {
           case '=':
             input.next();
-            return createToken(RESERVED_OPERATORS, "<<=");
+            return createToken(RESERVED, "<<=");
           default:
-            return createToken(RESERVED_OPERATORS, "<<");
+            return createToken(RESERVED, "<<");
         }
       case '=':
         input.next();
-        return createToken(LOWER_EQUALS, "<=");
+        return createToken(LOWER_EQUALS);
       default:
-        return createToken(LOWER, "<");
+        return createToken(LOWER);
     }
   }
 
@@ -337,9 +337,9 @@ public class Lexer implements Iterator<Token> {
     switch (input.current()) {
       case '=':
         input.next();
-        return createToken(EQUALS, "==");
+        return createToken(EQUALS);
       default:
-        return createToken(EQUAL_SIGN, "=");
+        return createToken(EQUAL_SIGN);
     }
   }
 
@@ -347,12 +347,12 @@ public class Lexer implements Iterator<Token> {
     switch (input.current()) {
       case '&':
         input.next();
-        return createToken(AND, "&&");
+        return createToken(AND);
       case '=':
         input.next();
-        return createToken(RESERVED_OPERATORS, "&=");
+        return createToken(RESERVED, "&=");
       default:
-        return createToken(RESERVED_OPERATORS, "&");
+        return createToken(RESERVED, "&");
     }
   }
 
@@ -360,9 +360,9 @@ public class Lexer implements Iterator<Token> {
     switch (input.current()) {
       case '=':
         input.next();
-        return createToken(RESERVED_OPERATORS, "*=");
+        return createToken(RESERVED, "*=");
       default:
-        return createToken(MULTIPLY, "*");
+        return createToken(MULTIPLY);
     }
   }
 
@@ -370,12 +370,12 @@ public class Lexer implements Iterator<Token> {
     switch (input.current()) {
       case '|':
         input.next();
-        return createToken(OR, "||");
+        return createToken(OR);
       case '=':
         input.next();
-        return createToken(RESERVED_OPERATORS, "|=");
+        return createToken(RESERVED, "|=");
       default:
-        return createToken(RESERVED_OPERATORS, "|");
+        return createToken(RESERVED, "|");
     }
   }
 
@@ -393,7 +393,7 @@ public class Lexer implements Iterator<Token> {
       return createToken(keywordTerminal, word);
     }
     if (reservedIdentifiers.contains(word)) {
-      return createToken(RESERVED_IDENTIFIER, word);
+      return createToken(RESERVED, word);
     }
     return createToken(IDENT, builder.toString());
   }
@@ -406,15 +406,19 @@ public class Lexer implements Iterator<Token> {
     return new Token(terminal, position, content);
   }
 
+  private Token createToken(Terminal terminal) {
+    return new Token(terminal, position, null);
+  }
+
   @Override
   public boolean hasNext() {
-    return token == null || !token.isEOF();
+    return token == null || token.terminal != EOF;
   }
 
   @Override
   public Token next() {
     do {
-      if (token != null && token.isEOF()) {
+      if (token != null && token.terminal == EOF) {
         // In case we are at the EOF, we just keep returning that
         return token;
       }

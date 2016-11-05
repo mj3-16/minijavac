@@ -1,5 +1,10 @@
 package minijava.token;
 
+import static minijava.token.Terminal.*;
+
+import java.util.Arrays;
+import org.jetbrains.annotations.Nullable;
+
 /** Instances of this class are immutable. */
 public class Token {
 
@@ -7,44 +12,59 @@ public class Token {
   public final Position position;
   public final String lexval;
 
-  public Token(Terminal terminal, Position position, String lexval) {
+  public Token(Terminal terminal, Position position, @Nullable String lexval) {
     this.terminal = terminal;
     this.position = position;
-    this.lexval = lexval.intern();
-  }
-
-  public boolean isTerminal(Terminal otherTerminal) {
-    return terminal.equals(otherTerminal);
-  }
-
-  public boolean isEOF() {
-    return terminal.equals(Terminal.EOF);
-  }
-
-  public boolean isType(Terminal.TerminalType type) {
-    return terminal.isType(type);
+    this.lexval = lexval == null ? null : lexval.intern();
   }
 
   @Override
   public String toString() {
-    return terminal.getDescription() + position.toString() + "(" + lexval + ")";
-  }
-
-  /** Returns a string that only consists of the terminal description belonging to this token. */
-  public String toSimpleString() {
-    return terminal.getDescription();
+    StringBuilder sb = new StringBuilder();
+    sb.append(position.toString());
+    sb.append(" ");
+    switch (terminal) {
+      case IDENT:
+        sb.append("identifier (");
+        sb.append(lexval);
+        sb.append(")");
+        break;
+      case INTEGER_LITERAL:
+        sb.append("integer literal (");
+        sb.append(lexval);
+        sb.append(")");
+        break;
+      case RESERVED:
+        sb.append(lexval);
+        break;
+      case EOF:
+        sb.append("EOF");
+        break;
+      default:
+        sb.append(terminal.string.get());
+    }
+    return sb.toString();
   }
 
   public boolean isOneOf(Terminal... terminals) {
-    for (Terminal terminal1 : terminals) {
-      if (terminal == terminal1) {
-        return true;
-      }
-    }
-    return false;
+    return Arrays.stream(terminals).anyMatch(t -> terminal == t);
   }
 
-  public boolean hasValue(String str) {
-    return lexval.equals(str);
+  public boolean isOperator() {
+    return terminal.precedence.isPresent();
+  }
+
+  public int precedence() {
+    if (!terminal.precedence.isPresent()) {
+      throw new UnsupportedOperationException(terminal + " has no precedence");
+    }
+    return terminal.precedence.get();
+  }
+
+  public Associativity associativity() {
+    if (!terminal.associativity.isPresent()) {
+      throw new UnsupportedOperationException(terminal + " has no associativity");
+    }
+    return terminal.associativity.get();
   }
 }
