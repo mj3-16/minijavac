@@ -15,7 +15,6 @@ import java.io.PrintStream;
 import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.List;
-import minijava.lexer.BasicLexerInput;
 import minijava.lexer.Lexer;
 import minijava.parser.Parser;
 import minijava.token.Token;
@@ -89,12 +88,12 @@ class Cli {
   }
 
   private void lextest(InputStream in) {
-    Lexer lexer = new Lexer(new BasicLexerInput(in));
+    Lexer lexer = new Lexer(in);
     seq(lexer).map(Token::toString).forEach(out::println);
   }
 
   private void parsetest(InputStream in) {
-    Lexer lexer = new Lexer(new BasicLexerInput(in));
+    Lexer lexer = new Lexer(in);
     new Parser(lexer).parse();
   }
 

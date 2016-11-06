@@ -2,6 +2,7 @@ package minijava.lexer;
 
 import static minijava.token.Terminal.*;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.math.IntMath;
 import java.io.ByteArrayInputStream;
@@ -26,7 +27,7 @@ public class LexerTest {
     while (input.limit() - input.position() >= comment.length) {
       input.put(comment);
     }
-    Lexer lexer = new Lexer(new BasicLexerInput(new ByteArrayInputStream(input.array())));
+    Lexer lexer = new Lexer(new ByteArrayInputStream(input.array()));
     while (lexer.hasNext()) {
       lexer.next();
     }
@@ -37,7 +38,10 @@ public class LexerTest {
     String[] inputs = {"ä", "/*", "`", "–", "/**", "/** *d/", "/*/"};
     for (String input : inputs) {
       try {
-        Lexer.getAllTokens(input);
+        Lexer l = new Lexer(input.getBytes(StandardCharsets.UTF_8));
+        while (l.hasNext()) {
+          l.next();
+        }
       } catch (MJError e) {
         continue;
       }
@@ -61,8 +65,9 @@ public class LexerTest {
             .build();
 
     for (Map.Entry<String, Collection<Terminal>> e : inputAndOutput.asMap().entrySet()) {
+      Lexer lexer = new Lexer(e.getKey());
       List<Terminal> actual =
-          Lexer.getAllTokens(e.getKey()).stream().map(t -> t.terminal).collect(Collectors.toList());
+          ImmutableList.copyOf(lexer).stream().map(t -> t.terminal).collect(Collectors.toList());
       actual.remove(EOF);
       Assert.assertEquals(e.getValue(), actual);
     }
