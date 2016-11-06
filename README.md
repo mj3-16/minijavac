@@ -11,45 +11,24 @@
 
 ## Build and run
 
-To run the application, do
-
-```
-$ ./gradlew run
-```
-
 To build the app, do
 
 ```
-$ ./gradlew build
+$ ./build
 ```
 
-To run the tests, do
+To run the app, do
 
 ```
-$ ./gradlew test
+$ ./run
 ```
 
-To run the benchmarks, do
+To run the test suite (make sure you have initialized all submodules), do
 
 ```
-$ ./gradlew jmh
+$ ./gradlew check
 ```
-
-You will find the output of the benchmarks in `${project_dir}/build/reports/human.txt` .
 
 ## Project file generation
 
-This project is gradle-based, so you can generate project files specific to any
-IDE with the appropriate gradle plugin.
-
-For IntelliJ IDEA:
-
-```
-$ ./gradlew idea
-```
-
-For Eclipse:
-
-```
-$ ./gradlew eclipse
-```
+This project is gradle-based, for which common IDEs (read: IntelliJ IDEA) provide project-file generation.
