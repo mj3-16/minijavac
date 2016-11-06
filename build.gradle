@@ -3,17 +3,11 @@ plugins {
 }
 
 apply plugin: 'application'
-apply plugin: 'idea'
-apply plugin: 'eclipse'
 
 mainClassName = "minijava.Main"
 
 // policy is to have a 'build' script; that requires us to have a non-default build directory
 buildDir = 'build_dir'
-
-test {
-    //jvmArgs = ['-XX:+PrintCompilation']
-}
 
 repositories {
     mavenCentral()
@@ -32,7 +26,6 @@ dependencies {
     compile 'commons-io:commons-io:2.4'
     compile 'com.intellij:annotations:5.1'
     compile 'org.jooq:jool:0.9.9'
-    compile 'org.slf4j:slf4j-nop:1.7.13'
     testCompile 'com.pholser:junit-quickcheck-core:0.6.1'
     testCompile 'com.pholser:junit-quickcheck-generators:0.6.1'
     testCompile 'junit:junit:4.12'
