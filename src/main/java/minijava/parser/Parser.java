@@ -3,7 +3,21 @@ package minijava.parser;
 import static minijava.token.Terminal.*;
 import static minijava.token.Terminal.Associativity.*;
 
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
+
+import minijava.ast.ClassDeclaration;
+import minijava.ast.Program;
+import minijava.ast.classmember.ClassMember;
+import minijava.ast.classmember.FieldClassMember;
+import minijava.ast.classmember.MethodClassMember;
+import minijava.ast.classmember.Parameter;
+import minijava.ast.statement.Block;
+import minijava.ast.type.ArrayType;
+import minijava.ast.type.ClassType;
+import minijava.ast.type.Type;
+import minijava.ast.type.VoidType;
 import minijava.token.Position;
 import minijava.token.Terminal;
 import minijava.token.Token;
@@ -40,6 +54,16 @@ public class Parser {
           Thread.currentThread().getStackTrace()[2].getMethodName(), terminal, value, currentToken);
     }
     consumeToken();
+  }
+
+  private String expectAndConsumeAndReturnValue(Terminal terminal) {
+    if (currentToken.terminal != terminal) {
+      throw new ParserError(
+              Thread.currentThread().getStackTrace()[2].getMethodName(), terminal, currentToken);
+    }
+    String value = currentToken.lexval;
+    consumeToken();
+    return value;
   }
 
   private void unexpectCurrentToken(Terminal... expectedTerminals) {
@@ -81,53 +105,60 @@ public class Parser {
     return true;
   }
 
-  public void parse() {
+  public Program parse() {
     consumeToken();
-    parseProgramm();
+    return parseProgramm();
   }
 
   /** Program -> ClassDeclaration* */
-  private void parseProgramm() {
+  private Program parseProgramm() {
+    List<ClassDeclaration> classDeclarions = new ArrayList<>();
     while (isCurrentTokenNotTypeOf(EOF)) {
-      parseClassDeclaration();
+      classDeclarions.add(parseClassDeclaration());
     }
     expectAndConsume(EOF);
+    return new Program(classDeclarions);
   }
 
   /** ClassDeclaration -> class IDENT { PublicClassMember* } */
-  private void parseClassDeclaration() {
+  private ClassDeclaration parseClassDeclaration() {
+    String ident;
+    List<ClassMember> classMembers = new ArrayList<>();
     expectAndConsume(CLASS);
-    expectAndConsume(IDENT);
+    ident = expectAndConsumeAndReturnValue(IDENT);
     expectAndConsume(LBRACE);
     while (isCurrentTokenNotTypeOf(RBRACE) && isCurrentTokenNotTypeOf(EOF)) {
-      parsePublicClassMember();
+      classMembers.add(parsePublicClassMember());
     }
     expectAndConsume(RBRACE);
+    return new ClassDeclaration(ident, classMembers);
   }
 
   /** PublicClassMember -> public ClassMember */
-  private void parsePublicClassMember() {
+  private ClassMember parsePublicClassMember() {
     expectAndConsume(PUBLIC);
-    parseClassMember();
+    return parseClassMember();
   }
 
   /** ClassMember -> MainMethod | FieldOrMethod */
-  private void parseClassMember() {
+  private ClassMember parseClassMember() {
+    ClassMember classMember;
     switch (currentToken.terminal) {
       case STATIC:
-        parseMainMethod();
+        classMember = parseMainMethod();
         break;
       default:
-        parseTypeIdentFieldOrMethod();
+        classMember = parseTypeIdentFieldOrMethod();
         break;
     }
+    return classMember;
   }
 
   /** MainMethod -> static void IDENT ( String [] IDENT ) Block */
-  private void parseMainMethod() {
+  private ClassMember parseMainMethod() {
     expectAndConsume(STATIC);
     expectAndConsume(VOID);
-    expectAndConsume(IDENT);
+    String name = expectAndConsumeAndReturnValue(IDENT);
     expectAndConsume(LPAREN);
     expectAndConsume(IDENT, "String");
     expectAndConsume(LBRACK);
@@ -135,32 +166,36 @@ public class Parser {
     expectAndConsume(IDENT);
     expectAndConsume(RPAREN);
     parseBlock();
+    //return new MethodClassMember(true, new VoidType(), name, );
   }
 
   /** TypeIdentFieldOrMethod -> Type IDENT FieldOrMethod */
-  private void parseTypeIdentFieldOrMethod() {
-    parseType();
-    expectAndConsume(IDENT);
-    parseFieldOrMethod();
+  private ClassMember parseTypeIdentFieldOrMethod() {
+    Type type = parseType();
+    String name = expectAndConsumeAndReturnValue(IDENT);
+    return parseFieldOrMethod(type, name);
   }
 
   /** FieldOrMethod -> ; | Method */
-  private void parseFieldOrMethod() {
+  private ClassMember parseFieldOrMethod(Type type, String name) {
     if (isCurrentTokenTypeOf(SEMICOLON)) {
       expectAndConsume(SEMICOLON);
+      return new FieldClassMember(type, name);
     } else {
-      parseMethod();
+      return parseMethod(type, name);
     }
   }
 
   /** Method -> ( Parameters? ) Block */
-  private void parseMethod() {
+  private ClassMember parseMethod(Type type, String name) {
+    List<Parameter> parameters = new ArrayList<>();
     expectAndConsume(LPAREN);
     if (isCurrentTokenNotTypeOf(RPAREN)) {
-      parseParameters();
+      parameters = parseParameters();
     }
     expectAndConsume(RPAREN);
-    parseBlock();
+    Block block = parseBlock();
+    return new MethodClassMember(false, type, name, parameters, block);
   }
 
   /** Parameters -> Parameter | Parameter , Parameters */
