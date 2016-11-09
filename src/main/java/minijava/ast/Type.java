@@ -6,14 +6,14 @@ public interface Type<TRef> {
   class IntType<TRef> implements Type<TRef> {
     @Override
     public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
-      return visitor.visitInt();
+      return visitor.visitInt(this);
     }
   }
 
   class VoidType<TRef> implements Type<TRef> {
     @Override
     public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
-      return visitor.visitVoid();
+      return visitor.visitVoid(this);
     }
   }
 
@@ -27,14 +27,14 @@ public interface Type<TRef> {
 
     @Override
     public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
-      return visitor.visitClass(classRef);
+      return visitor.visitClass(this);
     }
   }
 
   class BooleanType<TRef> implements Type<TRef> {
     @Override
     public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
-      return visitor.visitBoolean();
+      return visitor.visitBoolean(this);
     }
   }
 
@@ -48,20 +48,20 @@ public interface Type<TRef> {
 
     @Override
     public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
-      return visitor.visitArray(elementType);
+      return visitor.visitArray(this);
     }
   }
 
   interface Visitor<TRef, TReturn> {
 
-    TReturn visitArray(Type<TRef> elementType);
+    TReturn visitArray(ArrayType<TRef> that);
 
-    TReturn visitClass(TRef classRef);
+    TReturn visitClass(ClassType<TRef> that);
 
-    TReturn visitVoid();
+    TReturn visitVoid(VoidType<TRef> that);
 
-    TReturn visitBoolean();
+    TReturn visitBoolean(BooleanType<TRef> that);
 
-    TReturn visitInt();
+    TReturn visitInt(IntType<TRef> that);
   }
 }

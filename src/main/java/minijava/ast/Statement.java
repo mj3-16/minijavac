@@ -10,28 +10,28 @@ public interface Statement<TRef> extends BlockStatement<TRef> {
     return acceptVisitor((StatementVisitor<TRef, TRet>) visitor);
   }
 
-    class Block<TRef> implements Statement<TRef> {
+  class Block<TRef> implements Statement<TRef> {
 
-      public final List<BlockStatement<TRef>> statements;
+    public final List<BlockStatement<TRef>> statements;
 
-      public Block(List<BlockStatement<TRef>> statements) {
-        this.statements = statements;
-      }
-
-      @Override
-      public <TRet> TRet acceptVisitor(StatementVisitor<TRef, TRet> visitor) {
-        return visitor.visitBlock(statements);
-      }
+    public Block(List<BlockStatement<TRef>> statements) {
+      this.statements = statements;
     }
+
+    @Override
+    public <TRet> TRet acceptVisitor(StatementVisitor<TRef, TRet> visitor) {
+      return visitor.visitBlock(this);
+    }
+  }
 
   class EmptyStatement<TRef> implements Statement<TRef> {
     @Override
     public <TRet> TRet acceptVisitor(StatementVisitor<TRef, TRet> visitor) {
-      return visitor.visitEmptyStatement();
+      return visitor.visitEmptyStatement(this);
     }
   }
 
-   class IfStatement<TRef> implements Statement<TRef> {
+  class IfStatement<TRef> implements Statement<TRef> {
     public final Expression<TRef> condition;
     public final Statement<TRef> then;
     public final Statement<TRef> else_;
@@ -44,11 +44,11 @@ public interface Statement<TRef> extends BlockStatement<TRef> {
 
     @Override
     public <TRet> TRet acceptVisitor(StatementVisitor<TRef, TRet> visitor) {
-      return visitor.visitIfStatement(condition, then, else_);
+      return visitor.visitIfStatement(this);
     }
   }
 
-   class ReturnStatement<TRef> implements Statement<TRef> {
+  class ReturnStatement<TRef> implements Statement<TRef> {
     public final Optional<Expression<TRef>> expression;
 
     public ReturnStatement() {
@@ -61,11 +61,11 @@ public interface Statement<TRef> extends BlockStatement<TRef> {
 
     @Override
     public <TRet> TRet acceptVisitor(StatementVisitor<TRef, TRet> visitor) {
-      return visitor.visitReturnStatement(expression);
+      return visitor.visitReturnStatement(this);
     }
   }
 
-   class WhileStatement<TRef> implements Statement<TRef> {
+  class WhileStatement<TRef> implements Statement<TRef> {
     public final Expression<TRef> condition;
     public final Statement<TRef> body;
 
@@ -76,7 +76,7 @@ public interface Statement<TRef> extends BlockStatement<TRef> {
 
     @Override
     public <TRet> TRet acceptVisitor(StatementVisitor<TRef, TRet> visitor) {
-      return visitor.visitWhileStatement(condition, body);
+      return visitor.visitWhileStatement(this);
     }
   }
 
@@ -90,22 +90,22 @@ public interface Statement<TRef> extends BlockStatement<TRef> {
 
     @Override
     public <TRet> TRet acceptVisitor(StatementVisitor<TRef, TRet> visitor) {
-      return visitor.visitExpressionStatement(expression);
+      return visitor.visitExpressionStatement(this);
     }
   }
 
   interface StatementVisitor<TRef, TReturn> {
 
-    TReturn visitBlock(List<BlockStatement<TRef>> block);
+    TReturn visitBlock(Block<TRef> that);
 
-    TReturn visitEmptyStatement();
+    TReturn visitEmptyStatement(EmptyStatement<TRef> that);
 
-    TReturn visitIfStatement(Expression<TRef> condition, Statement<TRef> then, Statement<TRef> else_);
+    TReturn visitIfStatement(IfStatement<TRef> that);
 
-    TReturn visitExpressionStatement(Expression<TRef> expression);
+    TReturn visitExpressionStatement(ExpressionStatement<TRef> that);
 
-    TReturn visitWhileStatement(Expression<TRef> condition, Statement<TRef> body);
+    TReturn visitWhileStatement(WhileStatement<TRef> that);
 
-    TReturn visitReturnStatement(Optional<Expression<TRef>> expression);
+    TReturn visitReturnStatement(ReturnStatement<TRef> that);
   }
 }

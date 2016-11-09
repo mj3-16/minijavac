@@ -10,11 +10,11 @@ public class Program<TRef> {
   }
 
   public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
-    return visitor.visitProgram(declarations);
+    return visitor.visitProgram(this);
   }
 
   public interface Visitor<TRef, TReturn> {
 
-    TReturn visitProgram(List<ClassDeclaration<TRef>> declarations);
+    TReturn visitProgram(Program<TRef> that);
   }
 }

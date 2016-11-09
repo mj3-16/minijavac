@@ -17,7 +17,7 @@ public interface ClassMember<TRef> {
 
     @Override
     public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
-      return visitor.visitField(type, name);
+      return visitor.visitField(this);
     }
   }
 
@@ -43,7 +43,7 @@ public interface ClassMember<TRef> {
 
     @Override
     public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
-      return visitor.visitMethod(isStatic, returnType, name, parameters, body);
+      return visitor.visitMethod(this);
     }
   }
 
@@ -59,13 +59,8 @@ public interface ClassMember<TRef> {
 
   interface Visitor<TRef, TReturn> {
 
-    TReturn visitField(Type<TRef> type, String name);
+    TReturn visitField(FieldClassMember<TRef> that);
 
-    TReturn visitMethod(
-            boolean isStatic,
-            Type<TRef> returnType,
-            String name,
-            List<Parameter<TRef>> parameters,
-            Statement.Block body);
+    TReturn visitMethod(MethodClassMember<TRef> that);
   }
 }

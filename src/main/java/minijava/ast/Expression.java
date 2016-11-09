@@ -5,21 +5,21 @@ import java.util.List;
 public interface Expression<TRef> {
   <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor);
 
-    class ArrayAccessExpression<TRef> implements Expression<TRef> {
+  class ArrayAccessExpression<TRef> implements Expression<TRef> {
 
-      public final Expression<TRef> array;
-      public final Expression<TRef> index;
+    public final Expression<TRef> array;
+    public final Expression<TRef> index;
 
-      public ArrayAccessExpression(Expression<TRef> array, Expression<TRef> index) {
-        this.array = array;
-        this.index = index;
-      }
-
-      @Override
-      public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
-        return visitor.visitArrayAccess(array, index);
-      }
+    public ArrayAccessExpression(Expression<TRef> array, Expression<TRef> index) {
+      this.array = array;
+      this.index = index;
     }
+
+    @Override
+    public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
+      return visitor.visitArrayAccess(this);
+    }
+  }
 
   class BinaryOperatorExpression<TRef> implements Expression<TRef> {
     public final BinOp op;
@@ -34,7 +34,7 @@ public interface Expression<TRef> {
 
     @Override
     public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
-      return visitor.visitBinaryOperator(op, left, right);
+      return visitor.visitBinaryOperator(this);
     }
   }
 
@@ -48,7 +48,7 @@ public interface Expression<TRef> {
 
     @Override
     public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
-      return visitor.visitBooleanLiteral(literal);
+      return visitor.visitBooleanLiteral(this);
     }
   }
 
@@ -64,7 +64,7 @@ public interface Expression<TRef> {
 
     @Override
     public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
-      return visitor.visitFieldAccess(self, field);
+      return visitor.visitFieldAccess(this);
     }
   }
 
@@ -78,7 +78,7 @@ public interface Expression<TRef> {
 
     @Override
     public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
-      return visitor.visitIntegerLiteral(literal);
+      return visitor.visitIntegerLiteral(this);
     }
   }
 
@@ -97,7 +97,7 @@ public interface Expression<TRef> {
 
     @Override
     public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
-      return visitor.visitMethodCall(self, method, arguments);
+      return visitor.visitMethodCall(this);
     }
   }
 
@@ -113,7 +113,7 @@ public interface Expression<TRef> {
 
     @Override
     public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
-      return visitor.visitNewArrayExpr(type, size);
+      return visitor.visitNewArrayExpr(this);
     }
   }
 
@@ -127,7 +127,7 @@ public interface Expression<TRef> {
 
     @Override
     public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
-      return visitor.visitNewObjectExpr(type);
+      return visitor.visitNewObjectExpr(this);
     }
   }
 
@@ -143,7 +143,7 @@ public interface Expression<TRef> {
 
     @Override
     public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
-      return visitor.visitUnaryOperator(op, expression);
+      return visitor.visitUnaryOperator(this);
     }
   }
 
@@ -158,7 +158,7 @@ public interface Expression<TRef> {
 
     @Override
     public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
-      return visitor.visitVariable(var);
+      return visitor.visitVariable(this);
     }
   }
 
@@ -186,24 +186,24 @@ public interface Expression<TRef> {
 
   interface Visitor<TRef, TReturn> {
 
-    TReturn visitBinaryOperator(BinOp op, Expression<TRef> left, Expression<TRef> right);
+    TReturn visitBinaryOperator(BinaryOperatorExpression<TRef> that);
 
-    TReturn visitUnaryOperator(UnOp op, Expression<TRef> expression);
+    TReturn visitUnaryOperator(UnaryOperatorExpression<TRef> that);
 
-    TReturn visitMethodCall(Expression<TRef> self, TRef method, List<Expression<TRef>> arguments);
+    TReturn visitMethodCall(MethodCallExpression<TRef> that);
 
-    TReturn visitFieldAccess(Expression<TRef> self, TRef field);
+    TReturn visitFieldAccess(FieldAccessExpression<TRef> that);
 
-    TReturn visitArrayAccess(Expression<TRef> array, Expression<TRef> index);
+    TReturn visitArrayAccess(ArrayAccessExpression<TRef> that);
 
-    TReturn visitNewObjectExpr(TRef type);
+    TReturn visitNewObjectExpr(NewObjectExpression<TRef> that);
 
-    TReturn visitNewArrayExpr(Type<TRef> type, Expression<TRef> size);
+    TReturn visitNewArrayExpr(NewArrayExpression<TRef> size);
 
-    TReturn visitVariable(TRef var);
+    TReturn visitVariable(VariableExpression<TRef> that);
 
-    TReturn visitBooleanLiteral(boolean literal);
+    TReturn visitBooleanLiteral(BooleanLiteralExpression<TRef> that);
 
-    TReturn visitIntegerLiteral(String literal);
+    TReturn visitIntegerLiteral(IntegerLiteralExpression<TRef> that);
   }
 }

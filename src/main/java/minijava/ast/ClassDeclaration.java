@@ -12,11 +12,11 @@ public class ClassDeclaration<TRef> {
   }
 
   public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
-    return visitor.visitClassDeclaration(name, members);
+    return visitor.visitClassDeclaration(this);
   }
 
   public interface Visitor<TRef, TReturn> {
 
-    TReturn visitClassDeclaration(String name, List<ClassMember<TRef>> members);
+    TReturn visitClassDeclaration(ClassDeclaration<TRef> that);
   }
 }

@@ -16,12 +16,12 @@ public interface BlockStatement<TRef> {
 
     @Override
     public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
-      return visitor.visitLocalVariableDeclarationStatement(type, name, rhs);
+      return visitor.visitLocalVariableDeclarationStatement(this);
     }
   }
 
   interface Visitor<TRef, TRet> extends Statement.StatementVisitor<TRef, TRet> {
 
-    TRet visitLocalVariableDeclarationStatement(Type<TRef> type, String name, Expression<TRef> rhs);
+    TRet visitLocalVariableDeclarationStatement(LocalVariableDeclarationStatement<TRef> that);
   }
 }
