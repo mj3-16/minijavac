@@ -26,7 +26,7 @@ public class TerminalStreamGenerator {
     this.sizeHint = sizeHint;
   }
 
-  // ClassDeclaration*
+  // Class*
   public static List<Terminal> generateProgram(SourceOfRandomness random, int sizeHint) {
 
     TerminalStreamGenerator gen = new TerminalStreamGenerator(sizeHint);
@@ -40,7 +40,7 @@ public class TerminalStreamGenerator {
     return gen.ret;
   }
 
-  // class IDENT { ClassMember* }
+  // class IDENT { Member* }
   private void genClassDeclaration(SourceOfRandomness random) {
     ret.add(CLASS);
     ret.add(IDENT);
@@ -119,10 +119,10 @@ public class TerminalStreamGenerator {
   /*
   Block
   | EmptyStatement
-  | IfStatement
+  | If
   | ExpressionStatement
-  | WhileStatement
-  | ReturnStatement
+  | While
+  | Return
   */
   private void genStatement(SourceOfRandomness random) {
     selectWithRandomWeight(
@@ -145,7 +145,7 @@ public class TerminalStreamGenerator {
     ret.add(RBRACE);
   }
 
-  // Statement | LocalVariableDeclarationStatement
+  // Statement | Variable
   private void genBlockStatement(SourceOfRandomness random) {
     selectWithRandomWeight(
         random, tuple(0.3, this::genLocalVariableStatement), tuple(0.7, this::genStatement));

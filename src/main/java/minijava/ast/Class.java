@@ -2,11 +2,11 @@ package minijava.ast;
 
 import java.util.List;
 
-public class ClassDeclaration<TRef> {
+public class Class<TRef> {
   public final String name;
-  public final List<ClassMember<TRef>> members;
+  public final List<Member<TRef>> members;
 
-  public ClassDeclaration(String name, List<ClassMember<TRef>> members) {
+  public Class(String name, List<Member<TRef>> members) {
     this.name = name;
     this.members = members;
   }
@@ -17,6 +17,6 @@ public class ClassDeclaration<TRef> {
 
   public interface Visitor<TRef, TReturn> {
 
-    TReturn visitClassDeclaration(ClassDeclaration<TRef> that);
+    TReturn visitClassDeclaration(Class<TRef> that);
   }
 }

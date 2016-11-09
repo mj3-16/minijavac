@@ -3,9 +3,9 @@ package minijava.ast;
 import java.util.List;
 
 public class Program<TRef> {
-  public final List<ClassDeclaration<TRef>> declarations;
+  public final List<Class<TRef>> declarations;
 
-  public Program(List<ClassDeclaration<TRef>> declarations) {
+  public Program(List<Class<TRef>> declarations) {
     this.declarations = declarations;
   }
 

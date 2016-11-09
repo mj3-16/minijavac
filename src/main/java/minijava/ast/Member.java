@@ -2,15 +2,15 @@ package minijava.ast;
 
 import java.util.List;
 
-public interface ClassMember<TRef> {
+public interface Member<TRef> {
   <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor);
 
-  class FieldClassMember<TRef> implements ClassMember<TRef> {
+  class Field<TRef> implements Member<TRef> {
 
     public final Type<TRef> type;
     public final String name;
 
-    public FieldClassMember(Type<TRef> type, String name) {
+    public Field(Type<TRef> type, String name) {
       this.type = type;
       this.name = name;
     }
@@ -21,19 +21,19 @@ public interface ClassMember<TRef> {
     }
   }
 
-  class MethodClassMember<TRef> implements ClassMember<TRef> {
+  class Method<TRef> implements Member<TRef> {
     public final boolean isStatic;
     public final Type<TRef> returnType;
     public final String name;
     public final List<Parameter<TRef>> parameters;
-    public final Statement.Block body;
+    public final Block body;
 
-    public MethodClassMember(
+    public Method(
         boolean isStatic,
         Type<TRef> returnType,
         String name,
         List<Parameter<TRef>> parameters,
-        Statement.Block body) {
+        Block body) {
       this.isStatic = isStatic;
       this.returnType = returnType;
       this.name = name;
@@ -59,8 +59,8 @@ public interface ClassMember<TRef> {
 
   interface Visitor<TRef, TReturn> {
 
-    TReturn visitField(FieldClassMember<TRef> that);
+    TReturn visitField(Field<TRef> that);
 
-    TReturn visitMethod(MethodClassMember<TRef> that);
+    TReturn visitMethod(Method<TRef> that);
   }
 }

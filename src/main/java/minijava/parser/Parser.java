@@ -86,7 +86,7 @@ public class Parser {
     parseProgramm();
   }
 
-  /** Program -> ClassDeclaration* */
+  /** Program -> Class* */
   private void parseProgramm() {
     while (isCurrentTokenNotTypeOf(EOF)) {
       parseClassDeclaration();
@@ -94,7 +94,7 @@ public class Parser {
     expectAndConsume(EOF);
   }
 
-  /** ClassDeclaration -> class IDENT { PublicClassMember* } */
+  /** Class -> class IDENT { PublicClassMember* } */
   private void parseClassDeclaration() {
     expectAndConsume(CLASS);
     expectAndConsume(IDENT);
@@ -105,13 +105,13 @@ public class Parser {
     expectAndConsume(RBRACE);
   }
 
-  /** PublicClassMember -> public ClassMember */
+  /** PublicClassMember -> public Member */
   private void parsePublicClassMember() {
     expectAndConsume(PUBLIC);
     parseClassMember();
   }
 
-  /** ClassMember -> MainMethod | FieldOrMethod */
+  /** Member -> MainMethod | FieldOrMethod */
   private void parseClassMember() {
     switch (currentToken.terminal) {
       case STATIC:
@@ -210,11 +210,11 @@ public class Parser {
   }
 
   /**
-   * Statement -> Block | EmptyStatement | IfStatement | ExpressionStatement | WhileStatement |
-   * ReturnStatement
+   * Statement -> Block | EmptyStatement | If | ExpressionStatement | While |
+   * Return
    */
   private void parseStatement() {
-    // Also called from BlockStatement, IfStatement and WhileStatement.
+    // Also called from BlockStatement, If and While.
     // There is possibility for endless recursion here, but that's OK
     // because it's not tail recursive (which we have to optimize away
     // with loops). A nested sequence of blocks (e.g. {{{...{{{ ; }}}...}}})
@@ -252,7 +252,7 @@ public class Parser {
     expectAndConsume(RBRACE);
   }
 
-  /** BlockStatement -> Statement | LocalVariableDeclarationStatement */
+  /** BlockStatement -> Statement | Variable */
   private void parseBlockStatement() {
     if (currentToken.isOneOf(INT, BOOLEAN, VOID)
         || matchCurrentAndLookAhead(IDENT, LBRACK, RBRACK)
@@ -263,7 +263,7 @@ public class Parser {
     }
   }
 
-  /** LocalVariableDeclarationStatement -> Type IDENT (= Expression)? ; */
+  /** Variable -> Type IDENT (= Expression)? ; */
   private void parseLocalVariableDeclarationStatement() {
     parseType();
     expectAndConsume(IDENT);
@@ -279,7 +279,7 @@ public class Parser {
     expectAndConsume(SEMICOLON);
   }
 
-  /** WhileStatement -> while ( Expression ) Statement */
+  /** While -> while ( Expression ) Statement */
   private void parseWhileStatement() {
     expectAndConsume(WHILE);
     expectAndConsume(LPAREN);
@@ -288,7 +288,7 @@ public class Parser {
     parseStatement();
   }
 
-  /** IfStatement -> if ( Expression ) Statement (else Statement)? */
+  /** If -> if ( Expression ) Statement (else Statement)? */
   private void parseIfStatement() {
     expectAndConsume(IF);
     expectAndConsume(LPAREN);
@@ -307,7 +307,7 @@ public class Parser {
     expectAndConsume(SEMICOLON);
   }
 
-  /** ReturnStatement -> return Expression? ; */
+  /** Return -> return Expression? ; */
   private void parseReturnStatement() {
     expectAndConsume(RETURN);
     if (isCurrentTokenNotTypeOf(SEMICOLON)) {
