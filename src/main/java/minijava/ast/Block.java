@@ -11,7 +11,7 @@ public class Block<TRef> implements Statement<TRef> {
   }
 
   @Override
-  public <TRet> TRet acceptVisitor(StatementVisitor<TRef, TRet> visitor) {
+  public <TRet> TRet acceptVisitor(Statement.Visitor<TRef, TRet> visitor) {
     return visitor.visitBlock(this);
   }
 }

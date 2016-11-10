@@ -20,7 +20,7 @@ public interface BlockStatement<TRef> {
     }
   }
 
-  interface Visitor<TRef, TRet> extends Statement.StatementVisitor<TRef, TRet> {
+  interface Visitor<TRef, TRet> extends Statement.Visitor<TRef, TRet> {
 
     TRet visitVariable(Variable<TRef> that);
   }

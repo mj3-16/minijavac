@@ -10,11 +10,11 @@ public class Type<TRef> {
     this.dimension = dimension;
   }
 
-  <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
+  public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
     return visitor.visitType(this);
   }
 
-  interface Visitor<TRef, TReturn> {
+  public interface Visitor<TRef, TReturn> {
     TReturn visitType(Type<TRef> that);
   }
 }
