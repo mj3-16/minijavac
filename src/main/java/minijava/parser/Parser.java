@@ -377,7 +377,7 @@ public class Parser {
     Expression result = parseUnaryExpression();
     while (isCurrentTokenBinaryOperator()
         && isOperatorPrecedenceGreaterOrEqualThan(minPrecedence)) {
-      Terminal currentOperator = currentToken.terminal;
+      Expression.BinOp operator = getBinaryOperator(currentToken);
       int precedence = currentToken.precedence();
       if (currentToken.associativity() == LEFT) {
         precedence++;
@@ -385,63 +385,62 @@ public class Parser {
       consumeToken();
       Expression rhs = parseExpressionWithPrecedenceClimbing(precedence);
 
-      switch (currentOperator) {
-        case ASSIGN:
-          result = new Expression.BinaryOperatorExpression(Expression.BinOp.ASSIGN, result, rhs);
-          break;
-        case OR:
-          result = new Expression.BinaryOperatorExpression(Expression.BinOp.OR, result, rhs);
-          break;
-        case AND:
-          result = new Expression.BinaryOperatorExpression(Expression.BinOp.AND, result, rhs);
-          break;
-        case EQL:
-          result = new Expression.BinaryOperatorExpression(Expression.BinOp.EQ, result, rhs);
-          break;
-        case NEQ:
-          result = new Expression.BinaryOperatorExpression(Expression.BinOp.NEQ, result, rhs);
-          break;
-        case LSS:
-          result = new Expression.BinaryOperatorExpression(Expression.BinOp.LT, result, rhs);
-          break;
-        case LEQ:
-          result = new Expression.BinaryOperatorExpression(Expression.BinOp.LEQ, result, rhs);
-          break;
-        case GTR:
-          result = new Expression.BinaryOperatorExpression(Expression.BinOp.GT, result, rhs);
-          break;
-        case GEQ:
-          result = new Expression.BinaryOperatorExpression(Expression.BinOp.GEQ, result, rhs);
-          break;
-        case ADD:
-          result = new Expression.BinaryOperatorExpression(Expression.BinOp.PLUS, result, rhs);
-          break;
-        case SUB:
-          result = new Expression.BinaryOperatorExpression(Expression.BinOp.MINUS, result, rhs);
-          break;
-        case MUL:
-          result = new Expression.BinaryOperatorExpression(Expression.BinOp.MULTIPLY, result, rhs);
-          break;
-        case DIV:
-          result = new Expression.BinaryOperatorExpression(Expression.BinOp.DIVIDE, result, rhs);
-          break;
-        case MOD:
-          result = new Expression.BinaryOperatorExpression(Expression.BinOp.MODULO, result, rhs);
-          break;
-      }
+      result = new Expression.BinaryOperatorExpression(operator, result, rhs);
     }
     return result;
+  }
+
+  private Expression.BinOp getBinaryOperator(Token token) {
+    switch (token.terminal) {
+      case ASSIGN:
+        return Expression.BinOp.ASSIGN;
+      case OR:
+        return Expression.BinOp.OR;
+      case AND:
+        return Expression.BinOp.AND;
+      case EQL:
+        return Expression.BinOp.EQ;
+      case NEQ:
+        return Expression.BinOp.NEQ;
+      case LSS:
+        return Expression.BinOp.LT;
+      case LEQ:
+        return Expression.BinOp.LEQ;
+      case GTR:
+        return Expression.BinOp.GT;
+      case GEQ:
+        return Expression.BinOp.GEQ;
+      case ADD:
+        return Expression.BinOp.PLUS;
+      case SUB:
+        return Expression.BinOp.MINUS;
+      case MUL:
+        return Expression.BinOp.MULTIPLY;
+      case DIV:
+        return Expression.BinOp.DIVIDE;
+      case MOD:
+        return Expression.BinOp.MODULO;
+      default:
+        throw new ParserError(token.position, "Token is not a BinaryOperator");
+    }
+  }
+
+  private Expression.UnOp getUnaryOperator(Token token) {
+    switch (token.terminal) {
+      case NOT:
+        return Expression.UnOp.NOT;
+      case SUB:
+        return Expression.UnOp.NEGATE;
+      default:
+        throw new ParserError(token.position, "Token is not an UnaryOperator");
+    }
   }
 
   /** UnaryExpression -> PostfixExpression | (! | -) UnaryExpression */
   private Expression parseUnaryExpression() {
     Expression.UnOp operator = null;
     if (currentToken.isOneOf(NOT, SUB)) {
-      if (currentToken.isOneOf(NOT)) {
-        operator = Expression.UnOp.NOT;
-      } else {
-        operator = Expression.UnOp.NEGATE;
-      }
+      operator = getUnaryOperator(currentToken);
       consumeToken();
       Expression unaryExpression = parseUnaryExpression();
       return new Expression.UnaryOperatorExpression(operator, unaryExpression);
