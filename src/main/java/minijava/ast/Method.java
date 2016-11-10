@@ -7,7 +7,7 @@ public class Method<TRef> {
   public final Type<TRef> returnType;
   public final String name;
   public final List<Parameter<TRef>> parameters;
-  public final Block body;
+  public final Block<TRef> body;
 
   /**
    * Constructs a new method node.
@@ -20,7 +20,7 @@ public class Method<TRef> {
       Type<TRef> returnType,
       String name,
       List<Parameter<TRef>> parameters,
-      Block body) {
+      Block<TRef> body) {
     this.isStatic = isStatic;
     this.returnType = returnType;
     this.name = name;
