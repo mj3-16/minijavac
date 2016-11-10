@@ -113,39 +113,49 @@ public class Parser {
   /** ClassDeclaration -> class IDENT { PublicClassMember* } */
   private Class parseClassDeclaration() {
     String identifier;
-    List<Member> members = new ArrayList<>();
+    List<Field> fields = new ArrayList<>();
+    List<Method> methods = new ArrayList<>();
     expectAndConsume(CLASS);
     identifier = expectAndConsumeAndReturnValue(IDENT);
     expectAndConsume(LBRACE);
     while (isCurrentTokenNotTypeOf(RBRACE) && isCurrentTokenNotTypeOf(EOF)) {
-      members.add(parsePublicClassMember());
+      Object classMember = parsePublicClassMember();
+      if (classMember instanceof Field) {
+        fields.add((Field) classMember);
+      } else {
+        // It must be type of Method, otherwise a CastException will be thrown.
+        // As an alternative, we could test classMember with instanceof, but
+        // if classMember is in any way not of the expected type, we need to throw
+        // an other exception. I don't know which way is better.
+        methods.add((Method) classMember);
+      }
     }
     expectAndConsume(RBRACE);
-    return new Class(identifier, members);
+    return new Class(identifier, fields, methods);
   }
 
   /** PublicClassMember -> public ClassMember */
-  private Member parsePublicClassMember() {
+  private Object parsePublicClassMember() {
     expectAndConsume(PUBLIC);
     return parseClassMember();
   }
 
   /** ClassMember -> MainMethod | FieldOrMethod */
-  private Member parseClassMember() {
-    Member member;
+  private Object parseClassMember() {
+    Object object;
     switch (currentToken.terminal) {
       case STATIC:
-        member = parseMainMethod();
+        object = parseMainMethod();
         break;
       default:
-        member = parseTypeIdentFieldOrMethod();
+        object = parseTypeIdentFieldOrMethod();
         break;
     }
-    return member;
+    return object;
   }
 
   /** MainMethod -> static void IDENT ( String [] IDENT ) Block */
-  private Member parseMainMethod() {
+  private Method parseMainMethod() {
     expectAndConsume(STATIC);
     expectAndConsume(VOID);
     String name = expectAndConsumeAndReturnValue(IDENT);
@@ -156,42 +166,41 @@ public class Parser {
     expectAndConsume(IDENT);
     expectAndConsume(RPAREN);
     Block block = parseBlock();
-    return new Member.Method(
-        true, new Type("void", 0), name, new ArrayList<Member.Parameter>(), block);
+    return new Method(true, new Type("void", 0), name, new ArrayList<>(), block);
   }
 
   /** TypeIdentFieldOrMethod -> Type IDENT FieldOrMethod */
-  private Member parseTypeIdentFieldOrMethod() {
+  private Object parseTypeIdentFieldOrMethod() {
     Type type = parseType();
     String name = expectAndConsumeAndReturnValue(IDENT);
     return parseFieldOrMethod(type, name);
   }
 
   /** FieldOrMethod -> ; | Method */
-  private Member parseFieldOrMethod(Type type, String name) {
+  private Object parseFieldOrMethod(Type type, String name) {
     if (isCurrentTokenTypeOf(SEMICOLON)) {
       expectAndConsume(SEMICOLON);
-      return new Member.Field(type, name);
+      return new Field(type, name);
     } else {
       return parseMethod(type, name);
     }
   }
 
   /** Method -> ( Parameters? ) Block */
-  private Member parseMethod(Type type, String name) {
-    List<Member.Parameter> parameters = new ArrayList<>();
+  private Object parseMethod(Type type, String name) {
+    List<Method.Parameter> parameters = new ArrayList<>();
     expectAndConsume(LPAREN);
     if (isCurrentTokenNotTypeOf(RPAREN)) {
       parameters = parseParameters();
     }
     expectAndConsume(RPAREN);
     Block block = parseBlock();
-    return new Member.Method(false, type, name, parameters, block);
+    return new Method(false, type, name, parameters, block);
   }
 
   /** Parameters -> Parameter | Parameter , Parameters */
-  private List<Member.Parameter> parseParameters() {
-    List<Member.Parameter> parameters = new ArrayList<>();
+  private List<Method.Parameter> parseParameters() {
+    List<Method.Parameter> parameters = new ArrayList<>();
     parameters.add(parseParameter());
     while (isCurrentTokenTypeOf(COMMA)) {
       expectAndConsume(COMMA);
@@ -201,10 +210,10 @@ public class Parser {
   }
 
   /** Parameter -> Type IDENT */
-  private Member.Parameter parseParameter() {
+  private Method.Parameter parseParameter() {
     Type type = parseType();
     String identifier = expectAndConsumeAndReturnValue(IDENT);
-    return new Member.Parameter(type, identifier);
+    return new Method.Parameter(type, identifier);
   }
 
   /** Type -> BasicType ([])* */
@@ -425,137 +434,171 @@ public class Parser {
   }
 
   /** UnaryExpression -> PostfixExpression | (! | -) UnaryExpression */
-  private void parseUnaryExpression() {
-    while (currentToken.isOneOf(NOT, SUB)) {
+  private Expression parseUnaryExpression() {
+    Expression.UnOp operator = null;
+    if (currentToken.isOneOf(NOT, SUB)) {
+      if (currentToken.isOneOf(NOT)) {
+        operator = Expression.UnOp.NOT;
+      } else {
+        operator = Expression.UnOp.NEGATE;
+      }
       consumeToken();
+      Expression unaryExpression = parseUnaryExpression();
+      return new Expression.UnaryOperatorExpression(operator, unaryExpression);
     }
-    parsePostfixExpression();
+    Expression postFixExpression = parsePostfixExpression();
+    return new Expression.UnaryOperatorExpression(operator, postFixExpression);
   }
 
   /** PostfixExpression -> PrimaryExpression (PostfixOp)* */
-  private void parsePostfixExpression() {
-    parsePrimaryExpression();
+  private Expression parsePostfixExpression() {
+    Expression primaryExpression = parsePrimaryExpression();
     while ((isCurrentTokenTypeOf(LBRACK) || isCurrentTokenTypeOf(PERIOD))
         && isCurrentTokenNotTypeOf(EOF)) {
-      parsePostfixOp();
+      primaryExpression = parsePostfixOp(primaryExpression);
     }
+    return primaryExpression;
   }
 
   /** PostfixOp -> MethodInvocation | FieldAccess | ArrayAccess */
-  private void parsePostfixOp() {
+  private Expression parsePostfixOp(Expression lhs) {
+    Expression postFixOp = null;
     switch (currentToken.terminal) {
       case PERIOD:
-        parseDotIdentFieldAccessMethodInvocation();
+        postFixOp = parseDotIdentFieldAccessMethodInvocation(lhs);
         break;
       case LBRACK:
-        parseArrayAccess();
+        postFixOp = parseArrayAccess(lhs);
         break;
       default:
         unexpectCurrentToken(PERIOD, LBRACK);
     }
+    return postFixOp;
   }
 
   /** DotIdentFieldAccessMethodInvocation -> . IDENT (MethodInvocation)? */
-  private void parseDotIdentFieldAccessMethodInvocation() {
+  private Expression parseDotIdentFieldAccessMethodInvocation(Expression lhs) {
     expectAndConsume(PERIOD);
-    expectAndConsume(IDENT);
+    String identifier = expectAndConsumeAndReturnValue(IDENT);
     // is it FieldAccess (false) or MethodInvocation (true)?
     if (isCurrentTokenTypeOf(LPAREN)) {
-      parseMethodInvocation();
+      return parseMethodInvocation(lhs, identifier);
     }
+    return new Expression.FieldAccessExpression(lhs, identifier);
   }
 
   /** MethodInvocation -> ( Arguments ) */
-  private void parseMethodInvocation() {
+  private Expression parseMethodInvocation(Expression lhs, String identifier) {
     expectAndConsume(LPAREN);
-    parseArguments();
+    List<Expression> arguments = parseArguments();
     expectAndConsume(RPAREN);
+    return new Expression.MethodCallExpression(lhs, identifier, arguments);
   }
 
   /** ArrayAccess -> [ Expression ] */
-  private void parseArrayAccess() {
+  private Expression parseArrayAccess(Expression array) {
     expectAndConsume(LBRACK);
-    parseExpression();
+    Expression index = parseExpression();
     expectAndConsume(RBRACK);
+    return new Expression.ArrayAccessExpression(array, index);
   }
 
   /** Arguments -> (Expression (,Expression)*)? */
-  private void parseArguments() {
+  private List<Expression> parseArguments() {
+    List<Expression> arguments = new ArrayList<>();
     if (isCurrentTokenNotTypeOf(RPAREN)) {
-      parseExpression();
+      arguments.add(parseExpression());
       while (isCurrentTokenTypeOf(COMMA) && isCurrentTokenNotTypeOf(EOF)) {
         expectAndConsume(COMMA);
-        parseExpression();
+        arguments.add(parseExpression());
       }
     }
+    return arguments;
   }
 
   /**
    * PrimaryExpression -> null | false | true | INTEGER_LITERAL | IDENT | IDENT ( Arguments ) | this
    * | ( Expression ) | NewObjectArrayExpression
    */
-  private void parsePrimaryExpression() {
+  private Expression parsePrimaryExpression() {
+    Expression primaryExpression = null;
     switch (currentToken.terminal) {
       case NULL:
         expectAndConsume(NULL);
+        primaryExpression = new Expression.VariableExpression("null");
         break;
       case FALSE:
         expectAndConsume(FALSE);
+        primaryExpression = new Expression.BooleanLiteralExpression(false);
         break;
       case TRUE:
         expectAndConsume(TRUE);
+        primaryExpression = new Expression.BooleanLiteralExpression(true);
         break;
       case INTEGER_LITERAL:
-        expectAndConsume(INTEGER_LITERAL);
+        String literal = expectAndConsumeAndReturnValue(INTEGER_LITERAL);
+        primaryExpression = new Expression.IntegerLiteralExpression(literal);
         break;
       case IDENT:
-        expectAndConsume(IDENT);
+        String identifier = expectAndConsumeAndReturnValue(IDENT);
+        List<Expression> arguments;
         if (isCurrentTokenTypeOf(LPAREN)) {
           expectAndConsume(LPAREN);
-          parseArguments();
+          arguments = parseArguments();
           expectAndConsume(RPAREN);
+          primaryExpression = new Expression.MethodCallExpression(null, identifier, arguments);
+        } else {
+          primaryExpression = new Expression.FieldAccessExpression(null, identifier);
         }
         break;
       case THIS:
         expectAndConsume(THIS);
+        primaryExpression = new Expression.VariableExpression("this");
         break;
       case LPAREN:
         expectAndConsume(LPAREN);
-        parseExpression();
+        primaryExpression = parseExpression();
         expectAndConsume(RPAREN);
         break;
       case NEW:
-        parseNewObjectArrayExpression();
+        primaryExpression = parseNewObjectArrayExpression();
         break;
       default:
         unexpectCurrentToken(NULL, FALSE, TRUE, INTEGER_LITERAL, IDENT, THIS, LPAREN, NEW);
     }
+    return primaryExpression;
   }
 
   /** NewObjectArrayExpression -> BasicType NewArrayExpression | IDENT NewObjectExpression */
-  private void parseNewObjectArrayExpression() {
+  private Expression parseNewObjectArrayExpression() {
+    Expression expression = null;
+    Type type;
     expectAndConsume(NEW);
     switch (currentToken.terminal) {
       case INT:
         expectAndConsume(INT);
-        parseNewArrayExpression();
+        type = new Type("int", 0);
+        expression = parseNewArrayExpression(type);
         break;
       case BOOLEAN:
         expectAndConsume(BOOLEAN);
-        parseNewArrayExpression();
+        type = new Type("boolean", 0);
+        expression = parseNewArrayExpression(type);
         break;
       case VOID:
         expectAndConsume(VOID);
-        parseNewArrayExpression();
+        type = new Type("void", 0);
+        expression = parseNewArrayExpression(type);
         break;
       case IDENT:
-        expectAndConsume(IDENT);
+        String identifier = expectAndConsumeAndReturnValue(IDENT);
+        type = new Type(identifier, 0);
         switch (currentToken.terminal) {
           case LPAREN:
-            parseNewObjectExpression();
+            expression = parseNewObjectExpression(type);
             break;
           case LBRACK:
-            parseNewArrayExpression();
+            expression = parseNewArrayExpression(type);
             break;
           default:
             unexpectCurrentToken(LPAREN, LBRACK);
@@ -564,22 +607,25 @@ public class Parser {
       default:
         unexpectCurrentToken(INT, BOOLEAN, VOID, IDENT);
     }
+    return expression;
   }
 
   /** NewObjectExpression -> ( ) */
-  private void parseNewObjectExpression() {
+  private Expression parseNewObjectExpression(Type type) {
     expectAndConsume(LPAREN);
     expectAndConsume(RPAREN);
+    return new Expression.NewObjectExpression(type);
   }
 
   /** NewArrayExpression -> [ Expression ] ([])* */
-  private void parseNewArrayExpression() {
+  private Expression parseNewArrayExpression(Type type) {
     expectAndConsume(LBRACK);
-    parseExpression();
+    Expression index = parseExpression();
     expectAndConsume(RBRACK);
     while (matchCurrentAndLookAhead(LBRACK, RBRACK)) {
       expectAndConsume(LBRACK);
       expectAndConsume(RBRACK);
     }
+    return new Expression.NewArrayExpression(type, index);
   }
 }
