@@ -26,14 +26,14 @@ public interface Member<TRef> {
     public final Type<TRef> returnType;
     public final String name;
     public final List<Parameter<TRef>> parameters;
-    public final Block body;
+    public final Block<TRef> body;
 
     public Method(
         boolean isStatic,
         Type<TRef> returnType,
         String name,
         List<Parameter<TRef>> parameters,
-        Block body) {
+        Block<TRef> body) {
       this.isStatic = isStatic;
       this.returnType = returnType;
       this.name = name;
