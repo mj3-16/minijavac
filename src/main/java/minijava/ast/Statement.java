@@ -3,15 +3,16 @@ package minijava.ast;
 import java.util.Optional;
 
 public interface Statement<TRef> extends BlockStatement<TRef> {
-  <TRet> TRet acceptVisitor(StatementVisitor<TRef, TRet> visitor);
 
-  default <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
-    return acceptVisitor((StatementVisitor<TRef, TRet>) visitor);
+  <TRet> TRet acceptVisitor(Statement.Visitor<TRef, TRet> visitor);
+
+  default <TRet> TRet acceptVisitor(BlockStatement.Visitor<TRef, TRet> visitor) {
+    return acceptVisitor((Statement.Visitor<TRef, TRet>) visitor);
   }
 
   class EmptyStatement<TRef> implements Statement<TRef> {
     @Override
-    public <TRet> TRet acceptVisitor(StatementVisitor<TRef, TRet> visitor) {
+    public <TRet> TRet acceptVisitor(Statement.Visitor<TRef, TRet> visitor) {
       return visitor.visitEmptyStatement(this);
     }
   }
@@ -28,7 +29,7 @@ public interface Statement<TRef> extends BlockStatement<TRef> {
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(StatementVisitor<TRef, TRet> visitor) {
+    public <TRet> TRet acceptVisitor(Statement.Visitor<TRef, TRet> visitor) {
       return visitor.visitIf(this);
     }
   }
@@ -45,7 +46,7 @@ public interface Statement<TRef> extends BlockStatement<TRef> {
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(StatementVisitor<TRef, TRet> visitor) {
+    public <TRet> TRet acceptVisitor(Statement.Visitor<TRef, TRet> visitor) {
       return visitor.visitReturn(this);
     }
   }
@@ -60,7 +61,7 @@ public interface Statement<TRef> extends BlockStatement<TRef> {
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(StatementVisitor<TRef, TRet> visitor) {
+    public <TRet> TRet acceptVisitor(Statement.Visitor<TRef, TRet> visitor) {
       return visitor.visitWhile(this);
     }
   }
@@ -74,23 +75,23 @@ public interface Statement<TRef> extends BlockStatement<TRef> {
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(StatementVisitor<TRef, TRet> visitor) {
+    public <TRet> TRet acceptVisitor(Statement.Visitor<TRef, TRet> visitor) {
       return visitor.visitExpressionStatement(this);
     }
   }
 
-  interface StatementVisitor<TRef, TReturn> {
+  interface Visitor<TRef, TRet> {
 
-    TReturn visitBlock(Block<TRef> that);
+    TRet visitBlock(Block<TRef> that);
 
-    TReturn visitEmptyStatement(EmptyStatement<TRef> that);
+    TRet visitEmptyStatement(EmptyStatement<TRef> that);
 
-    TReturn visitIf(If<TRef> that);
+    TRet visitIf(If<TRef> that);
 
-    TReturn visitExpressionStatement(ExpressionStatement<TRef> that);
+    TRet visitExpressionStatement(ExpressionStatement<TRef> that);
 
-    TReturn visitWhile(While<TRef> that);
+    TRet visitWhile(While<TRef> that);
 
-    TReturn visitReturn(Return<TRef> that);
+    TRet visitReturn(Return<TRef> that);
   }
 }
