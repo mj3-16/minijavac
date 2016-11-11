@@ -1,12 +1,13 @@
 package minijava.util;
 
 import com.google.common.base.Strings;
-import minijava.ast.*;
-import minijava.ast.Class;
-
 import java.io.PrintWriter;
 import java.io.Writer;
 import java.util.Iterator;
+import java.util.List;
+import java.util.stream.Collectors;
+import minijava.ast.*;
+import minijava.ast.Class;
 
 public class PrettyPrinter
     implements Program.Visitor<Object, Void>,
@@ -14,7 +15,8 @@ public class PrettyPrinter
         Field.Visitor<Object, Void>,
         Method.Visitor<Object, Void>,
         Type.Visitor<Object, Void>,
-        BlockStatement.Visitor<Object, Void>,Expression.Visitor<Object,Void> {
+        BlockStatement.Visitor<Object, Void>,
+        Expression.Visitor<Object, Void> {
 
   private final PrintWriter out;
   private int indentLevel = 0;
@@ -109,37 +111,65 @@ public class PrettyPrinter
       }
     }
     out.print(") ");
-    if (that.body.statements.isEmpty()
-        || // should we discard EmptyStatements when we create a block? otherwise 'instanceOf' seems to be the best solution.
-        that.body.statements.stream().allMatch(s -> s instanceof Statement.EmptyStatement)) {
-      out.println("{ }");
-    } else {
-      out.println("{");
-      indentLevel++;
-      that.body.acceptVisitor((Block.Visitor) this);
-      indentLevel--;
-      out.println("}");
-    }
+    that.body.acceptVisitor(this);
+    out.println();
     return null;
   }
 
   @Override
   public Void visitBlock(Block<Object> that) {
-    that.statements.stream().filter(s -> !(s instanceof Statement.EmptyStatement)).forEach(s -> {
+    List<BlockStatement<Object>> nonEmptyStatements =
+        that.statements
+            .stream()
+            .filter(s -> !(s instanceof Statement.EmptyStatement))
+            .collect(Collectors.toList());
+    if (nonEmptyStatements.isEmpty()) {
+      out.print("{ }");
+    } else {
+      out.println("{");
+      indentLevel++;
+      nonEmptyStatements.forEach(
+          s -> {
+            indent();
+            s.acceptVisitor(this);
+          });
+      indentLevel--;
       indent();
-      s.acceptVisitor(this);
-    });
+      out.print("}");
+    }
     return null;
   }
 
   @Override
   public Void visitEmptyStatement(Statement.EmptyStatement<Object> that) {
-    // omit empty statements
+    indent();
+    out.println(";");
     return null;
   }
 
   @Override
   public Void visitIf(Statement.If<Object> that) {
+    out.print("if ");
+    that.condition.acceptVisitor(this);
+    out.print(" ");
+    if (!(that.then instanceof Block)) {
+      out.println();
+      indent();
+      out.print("\t"); // indent one more than current if statement
+    }
+    that.then.acceptVisitor(this);
+
+    if (that.else_ != null) {
+      if (that.then instanceof Block) {
+        out.print(" ");
+      } else {
+        indent();
+      }
+      out.print("else ");
+      that.else_.acceptVisitor(this);
+    } else {
+      out.println();
+    }
     return null;
   }
 
@@ -157,56 +187,116 @@ public class PrettyPrinter
 
   @Override
   public Void visitReturn(Statement.Return<Object> that) {
+    out.print("return");
+    if (that.expression.isPresent()) {
+      out.print(" ");
+      that.expression.get().acceptVisitor(this);
+    }
+    out.println(";");
     return null;
   }
 
   @Override
   public Void visitVariable(BlockStatement.Variable<Object> that) {
+    that.type.acceptVisitor(this);
+    out.print(" ");
+    out.print(that.name);
+    if (that.rhs != null) {
+      out.print(" = ");
+      that.rhs.acceptVisitor(this);
+    }
+    out.println(";");
     return null;
   }
 
   @Override
   public Void visitBinaryOperator(Expression.BinaryOperatorExpression<Object> that) {
+    out.print("(");
+    that.left.acceptVisitor(this);
+    // TODO: store strings in op and use it here
+    out.print(" ");
+    out.print(that.op.toString());
+    out.print(" ");
+    that.right.acceptVisitor(this);
+    out.print(")");
     return null;
   }
 
   @Override
   public Void visitUnaryOperator(Expression.UnaryOperatorExpression<Object> that) {
+    out.print("(");
+    out.print(that.op.toString());
+    that.expression.acceptVisitor(this);
+    out.print(")");
     return null;
   }
 
   @Override
   public Void visitMethodCall(Expression.MethodCallExpression<Object> that) {
+    that.self.acceptVisitor(this);
+    out.print(".");
+    out.print(that.method.toString());
+    out.print("(");
+    Iterator<Expression<Object>> iterator = that.arguments.iterator();
+    Expression<Object> next;
+    if (iterator.hasNext()) {
+      next = iterator.next();
+      next.acceptVisitor(this);
+      while (iterator.hasNext()) {
+        next = iterator.next();
+        out.print(", ");
+        next.acceptVisitor(this);
+      }
+    }
+    out.print(")");
     return null;
   }
 
   @Override
   public Void visitFieldAccess(Expression.FieldAccessExpression<Object> that) {
+    that.self.acceptVisitor(this);
+    out.print(".");
+    out.print(that.field.toString());
     return null;
   }
 
   @Override
   public Void visitArrayAccess(Expression.ArrayAccessExpression<Object> that) {
+    that.array.acceptVisitor(this);
+    out.print("[");
+    that.index.acceptVisitor(this);
+    out.print("]");
     return null;
   }
 
   @Override
   public Void visitNewObjectExpr(Expression.NewObjectExpression<Object> that) {
+    out.print("new ");
+    out.print(that.type.toString());
+    out.print("()");
     return null;
   }
 
   @Override
-  public Void visitNewArrayExpr(Expression.NewArrayExpression<Object> size) {
+  public Void visitNewArrayExpr(Expression.NewArrayExpression<Object> that) {
+    out.print("new ");
+    out.print(that.type.typeRef.toString());
+    out.print("[");
+    that.size.acceptVisitor(this);
+    out.print("]");
+    out.print(Strings.repeat(that.type.typeRef.toString(), that.type.dimension - 1));
     return null;
   }
 
   @Override
   public Void visitVariable(Expression.VariableExpression<Object> that) {
+    out.print(that.var);
     return null;
   }
 
   @Override
   public Void visitBooleanLiteral(Expression.BooleanLiteralExpression<Object> that) {
+    out.print(that.literal);
     return null;
   }
 
