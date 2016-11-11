@@ -21,12 +21,12 @@ import org.junit.Test;
 public class PrettyPrinterTest {
 
   private StringWriter out;
-  private PrettyPrinter prettyPrinter;
+  private PrettyPrinter<Object> prettyPrinter;
 
   @Before
   public void setup() {
     out = new StringWriter();
-    prettyPrinter = new PrettyPrinter(out);
+    prettyPrinter = new PrettyPrinter<>(out);
   }
 
   @Test

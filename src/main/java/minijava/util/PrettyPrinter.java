@@ -9,14 +9,14 @@ import java.util.stream.Collectors;
 import minijava.ast.*;
 import minijava.ast.Class;
 
-public class PrettyPrinter
-    implements Program.Visitor<Object, Void>,
-        Class.Visitor<Object, Void>,
-        Field.Visitor<Object, Void>,
-        Method.Visitor<Object, Void>,
-        Type.Visitor<Object, Void>,
-        BlockStatement.Visitor<Object, Void>,
-        Expression.Visitor<Object, Void> {
+public class PrettyPrinter<TRef>
+    implements Program.Visitor<TRef, Void>,
+        Class.Visitor<TRef, Void>,
+        Field.Visitor<TRef, Void>,
+        Method.Visitor<TRef, Void>,
+        Type.Visitor<TRef, Void>,
+        BlockStatement.Visitor<TRef, Void>,
+        Expression.Visitor<TRef, Void> {
 
   private final PrintWriter out;
   private int indentLevel = 0;
@@ -30,15 +30,15 @@ public class PrettyPrinter
   }
 
   @Override
-  public Void visitProgram(Program<Object> that) {
-    for (Class<Object> classDecl : that.declarations) {
+  public Void visitProgram(Program<TRef> that) {
+    for (Class<TRef> classDecl : that.declarations) {
       classDecl.acceptVisitor(this);
     }
     return null;
   }
 
   @Override
-  public Void visitClassDeclaration(Class<Object> that) {
+  public Void visitClassDeclaration(Class<TRef> that) {
     out.print("class ");
     out.print(that.name);
     if (that.fields.isEmpty() && that.methods.isEmpty()) {
@@ -69,7 +69,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public Void visitField(Field<Object> that) {
+  public Void visitField(Field<TRef> that) {
     out.print("public ");
     that.type.acceptVisitor(this);
     out.print(" ");
@@ -79,14 +79,14 @@ public class PrettyPrinter
   }
 
   @Override
-  public Void visitType(Type<Object> that) {
+  public Void visitType(Type<TRef> that) {
     out.print(that.typeRef.toString());
     out.print(Strings.repeat("[]", that.dimension));
     return null;
   }
 
   @Override
-  public Void visitMethod(Method<Object> that) {
+  public Void visitMethod(Method<TRef> that) {
     out.print("public ");
     if (that.isStatic) {
       out.print("static ");
@@ -95,8 +95,8 @@ public class PrettyPrinter
     out.print(" ");
     out.print(that.name);
     out.print("(");
-    Iterator<Method.Parameter<Object>> iterator = that.parameters.iterator();
-    Method.Parameter<Object> next;
+    Iterator<Method.Parameter<TRef>> iterator = that.parameters.iterator();
+    Method.Parameter<TRef> next;
     if (iterator.hasNext()) {
       next = iterator.next();
       next.type.acceptVisitor(this);
@@ -117,8 +117,8 @@ public class PrettyPrinter
   }
 
   @Override
-  public Void visitBlock(Block<Object> that) {
-    List<BlockStatement<Object>> nonEmptyStatements =
+  public Void visitBlock(Block<TRef> that) {
+    List<BlockStatement<TRef>> nonEmptyStatements =
         that.statements
             .stream()
             .filter(s -> !(s instanceof Statement.EmptyStatement))
@@ -141,14 +141,14 @@ public class PrettyPrinter
   }
 
   @Override
-  public Void visitEmptyStatement(Statement.EmptyStatement<Object> that) {
+  public Void visitEmptyStatement(Statement.EmptyStatement<TRef> that) {
     indent();
     out.println(";");
     return null;
   }
 
   @Override
-  public Void visitIf(Statement.If<Object> that) {
+  public Void visitIf(Statement.If<TRef> that) {
     out.print("if ");
     that.condition.acceptVisitor(this);
     out.print(" ");
@@ -159,14 +159,14 @@ public class PrettyPrinter
     }
     that.then.acceptVisitor(this);
 
-    if (that.else_ != null) {
+    if (that.else_.isPresent()) {
       if (that.then instanceof Block) {
         out.print(" ");
       } else {
         indent();
       }
       out.print("else ");
-      that.else_.acceptVisitor(this);
+      that.else_.get().acceptVisitor(this);
     } else {
       out.println();
     }
@@ -174,19 +174,19 @@ public class PrettyPrinter
   }
 
   @Override
-  public Void visitExpressionStatement(Statement.ExpressionStatement<Object> that) {
+  public Void visitExpressionStatement(Statement.ExpressionStatement<TRef> that) {
     that.expression.acceptVisitor(this);
     out.println(";");
     return null;
   }
 
   @Override
-  public Void visitWhile(Statement.While<Object> that) {
+  public Void visitWhile(Statement.While<TRef> that) {
     return null;
   }
 
   @Override
-  public Void visitReturn(Statement.Return<Object> that) {
+  public Void visitReturn(Statement.Return<TRef> that) {
     out.print("return");
     if (that.expression.isPresent()) {
       out.print(" ");
@@ -197,7 +197,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public Void visitVariable(BlockStatement.Variable<Object> that) {
+  public Void visitVariable(BlockStatement.Variable<TRef> that) {
     that.type.acceptVisitor(this);
     out.print(" ");
     out.print(that.name);
@@ -210,7 +210,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public Void visitBinaryOperator(Expression.BinaryOperatorExpression<Object> that) {
+  public Void visitBinaryOperator(Expression.BinaryOperatorExpression<TRef> that) {
     out.print("(");
     that.left.acceptVisitor(this);
     // TODO: store strings in op and use it here
@@ -223,7 +223,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public Void visitUnaryOperator(Expression.UnaryOperatorExpression<Object> that) {
+  public Void visitUnaryOperator(Expression.UnaryOperatorExpression<TRef> that) {
     out.print("(");
     out.print(that.op.toString());
     that.expression.acceptVisitor(this);
@@ -232,13 +232,13 @@ public class PrettyPrinter
   }
 
   @Override
-  public Void visitMethodCall(Expression.MethodCallExpression<Object> that) {
+  public Void visitMethodCall(Expression.MethodCallExpression<TRef> that) {
     that.self.acceptVisitor(this);
     out.print(".");
     out.print(that.method.toString());
     out.print("(");
-    Iterator<Expression<Object>> iterator = that.arguments.iterator();
-    Expression<Object> next;
+    Iterator<Expression<TRef>> iterator = that.arguments.iterator();
+    Expression<TRef> next;
     if (iterator.hasNext()) {
       next = iterator.next();
       next.acceptVisitor(this);
@@ -253,7 +253,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public Void visitFieldAccess(Expression.FieldAccessExpression<Object> that) {
+  public Void visitFieldAccess(Expression.FieldAccessExpression<TRef> that) {
     that.self.acceptVisitor(this);
     out.print(".");
     out.print(that.field.toString());
@@ -261,7 +261,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public Void visitArrayAccess(Expression.ArrayAccessExpression<Object> that) {
+  public Void visitArrayAccess(Expression.ArrayAccessExpression<TRef> that) {
     that.array.acceptVisitor(this);
     out.print("[");
     that.index.acceptVisitor(this);
@@ -270,7 +270,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public Void visitNewObjectExpr(Expression.NewObjectExpression<Object> that) {
+  public Void visitNewObjectExpr(Expression.NewObjectExpression<TRef> that) {
     out.print("new ");
     out.print(that.type.toString());
     out.print("()");
@@ -278,7 +278,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public Void visitNewArrayExpr(Expression.NewArrayExpression<Object> that) {
+  public Void visitNewArrayExpr(Expression.NewArrayExpression<TRef> that) {
     out.print("new ");
     out.print(that.type.typeRef.toString());
     out.print("[");
@@ -289,19 +289,19 @@ public class PrettyPrinter
   }
 
   @Override
-  public Void visitVariable(Expression.VariableExpression<Object> that) {
+  public Void visitVariable(Expression.VariableExpression<TRef> that) {
     out.print(that.var);
     return null;
   }
 
   @Override
-  public Void visitBooleanLiteral(Expression.BooleanLiteralExpression<Object> that) {
+  public Void visitBooleanLiteral(Expression.BooleanLiteralExpression<TRef> that) {
     out.print(that.literal);
     return null;
   }
 
   @Override
-  public Void visitIntegerLiteral(Expression.IntegerLiteralExpression<Object> that) {
+  public Void visitIntegerLiteral(Expression.IntegerLiteralExpression<TRef> that) {
     out.print(that.literal);
     return null;
   }
