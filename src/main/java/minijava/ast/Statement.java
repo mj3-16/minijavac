@@ -20,12 +20,12 @@ public interface Statement<TRef> extends BlockStatement<TRef> {
   class If<TRef> implements Statement<TRef> {
     public final Expression<TRef> condition;
     public final Statement<TRef> then;
-    public final Statement<TRef> else_;
+    public final Optional<Statement<TRef>> else_;
 
     public If(Expression<TRef> condition, Statement<TRef> then, Statement<TRef> else_) {
       this.condition = condition;
       this.then = then;
-      this.else_ = else_;
+      this.else_ = Optional.ofNullable(else_);
     }
 
     @Override
