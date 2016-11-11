@@ -215,7 +215,7 @@ public class PrettyPrinter<TRef>
     that.left.acceptVisitor(this);
     // TODO: store strings in op and use it here
     out.print(" ");
-    out.print(that.op.toString());
+    out.print(that.op.string);
     out.print(" ");
     that.right.acceptVisitor(this);
     out.print(")");
@@ -225,7 +225,7 @@ public class PrettyPrinter<TRef>
   @Override
   public Void visitUnaryOperator(Expression.UnaryOperatorExpression<TRef> that) {
     out.print("(");
-    out.print(that.op.toString());
+    out.print(that.op.string);
     that.expression.acceptVisitor(this);
     out.print(")");
     return null;
