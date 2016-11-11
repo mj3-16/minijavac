@@ -164,7 +164,7 @@ public interface Expression<TRef> {
 
   enum UnOp {
     NOT,
-    NEGATE,
+    NEGATE, // TODO: assumed to stand for '-' ?!
   }
 
   enum BinOp {
