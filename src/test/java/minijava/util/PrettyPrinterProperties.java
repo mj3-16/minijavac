@@ -44,12 +44,10 @@ public class PrettyPrinterProperties {
         .getDeltas()
         .forEach(
             d -> {
-              System.out.println(
-                  String.format(
-                      "[%04d]: ---- %s ++++ %s",
-                      d.getOriginal().getPosition(),
-                      d.getOriginal().getLines(),
-                      d.getRevised().getLines()));
+              System.out.println(String.format("[%04d]:", d.getOriginal().getPosition()));
+              System.out.println(d.getOriginal().getLines());
+              System.out.println("-----------------------------------------");
+              System.out.println(d.getRevised().getLines());
             });
 
     Assert.assertEquals(expected, actual);

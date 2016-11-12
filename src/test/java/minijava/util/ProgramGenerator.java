@@ -182,8 +182,8 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
     nodes++;
     return selectWithRandomWeight(
         random,
-        tuple(0.3, r -> new Statement.If<>(genExpression(r), genStatement(r), null)),
-        tuple(0.7, r -> new Statement.If<>(genExpression(r), genStatement(r), genStatement(r))));
+        tuple(0.3, r -> new Statement.If<>(genExpression(r), genBlock(r), null)),
+        tuple(0.7, r -> new Statement.If<>(genExpression(r), genBlock(r), genStatement(r))));
   }
 
   // Expression ;
