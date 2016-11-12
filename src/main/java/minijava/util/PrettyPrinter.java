@@ -282,7 +282,10 @@ public class PrettyPrinter
     StringBuilder b = new StringBuilder("(new ").append(that.type.typeRef.toString()).append("[");
     // bracketing exception for definition of array size applies here
     CharSequence sizeExpr = outerParanthesesRemoved(that.size.acceptVisitor(this));
-    return b.append(sizeExpr).append("]").append(Strings.repeat("[]", that.type.dimension - 1)).append(")");
+    return b.append(sizeExpr)
+        .append("]")
+        .append(Strings.repeat("[]", that.type.dimension - 1))
+        .append(")");
   }
 
   @Override
