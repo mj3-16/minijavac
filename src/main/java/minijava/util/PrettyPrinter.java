@@ -280,13 +280,13 @@ public class PrettyPrinter<TRef>
 
   @Override
   public CharSequence visitNewArrayExpr(Expression.NewArrayExpression<TRef> that) {
-    StringBuilder b = new StringBuilder("new ");
-    b.append(that.type.typeRef.toString()).append("[");
-    CharSequence sizeExpr = that.size.acceptVisitor(this);
-    b.append(outerParanthesesRemoved(sizeExpr))
+    StringBuilder b = new StringBuilder("(new ").append(that.type.typeRef.toString()).append("[");
+    // bracketing exception for definition of array size applies here
+    CharSequence sizeExpr = outerParanthesesRemoved(that.size.acceptVisitor(this));
+    return b.append(sizeExpr)
         .append("]")
-        .append(Strings.repeat("[]", that.type.dimension - 1));
-    return b;
+        .append(Strings.repeat("[]", that.type.dimension - 1))
+        .append(")");
   }
 
   @Override

@@ -300,7 +300,7 @@ public class PrettyPrinterTest {
         new NewArrayExpression<>(new Type("boolean", 4), new IntegerLiteralExpression("25"));
 
     CharSequence actual = node.acceptVisitor(prettyPrinter);
-    assertThat(actual.toString(), is(equalTo("new boolean[25][][][]")));
+    assertThat(actual.toString(), is(equalTo("(new boolean[25][][][])")));
   }
 
   @Test
@@ -317,7 +317,7 @@ public class PrettyPrinterTest {
                 new UnaryOperatorExpression(UnOp.NEGATE, new IntegerLiteralExpression("19"))));
 
     CharSequence actual = node.acceptVisitor(prettyPrinter);
-    assertThat(actual.toString(), is(equalTo("new boolean[(25 - 5) + (-19)][][][]")));
+    assertThat(actual.toString(), is(equalTo("(new boolean[(25 - 5) + (-19)][][][])")));
   }
 
   @Test
