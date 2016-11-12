@@ -233,7 +233,8 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
                 0.1,
                 r -> new Expression.ArrayAccessExpression<>(genExpression(r), genExpression(r))),
             tuple(0.1, r -> new Expression.NewObjectExpression<>(genIdent(r))),
-            tuple(0.1, r -> new Expression.NewArrayExpression<>(genType(r), genExpression(r))));
+            tuple(
+                0.1, r -> new Expression.NewArrayExpression<>(genArrayType(r), genExpression(r))));
       } catch (StackOverflowError e) {
         nodes--;
         overflows++; // This is so that we eventually terminate. See followShortcuts().
@@ -248,6 +249,11 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
         throw e;
       }
     }
+  }
+
+  private Type<String> genArrayType(SourceOfRandomness random) {
+    Type<String> t = genType(random);
+    return new Type<>(t.typeRef, Math.min(t.dimension, 1));
   }
 
   private static String genInt(SourceOfRandomness r) {
