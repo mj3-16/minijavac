@@ -1,8 +1,6 @@
 package minijava.util;
 
 import com.google.common.base.Strings;
-import java.io.PrintWriter;
-import java.io.Writer;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -18,12 +16,9 @@ public class PrettyPrinter
         BlockStatement.Visitor<Object, CharSequence>,
         Expression.Visitor<Object, CharSequence> {
 
-  private final PrintWriter out;
   private int indentLevel = 0;
 
-  public PrettyPrinter(Writer out) {
-    this.out = new PrintWriter(out);
-  }
+  public PrettyPrinter() {}
 
   private static CharSequence outerParanthesesRemoved(CharSequence seq) {
     if (seq.charAt(0) == '(') {
@@ -110,10 +105,7 @@ public class PrettyPrinter
 
   @Override
   public CharSequence visitIf(Statement.If<Object> that) {
-    StringBuilder b =
-        new StringBuilder()
-            .append("if ")
-            .append(that.condition.acceptVisitor(this));
+    StringBuilder b = new StringBuilder().append("if ").append(that.condition.acceptVisitor(this));
     // a block follows immediately after a space, a single statement needs new line and indentation
     if (that.then instanceof Block) {
       b.append(" ").append(that.then.acceptVisitor(this));

@@ -5,7 +5,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 import com.google.common.collect.ImmutableList;
-import java.io.StringWriter;
 import minijava.ast.*;
 import minijava.ast.BlockStatement.Variable;
 import minijava.ast.Class;
@@ -17,13 +16,11 @@ import org.junit.Test;
 
 public class PrettyPrinterTest {
 
-  private StringWriter out;
   private PrettyPrinter prettyPrinter;
 
   @Before
   public void setup() {
-    out = new StringWriter();
-    prettyPrinter = new PrettyPrinter(out);
+    prettyPrinter = new PrettyPrinter();
   }
 
   @Test
@@ -265,7 +262,7 @@ public class PrettyPrinterTest {
         new ArrayAccessExpression<>(
             new VariableExpression<>("array"), new IntegerLiteralExpression<>("5"));
     CharSequence actual = node.acceptVisitor(prettyPrinter);
-    assertThat(actual.toString(), is(equalTo("array[5]")));
+    assertThat(actual.toString(), is(equalTo("(array[5])")));
   }
 
   @Test
@@ -281,14 +278,14 @@ public class PrettyPrinterTest {
                     new UnaryOperatorExpression<>(
                         UnOp.NEGATE, new Expression.IntegerLiteralExpression<>("7")))));
     CharSequence actual = node.acceptVisitor(prettyPrinter);
-    assertThat(actual.toString(), is(equalTo("array[-(15 - (-7))]")));
+    assertThat(actual.toString(), is(equalTo("(array[-(15 - (-7))])")));
   }
 
   @Test
   public void visitNewObjectExpression() throws Exception {
     NewObjectExpression<Object> node = new NewObjectExpression<>("MyClass");
     CharSequence actual = node.acceptVisitor(prettyPrinter);
-    assertThat(actual.toString(), is(equalTo("new MyClass()")));
+    assertThat(actual.toString(), is(equalTo("(new MyClass())")));
   }
 
   @Test
@@ -340,7 +337,9 @@ public class PrettyPrinterTest {
                 BinOp.PLUS,
                 new IntegerLiteralExpression<>("6"),
                 new IntegerLiteralExpression<>("2")),
-            new Block<>(ImmutableList.of(new Statement.EmptyStatement<>(), new Statement.EmptyStatement<>())));
+            new Block<>(
+                ImmutableList.of(
+                    new Statement.EmptyStatement<>(), new Statement.EmptyStatement<>())));
 
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo("while (6 + 2) { }")));
@@ -472,25 +471,26 @@ public class PrettyPrinterTest {
 
     CharSequence actual = program.acceptVisitor(prettyPrinter);
 
-    String expected = "class HelloWorld {\n" +
-            "\tpublic int bar(int a, int b) {\n" +
-            "\t\treturn c = (a + b);\n" +
-            "\t}\n" +
-            "\tpublic static void main(String[] args) {\n" +
-            "\t\t(System.out).println(43110 + 0);\n" +
-            "\t\tboolean b = true && (!false);\n" +
-            "\t\tif ((23 + 19) == ((42 + 0) * 1))\n" +
-            "\t\t\tb = (0 < 1);\n" +
-            "\t\telse if (!(array[2 + 2])) {\n" +
-            "\t\t\tint x = 0;\n" +
-            "\t\t\tx = (x + 1);\n" +
-            "\t\t} else {\n" +
-            "\t\t\t(new HelloWorld()).bar(42 + (0 * 1), -1);\n" +
-            "\t\t}\n" +
-            "\t}\n" +
-            "\tpublic boolean[] array;\n" +
-            "\tpublic int c;\n" +
-            "}\n";
+    String expected =
+        "class HelloWorld {\n"
+            + "\tpublic int bar(int a, int b) {\n"
+            + "\t\treturn c = (a + b);\n"
+            + "\t}\n"
+            + "\tpublic static void main(String[] args) {\n"
+            + "\t\t(System.out).println(43110 + 0);\n"
+            + "\t\tboolean b = true && (!false);\n"
+            + "\t\tif ((23 + 19) == ((42 + 0) * 1))\n"
+            + "\t\t\tb = (0 < 1);\n"
+            + "\t\telse if (!(array[2 + 2])) {\n"
+            + "\t\t\tint x = 0;\n"
+            + "\t\t\tx = (x + 1);\n"
+            + "\t\t} else {\n"
+            + "\t\t\t(new HelloWorld()).bar(42 + (0 * 1), -1);\n"
+            + "\t\t}\n"
+            + "\t}\n"
+            + "\tpublic boolean[] array;\n"
+            + "\tpublic int c;\n"
+            + "}\n";
 
     assertThat(actual.toString(), is(equalTo(expected)));
   }
