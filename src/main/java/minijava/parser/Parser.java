@@ -528,7 +528,7 @@ public class Parser {
           primaryExpression =
               new Expression.MethodCallExpression<>(THIS_EXPR, identifier, arguments);
         } else {
-          primaryExpression = new Expression.FieldAccessExpression<>(THIS_EXPR, identifier);
+          primaryExpression = new Expression.VariableExpression<>(identifier);
         }
         break;
       case THIS:
