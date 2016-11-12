@@ -238,7 +238,9 @@ public class PrettyPrinter<TRef>
 
   @Override
   public CharSequence visitMethodCall(Expression.MethodCallExpression<TRef> that) {
-    StringBuilder b = new StringBuilder(that.self.acceptVisitor(this));
+    StringBuilder b = new StringBuilder();
+    b.append("(");
+    b.append(that.self.acceptVisitor(this));
     b.append(".");
     b.append(that.method.toString());
     b.append("(");
@@ -253,7 +255,7 @@ public class PrettyPrinter<TRef>
         b.append(outerParanthesesRemoved(next.acceptVisitor(this)));
       }
     }
-    b.append(")");
+    b.append("))");
     return b;
   }
 
