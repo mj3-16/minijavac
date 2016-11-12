@@ -167,6 +167,7 @@ public interface Expression<TRef> {
     NEGATE("-");
 
     public final String string;
+
     UnOp(String string) {
       this.string = string;
     }
@@ -189,6 +190,7 @@ public interface Expression<TRef> {
     GEQ(">=");
 
     public final String string;
+
     BinOp(String string) {
       this.string = string;
     }

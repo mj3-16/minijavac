@@ -1,8 +1,6 @@
 package minijava.util;
 
 import com.google.common.base.Strings;
-import java.io.PrintWriter;
-import java.io.Writer;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -10,299 +8,299 @@ import minijava.ast.*;
 import minijava.ast.Class;
 
 public class PrettyPrinter<TRef>
-    implements Program.Visitor<TRef, Void>,
-        Class.Visitor<TRef, Void>,
-        Field.Visitor<TRef, Void>,
-        Method.Visitor<TRef, Void>,
-        Type.Visitor<TRef, Void>,
-        BlockStatement.Visitor<TRef, Void>,
-        Expression.Visitor<TRef, Void> {
+    implements Program.Visitor<TRef, CharSequence>,
+        Class.Visitor<TRef, CharSequence>,
+        Field.Visitor<TRef, CharSequence>,
+        Method.Visitor<TRef, CharSequence>,
+        Type.Visitor<TRef, CharSequence>,
+        BlockStatement.Visitor<TRef, CharSequence>,
+        Expression.Visitor<TRef, CharSequence> {
 
-  private final PrintWriter out;
   private int indentLevel = 0;
 
-  public PrettyPrinter(Writer out) {
-    this.out = new PrintWriter(out);
-  }
+  public PrettyPrinter() {}
 
-  private void indent() {
-    out.print(Strings.repeat("\t", indentLevel));
-  }
-
-  @Override
-  public Void visitProgram(Program<TRef> that) {
-    for (Class<TRef> classDecl : that.declarations) {
-      classDecl.acceptVisitor(this);
+  private static CharSequence outerParanthesesRemoved(CharSequence seq) {
+    if (seq.charAt(0) == '(') {
+      return seq.subSequence(1, seq.length() - 1);
     }
-    return null;
+    return seq;
+  }
+
+  private CharSequence indent() {
+    return Strings.repeat("\t", indentLevel);
   }
 
   @Override
-  public Void visitClassDeclaration(Class<TRef> that) {
-    out.print("class ");
-    out.print(that.name);
+  public CharSequence visitProgram(Program<TRef> that) {
+    return that.declarations
+        .stream()
+        .sorted((left, right) -> left.name.compareTo(right.name))
+        .map(c -> c.acceptVisitor(this))
+        .collect(Collectors.joining());
+  }
+
+  @Override
+  public CharSequence visitClassDeclaration(Class<TRef> that) {
+    StringBuilder sb = new StringBuilder("class ").append(that.name).append(" {");
     if (that.fields.isEmpty() && that.methods.isEmpty()) {
-      out.println(" { }");
-    } else {
-      out.println(" {");
-      indentLevel++;
-      that.methods
-          .stream()
-          .sorted((left, right) -> left.name.compareTo(right.name))
-          .forEach(
-              m -> {
-                indent();
-                m.acceptVisitor(this);
-              });
-      that.fields
-          .stream()
-          .sorted((left, right) -> left.name.compareTo(right.name))
-          .forEach(
-              f -> {
-                indent();
-                f.acceptVisitor(this);
-              });
-      indentLevel--;
-      out.println("}");
+      return sb.append(" }").append(System.lineSeparator());
     }
-    return null;
+    sb.append(System.lineSeparator());
+    indentLevel++;
+    that.methods
+        .stream()
+        .sorted((left, right) -> left.name.compareTo(right.name))
+        .map(m -> m.acceptVisitor(this))
+        .forEach(s -> sb.append(indent()).append(s).append(System.lineSeparator()));
+    that.fields
+        .stream()
+        .sorted((left, right) -> left.name.compareTo(right.name))
+        .map(m -> m.acceptVisitor(this))
+        .forEach(s -> sb.append(indent()).append(s).append(System.lineSeparator()));
+    indentLevel--;
+    return sb.append("}").append(System.lineSeparator());
   }
 
   @Override
-  public Void visitField(Field<TRef> that) {
-    out.print("public ");
-    that.type.acceptVisitor(this);
-    out.print(" ");
-    out.print(that.name);
-    out.println(";");
-    return null;
-  }
-
-  @Override
-  public Void visitType(Type<TRef> that) {
-    out.print(that.typeRef.toString());
-    out.print(Strings.repeat("[]", that.dimension));
-    return null;
-  }
-
-  @Override
-  public Void visitMethod(Method<TRef> that) {
-    out.print("public ");
+  public CharSequence visitMethod(Method<TRef> that) {
+    StringBuilder sb = new StringBuilder("public ");
     if (that.isStatic) {
-      out.print("static ");
+      sb.append("static ");
     }
-    that.returnType.acceptVisitor(this);
-    out.print(" ");
-    out.print(that.name);
-    out.print("(");
+    sb.append(that.returnType.acceptVisitor(this)).append(" ").append(that.name).append("(");
     Iterator<Method.Parameter<TRef>> iterator = that.parameters.iterator();
     Method.Parameter<TRef> next;
     if (iterator.hasNext()) {
       next = iterator.next();
-      next.type.acceptVisitor(this);
-      out.print(" ");
-      out.print(next.name);
+      sb.append(next.type.acceptVisitor(this)).append(" ").append(next.name);
       while (iterator.hasNext()) {
         next = iterator.next();
-        out.print(", ");
-        next.type.acceptVisitor(this);
-        out.print(" ");
-        out.print(next.name);
+        sb.append(", ").append(next.type.acceptVisitor(this)).append(" ").append(next.name);
       }
     }
-    out.print(") ");
-    that.body.acceptVisitor(this);
-    out.println();
-    return null;
+    return sb.append(") ").append(that.body.acceptVisitor(this));
   }
 
   @Override
-  public Void visitBlock(Block<TRef> that) {
+  public CharSequence visitBlock(Block<TRef> that) {
+    StringBuilder sb = new StringBuilder("{");
     List<BlockStatement<TRef>> nonEmptyStatements =
         that.statements
             .stream()
             .filter(s -> !(s instanceof Statement.EmptyStatement))
             .collect(Collectors.toList());
     if (nonEmptyStatements.isEmpty()) {
-      out.print("{ }");
+      return sb.append(" }");
+    }
+    sb.append(System.lineSeparator());
+    indentLevel++;
+    nonEmptyStatements
+        .stream()
+        .map(s -> s.acceptVisitor(this))
+        .forEach(s -> sb.append(indent()).append(s).append(System.lineSeparator()));
+    indentLevel--;
+    return sb.append(indent()).append("}");
+  }
+
+  @Override
+  public CharSequence visitIf(Statement.If<TRef> that) {
+    StringBuilder b = new StringBuilder().append("if ").append(that.condition.acceptVisitor(this));
+    // a block follows immediately after a space, a single statement needs new line and indentation
+    if (that.then instanceof Block) {
+      b.append(" ").append(that.then.acceptVisitor(this));
     } else {
-      out.println("{");
       indentLevel++;
-      nonEmptyStatements.forEach(
-          s -> {
-            indent();
-            s.acceptVisitor(this);
-          });
+      b.append(System.lineSeparator()).append(indent()).append(that.then.acceptVisitor(this));
       indentLevel--;
-      indent();
-      out.print("}");
     }
-    return null;
-  }
-
-  @Override
-  public Void visitEmptyStatement(Statement.EmptyStatement<TRef> that) {
-    indent();
-    out.println(";");
-    return null;
-  }
-
-  @Override
-  public Void visitIf(Statement.If<TRef> that) {
-    out.print("if ");
-    that.condition.acceptVisitor(this);
-    out.print(" ");
-    if (!(that.then instanceof Block)) {
-      out.println();
-      indent();
-      out.print("\t"); // indent one more than current if statement
+    // 2 possible states:
+    // if $(expr) { ... }
+    // if $(expr)\n$(indent)$(stmt);
+    if (!that.else_.isPresent()) {
+      return b;
     }
-    that.then.acceptVisitor(this);
-
-    if (that.else_.isPresent()) {
-      if (that.then instanceof Block) {
-        out.print(" ");
-      } else {
-        indent();
-      }
-      out.print("else ");
-      that.else_.get().acceptVisitor(this);
+    Statement<TRef> else_ = that.else_.get();
+    // if 'then' part was a block, 'else' follows '}' directly
+    if (that.then instanceof Block) {
+      b.append(" else");
     } else {
-      out.println();
+      // otherwise break the line and indent first
+      b.append(System.lineSeparator()).append(indent()).append("else");
     }
-    return null;
+    if (else_ instanceof Block) {
+      return b.append(" ").append(else_.acceptVisitor(this));
+    } else if (else_ instanceof Statement.If) {
+      return b.append(" ").append(else_.acceptVisitor(this));
+    } else {
+      indentLevel++;
+      b.append(System.lineSeparator()).append(indent()).append(else_.acceptVisitor(this));
+      indentLevel--;
+      return b;
+    }
   }
 
   @Override
-  public Void visitExpressionStatement(Statement.ExpressionStatement<TRef> that) {
-    that.expression.acceptVisitor(this);
-    out.println(";");
-    return null;
+  public CharSequence visitWhile(Statement.While<TRef> that) {
+    StringBuilder sb = new StringBuilder("while ").append(that.condition.acceptVisitor(this));
+    if (that.body instanceof Block) {
+      return sb.append(" ").append(that.body.acceptVisitor(this));
+    }
+    indentLevel++;
+    sb.append(System.lineSeparator()).append(indent());
+    indentLevel--;
+    return sb.append(that.body.acceptVisitor(this));
   }
 
   @Override
-  public Void visitWhile(Statement.While<TRef> that) {
-    return null;
+  public CharSequence visitField(Field<TRef> that) {
+    return new StringBuilder("public ")
+        .append(that.type.acceptVisitor(this))
+        .append(" ")
+        .append(that.name)
+        .append(";");
   }
 
   @Override
-  public Void visitReturn(Statement.Return<TRef> that) {
-    out.print("return");
+  public CharSequence visitType(Type<TRef> that) {
+    StringBuilder b = new StringBuilder(that.typeRef.toString());
+    b.append(Strings.repeat("[]", that.dimension));
+    return b;
+  }
+
+  @Override
+  public CharSequence visitExpressionStatement(Statement.ExpressionStatement<TRef> that) {
+    CharSequence expr = that.expression.acceptVisitor(this);
+    if (that.expression instanceof Expression.MethodCallExpression) {
+      // TODO: MethodCall isn't really an expression, is it? I'd say it's a statement.
+      return new StringBuilder(expr).append(";");
+    } else {
+      return new StringBuilder(outerParanthesesRemoved(expr)).append(";");
+    }
+  }
+
+  @Override
+  public CharSequence visitEmptyStatement(Statement.EmptyStatement<TRef> that) {
+    return ";";
+  }
+
+  @Override
+  public CharSequence visitReturn(Statement.Return<TRef> that) {
+    StringBuilder b = new StringBuilder("return");
     if (that.expression.isPresent()) {
-      out.print(" ");
-      that.expression.get().acceptVisitor(this);
+      b.append(" ");
+      CharSequence expr = that.expression.get().acceptVisitor(this);
+      b.append(outerParanthesesRemoved(expr));
     }
-    out.println(";");
-    return null;
+    return b.append(";");
   }
 
   @Override
-  public Void visitVariable(BlockStatement.Variable<TRef> that) {
-    that.type.acceptVisitor(this);
-    out.print(" ");
-    out.print(that.name);
+  public CharSequence visitVariable(BlockStatement.Variable<TRef> that) {
+    StringBuilder b = new StringBuilder(that.type.acceptVisitor(this));
+    b.append(" ");
+    b.append(that.name);
     if (that.rhs != null) {
-      out.print(" = ");
-      that.rhs.acceptVisitor(this);
+      b.append(" = ");
+      b.append(outerParanthesesRemoved(that.rhs.acceptVisitor(this)));
     }
-    out.println(";");
-    return null;
+    return b.append(";");
   }
 
   @Override
-  public Void visitBinaryOperator(Expression.BinaryOperatorExpression<TRef> that) {
-    out.print("(");
-    that.left.acceptVisitor(this);
-    // TODO: store strings in op and use it here
-    out.print(" ");
-    out.print(that.op.string);
-    out.print(" ");
-    that.right.acceptVisitor(this);
-    out.print(")");
-    return null;
+  public CharSequence visitBinaryOperator(Expression.BinaryOperatorExpression<TRef> that) {
+    StringBuilder b = new StringBuilder("(");
+    CharSequence left = that.left.acceptVisitor(this);
+    b.append(left);
+    b.append(" ");
+    b.append(that.op.string);
+    b.append(" ");
+    CharSequence right = that.right.acceptVisitor(this);
+    b.append(right);
+
+    return b.append(")");
   }
 
   @Override
-  public Void visitUnaryOperator(Expression.UnaryOperatorExpression<TRef> that) {
-    out.print("(");
-    out.print(that.op.string);
-    that.expression.acceptVisitor(this);
-    out.print(")");
-    return null;
+  public CharSequence visitUnaryOperator(Expression.UnaryOperatorExpression<TRef> that) {
+    StringBuilder b = new StringBuilder("(");
+    b.append(that.op.string);
+    b.append(that.expression.acceptVisitor(this));
+    b.append(")");
+    return b;
   }
 
   @Override
-  public Void visitMethodCall(Expression.MethodCallExpression<TRef> that) {
-    that.self.acceptVisitor(this);
-    out.print(".");
-    out.print(that.method.toString());
-    out.print("(");
+  public CharSequence visitMethodCall(Expression.MethodCallExpression<TRef> that) {
+    StringBuilder b = new StringBuilder(that.self.acceptVisitor(this));
+    b.append(".");
+    b.append(that.method.toString());
+    b.append("(");
     Iterator<Expression<TRef>> iterator = that.arguments.iterator();
     Expression<TRef> next;
     if (iterator.hasNext()) {
       next = iterator.next();
-      next.acceptVisitor(this);
+      b.append(outerParanthesesRemoved(next.acceptVisitor(this)));
       while (iterator.hasNext()) {
         next = iterator.next();
-        out.print(", ");
-        next.acceptVisitor(this);
+        b.append(", ");
+        b.append(outerParanthesesRemoved(next.acceptVisitor(this)));
       }
     }
-    out.print(")");
-    return null;
+    b.append(")");
+    return b;
   }
 
   @Override
-  public Void visitFieldAccess(Expression.FieldAccessExpression<TRef> that) {
-    that.self.acceptVisitor(this);
-    out.print(".");
-    out.print(that.field.toString());
-    return null;
+  public CharSequence visitFieldAccess(Expression.FieldAccessExpression<TRef> that) {
+    StringBuilder b = new StringBuilder("(");
+    b.append(that.self.acceptVisitor(this));
+    b.append(".");
+    b.append(that.field.toString());
+    b.append(")");
+    return b;
   }
 
   @Override
-  public Void visitArrayAccess(Expression.ArrayAccessExpression<TRef> that) {
-    that.array.acceptVisitor(this);
-    out.print("[");
-    that.index.acceptVisitor(this);
-    out.print("]");
-    return null;
+  public CharSequence visitArrayAccess(Expression.ArrayAccessExpression<TRef> that) {
+    StringBuilder b = new StringBuilder("(").append(that.array.acceptVisitor(this)).append("[");
+    CharSequence indexExpr = that.index.acceptVisitor(this);
+    b.append(outerParanthesesRemoved(indexExpr));
+    b.append("])");
+    return b;
   }
 
   @Override
-  public Void visitNewObjectExpr(Expression.NewObjectExpression<TRef> that) {
-    out.print("new ");
-    out.print(that.type.toString());
-    out.print("()");
-    return null;
+  public CharSequence visitNewObjectExpr(Expression.NewObjectExpression<TRef> that) {
+    StringBuilder b = new StringBuilder("(new ");
+    b.append(that.type.toString());
+    b.append("())");
+    return b;
   }
 
   @Override
-  public Void visitNewArrayExpr(Expression.NewArrayExpression<TRef> that) {
-    out.print("new ");
-    out.print(that.type.typeRef.toString());
-    out.print("[");
-    that.size.acceptVisitor(this);
-    out.print("]");
-    out.print(Strings.repeat(that.type.typeRef.toString(), that.type.dimension - 1));
-    return null;
+  public CharSequence visitNewArrayExpr(Expression.NewArrayExpression<TRef> that) {
+    StringBuilder b = new StringBuilder("new ");
+    b.append(that.type.typeRef.toString()).append("[");
+    CharSequence sizeExpr = that.size.acceptVisitor(this);
+    b.append(outerParanthesesRemoved(sizeExpr))
+        .append("]")
+        .append(Strings.repeat("[]", that.type.dimension - 1));
+    return b;
   }
 
   @Override
-  public Void visitVariable(Expression.VariableExpression<TRef> that) {
-    out.print(that.var);
-    return null;
+  public CharSequence visitVariable(Expression.VariableExpression<TRef> that) {
+    return that.var.toString();
   }
 
   @Override
-  public Void visitBooleanLiteral(Expression.BooleanLiteralExpression<TRef> that) {
-    out.print(that.literal);
-    return null;
+  public CharSequence visitBooleanLiteral(Expression.BooleanLiteralExpression<TRef> that) {
+    return Boolean.toString(that.literal);
   }
 
   @Override
-  public Void visitIntegerLiteral(Expression.IntegerLiteralExpression<TRef> that) {
-    out.print(that.literal);
-    return null;
+  public CharSequence visitIntegerLiteral(Expression.IntegerLiteralExpression<TRef> that) {
+    return that.literal;
   }
 }
