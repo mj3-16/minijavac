@@ -15,6 +15,8 @@ import minijava.util.LookAheadIterator;
 
 public class Parser {
   private static final Token EOF_TOKEN = new Token(EOF, new Position(0, 0), null);
+  private static final Expression<String> THIS_EXPR = new Expression.VariableExpression<>("this");
+  private static final Expression<String> NULL_EXPR = new Expression.VariableExpression<>("null");
   private final LookAheadIterator<Token> tokens;
   private Token currentToken;
 
@@ -521,9 +523,10 @@ public class Parser {
           expectAndConsume(LPAREN);
           arguments = parseArguments();
           expectAndConsume(RPAREN);
-          primaryExpression = new Expression.MethodCallExpression<>(null, identifier, arguments);
+          primaryExpression =
+              new Expression.MethodCallExpression<>(THIS_EXPR, identifier, arguments);
         } else {
-          primaryExpression = new Expression.FieldAccessExpression<>(null, identifier);
+          primaryExpression = new Expression.FieldAccessExpression<>(THIS_EXPR, identifier);
         }
         break;
       case THIS:
