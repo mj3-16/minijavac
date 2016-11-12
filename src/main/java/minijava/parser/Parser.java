@@ -3,7 +3,11 @@ package minijava.parser;
 import static minijava.token.Terminal.*;
 import static minijava.token.Terminal.Associativity.*;
 
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
+import minijava.ast.*;
+import minijava.ast.Class;
 import minijava.token.Position;
 import minijava.token.Terminal;
 import minijava.token.Token;
@@ -35,23 +39,32 @@ public class Parser {
   }
 
   private void expectAndConsume(Terminal terminal, String value) {
-    if (currentToken.terminal != terminal || !currentToken.lexval.equals(value)) {
+    if (currentToken.terminal != terminal
+        || currentToken.lexval == null
+        || !currentToken.lexval.equals(value)) {
       throw new ParserError(
           Thread.currentThread().getStackTrace()[2].getMethodName(), terminal, value, currentToken);
     }
     consumeToken();
   }
 
-  private void unexpectCurrentToken(Terminal... expectedTerminals) {
+  private String expectAndConsumeAndReturnValue(Terminal terminal) {
+    if (currentToken.terminal != terminal) {
+      throw new ParserError(
+          Thread.currentThread().getStackTrace()[2].getMethodName(), terminal, currentToken);
+    }
+    String value = currentToken.lexval;
+    consumeToken();
+    return value;
+  }
+
+  private <T> T unexpectCurrentToken(Terminal... expectedTerminals) {
     throw new ParserError(
         Thread.currentThread().getStackTrace()[2].getMethodName(), currentToken, expectedTerminals);
   }
 
   private boolean isCurrentTokenTypeOf(Terminal terminal) {
-    if (currentToken.terminal == terminal) {
-      return true;
-    }
-    return false;
+    return currentToken.terminal == terminal;
   }
 
   private boolean isCurrentTokenNotTypeOf(Terminal terminal) {
@@ -59,17 +72,11 @@ public class Parser {
   }
 
   private boolean isCurrentTokenBinaryOperator() {
-    if (currentToken.isOperator()) {
-      return true;
-    }
-    return false;
+    return currentToken.isOperator();
   }
 
   private boolean isOperatorPrecedenceGreaterOrEqualThan(int precedence) {
-    if (currentToken.precedence() >= precedence) {
-      return true;
-    }
-    return false;
+    return currentToken.precedence() >= precedence;
   }
 
   private boolean matchCurrentAndLookAhead(Terminal... terminals) {
@@ -81,131 +88,149 @@ public class Parser {
     return true;
   }
 
-  public void parse() {
+  public Program<String> parse() {
     consumeToken();
-    parseProgramm();
+    return parseProgramm();
   }
 
   /** Program -> ClassDeclaration* */
-  private void parseProgramm() {
+  private Program<String> parseProgramm() {
+    List<Class<String>> classes = new ArrayList<>();
     while (isCurrentTokenNotTypeOf(EOF)) {
-      parseClassDeclaration();
+      classes.add(parseClassDeclaration());
     }
     expectAndConsume(EOF);
+    return new Program<>(classes);
   }
 
   /** ClassDeclaration -> class IDENT { PublicClassMember* } */
-  private void parseClassDeclaration() {
+  private Class<String> parseClassDeclaration() {
     expectAndConsume(CLASS);
-    expectAndConsume(IDENT);
+    String identifier = expectAndConsumeAndReturnValue(IDENT);
     expectAndConsume(LBRACE);
+    List<Field<String>> fields = new ArrayList<>();
+    List<Method<String>> methods = new ArrayList<>();
     while (isCurrentTokenNotTypeOf(RBRACE) && isCurrentTokenNotTypeOf(EOF)) {
-      parsePublicClassMember();
+      parsePublicClassMember(fields, methods);
     }
     expectAndConsume(RBRACE);
+    return new Class<>(identifier, fields, methods);
   }
 
   /** PublicClassMember -> public ClassMember */
-  private void parsePublicClassMember() {
+  private void parsePublicClassMember(List<Field<String>> fields, List<Method<String>> methods) {
     expectAndConsume(PUBLIC);
-    parseClassMember();
+    parseClassMember(fields, methods);
   }
 
   /** ClassMember -> MainMethod | FieldOrMethod */
-  private void parseClassMember() {
+  private void parseClassMember(List<Field<String>> fields, List<Method<String>> methods) {
     switch (currentToken.terminal) {
       case STATIC:
-        parseMainMethod();
+        methods.add(parseMainMethod());
         break;
       default:
-        parseTypeIdentFieldOrMethod();
+        parseTypeIdentFieldOrMethod(fields, methods);
         break;
     }
   }
 
   /** MainMethod -> static void IDENT ( String [] IDENT ) Block */
-  private void parseMainMethod() {
+  private Method<String> parseMainMethod() {
     expectAndConsume(STATIC);
     expectAndConsume(VOID);
-    expectAndConsume(IDENT);
+    String name = expectAndConsumeAndReturnValue(IDENT);
     expectAndConsume(LPAREN);
     expectAndConsume(IDENT, "String");
     expectAndConsume(LBRACK);
     expectAndConsume(RBRACK);
     expectAndConsume(IDENT);
     expectAndConsume(RPAREN);
-    parseBlock();
+    Block<String> block = parseBlock();
+    return new Method<>(true, new Type<>("void", 0), name, new ArrayList<>(), block);
   }
 
   /** TypeIdentFieldOrMethod -> Type IDENT FieldOrMethod */
-  private void parseTypeIdentFieldOrMethod() {
-    parseType();
-    expectAndConsume(IDENT);
-    parseFieldOrMethod();
+  private void parseTypeIdentFieldOrMethod(
+      List<Field<String>> fields, List<Method<String>> methods) {
+    Type<String> type = parseType();
+    String name = expectAndConsumeAndReturnValue(IDENT);
+    parseFieldOrMethod(type, name, fields, methods);
   }
 
   /** FieldOrMethod -> ; | Method */
-  private void parseFieldOrMethod() {
+  private void parseFieldOrMethod(
+      Type<String> type, String name, List<Field<String>> fields, List<Method<String>> methods) {
     if (isCurrentTokenTypeOf(SEMICOLON)) {
       expectAndConsume(SEMICOLON);
+      fields.add(new Field<>(type, name));
     } else {
-      parseMethod();
+      methods.add(parseMethod(type, name));
     }
   }
 
   /** Method -> ( Parameters? ) Block */
-  private void parseMethod() {
+  private Method<String> parseMethod(Type<String> type, String name) {
+    List<Method.Parameter<String>> parameters = new ArrayList<>();
     expectAndConsume(LPAREN);
     if (isCurrentTokenNotTypeOf(RPAREN)) {
-      parseParameters();
+      parameters = parseParameters();
     }
     expectAndConsume(RPAREN);
-    parseBlock();
+    Block<String> block = parseBlock();
+    return new Method<>(false, type, name, parameters, block);
   }
 
   /** Parameters -> Parameter | Parameter , Parameters */
-  private void parseParameters() {
-    parseParameter();
+  private List<Method.Parameter<String>> parseParameters() {
+    List<Method.Parameter<String>> parameters = new ArrayList<>();
+    parameters.add(parseParameter());
     while (isCurrentTokenTypeOf(COMMA)) {
       expectAndConsume(COMMA);
-      parseParameter();
+      parameters.add(parseParameter());
     }
+    return parameters;
   }
 
   /** Parameter -> Type IDENT */
-  private void parseParameter() {
-    parseType();
-    expectAndConsume(IDENT);
+  private Method.Parameter<String> parseParameter() {
+    Type<String> type = parseType();
+    String identifier = expectAndConsumeAndReturnValue(IDENT);
+    return new Method.Parameter<>(type, identifier);
   }
 
   /** Type -> BasicType ([])* */
-  private void parseType() {
+  private Type<String> parseType() {
     // Only later call is in parseLocalVariableDeclarationStatement()
     // parseType() does not recurse however, so we are safe.
-    parseBasicType();
+    String type = parseBasicType();
+    int dimension = 0;
     while (isCurrentTokenTypeOf(LBRACK) && isCurrentTokenNotTypeOf(EOF)) {
       expectAndConsume(LBRACK);
       expectAndConsume(RBRACK);
+      dimension++;
     }
+    return new Type<>(type, dimension);
   }
 
   /** BasicType -> int | boolean | void | IDENT */
-  private void parseBasicType() {
+  private String parseBasicType() {
     switch (currentToken.terminal) {
       case INT:
         expectAndConsume(INT);
-        break;
+        return "int";
       case BOOLEAN:
         expectAndConsume(BOOLEAN);
-        break;
+        return "boolean";
       case VOID:
         expectAndConsume(VOID);
-        break;
+        return "void";
       case IDENT:
-        expectAndConsume(IDENT);
-        break;
+        return expectAndConsumeAndReturnValue(IDENT);
       default:
         unexpectCurrentToken(INT, BOOLEAN, VOID, IDENT);
+        // will never be returned, but we still need a return value here
+        return "Invalid Type";
     }
   }
 
@@ -213,7 +238,7 @@ public class Parser {
    * Statement -> Block | EmptyStatement | IfStatement | ExpressionStatement | WhileStatement |
    * ReturnStatement
    */
-  private void parseStatement() {
+  private Statement<String> parseStatement() {
     // Also called from BlockStatement, IfStatement and WhileStatement.
     // There is possibility for endless recursion here, but that's OK
     // because it's not tail recursive (which we have to optimize away
@@ -223,275 +248,346 @@ public class Parser {
     // parser.
     switch (currentToken.terminal) {
       case LBRACE:
-        parseBlock();
-        break;
+        return parseBlock();
       case SEMICOLON:
-        parseEmptyStatement();
-        break;
+        return parseEmptyStatement();
       case IF:
-        parseIfStatement();
-        break;
+        return parseIfStatement();
       case WHILE:
-        parseWhileStatement();
-        break;
+        return parseWhileStatement();
       case RETURN:
-        parseReturnStatement();
-        break;
+        return parseReturnStatement();
       default:
-        parseExpressionStatement();
-        break;
+        return parseExpressionStatement();
     }
   }
 
   /** Block -> { BlockStatement* } */
-  private void parseBlock() {
+  private Block<String> parseBlock() {
+    List<BlockStatement<String>> blockStatements = new ArrayList<>();
     expectAndConsume(LBRACE);
     while (isCurrentTokenNotTypeOf(RBRACE) && isCurrentTokenNotTypeOf(EOF)) {
-      parseBlockStatement();
+      blockStatements.add(parseBlockStatement());
     }
     expectAndConsume(RBRACE);
+    return new Block<>(blockStatements);
   }
 
   /** BlockStatement -> Statement | LocalVariableDeclarationStatement */
-  private void parseBlockStatement() {
+  private BlockStatement<String> parseBlockStatement() {
     if (currentToken.isOneOf(INT, BOOLEAN, VOID)
         || matchCurrentAndLookAhead(IDENT, LBRACK, RBRACK)
         || matchCurrentAndLookAhead(IDENT, IDENT)) {
-      parseLocalVariableDeclarationStatement();
+      return parseLocalVariableDeclarationStatement();
     } else {
-      parseStatement();
+      return parseStatement();
     }
   }
 
   /** LocalVariableDeclarationStatement -> Type IDENT (= Expression)? ; */
-  private void parseLocalVariableDeclarationStatement() {
-    parseType();
-    expectAndConsume(IDENT);
+  private BlockStatement<String> parseLocalVariableDeclarationStatement() {
+    Type<String> type = parseType();
+    String identifier = expectAndConsumeAndReturnValue(IDENT);
+    Expression<String> expression = null;
     if (isCurrentTokenTypeOf(ASSIGN)) {
       expectAndConsume(ASSIGN);
-      parseExpression();
+      expression = parseExpression();
     }
     expectAndConsume(SEMICOLON);
+    return new Statement.Variable<>(type, identifier, expression);
   }
 
   /** EmptyStatement -> ; */
-  private void parseEmptyStatement() {
+  private Statement<String> parseEmptyStatement() {
     expectAndConsume(SEMICOLON);
+    return new Statement.EmptyStatement<>();
   }
 
   /** WhileStatement -> while ( Expression ) Statement */
-  private void parseWhileStatement() {
+  private Statement<String> parseWhileStatement() {
     expectAndConsume(WHILE);
     expectAndConsume(LPAREN);
-    parseExpression();
+    Expression<String> condition = parseExpression();
     expectAndConsume(RPAREN);
-    parseStatement();
+    Statement<String> body = parseStatement();
+    return new Statement.While<>(condition, body);
   }
 
   /** IfStatement -> if ( Expression ) Statement (else Statement)? */
-  private void parseIfStatement() {
+  private Statement<String> parseIfStatement() {
     expectAndConsume(IF);
     expectAndConsume(LPAREN);
-    parseExpression();
+    Expression<String> condition = parseExpression();
     expectAndConsume(RPAREN);
-    parseStatement();
+    Statement<String> then = parseStatement();
+    Statement<String> else_ = null;
     if (isCurrentTokenTypeOf(ELSE)) {
       expectAndConsume(ELSE);
-      parseStatement();
+      else_ = parseStatement();
     }
+    return new Statement.If<>(condition, then, else_);
   }
 
   /** ExpressionStatement -> Expression ; */
-  private void parseExpressionStatement() {
-    parseExpression();
+  private Statement<String> parseExpressionStatement() {
+    Expression<String> expression = parseExpression();
     expectAndConsume(SEMICOLON);
+    return new Statement.ExpressionStatement<>(expression);
   }
 
   /** ReturnStatement -> return Expression? ; */
-  private void parseReturnStatement() {
+  private Statement<String> parseReturnStatement() {
     expectAndConsume(RETURN);
+    Expression<String> expression = null;
     if (isCurrentTokenNotTypeOf(SEMICOLON)) {
-      parseExpression();
+      expression = parseExpression();
     }
     expectAndConsume(SEMICOLON);
+    if (null == expression) {
+      return new Statement.Return<>();
+    }
+    return new Statement.Return<>(expression);
   }
 
   /** Expression is parsed with Precedence Climbing */
-  private void parseExpression() {
-    parseExpressionWithPrecedenceClimbing(0);
+  private Expression<String> parseExpression() {
+    return parseExpressionWithPrecedenceClimbing(0);
   }
 
-  private void parseExpressionWithPrecedenceClimbing(int minPrecedence) {
+  private Expression<String> parseExpressionWithPrecedenceClimbing(int minPrecedence) {
     // This is the other method that could possibly blow up the stack,
     // which we can do nothing about.
-    parseUnaryExpression();
+    Expression<String> result = parseUnaryExpression();
     while (isCurrentTokenBinaryOperator()
         && isOperatorPrecedenceGreaterOrEqualThan(minPrecedence)) {
+      Expression.BinOp operator = getBinaryOperator(currentToken);
       int precedence = currentToken.precedence();
       if (currentToken.associativity() == LEFT) {
         precedence++;
       }
       consumeToken();
-      parseExpressionWithPrecedenceClimbing(precedence);
+      Expression<String> rhs = parseExpressionWithPrecedenceClimbing(precedence);
+
+      result = new Expression.BinaryOperatorExpression<>(operator, result, rhs);
+    }
+    return result;
+  }
+
+  private Expression.BinOp getBinaryOperator(Token token) {
+    switch (token.terminal) {
+      case ASSIGN:
+        return Expression.BinOp.ASSIGN;
+      case OR:
+        return Expression.BinOp.OR;
+      case AND:
+        return Expression.BinOp.AND;
+      case EQL:
+        return Expression.BinOp.EQ;
+      case NEQ:
+        return Expression.BinOp.NEQ;
+      case LSS:
+        return Expression.BinOp.LT;
+      case LEQ:
+        return Expression.BinOp.LEQ;
+      case GTR:
+        return Expression.BinOp.GT;
+      case GEQ:
+        return Expression.BinOp.GEQ;
+      case ADD:
+        return Expression.BinOp.PLUS;
+      case SUB:
+        return Expression.BinOp.MINUS;
+      case MUL:
+        return Expression.BinOp.MULTIPLY;
+      case DIV:
+        return Expression.BinOp.DIVIDE;
+      case MOD:
+        return Expression.BinOp.MODULO;
+      default:
+        throw new ParserError(token.position, "Token is not a BinaryOperator");
+    }
+  }
+
+  private Expression.UnOp getUnaryOperator(Token token) {
+    switch (token.terminal) {
+      case NOT:
+        return Expression.UnOp.NOT;
+      case SUB:
+        return Expression.UnOp.NEGATE;
+      default:
+        throw new ParserError(token.position, "Token is not an UnaryOperator");
     }
   }
 
   /** UnaryExpression -> PostfixExpression | (! | -) UnaryExpression */
-  private void parseUnaryExpression() {
-    while (currentToken.isOneOf(NOT, SUB)) {
+  private Expression<String> parseUnaryExpression() {
+    if (currentToken.isOneOf(NOT, SUB)) {
+      Expression.UnOp operator = getUnaryOperator(currentToken);
       consumeToken();
+      return new Expression.UnaryOperatorExpression<>(operator, parseUnaryExpression());
     }
-    parsePostfixExpression();
+    return parsePostfixExpression();
   }
 
   /** PostfixExpression -> PrimaryExpression (PostfixOp)* */
-  private void parsePostfixExpression() {
-    parsePrimaryExpression();
+  private Expression<String> parsePostfixExpression() {
+    Expression<String> primaryExpression = parsePrimaryExpression();
     while ((isCurrentTokenTypeOf(LBRACK) || isCurrentTokenTypeOf(PERIOD))
         && isCurrentTokenNotTypeOf(EOF)) {
-      parsePostfixOp();
+      primaryExpression = parsePostfixOp(primaryExpression);
     }
+    return primaryExpression;
   }
 
   /** PostfixOp -> MethodInvocation | FieldAccess | ArrayAccess */
-  private void parsePostfixOp() {
+  private Expression<String> parsePostfixOp(Expression<String> lhs) {
     switch (currentToken.terminal) {
       case PERIOD:
-        parseDotIdentFieldAccessMethodInvocation();
-        break;
+        return parseDotIdentFieldAccessMethodInvocation(lhs);
       case LBRACK:
-        parseArrayAccess();
-        break;
+        return parseArrayAccess(lhs);
       default:
-        unexpectCurrentToken(PERIOD, LBRACK);
+        return unexpectCurrentToken(PERIOD, LBRACK);
     }
   }
 
   /** DotIdentFieldAccessMethodInvocation -> . IDENT (MethodInvocation)? */
-  private void parseDotIdentFieldAccessMethodInvocation() {
+  private Expression<String> parseDotIdentFieldAccessMethodInvocation(Expression<String> lhs) {
     expectAndConsume(PERIOD);
-    expectAndConsume(IDENT);
+    String identifier = expectAndConsumeAndReturnValue(IDENT);
     // is it FieldAccess (false) or MethodInvocation (true)?
     if (isCurrentTokenTypeOf(LPAREN)) {
-      parseMethodInvocation();
+      return parseMethodInvocation(lhs, identifier);
     }
+    return new Expression.FieldAccessExpression<>(lhs, identifier);
   }
 
   /** MethodInvocation -> ( Arguments ) */
-  private void parseMethodInvocation() {
+  private Expression<String> parseMethodInvocation(Expression<String> lhs, String identifier) {
     expectAndConsume(LPAREN);
-    parseArguments();
+    List<Expression<String>> arguments = parseArguments();
     expectAndConsume(RPAREN);
+    return new Expression.MethodCallExpression<>(lhs, identifier, arguments);
   }
 
   /** ArrayAccess -> [ Expression ] */
-  private void parseArrayAccess() {
+  private Expression<String> parseArrayAccess(Expression<String> array) {
     expectAndConsume(LBRACK);
-    parseExpression();
+    Expression<String> index = parseExpression();
     expectAndConsume(RBRACK);
+    return new Expression.ArrayAccessExpression<>(array, index);
   }
 
   /** Arguments -> (Expression (,Expression)*)? */
-  private void parseArguments() {
+  private List<Expression<String>> parseArguments() {
+    List<Expression<String>> arguments = new ArrayList<>();
     if (isCurrentTokenNotTypeOf(RPAREN)) {
-      parseExpression();
+      arguments.add(parseExpression());
       while (isCurrentTokenTypeOf(COMMA) && isCurrentTokenNotTypeOf(EOF)) {
         expectAndConsume(COMMA);
-        parseExpression();
+        arguments.add(parseExpression());
       }
     }
+    return arguments;
   }
 
   /**
    * PrimaryExpression -> null | false | true | INTEGER_LITERAL | IDENT | IDENT ( Arguments ) | this
    * | ( Expression ) | NewObjectArrayExpression
    */
-  private void parsePrimaryExpression() {
+  private Expression<String> parsePrimaryExpression() {
+    Expression<String> primaryExpression = null;
     switch (currentToken.terminal) {
       case NULL:
         expectAndConsume(NULL);
+        primaryExpression = new Expression.VariableExpression<>("null");
         break;
       case FALSE:
         expectAndConsume(FALSE);
+        primaryExpression = new Expression.BooleanLiteralExpression<>(false);
         break;
       case TRUE:
         expectAndConsume(TRUE);
+        primaryExpression = new Expression.BooleanLiteralExpression<>(true);
         break;
       case INTEGER_LITERAL:
-        expectAndConsume(INTEGER_LITERAL);
+        String literal = expectAndConsumeAndReturnValue(INTEGER_LITERAL);
+        primaryExpression = new Expression.IntegerLiteralExpression<>(literal);
         break;
       case IDENT:
-        expectAndConsume(IDENT);
+        String identifier = expectAndConsumeAndReturnValue(IDENT);
+        List<Expression<String>> arguments;
         if (isCurrentTokenTypeOf(LPAREN)) {
           expectAndConsume(LPAREN);
-          parseArguments();
+          arguments = parseArguments();
           expectAndConsume(RPAREN);
+          primaryExpression = new Expression.MethodCallExpression<>(null, identifier, arguments);
+        } else {
+          primaryExpression = new Expression.FieldAccessExpression<>(null, identifier);
         }
         break;
       case THIS:
         expectAndConsume(THIS);
+        primaryExpression = new Expression.VariableExpression<>("this");
         break;
       case LPAREN:
         expectAndConsume(LPAREN);
-        parseExpression();
+        primaryExpression = parseExpression();
         expectAndConsume(RPAREN);
         break;
       case NEW:
-        parseNewObjectArrayExpression();
+        primaryExpression = parseNewObjectArrayExpression();
         break;
       default:
         unexpectCurrentToken(NULL, FALSE, TRUE, INTEGER_LITERAL, IDENT, THIS, LPAREN, NEW);
     }
+    return primaryExpression;
   }
 
   /** NewObjectArrayExpression -> BasicType NewArrayExpression | IDENT NewObjectExpression */
-  private void parseNewObjectArrayExpression() {
+  private Expression<String> parseNewObjectArrayExpression() {
     expectAndConsume(NEW);
     switch (currentToken.terminal) {
       case INT:
         expectAndConsume(INT);
-        parseNewArrayExpression();
-        break;
+        return parseNewArrayExpression(new Type<>("int", 0));
       case BOOLEAN:
         expectAndConsume(BOOLEAN);
-        parseNewArrayExpression();
-        break;
+        return parseNewArrayExpression(new Type<>("boolean", 0));
       case VOID:
         expectAndConsume(VOID);
-        parseNewArrayExpression();
-        break;
+        return parseNewArrayExpression(new Type<>("void", 0));
       case IDENT:
-        expectAndConsume(IDENT);
+        String identifier = expectAndConsumeAndReturnValue(IDENT);
         switch (currentToken.terminal) {
           case LPAREN:
-            parseNewObjectExpression();
-            break;
+            return parseNewObjectExpression(identifier);
           case LBRACK:
-            parseNewArrayExpression();
-            break;
+            return parseNewArrayExpression(new Type<>(identifier, 0));
           default:
-            unexpectCurrentToken(LPAREN, LBRACK);
+            return unexpectCurrentToken(LPAREN, LBRACK);
         }
-        break;
       default:
-        unexpectCurrentToken(INT, BOOLEAN, VOID, IDENT);
+        return unexpectCurrentToken(INT, BOOLEAN, VOID, IDENT);
     }
   }
 
   /** NewObjectExpression -> ( ) */
-  private void parseNewObjectExpression() {
+  private Expression<String> parseNewObjectExpression(String type) {
     expectAndConsume(LPAREN);
     expectAndConsume(RPAREN);
+    return new Expression.NewObjectExpression<>(type);
   }
 
   /** NewArrayExpression -> [ Expression ] ([])* */
-  private void parseNewArrayExpression() {
+  private Expression<String> parseNewArrayExpression(Type<String> type) {
     expectAndConsume(LBRACK);
-    parseExpression();
+    Expression<String> index = parseExpression();
     expectAndConsume(RBRACK);
     while (matchCurrentAndLookAhead(LBRACK, RBRACK)) {
       expectAndConsume(LBRACK);
       expectAndConsume(RBRACK);
     }
+    return new Expression.NewArrayExpression<>(type, index);
   }
 }
