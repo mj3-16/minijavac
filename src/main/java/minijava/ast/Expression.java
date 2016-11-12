@@ -163,25 +163,37 @@ public interface Expression<TRef> {
   }
 
   enum UnOp {
-    NOT,
-    NEGATE,
+    NOT("!"),
+    NEGATE("-");
+
+    public final String string;
+
+    UnOp(String string) {
+      this.string = string;
+    }
   }
 
   enum BinOp {
-    ASSIGN,
-    PLUS,
-    MINUS,
-    MULTIPLY,
-    DIVIDE,
-    MODULO,
-    OR,
-    AND,
-    EQ,
-    NEQ,
-    LT,
-    LEQ,
-    GT,
-    GEQ
+    ASSIGN("="),
+    PLUS("+"),
+    MINUS("-"),
+    MULTIPLY("*"),
+    DIVIDE("/"),
+    MODULO("%"),
+    OR("||"),
+    AND("&&"),
+    EQ("=="),
+    NEQ("!="),
+    LT("<"),
+    LEQ("<="),
+    GT(">"),
+    GEQ(">=");
+
+    public final String string;
+
+    BinOp(String string) {
+      this.string = string;
+    }
   }
 
   interface Visitor<TRef, TReturn> {
