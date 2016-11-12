@@ -555,20 +555,20 @@ public class Parser {
     switch (currentToken.terminal) {
       case INT:
         expectAndConsume(INT);
-        return parseNewArrayExpression(new Type<>("int", 0));
+        return parseNewArrayExpression("int");
       case BOOLEAN:
         expectAndConsume(BOOLEAN);
-        return parseNewArrayExpression(new Type<>("boolean", 0));
+        return parseNewArrayExpression("boolean");
       case VOID:
         expectAndConsume(VOID);
-        return parseNewArrayExpression(new Type<>("void", 0));
+        return parseNewArrayExpression("void");
       case IDENT:
         String identifier = expectAndConsumeAndReturnValue(IDENT);
         switch (currentToken.terminal) {
           case LPAREN:
             return parseNewObjectExpression(identifier);
           case LBRACK:
-            return parseNewArrayExpression(new Type<>(identifier, 0));
+            return parseNewArrayExpression(identifier);
           default:
             return unexpectCurrentToken(LPAREN, LBRACK);
         }
@@ -585,14 +585,16 @@ public class Parser {
   }
 
   /** NewArrayExpression -> [ Expression ] ([])* */
-  private Expression<String> parseNewArrayExpression(Type<String> type) {
+  private Expression<String> parseNewArrayExpression(String elementTypeRef) {
     expectAndConsume(LBRACK);
-    Expression<String> index = parseExpression();
+    Expression<String> size = parseExpression();
     expectAndConsume(RBRACK);
+    int dim = 1;
     while (matchCurrentAndLookAhead(LBRACK, RBRACK)) {
       expectAndConsume(LBRACK);
       expectAndConsume(RBRACK);
+      dim++;
     }
-    return new Expression.NewArrayExpression<>(type, index);
+    return new Expression.NewArrayExpression<>(new Type<>(elementTypeRef, dim), size);
   }
 }

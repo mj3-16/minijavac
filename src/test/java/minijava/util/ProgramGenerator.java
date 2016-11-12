@@ -253,7 +253,7 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
 
   private Type<String> genArrayType(SourceOfRandomness random) {
     Type<String> t = genType(random);
-    return new Type<>(t.typeRef, Math.min(t.dimension, 1));
+    return new Type<>(t.typeRef, Math.max(t.dimension, 1));
   }
 
   private static String genInt(SourceOfRandomness r) {
