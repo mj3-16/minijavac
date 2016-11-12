@@ -4,6 +4,9 @@ import static minijava.token.Terminal.*;
 import static org.jooq.lambda.Seq.seq;
 import static org.jooq.lambda.tuple.Tuple.tuple;
 
+import com.pholser.junit.quickcheck.generator.GenerationStatus;
+import com.pholser.junit.quickcheck.generator.Generator;
+import com.pholser.junit.quickcheck.generator.Size;
 import com.pholser.junit.quickcheck.random.SourceOfRandomness;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -12,32 +15,39 @@ import java.util.function.Consumer;
 import minijava.token.Terminal;
 import org.jooq.lambda.tuple.Tuple2;
 
-public class TerminalStreamGenerator {
+public class TerminalStreamGenerator extends Generator<TerminalStream> {
 
   /* If we encountered this many stack overflows while
    * generating, we try to take all shortcuts in the grammar that are possible.
    */
   private static final int MAX_OVERFLOWS = 50;
   private final List<Terminal> ret = new ArrayList<>();
-  private final int sizeHint;
+  private int sizeHint;
   private int overflows = 0;
 
-  private TerminalStreamGenerator(int sizeHint) {
-    this.sizeHint = sizeHint;
+  public TerminalStreamGenerator() {
+    super(TerminalStream.class);
+  }
+
+  @Override
+  public TerminalStream generate(SourceOfRandomness random, GenerationStatus status) {
+    return new TerminalStream(generateProgram(random));
+  }
+
+  public void configure(Size size) {
+    sizeHint = size.max();
   }
 
   // ClassDeclaration*
-  public static List<Terminal> generateProgram(SourceOfRandomness random, int sizeHint) {
+  public List<Terminal> generateProgram(SourceOfRandomness random) {
 
-    TerminalStreamGenerator gen = new TerminalStreamGenerator(sizeHint);
-
-    int n = gen.nextArity(random, 10);
+    int n = nextArity(random, 10);
     for (int i = 0; i < n; ++i) {
-      gen.genClassDeclaration(random);
+      genClassDeclaration(random);
     }
-    gen.ret.add(EOF);
+    ret.add(EOF);
 
-    return gen.ret;
+    return ret;
   }
 
   // class IDENT { ClassMember* }
@@ -278,8 +288,6 @@ public class TerminalStreamGenerator {
       SourceOfRandomness random,
       Consumer<SourceOfRandomness> nextPrecedence,
       Terminal... operators) {
-    final Consumer<SourceOfRandomness> recurse =
-        r -> chooseExpressionLike(r, nextPrecedence, operators);
 
     List<Tuple2<Double, Consumer<SourceOfRandomness>>> choices = new ArrayList<>();
     // Drops down one level in precedence (e.g. from LogicalOrExpression to LogicalAndExpression).

@@ -1,5 +1,6 @@
 package minijava.util;
 
+import static java.lang.String.format;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -16,11 +17,11 @@ import org.junit.Test;
 
 public class PrettyPrinterTest {
 
-  private PrettyPrinter prettyPrinter;
+  private PrettyPrinter<Object> prettyPrinter;
 
   @Before
   public void setup() {
-    prettyPrinter = new PrettyPrinter();
+    prettyPrinter = new PrettyPrinter<>();
   }
 
   @Test
@@ -32,7 +33,7 @@ public class PrettyPrinterTest {
                 new Class<>("Z", ImmutableList.of(), ImmutableList.of()),
                 new Class<>("C", ImmutableList.of(), ImmutableList.of())));
     CharSequence actual = p.acceptVisitor(prettyPrinter);
-    assertThat(actual.toString(), is(equalTo("class A { }\nclass C { }\nclass Z { }\n")));
+    assertThat(actual.toString(), is(equalTo(format("class A { }%nclass C { }%nclass Z { }%n"))));
   }
 
   @Test
@@ -41,7 +42,7 @@ public class PrettyPrinterTest {
         new Class<>(
             "Foo", ImmutableList.of(new Field<>(new Type<>("int", 0), "i")), ImmutableList.of());
     CharSequence actual = node.acceptVisitor(prettyPrinter);
-    assertThat(actual.toString(), is(equalTo("class Foo {\n\tpublic int i;\n}\n")));
+    assertThat(actual.toString(), is(equalTo(format("class Foo {%n\tpublic int i;%n}%n"))));
   }
 
   @Test
@@ -61,13 +62,14 @@ public class PrettyPrinterTest {
         actual.toString(),
         is(
             equalTo(
-                "class Foo {\n"
-                    + "\tpublic int A;\n"
-                    + "\tpublic boolean B;\n"
-                    + "\tpublic boolean G;\n"
-                    + "\tpublic int U;\n"
-                    + "\tpublic int Z;\n"
-                    + "}\n")));
+                format(
+                    "class Foo {%n"
+                        + "\tpublic int A;%n"
+                        + "\tpublic boolean B;%n"
+                        + "\tpublic boolean G;%n"
+                        + "\tpublic int U;%n"
+                        + "\tpublic int Z;%n"
+                        + "}%n"))));
   }
 
   @Test
@@ -84,7 +86,8 @@ public class PrettyPrinterTest {
                     ImmutableList.of(),
                     new Block<>(ImmutableList.of()))));
     CharSequence actual = node.acceptVisitor(prettyPrinter);
-    assertThat(actual.toString(), is(equalTo("class Foo {\n\tpublic static int m() { }\n}\n")));
+    assertThat(
+        actual.toString(), is(equalTo(format("class Foo {%n\tpublic static int m() { }%n}%n"))));
   }
 
   @Test
@@ -117,11 +120,12 @@ public class PrettyPrinterTest {
         actual.toString(),
         is(
             equalTo(
-                "class Foo {\n"
-                    + "\tpublic int B() { }\n"
-                    + "\tpublic int Z() { }\n"
-                    + "\tpublic int a() { }\n"
-                    + "}\n")));
+                format(
+                    "class Foo {%n"
+                        + "\tpublic int B() { }%n"
+                        + "\tpublic int Z() { }%n"
+                        + "\tpublic int a() { }%n"
+                        + "}%n"))));
   }
 
   @Test
@@ -142,7 +146,8 @@ public class PrettyPrinterTest {
                     new EmptyStatement<>())));
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(
-        actual.toString(), is(equalTo("public static void main(String[] args, int numArgs) { }")));
+        actual.toString(),
+        is(equalTo(format("public static void main(String[] args, int numArgs) { }"))));
   }
 
   @Test
@@ -158,7 +163,7 @@ public class PrettyPrinterTest {
                     new ExpressionStatement<>(new IntegerLiteralExpression<Object>("0") {}),
                     new EmptyStatement<>())));
     CharSequence actual = node.acceptVisitor(prettyPrinter);
-    assertThat(actual.toString(), is(equalTo("public int m() {\n\t0;\n}")));
+    assertThat(actual.toString(), is(equalTo(format("public int m() {%n\t0;%n}"))));
   }
 
   @Test
@@ -170,7 +175,8 @@ public class PrettyPrinterTest {
                 new Variable<>(new Type<>("String", 2), "s", null),
                 new Variable<>(new Type<>("boolean", 0), "b", null)));
     CharSequence actual = node.acceptVisitor(prettyPrinter);
-    assertThat(actual.toString(), is(equalTo("{\n\tint i;\n\tString[][] s;\n\tboolean b;\n}")));
+    assertThat(
+        actual.toString(), is(equalTo(format("{%n\tint i;%n\tString[][] s;%n\tboolean b;%n}"))));
   }
 
   @Test
@@ -178,7 +184,7 @@ public class PrettyPrinterTest {
     If<Object> node =
         new If<>(new Expression.BooleanLiteralExpression<>(true), new EmptyStatement<>(), null);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
-    assertThat(actual.toString(), is(equalTo("if true\n\t;")));
+    assertThat(actual.toString(), is(equalTo(format("if (true)%n\t;"))));
   }
 
   @Test
@@ -189,7 +195,7 @@ public class PrettyPrinterTest {
             new Block<>(ImmutableList.of(new EmptyStatement<>(), new EmptyStatement<>())),
             null);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
-    assertThat(actual.toString(), is(equalTo("if true { }")));
+    assertThat(actual.toString(), is(equalTo("if (true) { }")));
   }
 
   @Test
@@ -218,7 +224,7 @@ public class PrettyPrinterTest {
     MethodCallExpression<Object> node =
         new MethodCallExpression<>(new VariableExpression<>("o"), "m", ImmutableList.of());
     CharSequence actual = node.acceptVisitor(prettyPrinter);
-    assertThat(actual.toString(), is(equalTo("o.m()")));
+    assertThat(actual.toString(), is(equalTo("(o.m())")));
   }
 
   @Test
@@ -229,7 +235,7 @@ public class PrettyPrinterTest {
             "m",
             ImmutableList.of(new BooleanLiteralExpression<>(true)));
     CharSequence actual = node.acceptVisitor(prettyPrinter);
-    assertThat(actual.toString(), is(equalTo("o.m(true)")));
+    assertThat(actual.toString(), is(equalTo("(o.m(true))")));
   }
 
   @Test
@@ -245,7 +251,7 @@ public class PrettyPrinterTest {
                     new IntegerLiteralExpression<>("5"),
                     new IntegerLiteralExpression<>("8"))));
     CharSequence actual = node.acceptVisitor(prettyPrinter);
-    assertThat(actual.toString(), is(equalTo("o.m(true, 5 + 8)")));
+    assertThat(actual.toString(), is(equalTo("(o.m(true, 5 + 8))")));
   }
 
   @Test
@@ -326,7 +332,14 @@ public class PrettyPrinterTest {
                 new UnaryOperatorExpression<>(UnOp.NEGATE, new IntegerLiteralExpression<>("5"))));
 
     CharSequence actual = node.acceptVisitor(prettyPrinter);
-    assertThat(actual.toString(), is(equalTo("while (6 + 2)\n\t-5;")));
+    assertThat(actual.toString(), is(equalTo(format("while (6 + 2)%n\t-5;"))));
+  }
+
+  @Test
+  public void visitWhile_null() throws Exception {
+    While<Object> node = new While<>(new VariableExpression<>("null"), new EmptyStatement<>());
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo(format("while (null)%n\t;"))));
   }
 
   @Test
@@ -472,26 +485,26 @@ public class PrettyPrinterTest {
     CharSequence actual = program.acceptVisitor(prettyPrinter);
 
     String expected =
-        "class HelloWorld {\n"
-            + "\tpublic int bar(int a, int b) {\n"
-            + "\t\treturn c = (a + b);\n"
-            + "\t}\n"
-            + "\tpublic static void main(String[] args) {\n"
-            + "\t\t(System.out).println(43110 + 0);\n"
-            + "\t\tboolean b = true && (!false);\n"
-            + "\t\tif ((23 + 19) == ((42 + 0) * 1))\n"
-            + "\t\t\tb = (0 < 1);\n"
-            + "\t\telse if (!(array[2 + 2])) {\n"
-            + "\t\t\tint x = 0;\n"
-            + "\t\t\tx = (x + 1);\n"
-            + "\t\t} else {\n"
-            + "\t\t\t(new HelloWorld()).bar(42 + (0 * 1), -1);\n"
-            + "\t\t}\n"
-            + "\t}\n"
-            + "\tpublic boolean[] array;\n"
-            + "\tpublic int c;\n"
-            + "}\n";
+        "class HelloWorld {%n"
+            + "\tpublic int bar(int a, int b) {%n"
+            + "\t\treturn c = (a + b);%n"
+            + "\t}%n"
+            + "\tpublic static void main(String[] args) {%n"
+            + "\t\t(System.out).println(43110 + 0);%n"
+            + "\t\tboolean b = true && (!false);%n"
+            + "\t\tif ((23 + 19) == ((42 + 0) * 1))%n"
+            + "\t\t\tb = (0 < 1);%n"
+            + "\t\telse if (!(array[2 + 2])) {%n"
+            + "\t\t\tint x = 0;%n"
+            + "\t\t\tx = (x + 1);%n"
+            + "\t\t} else {%n"
+            + "\t\t\t(new HelloWorld()).bar(42 + (0 * 1), -1);%n"
+            + "\t\t}%n"
+            + "\t}%n"
+            + "\tpublic boolean[] array;%n"
+            + "\tpublic int c;%n"
+            + "}%n";
 
-    assertThat(actual.toString(), is(equalTo(expected)));
+    assertThat(actual.toString(), is(equalTo(format(expected))));
   }
 }

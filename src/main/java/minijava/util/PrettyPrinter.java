@@ -7,14 +7,14 @@ import java.util.stream.Collectors;
 import minijava.ast.*;
 import minijava.ast.Class;
 
-public class PrettyPrinter
-    implements Program.Visitor<Object, CharSequence>,
-        Class.Visitor<Object, CharSequence>,
-        Field.Visitor<Object, CharSequence>,
-        Method.Visitor<Object, CharSequence>,
-        Type.Visitor<Object, CharSequence>,
-        BlockStatement.Visitor<Object, CharSequence>,
-        Expression.Visitor<Object, CharSequence> {
+public class PrettyPrinter<TRef>
+    implements Program.Visitor<TRef, CharSequence>,
+        Class.Visitor<TRef, CharSequence>,
+        Field.Visitor<TRef, CharSequence>,
+        Method.Visitor<TRef, CharSequence>,
+        Type.Visitor<TRef, CharSequence>,
+        BlockStatement.Visitor<TRef, CharSequence>,
+        Expression.Visitor<TRef, CharSequence> {
 
   private int indentLevel = 0;
 
@@ -32,7 +32,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitProgram(Program<Object> that) {
+  public CharSequence visitProgram(Program<TRef> that) {
     return that.declarations
         .stream()
         .sorted((left, right) -> left.name.compareTo(right.name))
@@ -41,7 +41,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitClassDeclaration(Class<Object> that) {
+  public CharSequence visitClassDeclaration(Class<TRef> that) {
     StringBuilder sb = new StringBuilder("class ").append(that.name).append(" {");
     if (that.fields.isEmpty() && that.methods.isEmpty()) {
       return sb.append(" }").append(System.lineSeparator());
@@ -63,14 +63,14 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitMethod(Method<Object> that) {
+  public CharSequence visitMethod(Method<TRef> that) {
     StringBuilder sb = new StringBuilder("public ");
     if (that.isStatic) {
       sb.append("static ");
     }
     sb.append(that.returnType.acceptVisitor(this)).append(" ").append(that.name).append("(");
-    Iterator<Method.Parameter<Object>> iterator = that.parameters.iterator();
-    Method.Parameter<Object> next;
+    Iterator<Method.Parameter<TRef>> iterator = that.parameters.iterator();
+    Method.Parameter<TRef> next;
     if (iterator.hasNext()) {
       next = iterator.next();
       sb.append(next.type.acceptVisitor(this)).append(" ").append(next.name);
@@ -83,9 +83,9 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitBlock(Block<Object> that) {
+  public CharSequence visitBlock(Block<TRef> that) {
     StringBuilder sb = new StringBuilder("{");
-    List<BlockStatement<Object>> nonEmptyStatements =
+    List<BlockStatement<TRef>> nonEmptyStatements =
         that.statements
             .stream()
             .filter(s -> !(s instanceof Statement.EmptyStatement))
@@ -104,8 +104,11 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitIf(Statement.If<Object> that) {
-    StringBuilder b = new StringBuilder().append("if ").append(that.condition.acceptVisitor(this));
+  public CharSequence visitIf(Statement.If<TRef> that) {
+    StringBuilder b = new StringBuilder().append("if (");
+    // bracketing exception for condition in if statement applies here
+    CharSequence condition = that.condition.acceptVisitor(this);
+    b.append(outerParanthesesRemoved(condition)).append(")");
     // a block follows immediately after a space, a single statement needs new line and indentation
     if (that.then instanceof Block) {
       b.append(" ").append(that.then.acceptVisitor(this));
@@ -117,9 +120,10 @@ public class PrettyPrinter
     // 2 possible states:
     // if $(expr) { ... }
     // if $(expr)\n$(indent)$(stmt);
-    if (that.else_ == null) {
+    if (!that.else_.isPresent()) {
       return b;
     }
+    Statement<TRef> else_ = that.else_.get();
     // if 'then' part was a block, 'else' follows '}' directly
     if (that.then instanceof Block) {
       b.append(" else");
@@ -127,21 +131,24 @@ public class PrettyPrinter
       // otherwise break the line and indent first
       b.append(System.lineSeparator()).append(indent()).append("else");
     }
-    if (that.else_ instanceof Block) {
-      return b.append(" ").append(that.else_.acceptVisitor(this));
-    } else if (that.else_ instanceof Statement.If) {
-      return b.append(" ").append(that.else_.acceptVisitor(this));
+    if (else_ instanceof Block) {
+      return b.append(" ").append(else_.acceptVisitor(this));
+    } else if (else_ instanceof Statement.If) {
+      return b.append(" ").append(else_.acceptVisitor(this));
     } else {
       indentLevel++;
-      b.append(System.lineSeparator()).append(indent()).append(that.else_.acceptVisitor(this));
+      b.append(System.lineSeparator()).append(indent()).append(else_.acceptVisitor(this));
       indentLevel--;
       return b;
     }
   }
 
   @Override
-  public CharSequence visitWhile(Statement.While<Object> that) {
-    StringBuilder sb = new StringBuilder("while ").append(that.condition.acceptVisitor(this));
+  public CharSequence visitWhile(Statement.While<TRef> that) {
+    StringBuilder sb = new StringBuilder("while (");
+    // bracketing exception for condition in while statement applies here
+    CharSequence condition = that.condition.acceptVisitor(this);
+    sb.append(outerParanthesesRemoved(condition)).append(")");
     if (that.body instanceof Block) {
       return sb.append(" ").append(that.body.acceptVisitor(this));
     }
@@ -152,7 +159,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitField(Field<Object> that) {
+  public CharSequence visitField(Field<TRef> that) {
     return new StringBuilder("public ")
         .append(that.type.acceptVisitor(this))
         .append(" ")
@@ -161,30 +168,25 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitType(Type<Object> that) {
+  public CharSequence visitType(Type<TRef> that) {
     StringBuilder b = new StringBuilder(that.typeRef.toString());
     b.append(Strings.repeat("[]", that.dimension));
     return b;
   }
 
   @Override
-  public CharSequence visitExpressionStatement(Statement.ExpressionStatement<Object> that) {
+  public CharSequence visitExpressionStatement(Statement.ExpressionStatement<TRef> that) {
     CharSequence expr = that.expression.acceptVisitor(this);
-    if (that.expression instanceof Expression.MethodCallExpression) {
-      // TODO: MethodCall isn't really an expression, is it? I'd say it's a statement.
-      return new StringBuilder(expr).append(";");
-    } else {
-      return new StringBuilder(outerParanthesesRemoved(expr)).append(";");
-    }
+    return new StringBuilder(outerParanthesesRemoved(expr)).append(";");
   }
 
   @Override
-  public CharSequence visitEmptyStatement(Statement.EmptyStatement<Object> that) {
+  public CharSequence visitEmptyStatement(Statement.EmptyStatement<TRef> that) {
     return ";";
   }
 
   @Override
-  public CharSequence visitReturn(Statement.Return<Object> that) {
+  public CharSequence visitReturn(Statement.Return<TRef> that) {
     StringBuilder b = new StringBuilder("return");
     if (that.expression.isPresent()) {
       b.append(" ");
@@ -195,7 +197,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitVariable(BlockStatement.Variable<Object> that) {
+  public CharSequence visitVariable(BlockStatement.Variable<TRef> that) {
     StringBuilder b = new StringBuilder(that.type.acceptVisitor(this));
     b.append(" ");
     b.append(that.name);
@@ -207,7 +209,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitBinaryOperator(Expression.BinaryOperatorExpression<Object> that) {
+  public CharSequence visitBinaryOperator(Expression.BinaryOperatorExpression<TRef> that) {
     StringBuilder b = new StringBuilder("(");
     CharSequence left = that.left.acceptVisitor(this);
     b.append(left);
@@ -221,7 +223,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitUnaryOperator(Expression.UnaryOperatorExpression<Object> that) {
+  public CharSequence visitUnaryOperator(Expression.UnaryOperatorExpression<TRef> that) {
     StringBuilder b = new StringBuilder("(");
     b.append(that.op.string);
     b.append(that.expression.acceptVisitor(this));
@@ -230,13 +232,15 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitMethodCall(Expression.MethodCallExpression<Object> that) {
-    StringBuilder b = new StringBuilder(that.self.acceptVisitor(this));
+  public CharSequence visitMethodCall(Expression.MethodCallExpression<TRef> that) {
+    StringBuilder b = new StringBuilder();
+    b.append("(");
+    b.append(that.self.acceptVisitor(this));
     b.append(".");
     b.append(that.method.toString());
     b.append("(");
-    Iterator<Expression<Object>> iterator = that.arguments.iterator();
-    Expression<Object> next;
+    Iterator<Expression<TRef>> iterator = that.arguments.iterator();
+    Expression<TRef> next;
     if (iterator.hasNext()) {
       next = iterator.next();
       b.append(outerParanthesesRemoved(next.acceptVisitor(this)));
@@ -246,12 +250,12 @@ public class PrettyPrinter
         b.append(outerParanthesesRemoved(next.acceptVisitor(this)));
       }
     }
-    b.append(")");
+    b.append("))");
     return b;
   }
 
   @Override
-  public CharSequence visitFieldAccess(Expression.FieldAccessExpression<Object> that) {
+  public CharSequence visitFieldAccess(Expression.FieldAccessExpression<TRef> that) {
     StringBuilder b = new StringBuilder("(");
     b.append(that.self.acceptVisitor(this));
     b.append(".");
@@ -261,7 +265,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitArrayAccess(Expression.ArrayAccessExpression<Object> that) {
+  public CharSequence visitArrayAccess(Expression.ArrayAccessExpression<TRef> that) {
     StringBuilder b = new StringBuilder("(").append(that.array.acceptVisitor(this)).append("[");
     CharSequence indexExpr = that.index.acceptVisitor(this);
     b.append(outerParanthesesRemoved(indexExpr));
@@ -270,7 +274,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitNewObjectExpr(Expression.NewObjectExpression<Object> that) {
+  public CharSequence visitNewObjectExpr(Expression.NewObjectExpression<TRef> that) {
     StringBuilder b = new StringBuilder("(new ");
     b.append(that.type.toString());
     b.append("())");
@@ -278,7 +282,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitNewArrayExpr(Expression.NewArrayExpression<Object> that) {
+  public CharSequence visitNewArrayExpr(Expression.NewArrayExpression<TRef> that) {
     StringBuilder b = new StringBuilder("(new ").append(that.type.typeRef.toString()).append("[");
     // bracketing exception for definition of array size applies here
     CharSequence sizeExpr = outerParanthesesRemoved(that.size.acceptVisitor(this));
@@ -289,17 +293,17 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitVariable(Expression.VariableExpression<Object> that) {
+  public CharSequence visitVariable(Expression.VariableExpression<TRef> that) {
     return that.var.toString();
   }
 
   @Override
-  public CharSequence visitBooleanLiteral(Expression.BooleanLiteralExpression<Object> that) {
+  public CharSequence visitBooleanLiteral(Expression.BooleanLiteralExpression<TRef> that) {
     return Boolean.toString(that.literal);
   }
 
   @Override
-  public CharSequence visitIntegerLiteral(Expression.IntegerLiteralExpression<Object> that) {
+  public CharSequence visitIntegerLiteral(Expression.IntegerLiteralExpression<TRef> that) {
     return that.literal;
   }
 }

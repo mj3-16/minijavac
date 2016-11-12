@@ -3,6 +3,7 @@ package minijava.parser;
 import static minijava.token.Terminal.*;
 import static minijava.token.Terminal.Associativity.*;
 
+import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -15,6 +16,7 @@ import minijava.util.LookAheadIterator;
 
 public class Parser {
   private static final Token EOF_TOKEN = new Token(EOF, new Position(0, 0), null);
+  private static final Expression<String> THIS_EXPR = new Expression.VariableExpression<>("this");
   private final LookAheadIterator<Token> tokens;
   private Token currentToken;
 
@@ -144,10 +146,12 @@ public class Parser {
     expectAndConsume(IDENT, "String");
     expectAndConsume(LBRACK);
     expectAndConsume(RBRACK);
-    expectAndConsume(IDENT);
+    String parameter = expectAndConsumeAndReturnValue(IDENT);
     expectAndConsume(RPAREN);
     Block<String> block = parseBlock();
-    return new Method<>(true, new Type<>("void", 0), name, new ArrayList<>(), block);
+    List<Method.Parameter<String>> parameters =
+        ImmutableList.of(new Method.Parameter<>(new Type<>("String", 1), parameter));
+    return new Method<>(true, new Type<>("void", 0), name, parameters, block);
   }
 
   /** TypeIdentFieldOrMethod -> Type IDENT FieldOrMethod */
@@ -521,9 +525,10 @@ public class Parser {
           expectAndConsume(LPAREN);
           arguments = parseArguments();
           expectAndConsume(RPAREN);
-          primaryExpression = new Expression.MethodCallExpression<>(null, identifier, arguments);
+          primaryExpression =
+              new Expression.MethodCallExpression<>(THIS_EXPR, identifier, arguments);
         } else {
-          primaryExpression = new Expression.FieldAccessExpression<>(null, identifier);
+          primaryExpression = new Expression.VariableExpression<>(identifier);
         }
         break;
       case THIS:
@@ -550,20 +555,20 @@ public class Parser {
     switch (currentToken.terminal) {
       case INT:
         expectAndConsume(INT);
-        return parseNewArrayExpression(new Type<>("int", 0));
+        return parseNewArrayExpression("int");
       case BOOLEAN:
         expectAndConsume(BOOLEAN);
-        return parseNewArrayExpression(new Type<>("boolean", 0));
+        return parseNewArrayExpression("boolean");
       case VOID:
         expectAndConsume(VOID);
-        return parseNewArrayExpression(new Type<>("void", 0));
+        return parseNewArrayExpression("void");
       case IDENT:
         String identifier = expectAndConsumeAndReturnValue(IDENT);
         switch (currentToken.terminal) {
           case LPAREN:
             return parseNewObjectExpression(identifier);
           case LBRACK:
-            return parseNewArrayExpression(new Type<>(identifier, 0));
+            return parseNewArrayExpression(identifier);
           default:
             return unexpectCurrentToken(LPAREN, LBRACK);
         }
@@ -580,14 +585,16 @@ public class Parser {
   }
 
   /** NewArrayExpression -> [ Expression ] ([])* */
-  private Expression<String> parseNewArrayExpression(Type<String> type) {
+  private Expression<String> parseNewArrayExpression(String elementTypeRef) {
     expectAndConsume(LBRACK);
-    Expression<String> index = parseExpression();
+    Expression<String> size = parseExpression();
     expectAndConsume(RBRACK);
+    int dim = 1;
     while (matchCurrentAndLookAhead(LBRACK, RBRACK)) {
       expectAndConsume(LBRACK);
       expectAndConsume(RBRACK);
+      dim++;
     }
-    return new Expression.NewArrayExpression<>(type, index);
+    return new Expression.NewArrayExpression<>(new Type<>(elementTypeRef, dim), size);
   }
 }
