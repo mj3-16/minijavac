@@ -84,6 +84,7 @@ public class CliTest {
     assertThat(status, is(0));
     assertThat(
         out.toString(),
-        equalTo("identifier asd\ninteger literal 0\ninteger literal 1\nvoid\nEOF\n"));
+        equalTo(
+            String.format("identifier asd%ninteger literal 0%ninteger literal 1%nvoid%nEOF%n")));
   }
 }
