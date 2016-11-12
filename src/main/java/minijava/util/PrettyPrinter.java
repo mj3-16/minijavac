@@ -10,13 +10,13 @@ import minijava.ast.*;
 import minijava.ast.Class;
 
 public class PrettyPrinter
-    implements Program.Visitor<Object, Void>,
-        Class.Visitor<Object, Void>,
-        Field.Visitor<Object, Void>,
-        Method.Visitor<Object, Void>,
-        Type.Visitor<Object, Void>,
-        BlockStatement.Visitor<Object, Void>,
-        Expression.Visitor<Object, Void> {
+    implements Program.Visitor<Object, CharSequence>,
+        Class.Visitor<Object, CharSequence>,
+        Field.Visitor<Object, CharSequence>,
+        Method.Visitor<Object, CharSequence>,
+        Type.Visitor<Object, CharSequence>,
+        BlockStatement.Visitor<Object, CharSequence>,
+        Expression.Visitor<Object, CharSequence> {
 
   private final PrintWriter out;
   private int indentLevel = 0;
@@ -25,284 +25,277 @@ public class PrettyPrinter
     this.out = new PrintWriter(out);
   }
 
-  private void indent() {
-    out.print(Strings.repeat("\t", indentLevel));
-  }
-
-  @Override
-  public Void visitProgram(Program<Object> that) {
-    for (Class<Object> classDecl : that.declarations) {
-      classDecl.acceptVisitor(this);
+  private static CharSequence outerParanthesesRemoved(CharSequence seq) {
+    if (seq.charAt(0) == '(') {
+      return seq.subSequence(1, seq.length() - 1);
     }
-    return null;
+    return seq;
+  }
+
+  private CharSequence indent() {
+    return Strings.repeat("\t", indentLevel);
   }
 
   @Override
-  public Void visitClassDeclaration(Class<Object> that) {
-    out.print("class ");
-    out.print(that.name);
+  public CharSequence visitProgram(Program<Object> that) {
+    return that.declarations
+        .stream()
+        .sorted((left, right) -> left.name.compareTo(right.name))
+        .map(c -> c.acceptVisitor(this))
+        .collect(Collectors.joining());
+  }
+
+  @Override
+  public CharSequence visitClassDeclaration(Class<Object> that) {
+    StringBuilder sb = new StringBuilder("class ").append(that.name).append(" {");
     if (that.fields.isEmpty() && that.methods.isEmpty()) {
-      out.println(" { }");
-    } else {
-      out.println(" {");
-      indentLevel++;
-      that.methods
-          .stream()
-          .sorted((left, right) -> left.name.compareTo(right.name))
-          .forEach(
-              m -> {
-                indent();
-                m.acceptVisitor(this);
-              });
-      that.fields
-          .stream()
-          .sorted((left, right) -> left.name.compareTo(right.name))
-          .forEach(
-              f -> {
-                indent();
-                f.acceptVisitor(this);
-              });
-      indentLevel--;
-      out.println("}");
+      return sb.append(" }").append(System.lineSeparator());
     }
-    return null;
+    sb.append(System.lineSeparator());
+    indentLevel++;
+    that.methods
+        .stream()
+        .sorted((left, right) -> left.name.compareTo(right.name))
+        .map(m -> m.acceptVisitor(this))
+        .forEach(s -> sb.append(indent()).append(s).append(System.lineSeparator()));
+    that.fields
+        .stream()
+        .sorted((left, right) -> left.name.compareTo(right.name))
+        .map(m -> m.acceptVisitor(this))
+        .forEach(s -> sb.append(indent()).append(s).append(System.lineSeparator()));
+    indentLevel--;
+    return sb.append("}").append(System.lineSeparator());
   }
 
   @Override
-  public Void visitField(Field<Object> that) {
-    out.print("public ");
-    that.type.acceptVisitor(this);
-    out.print(" ");
-    out.print(that.name);
-    out.println(";");
-    return null;
-  }
-
-  @Override
-  public Void visitType(Type<Object> that) {
-    out.print(that.typeRef.toString());
-    out.print(Strings.repeat("[]", that.dimension));
-    return null;
-  }
-
-  @Override
-  public Void visitMethod(Method<Object> that) {
-    out.print("public ");
+  public CharSequence visitMethod(Method<Object> that) {
+    StringBuilder sb = new StringBuilder("public ");
     if (that.isStatic) {
-      out.print("static ");
+      sb.append("static ");
     }
-    that.returnType.acceptVisitor(this);
-    out.print(" ");
-    out.print(that.name);
-    out.print("(");
+    sb.append(that.returnType.acceptVisitor(this)).append(" ").append(that.name).append("(");
     Iterator<Method.Parameter<Object>> iterator = that.parameters.iterator();
     Method.Parameter<Object> next;
     if (iterator.hasNext()) {
       next = iterator.next();
-      next.type.acceptVisitor(this);
-      out.print(" ");
-      out.print(next.name);
+      sb.append(next.type.acceptVisitor(this)).append(" ").append(next.name);
       while (iterator.hasNext()) {
         next = iterator.next();
-        out.print(", ");
-        next.type.acceptVisitor(this);
-        out.print(" ");
-        out.print(next.name);
+        sb.append(", ").append(next.type.acceptVisitor(this)).append(" ").append(next.name);
       }
     }
-    out.print(") ");
-    that.body.acceptVisitor(this);
-    out.println();
-    return null;
+    return sb.append(") ").append(that.body.acceptVisitor(this));
   }
 
   @Override
-  public Void visitBlock(Block<Object> that) {
+  public CharSequence visitBlock(Block<Object> that) {
+    StringBuilder sb = new StringBuilder("{");
     List<BlockStatement<Object>> nonEmptyStatements =
         that.statements
             .stream()
             .filter(s -> !(s instanceof Statement.EmptyStatement))
             .collect(Collectors.toList());
     if (nonEmptyStatements.isEmpty()) {
-      out.print("{ }");
+      return sb.append(" }");
+    }
+    sb.append(System.lineSeparator());
+    indentLevel++;
+    nonEmptyStatements
+        .stream()
+        .map(s -> s.acceptVisitor(this))
+        .forEach(s -> sb.append(indent()).append(s).append(System.lineSeparator()));
+    indentLevel--;
+    return sb.append("}");
+  }
+
+  @Override
+  public CharSequence visitIf(Statement.If<Object> that) {
+    StringBuilder b =
+        new StringBuilder()
+            .append("if ")
+            .append(outerParanthesesRemoved(that.condition.acceptVisitor(this)));
+    // a block follows immediately after a space, a single statement needs new line and indentation
+    if (that.then instanceof Block) {
+      b.append(" ").append(that.then.acceptVisitor(this));
     } else {
-      out.println("{");
       indentLevel++;
-      nonEmptyStatements.forEach(
-          s -> {
-            indent();
-            s.acceptVisitor(this);
-          });
+      b.append(System.lineSeparator()).append(indent()).append(that.then.acceptVisitor(this));
       indentLevel--;
-      indent();
-      out.print("}");
     }
-    return null;
-  }
-
-  @Override
-  public Void visitEmptyStatement(Statement.EmptyStatement<Object> that) {
-    indent();
-    out.println(";");
-    return null;
-  }
-
-  @Override
-  public Void visitIf(Statement.If<Object> that) {
-    out.print("if ");
-    that.condition.acceptVisitor(this);
-    out.print(" ");
-    if (!(that.then instanceof Block)) {
-      out.println();
-      indent();
-      out.print("\t"); // indent one more than current if statement
+    // 2 possible states:
+    // if $(expr) { ... }
+    // if $(expr)\n$(indent)$(stmt);
+    if (that.else_ == null) {
+      return b;
     }
-    that.then.acceptVisitor(this);
-
-    if (that.else_ != null) {
-      if (that.then instanceof Block) {
-        out.print(" ");
-      } else {
-        indent();
-      }
-      out.print("else ");
-      that.else_.acceptVisitor(this);
+    // if 'then' part was a block, 'else' follows '}' directly
+    if (that.then instanceof Block) {
+      b.append(" else");
     } else {
-      out.println();
+      // otherwise break the line and indent first
+      b.append(System.lineSeparator()).append(indent()).append("else");
     }
+    if (that.else_ instanceof Block) {
+      return b.append(" ").append(that.else_.acceptVisitor(this));
+    }
+    indentLevel++;
+    b.append(System.lineSeparator()).append(indent()).append(that.else_.acceptVisitor(this));
+    indentLevel--;
+    return b;
+  }
+
+  @Override
+  public CharSequence visitWhile(Statement.While<Object> that) {
+    // TODO
     return null;
   }
 
   @Override
-  public Void visitExpressionStatement(Statement.ExpressionStatement<Object> that) {
-    that.expression.acceptVisitor(this);
-    out.println(";");
-    return null;
+  public CharSequence visitField(Field<Object> that) {
+    return new StringBuilder("public ")
+        .append(that.type.acceptVisitor(this))
+        .append(" ")
+        .append(that.name)
+        .append(";");
   }
 
   @Override
-  public Void visitWhile(Statement.While<Object> that) {
-    return null;
+  public CharSequence visitType(Type<Object> that) {
+    StringBuilder b = new StringBuilder(that.typeRef.toString());
+    b.append(Strings.repeat("[]", that.dimension));
+    return b;
   }
 
   @Override
-  public Void visitReturn(Statement.Return<Object> that) {
-    out.print("return");
+  public CharSequence visitExpressionStatement(Statement.ExpressionStatement<Object> that) {
+    CharSequence expr = that.expression.acceptVisitor(this);
+    StringBuilder b = new StringBuilder(outerParanthesesRemoved(expr));
+    return b.append(";");
+  }
+
+  @Override
+  public CharSequence visitEmptyStatement(Statement.EmptyStatement<Object> that) {
+    return ";";
+  }
+
+  @Override
+  public CharSequence visitReturn(Statement.Return<Object> that) {
+    StringBuilder b = new StringBuilder("return");
     if (that.expression.isPresent()) {
       out.print(" ");
-      that.expression.get().acceptVisitor(this);
+      CharSequence expr = that.expression.get().acceptVisitor(this);
+      b.append(outerParanthesesRemoved(expr));
     }
-    out.println(";");
-    return null;
+    return b.append(";");
   }
 
   @Override
-  public Void visitVariable(BlockStatement.Variable<Object> that) {
-    that.type.acceptVisitor(this);
-    out.print(" ");
-    out.print(that.name);
+  public CharSequence visitVariable(BlockStatement.Variable<Object> that) {
+    StringBuilder b = new StringBuilder(that.type.acceptVisitor(this));
+    b.append(" ");
+    b.append(that.name);
     if (that.rhs != null) {
-      out.print(" = ");
-      that.rhs.acceptVisitor(this);
+      b.append(" = ");
+      b.append(outerParanthesesRemoved(that.rhs.acceptVisitor(this)));
     }
-    out.println(";");
-    return null;
+    return b.append(";");
   }
 
   @Override
-  public Void visitBinaryOperator(Expression.BinaryOperatorExpression<Object> that) {
-    out.print("(");
-    that.left.acceptVisitor(this);
-    // TODO: store strings in op and use it here
-    out.print(" ");
-    out.print(that.op.string);
-    out.print(" ");
-    that.right.acceptVisitor(this);
-    out.print(")");
-    return null;
+  public CharSequence visitBinaryOperator(Expression.BinaryOperatorExpression<Object> that) {
+    StringBuilder b = new StringBuilder("(");
+    CharSequence left = that.left.acceptVisitor(this);
+    b.append(left);
+    b.append(" ");
+    b.append(that.op.string);
+    b.append(" ");
+    CharSequence right = that.right.acceptVisitor(this);
+    b.append(right);
+
+    return b.append(")");
   }
 
   @Override
-  public Void visitUnaryOperator(Expression.UnaryOperatorExpression<Object> that) {
-    out.print("(");
-    out.print(that.op.string);
-    that.expression.acceptVisitor(this);
-    out.print(")");
-    return null;
+  public CharSequence visitUnaryOperator(Expression.UnaryOperatorExpression<Object> that) {
+    StringBuilder b = new StringBuilder("(");
+    b.append(that.op.string);
+    b.append(that.expression.acceptVisitor(this));
+    b.append(")");
+    return b;
   }
 
   @Override
-  public Void visitMethodCall(Expression.MethodCallExpression<Object> that) {
-    that.self.acceptVisitor(this);
-    out.print(".");
-    out.print(that.method.toString());
-    out.print("(");
+  public CharSequence visitMethodCall(Expression.MethodCallExpression<Object> that) {
+    StringBuilder b = new StringBuilder(that.self.acceptVisitor(this));
+    b.append(".");
+    b.append(that.method.toString());
+    b.append("(");
     Iterator<Expression<Object>> iterator = that.arguments.iterator();
     Expression<Object> next;
     if (iterator.hasNext()) {
       next = iterator.next();
-      next.acceptVisitor(this);
+      b.append(outerParanthesesRemoved(next.acceptVisitor(this)));
       while (iterator.hasNext()) {
         next = iterator.next();
-        out.print(", ");
-        next.acceptVisitor(this);
+        b.append(", ");
+        b.append(outerParanthesesRemoved(next.acceptVisitor(this)));
       }
     }
-    out.print(")");
-    return null;
+    b.append(")");
+    return b;
   }
 
   @Override
-  public Void visitFieldAccess(Expression.FieldAccessExpression<Object> that) {
-    that.self.acceptVisitor(this);
-    out.print(".");
-    out.print(that.field.toString());
-    return null;
+  public CharSequence visitFieldAccess(Expression.FieldAccessExpression<Object> that) {
+    StringBuilder b = new StringBuilder("(");
+    b.append(that.self.acceptVisitor(this));
+    b.append(".");
+    b.append(that.field.toString());
+    b.append(")");
+    return b;
   }
 
   @Override
-  public Void visitArrayAccess(Expression.ArrayAccessExpression<Object> that) {
-    that.array.acceptVisitor(this);
-    out.print("[");
-    that.index.acceptVisitor(this);
-    out.print("]");
-    return null;
+  public CharSequence visitArrayAccess(Expression.ArrayAccessExpression<Object> that) {
+    StringBuilder b = new StringBuilder(that.array.acceptVisitor(this));
+    b.append("[");
+    CharSequence indexExpr = that.index.acceptVisitor(this);
+    b.append(outerParanthesesRemoved(indexExpr));
+    b.append("]");
+    return b;
   }
 
   @Override
-  public Void visitNewObjectExpr(Expression.NewObjectExpression<Object> that) {
-    out.print("new ");
-    out.print(that.type.toString());
-    out.print("()");
-    return null;
+  public CharSequence visitNewObjectExpr(Expression.NewObjectExpression<Object> that) {
+    StringBuilder b = new StringBuilder("new ");
+    b.append(that.type.toString());
+    b.append("()");
+    return b;
   }
 
   @Override
-  public Void visitNewArrayExpr(Expression.NewArrayExpression<Object> that) {
-    out.print("new ");
-    out.print(that.type.typeRef.toString());
-    out.print("[");
-    that.size.acceptVisitor(this);
-    out.print("]");
-    out.print(Strings.repeat(that.type.typeRef.toString(), that.type.dimension - 1));
-    return null;
+  public CharSequence visitNewArrayExpr(Expression.NewArrayExpression<Object> that) {
+    StringBuilder b = new StringBuilder("new ");
+    b.append(that.type.typeRef.toString()).append("[");
+    CharSequence sizeExpr = that.size.acceptVisitor(this);
+    b.append(outerParanthesesRemoved(sizeExpr))
+        .append("]")
+        .append(Strings.repeat("[]", that.type.dimension - 1));
+    return b;
   }
 
   @Override
-  public Void visitVariable(Expression.VariableExpression<Object> that) {
-    out.print(that.var);
-    return null;
+  public CharSequence visitVariable(Expression.VariableExpression<Object> that) {
+    return that.var.toString();
   }
 
   @Override
-  public Void visitBooleanLiteral(Expression.BooleanLiteralExpression<Object> that) {
-    out.print(that.literal);
-    return null;
+  public CharSequence visitBooleanLiteral(Expression.BooleanLiteralExpression<Object> that) {
+    return Boolean.toString(that.literal);
   }
 
   @Override
-  public Void visitIntegerLiteral(Expression.IntegerLiteralExpression<Object> that) {
-    out.print(that.literal);
-    return null;
+  public CharSequence visitIntegerLiteral(Expression.IntegerLiteralExpression<Object> that) {
+    return that.literal;
   }
 }

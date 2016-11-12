@@ -30,14 +30,15 @@ public class PrettyPrinterTest {
   }
 
   @Test
-  public void visitProgramWithTwoEmptyClasses() throws Exception {
+  public void visitProgramWithThreeEmptyClasses_SortedAlphabetically() throws Exception {
     Program<Object> p =
         new Program<>(
             ImmutableList.of(
                 new Class<>("A", ImmutableList.of(), ImmutableList.of()),
-                new Class<>("B", ImmutableList.of(), ImmutableList.of())));
-    p.acceptVisitor(prettyPrinter);
-    assertThat(out.toString(), is(equalTo("class A { }\nclass B { }\n")));
+                new Class<>("Z", ImmutableList.of(), ImmutableList.of()),
+                new Class<>("C", ImmutableList.of(), ImmutableList.of())));
+    CharSequence actual = p.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo("class A { }\nclass C { }\nclass Z { }\n")));
   }
 
   @Test
@@ -45,8 +46,8 @@ public class PrettyPrinterTest {
     Class<Object> node =
         new Class<>(
             "Foo", ImmutableList.of(new Field<>(new Type<>("int", 0), "i")), ImmutableList.of());
-    node.acceptVisitor(prettyPrinter);
-    assertThat(out.toString(), is(equalTo("class Foo {\n\tpublic int i;\n}\n")));
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo("class Foo {\n\tpublic int i;\n}\n")));
   }
 
   @Test
@@ -61,9 +62,9 @@ public class PrettyPrinterTest {
                 new Field<>(new Type<>("int", 0), "Z"),
                 new Field<>(new Type<>("boolean", 0), "B")),
             ImmutableList.of());
-    node.acceptVisitor(prettyPrinter);
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(
-        out.toString(),
+        actual.toString(),
         is(
             equalTo(
                 "class Foo {\n"
@@ -88,8 +89,8 @@ public class PrettyPrinterTest {
                     "m",
                     ImmutableList.of(),
                     new Block<>(ImmutableList.of()))));
-    node.acceptVisitor(prettyPrinter);
-    assertThat(out.toString(), is(equalTo("class Foo {\n\tpublic static int m() { }\n}\n")));
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo("class Foo {\n\tpublic static int m() { }\n}\n")));
   }
 
   @Test
@@ -117,9 +118,9 @@ public class PrettyPrinterTest {
                     "B",
                     ImmutableList.of(),
                     new Block<>(ImmutableList.of()))));
-    node.acceptVisitor(prettyPrinter);
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(
-        out.toString(),
+        actual.toString(),
         is(
             equalTo(
                 "class Foo {\n"
@@ -145,9 +146,9 @@ public class PrettyPrinterTest {
                     new EmptyStatement<>(),
                     new EmptyStatement<>(),
                     new EmptyStatement<>())));
-    node.acceptVisitor(prettyPrinter);
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(
-        out.toString(), is(equalTo("public static void main(String[] args, int numArgs) { }\n")));
+        actual.toString(), is(equalTo("public static void main(String[] args, int numArgs) { }")));
   }
 
   @Test
@@ -162,8 +163,8 @@ public class PrettyPrinterTest {
                 ImmutableList.of(
                     new ExpressionStatement<>(new IntegerLiteralExpression<Object>("0") {}),
                     new EmptyStatement<>())));
-    node.acceptVisitor(prettyPrinter);
-    assertThat(out.toString(), is(equalTo("public int m() {\n\t0;\n}\n")));
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo("public int m() {\n\t0;\n}")));
   }
 
   @Test
@@ -174,16 +175,16 @@ public class PrettyPrinterTest {
                 new Variable<>(new Type<>("int", 0), "i", null),
                 new Variable<>(new Type<>("String", 2), "s", null),
                 new Variable<>(new Type<>("boolean", 0), "b", null)));
-    node.acceptVisitor(prettyPrinter);
-    assertThat(out.toString(), is(equalTo("int i;\nString[][] s;\nboolean b;\n")));
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo("{\n\tint i;\n\tString[][] s;\n\tboolean b;\n}")));
   }
 
   @Test
   public void visitIfWithSingleThenStatement() throws Exception {
     If<Object> node =
         new If<>(new Expression.BooleanLiteralExpression<>(true), new EmptyStatement<>(), null);
-    node.acceptVisitor(prettyPrinter);
-    assertThat(out.toString(), is(equalTo("if true\n\t;\n")));
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo("if true\n\t;")));
   }
 
   @Test
@@ -193,8 +194,130 @@ public class PrettyPrinterTest {
             new Expression.BooleanLiteralExpression<>(true),
             new Block<>(ImmutableList.of(new EmptyStatement<>(), new EmptyStatement<>())),
             null);
-    node.acceptVisitor(prettyPrinter);
-    assertThat(out.toString(), is(equalTo("if true { }")));
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo("if true { }")));
+  }
+
+  @Test
+  public void visitLocalVariableDeclaration_WithoutInit() throws Exception {
+    Variable<Object> node = new Variable<>(new Type<>("int", 0), "i", null);
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo("int i;")));
+  }
+
+  @Test
+  public void visitLocalVariableDeclaration_WithInit() throws Exception {
+    Variable<Object> node =
+        new Variable<>(
+            new Type<>("int", 0),
+            "i",
+            new BinaryOperatorExpression<>(
+                BinOp.PLUS,
+                new Expression.IntegerLiteralExpression<>("4"),
+                new Expression.IntegerLiteralExpression<>("6")));
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo("int i = 4 + 6;")));
+  }
+
+  @Test
+  public void visitMethodCall_NoParameters() throws Exception {
+    MethodCallExpression<Object> node =
+        new MethodCallExpression<>(new VariableExpression<>("o"), "m", ImmutableList.of());
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo("o.m()")));
+  }
+
+  @Test
+  public void visitMethodCall_OneParameter() throws Exception {
+    MethodCallExpression<Object> node =
+        new MethodCallExpression<>(
+            new VariableExpression<>("o"),
+            "m",
+            ImmutableList.of(new BooleanLiteralExpression<>(true)));
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo("o.m(true)")));
+  }
+
+  @Test
+  public void visitMethodCall_MultipleParameters() throws Exception {
+    MethodCallExpression<Object> node =
+        new MethodCallExpression<>(
+            new VariableExpression<>("o"),
+            "m",
+            ImmutableList.of(
+                new BooleanLiteralExpression<>(true),
+                new BinaryOperatorExpression<>(
+                    BinOp.PLUS,
+                    new IntegerLiteralExpression<>("5"),
+                    new IntegerLiteralExpression<>("8"))));
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo("o.m(true, 5 + 8)")));
+  }
+
+  @Test
+  public void visitFieldAccess() throws Exception {
+    FieldAccessExpression<Object> node =
+        new FieldAccessExpression<>(new VariableExpression<>("myObject"), "field");
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo("(myObject.field)")));
+  }
+
+  @Test
+  public void visitArrayAccess() throws Exception {
+    ArrayAccessExpression<Object> node =
+        new ArrayAccessExpression<>(
+            new VariableExpression<>("array"), new IntegerLiteralExpression<>("5"));
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo("array[5]")));
+  }
+
+  @Test
+  public void visitArrayAccess_IndexIsCompositeExpression() throws Exception {
+    ArrayAccessExpression<Object> node =
+        new ArrayAccessExpression<>(
+            new VariableExpression<>("array"),
+            new UnaryOperatorExpression<>(
+                UnOp.NEGATE,
+                new BinaryOperatorExpression<>(
+                    BinOp.MINUS,
+                    new Expression.IntegerLiteralExpression<>("15"),
+                    new UnaryOperatorExpression<>(
+                        UnOp.NEGATE, new Expression.IntegerLiteralExpression<>("7")))));
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo("array[-(15 - (-7))]")));
+  }
+
+  @Test
+  public void visitNewObjectExpression() throws Exception {
+    NewObjectExpression<Object> node = new NewObjectExpression<>("MyClass");
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo("new MyClass()")));
+  }
+
+  @Test
+  public void visitNewArrayExpression() throws Exception {
+    NewArrayExpression<Object> node =
+        new NewArrayExpression<>(new Type("boolean", 4), new IntegerLiteralExpression("25"));
+
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo("new boolean[25][][][]")));
+  }
+
+  @Test
+  public void visitNewArrayExpression_SizeExpressionIsACompositeExpression() throws Exception {
+    NewArrayExpression<Object> node =
+        new NewArrayExpression<>(
+            new Type("boolean", 4),
+            new BinaryOperatorExpression(
+                BinOp.PLUS,
+                new BinaryOperatorExpression(
+                    BinOp.MINUS,
+                    new IntegerLiteralExpression("25"),
+                    new IntegerLiteralExpression("5")),
+                new UnaryOperatorExpression(UnOp.NEGATE, new IntegerLiteralExpression("19"))));
+
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo("new boolean[(25 - 5) + (-19)][][][]")));
   }
 
   @Test
@@ -271,8 +394,7 @@ public class PrettyPrinterTest {
                                                     new Variable<>(
                                                         new Type<Object>("int", 0),
                                                         "x",
-                                                        new Expression.IntegerLiteralExpression<>(
-                                                            "0")),
+                                                        new IntegerLiteralExpression<>("0")),
                                                     new Statement.ExpressionStatement<>(
                                                         new BinaryOperatorExpression<>(
                                                             BinOp.ASSIGN,
