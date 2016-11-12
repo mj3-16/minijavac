@@ -105,7 +105,7 @@ public class PrettyPrinter
         .map(s -> s.acceptVisitor(this))
         .forEach(s -> sb.append(indent()).append(s).append(System.lineSeparator()));
     indentLevel--;
-    return sb.append("}");
+    return sb.append(indent()).append("}");
   }
 
   @Override
@@ -137,17 +137,26 @@ public class PrettyPrinter
     }
     if (that.else_ instanceof Block) {
       return b.append(" ").append(that.else_.acceptVisitor(this));
+    } else if (that.else_ instanceof Statement.If) {
+      return b.append(" ").append(that.else_.acceptVisitor(this));
+    } else {
+      indentLevel++;
+      b.append(System.lineSeparator()).append(indent()).append(that.else_.acceptVisitor(this));
+      indentLevel--;
+      return b;
     }
-    indentLevel++;
-    b.append(System.lineSeparator()).append(indent()).append(that.else_.acceptVisitor(this));
-    indentLevel--;
-    return b;
   }
 
   @Override
   public CharSequence visitWhile(Statement.While<Object> that) {
-    // TODO
-    return null;
+    StringBuilder sb = new StringBuilder("while ").append(that.condition.acceptVisitor(this));
+    if (that.body instanceof Block) {
+      return sb.append(" ").append(that.body.acceptVisitor(this));
+    }
+    indentLevel++;
+    sb.append(System.lineSeparator()).append(indent());
+    indentLevel--;
+    return sb.append(that.body.acceptVisitor(this));
   }
 
   @Override

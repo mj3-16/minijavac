@@ -11,10 +11,7 @@ import minijava.ast.BlockStatement.Variable;
 import minijava.ast.Class;
 import minijava.ast.Expression.*;
 import minijava.ast.Method.Parameter;
-import minijava.ast.Statement.EmptyStatement;
-import minijava.ast.Statement.ExpressionStatement;
-import minijava.ast.Statement.If;
-import minijava.ast.Statement.Return;
+import minijava.ast.Statement.*;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -321,6 +318,35 @@ public class PrettyPrinterTest {
   }
 
   @Test
+  public void visitWhile() throws Exception {
+    While<Object> node =
+        new While<>(
+            new BinaryOperatorExpression<>(
+                BinOp.PLUS,
+                new IntegerLiteralExpression<>("6"),
+                new IntegerLiteralExpression<>("2")),
+            new ExpressionStatement<>(
+                new UnaryOperatorExpression<>(UnOp.NEGATE, new IntegerLiteralExpression<>("5"))));
+
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo("while (6 + 2)\n\t-5;")));
+  }
+
+  @Test
+  public void visitWhile_EmptyBlock() throws Exception {
+    While<Object> node =
+        new While<>(
+            new BinaryOperatorExpression<>(
+                BinOp.PLUS,
+                new IntegerLiteralExpression<>("6"),
+                new IntegerLiteralExpression<>("2")),
+            new Block<>(ImmutableList.of(new Statement.EmptyStatement<>(), new Statement.EmptyStatement<>())));
+
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo("while (6 + 2) { }")));
+  }
+
+  @Test
   public void sampleProgram() throws Exception {
     Program<Object> program =
         new Program<>(
@@ -444,7 +470,7 @@ public class PrettyPrinterTest {
                                                 new VariableExpression<>("a"),
                                                 new VariableExpression<>("b")))))))))));
 
-    program.acceptVisitor(prettyPrinter);
-    System.out.println(out.toString());
+    CharSequence actual = program.acceptVisitor(prettyPrinter);
+    System.out.println(actual.toString());
   }
 }
