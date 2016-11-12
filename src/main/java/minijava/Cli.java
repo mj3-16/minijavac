@@ -15,9 +15,11 @@ import java.io.PrintStream;
 import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.List;
+import minijava.ast.Program;
 import minijava.lexer.Lexer;
 import minijava.parser.Parser;
 import minijava.token.Token;
+import minijava.util.PrettyPrinter;
 
 class Cli {
 
@@ -29,10 +31,11 @@ class Cli {
                 "",
                 "  --echo       write file's content to stdout",
                 "  --lextest    run lexical analysis on file's content and print tokens to stdout",
-                "  --parsetest  run syntacital analysis on file's content",
+                "  --parsetest  run syntactical analysis on file's content",
+                "  --print-ast  pretty-print abstract syntax tree to stdout",
                 "  --help       display this help and exit",
                 "",
-                "  One (and only one) of --echo, --lextest or --parsetest is required."
+                "  One (and only one) of --echo, --lextest, --parsetest or --print-ast is required."
               });
 
   private final PrintStream out;
@@ -63,6 +66,8 @@ class Cli {
         lextest(in);
       } else if (params.parsetest) {
         parsetest(in);
+      } else if (params.printAst) {
+        printAst(in);
       }
     } catch (AccessDeniedException e) {
       err.println("error: access to file '" + path + "' was denied");
@@ -97,6 +102,11 @@ class Cli {
     new Parser(lexer).parse();
   }
 
+  private void printAst(InputStream in) {
+    Program<String> ast = new Parser(new Lexer(in)).parse();
+    out.print(ast.acceptVisitor(new PrettyPrinter()));
+  }
+
   private static class Parameters {
     private Parameters() {}
 
@@ -111,6 +121,10 @@ class Cli {
     /** True if the --parsetest option was set */
     @Parameter(names = "--parsetest")
     boolean parsetest;
+
+    /** True if the --print-ast option was set */
+    @Parameter(names = "--print-ast")
+    boolean printAst;
 
     /** True if the --help option was set */
     @Parameter(names = "--help")
@@ -129,7 +143,8 @@ class Cli {
     /** Returns true if the parameter values represent a valid set */
     boolean valid() {
       return !invalid
-          && (help || ((Booleans.countTrue(echo, lextest, parsetest) == 1) && (file != null)));
+          && (help
+              || ((Booleans.countTrue(echo, lextest, parsetest, printAst) == 1) && (file != null)));
     }
 
     static Parameters parse(String... args) {
