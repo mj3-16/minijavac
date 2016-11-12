@@ -177,12 +177,7 @@ public class PrettyPrinter<TRef>
   @Override
   public CharSequence visitExpressionStatement(Statement.ExpressionStatement<TRef> that) {
     CharSequence expr = that.expression.acceptVisitor(this);
-    if (that.expression instanceof Expression.MethodCallExpression) {
-      // TODO: MethodCall isn't really an expression, is it? I'd say it's a statement.
-      return new StringBuilder(expr).append(";");
-    } else {
-      return new StringBuilder(outerParanthesesRemoved(expr)).append(";");
-    }
+    return new StringBuilder(outerParanthesesRemoved(expr)).append(";");
   }
 
   @Override

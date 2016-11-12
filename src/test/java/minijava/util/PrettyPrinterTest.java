@@ -224,7 +224,7 @@ public class PrettyPrinterTest {
     MethodCallExpression<Object> node =
         new MethodCallExpression<>(new VariableExpression<>("o"), "m", ImmutableList.of());
     CharSequence actual = node.acceptVisitor(prettyPrinter);
-    assertThat(actual.toString(), is(equalTo("o.m()")));
+    assertThat(actual.toString(), is(equalTo("(o.m())")));
   }
 
   @Test
@@ -235,7 +235,7 @@ public class PrettyPrinterTest {
             "m",
             ImmutableList.of(new BooleanLiteralExpression<>(true)));
     CharSequence actual = node.acceptVisitor(prettyPrinter);
-    assertThat(actual.toString(), is(equalTo("o.m(true)")));
+    assertThat(actual.toString(), is(equalTo("(o.m(true))")));
   }
 
   @Test
@@ -251,7 +251,7 @@ public class PrettyPrinterTest {
                     new IntegerLiteralExpression<>("5"),
                     new IntegerLiteralExpression<>("8"))));
     CharSequence actual = node.acceptVisitor(prettyPrinter);
-    assertThat(actual.toString(), is(equalTo("o.m(true, 5 + 8)")));
+    assertThat(actual.toString(), is(equalTo("(o.m(true, 5 + 8))")));
   }
 
   @Test
