@@ -142,7 +142,8 @@ public class PrettyPrinter<TRef>
 
   @Override
   public CharSequence visitWhile(Statement.While<TRef> that) {
-    StringBuilder sb = new StringBuilder("while ").append(that.condition.acceptVisitor(this));
+    StringBuilder sb =
+        new StringBuilder("while (").append(that.condition.acceptVisitor(this)).append(")");
     if (that.body instanceof Block) {
       return sb.append(" ").append(that.body.acceptVisitor(this));
     }

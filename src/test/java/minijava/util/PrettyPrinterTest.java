@@ -336,6 +336,13 @@ public class PrettyPrinterTest {
   }
 
   @Test
+  public void visitWhile_null() throws Exception {
+    While<Object> node = new While<>(new VariableExpression<>("null"), new EmptyStatement<>());
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo("while (null)\n\t;")));
+  }
+
+  @Test
   public void visitWhile_EmptyBlock() throws Exception {
     While<Object> node =
         new While<>(
