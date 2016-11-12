@@ -3,6 +3,7 @@ package minijava.parser;
 import static minijava.token.Terminal.*;
 import static minijava.token.Terminal.Associativity.*;
 
+import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -16,7 +17,6 @@ import minijava.util.LookAheadIterator;
 public class Parser {
   private static final Token EOF_TOKEN = new Token(EOF, new Position(0, 0), null);
   private static final Expression<String> THIS_EXPR = new Expression.VariableExpression<>("this");
-  private static final Expression<String> NULL_EXPR = new Expression.VariableExpression<>("null");
   private final LookAheadIterator<Token> tokens;
   private Token currentToken;
 
@@ -146,10 +146,12 @@ public class Parser {
     expectAndConsume(IDENT, "String");
     expectAndConsume(LBRACK);
     expectAndConsume(RBRACK);
-    expectAndConsume(IDENT);
+    String parameter = expectAndConsumeAndReturnValue(IDENT);
     expectAndConsume(RPAREN);
     Block<String> block = parseBlock();
-    return new Method<>(true, new Type<>("void", 0), name, new ArrayList<>(), block);
+    List<Method.Parameter<String>> parameters =
+        ImmutableList.of(new Method.Parameter<>(new Type<>("String", 1), parameter));
+    return new Method<>(true, new Type<>("void", 0), name, parameters, block);
   }
 
   /** TypeIdentFieldOrMethod -> Type IDENT FieldOrMethod */
