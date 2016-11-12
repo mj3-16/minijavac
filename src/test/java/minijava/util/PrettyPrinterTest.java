@@ -184,7 +184,7 @@ public class PrettyPrinterTest {
     If<Object> node =
         new If<>(new Expression.BooleanLiteralExpression<>(true), new EmptyStatement<>(), null);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
-    assertThat(actual.toString(), is(equalTo(format("if true%n\t;"))));
+    assertThat(actual.toString(), is(equalTo(format("if (true)%n\t;"))));
   }
 
   @Test
@@ -195,7 +195,7 @@ public class PrettyPrinterTest {
             new Block<>(ImmutableList.of(new EmptyStatement<>(), new EmptyStatement<>())),
             null);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
-    assertThat(actual.toString(), is(equalTo("if true { }")));
+    assertThat(actual.toString(), is(equalTo("if (true) { }")));
   }
 
   @Test
@@ -333,6 +333,13 @@ public class PrettyPrinterTest {
 
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo(format("while (6 + 2)%n\t-5;"))));
+  }
+
+  @Test
+  public void visitWhile_null() throws Exception {
+    While<Object> node = new While<>(new VariableExpression<>("null"), new EmptyStatement<>());
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo("while (null)\n\t;")));
   }
 
   @Test
