@@ -471,6 +471,27 @@ public class PrettyPrinterTest {
                                                 new VariableExpression<>("b")))))))))));
 
     CharSequence actual = program.acceptVisitor(prettyPrinter);
-    System.out.println(actual.toString());
+
+    String expected = "class HelloWorld {\n" +
+            "\tpublic int bar(int a, int b) {\n" +
+            "\t\treturn c = (a + b);\n" +
+            "\t}\n" +
+            "\tpublic static void main(String[] args) {\n" +
+            "\t\t(System.out).println(43110 + 0);\n" +
+            "\t\tboolean b = true && (!false);\n" +
+            "\t\tif ((23 + 19) == ((42 + 0) * 1))\n" +
+            "\t\t\tb = (0 < 1);\n" +
+            "\t\telse if (!(array[2 + 2])) {\n" +
+            "\t\t\tint x = 0;\n" +
+            "\t\t\tx = (x + 1);\n" +
+            "\t\t} else {\n" +
+            "\t\t\t(new HelloWorld()).bar(42 + (0 * 1), -1);\n" +
+            "\t\t}\n" +
+            "\t}\n" +
+            "\tpublic boolean[] array;\n" +
+            "\tpublic int c;\n" +
+            "}\n";
+
+    assertThat(actual.toString(), is(equalTo(expected)));
   }
 }

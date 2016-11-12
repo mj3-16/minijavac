@@ -113,7 +113,7 @@ public class PrettyPrinter
     StringBuilder b =
         new StringBuilder()
             .append("if ")
-            .append(outerParanthesesRemoved(that.condition.acceptVisitor(this)));
+            .append(that.condition.acceptVisitor(this));
     // a block follows immediately after a space, a single statement needs new line and indentation
     if (that.then instanceof Block) {
       b.append(" ").append(that.then.acceptVisitor(this));
@@ -178,8 +178,12 @@ public class PrettyPrinter
   @Override
   public CharSequence visitExpressionStatement(Statement.ExpressionStatement<Object> that) {
     CharSequence expr = that.expression.acceptVisitor(this);
-    StringBuilder b = new StringBuilder(outerParanthesesRemoved(expr));
-    return b.append(";");
+    if (that.expression instanceof Expression.MethodCallExpression) {
+      // TODO: MethodCall isn't really an expression, is it? I'd say it's a statement.
+      return new StringBuilder(expr).append(";");
+    } else {
+      return new StringBuilder(outerParanthesesRemoved(expr)).append(";");
+    }
   }
 
   @Override
@@ -191,7 +195,7 @@ public class PrettyPrinter
   public CharSequence visitReturn(Statement.Return<Object> that) {
     StringBuilder b = new StringBuilder("return");
     if (that.expression.isPresent()) {
-      out.print(" ");
+      b.append(" ");
       CharSequence expr = that.expression.get().acceptVisitor(this);
       b.append(outerParanthesesRemoved(expr));
     }
@@ -266,19 +270,18 @@ public class PrettyPrinter
 
   @Override
   public CharSequence visitArrayAccess(Expression.ArrayAccessExpression<Object> that) {
-    StringBuilder b = new StringBuilder(that.array.acceptVisitor(this));
-    b.append("[");
+    StringBuilder b = new StringBuilder("(").append(that.array.acceptVisitor(this)).append("[");
     CharSequence indexExpr = that.index.acceptVisitor(this);
     b.append(outerParanthesesRemoved(indexExpr));
-    b.append("]");
+    b.append("])");
     return b;
   }
 
   @Override
   public CharSequence visitNewObjectExpr(Expression.NewObjectExpression<Object> that) {
-    StringBuilder b = new StringBuilder("new ");
+    StringBuilder b = new StringBuilder("(new ");
     b.append(that.type.toString());
-    b.append("()");
+    b.append("())");
     return b;
   }
 
