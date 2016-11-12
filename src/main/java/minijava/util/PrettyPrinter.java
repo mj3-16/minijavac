@@ -105,7 +105,10 @@ public class PrettyPrinter<TRef>
 
   @Override
   public CharSequence visitIf(Statement.If<TRef> that) {
-    StringBuilder b = new StringBuilder().append("if ").append(that.condition.acceptVisitor(this));
+    StringBuilder b = new StringBuilder().append("if (");
+    // bracketing exception for condition in if statement applies here
+    CharSequence condition = that.condition.acceptVisitor(this);
+    b.append(outerParanthesesRemoved(condition)).append(")");
     // a block follows immediately after a space, a single statement needs new line and indentation
     if (that.then instanceof Block) {
       b.append(" ").append(that.then.acceptVisitor(this));
@@ -142,8 +145,10 @@ public class PrettyPrinter<TRef>
 
   @Override
   public CharSequence visitWhile(Statement.While<TRef> that) {
-    StringBuilder sb =
-        new StringBuilder("while (").append(that.condition.acceptVisitor(this)).append(")");
+    StringBuilder sb = new StringBuilder("while (");
+    // bracketing exception for condition in while statement applies here
+    CharSequence condition = that.condition.acceptVisitor(this);
+    sb.append(outerParanthesesRemoved(condition)).append(")");
     if (that.body instanceof Block) {
       return sb.append(" ").append(that.body.acceptVisitor(this));
     }

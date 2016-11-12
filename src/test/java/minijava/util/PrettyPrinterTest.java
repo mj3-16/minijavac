@@ -184,7 +184,7 @@ public class PrettyPrinterTest {
     If<Object> node =
         new If<>(new Expression.BooleanLiteralExpression<>(true), new EmptyStatement<>(), null);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
-    assertThat(actual.toString(), is(equalTo(format("if true%n\t;"))));
+    assertThat(actual.toString(), is(equalTo(format("if (true)%n\t;"))));
   }
 
   @Test
@@ -195,7 +195,7 @@ public class PrettyPrinterTest {
             new Block<>(ImmutableList.of(new EmptyStatement<>(), new EmptyStatement<>())),
             null);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
-    assertThat(actual.toString(), is(equalTo("if true { }")));
+    assertThat(actual.toString(), is(equalTo("if (true) { }")));
   }
 
   @Test
