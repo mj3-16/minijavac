@@ -199,6 +199,73 @@ public class PrettyPrinterTest {
   }
 
   @Test
+  public void visitIfElse_elseIsEmptyStatement_ElseIsRemoved() throws Exception {
+    If<Object> node =
+        new If<>(
+            new VariableExpression<>("x"),
+            new Statement.EmptyStatement<>(),
+            new EmptyStatement<>());
+
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo(format("if (x)%n\t;"))));
+  }
+
+  @Test
+  public void visitIfElse_elseIsEmptyBlock_ElseIsRemoved() throws Exception {
+    If<Object> node =
+        new If<>(
+            new VariableExpression<>("x"),
+            new Statement.EmptyStatement<>(),
+            new Block<>(ImmutableList.of()));
+
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo(format("if (x)%n\t;"))));
+  }
+
+  @Test
+  public void visitIfElse_elseIsBlockWithOnlyEmptyStatements_ElseIsRemoved() throws Exception {
+    If<Object> node =
+        new If<>(
+            new VariableExpression<>("x"),
+            new Statement.EmptyStatement<>(),
+            new Block<>(
+                ImmutableList.of(
+                    new Statement.EmptyStatement<>(),
+                    new Statement.EmptyStatement<>(),
+                    new Statement.EmptyStatement<>())));
+
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo(format("if (x)%n\t;"))));
+  }
+
+  @Test
+  public void visitIfElse_elseIsNotEmptyStatement() throws Exception {
+    If<Object> node =
+        new If<>(
+            new VariableExpression<>("x"),
+            new Statement.EmptyStatement<>(),
+            new Statement.ExpressionStatement<>(new Expression.IntegerLiteralExpression<>("5")));
+
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo(format("if (x)%n\t;%nelse%n\t5;"))));
+  }
+
+  @Test
+  public void visitIfElse_elseIsBlockWithNonEmptyStatement() throws Exception {
+    If<Object> node =
+        new If<>(
+            new VariableExpression<>("x"),
+            new Statement.EmptyStatement<>(),
+            new Block<>(
+                ImmutableList.of(
+                    new Statement.ExpressionStatement<>(
+                        new Expression.IntegerLiteralExpression<>("5")))));
+
+    CharSequence actual = node.acceptVisitor(prettyPrinter);
+    assertThat(actual.toString(), is(equalTo(format("if (x)%n\t;%nelse {%n\t5;%n}"))));
+  }
+
+  @Test
   public void visitLocalVariableDeclaration_WithoutInit() throws Exception {
     Variable<Object> node = new Variable<>(new Type<>("int", 0), "i", null);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
