@@ -127,13 +127,7 @@ public class PrettyPrinter<TRef>
     // 2 possible states:
     // if $(expr) { ... }
     // if $(expr)\n$(indent)$(stmt);
-    if (!that.else_.isPresent()
-        || that.else_.get() instanceof Statement.EmptyStatement
-        || (that.else_.get() instanceof Block
-            && ((Block) that.else_.get())
-                .statements
-                .stream()
-                .allMatch(s -> s instanceof Statement.EmptyStatement))) {
+    if (!that.else_.isPresent()) {
       return b;
     }
     Statement<TRef> else_ = that.else_.get();
