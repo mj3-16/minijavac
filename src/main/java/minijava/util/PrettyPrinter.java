@@ -7,6 +7,13 @@ import java.util.stream.Collectors;
 import minijava.ast.*;
 import minijava.ast.Class;
 
+/**
+ * An implementation of an AST visitor that pretty-prints the AST back to source code.
+ *
+ * <p>Instances of this class <em>are</em> stateful (e.g., current indentation level). It is very
+ * cheap to create new instances of this class and therefore it is generally not advisable to reuse
+ * instances.
+ */
 public class PrettyPrinter<TRef>
     implements Program.Visitor<TRef, CharSequence>,
         Class.Visitor<TRef, CharSequence>,
