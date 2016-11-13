@@ -1,7 +1,7 @@
 package minijava.ast;
 
 public interface BlockStatement<TRef> {
-  <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor);
+  <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor);
 
   class Variable<TRef> implements BlockStatement<TRef> {
     public final Type<TRef> type;
@@ -15,13 +15,13 @@ public interface BlockStatement<TRef> {
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
+    public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
       return visitor.visitVariable(this);
     }
   }
 
   interface Visitor<TRef, TRet> extends Statement.Visitor<TRef, TRet> {
 
-    TRet visitVariable(Variable<TRef> that);
+    TRet visitVariable(Variable<? extends TRef> that);
   }
 }

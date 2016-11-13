@@ -17,11 +17,11 @@ import org.junit.Test;
 
 public class PrettyPrinterTest {
 
-  private PrettyPrinter<Object> prettyPrinter;
+  private PrettyPrinter prettyPrinter;
 
   @Before
   public void setup() {
-    prettyPrinter = new PrettyPrinter<>();
+    prettyPrinter = new PrettyPrinter();
   }
 
   @Test
