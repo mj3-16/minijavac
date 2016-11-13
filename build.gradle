@@ -34,22 +34,15 @@ dependencies {
     testCompile 'com.googlecode.java-diff-utils:diffutils:1.3.0'
 }
 
-task syntaxTest(type: Exec) {
+task mjtest(type: Exec) {
     workingDir './mjtest'
-    commandLine 'python3', './mjt.py', 'syntax', '../run'
+    commandLine 'python3', './mjt.py', 'all', '../run'
 }
 
-task astTest(type: Exec) {
-    workingDir './mjtest'
-    commandLine 'python3', './mjt.py', 'ast', '../run'
-}
-
-tasks.check.dependsOn syntaxTest
-tasks.check.dependsOn astTest
+tasks.check.dependsOn mjtest
 
 tasks.test.dependsOn installDist
-tasks.syntaxTest.dependsOn installDist
-tasks.astTest.dependsOn installDist
+tasks.mjtest.dependsOn installDist
 
 task installGitHooks(type: Copy) {
     from file('git-hooks/pre-commit')
