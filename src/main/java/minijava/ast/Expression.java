@@ -5,12 +5,12 @@ import java.util.List;
 public interface Expression<TRef> {
   <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor);
 
-  class ArrayAccessExpression<TRef> implements Expression<TRef> {
+  class ArrayAccess<TRef> implements Expression<TRef> {
 
     public final Expression<TRef> array;
     public final Expression<TRef> index;
 
-    public ArrayAccessExpression(Expression<TRef> array, Expression<TRef> index) {
+    public ArrayAccess(Expression<TRef> array, Expression<TRef> index) {
       this.array = array;
       this.index = index;
     }
@@ -21,12 +21,12 @@ public interface Expression<TRef> {
     }
   }
 
-  class BinaryOperatorExpression<TRef> implements Expression<TRef> {
+  class BinaryOperator<TRef> implements Expression<TRef> {
     public final BinOp op;
     public final Expression<TRef> left;
     public final Expression<TRef> right;
 
-    public BinaryOperatorExpression(BinOp op, Expression<TRef> left, Expression<TRef> right) {
+    public BinaryOperator(BinOp op, Expression<TRef> left, Expression<TRef> right) {
       this.op = op;
       this.left = left;
       this.right = right;
@@ -38,11 +38,11 @@ public interface Expression<TRef> {
     }
   }
 
-  class BooleanLiteralExpression<TRef> implements Expression<TRef> {
+  class BooleanLiteral<TRef> implements Expression<TRef> {
 
     public final boolean literal;
 
-    public BooleanLiteralExpression(boolean literal) {
+    public BooleanLiteral(boolean literal) {
       this.literal = literal;
     }
 
@@ -52,12 +52,12 @@ public interface Expression<TRef> {
     }
   }
 
-  class FieldAccessExpression<TRef> implements Expression<TRef> {
+  class FieldAccess<TRef> implements Expression<TRef> {
 
     public final Expression<TRef> self;
     public final TRef field;
 
-    public FieldAccessExpression(Expression<TRef> self, TRef field) {
+    public FieldAccess(Expression<TRef> self, TRef field) {
       this.self = self;
       this.field = field;
     }
@@ -68,11 +68,11 @@ public interface Expression<TRef> {
     }
   }
 
-  class IntegerLiteralExpression<TRef> implements Expression<TRef> {
+  class IntegerLiteral<TRef> implements Expression<TRef> {
 
     public final String literal;
 
-    public IntegerLiteralExpression(String literal) {
+    public IntegerLiteral(String literal) {
       this.literal = literal;
     }
 
@@ -82,14 +82,13 @@ public interface Expression<TRef> {
     }
   }
 
-  class MethodCallExpression<TRef> implements Expression<TRef> {
+  class MethodCall<TRef> implements Expression<TRef> {
 
     public final Expression<TRef> self;
     public final TRef method;
     public final List<Expression<TRef>> arguments;
 
-    public MethodCallExpression(
-        Expression<TRef> self, TRef method, List<Expression<TRef>> arguments) {
+    public MethodCall(Expression<TRef> self, TRef method, List<Expression<TRef>> arguments) {
       this.self = self;
       this.method = method;
       this.arguments = arguments;
@@ -101,12 +100,12 @@ public interface Expression<TRef> {
     }
   }
 
-  class NewArrayExpression<TRef> implements Expression<TRef> {
+  class NewArray<TRef> implements Expression<TRef> {
 
     public final Type<TRef> type;
     public final Expression<TRef> size;
 
-    public NewArrayExpression(Type<TRef> type, Expression<TRef> size) {
+    public NewArray(Type<TRef> type, Expression<TRef> size) {
       this.type = type;
       this.size = size;
     }
@@ -117,11 +116,11 @@ public interface Expression<TRef> {
     }
   }
 
-  class NewObjectExpression<TRef> implements Expression<TRef> {
+  class NewObject<TRef> implements Expression<TRef> {
 
     public final TRef type;
 
-    public NewObjectExpression(TRef type) {
+    public NewObject(TRef type) {
       this.type = type;
     }
 
@@ -131,12 +130,12 @@ public interface Expression<TRef> {
     }
   }
 
-  class UnaryOperatorExpression<TRef> implements Expression<TRef> {
+  class UnaryOperator<TRef> implements Expression<TRef> {
 
     public final UnOp op;
     public final Expression<TRef> expression;
 
-    public UnaryOperatorExpression(UnOp op, Expression<TRef> expression) {
+    public UnaryOperator(UnOp op, Expression<TRef> expression) {
       this.op = op;
       this.expression = expression;
     }
@@ -148,11 +147,11 @@ public interface Expression<TRef> {
   }
 
   /** Subsumes @null@, @this@ and regular variables. */
-  class VariableExpression<TRef> implements Expression<TRef> {
+  class Variable<TRef> implements Expression<TRef> {
 
     public final TRef var;
 
-    public VariableExpression(TRef var) {
+    public Variable(TRef var) {
       this.var = var;
     }
 
@@ -198,24 +197,24 @@ public interface Expression<TRef> {
 
   interface Visitor<TRef, TReturn> {
 
-    TReturn visitBinaryOperator(BinaryOperatorExpression<TRef> that);
+    TReturn visitBinaryOperator(BinaryOperator<TRef> that);
 
-    TReturn visitUnaryOperator(UnaryOperatorExpression<TRef> that);
+    TReturn visitUnaryOperator(UnaryOperator<TRef> that);
 
-    TReturn visitMethodCall(MethodCallExpression<TRef> that);
+    TReturn visitMethodCall(MethodCall<TRef> that);
 
-    TReturn visitFieldAccess(FieldAccessExpression<TRef> that);
+    TReturn visitFieldAccess(FieldAccess<TRef> that);
 
-    TReturn visitArrayAccess(ArrayAccessExpression<TRef> that);
+    TReturn visitArrayAccess(ArrayAccess<TRef> that);
 
-    TReturn visitNewObjectExpr(NewObjectExpression<TRef> that);
+    TReturn visitNewObjectExpr(NewObject<TRef> that);
 
-    TReturn visitNewArrayExpr(NewArrayExpression<TRef> size);
+    TReturn visitNewArrayExpr(NewArray<TRef> size);
 
-    TReturn visitVariable(VariableExpression<TRef> that);
+    TReturn visitVariable(Variable<TRef> that);
 
-    TReturn visitBooleanLiteral(BooleanLiteralExpression<TRef> that);
+    TReturn visitBooleanLiteral(BooleanLiteral<TRef> that);
 
-    TReturn visitIntegerLiteral(IntegerLiteralExpression<TRef> that);
+    TReturn visitIntegerLiteral(IntegerLiteral<TRef> that);
   }
 }

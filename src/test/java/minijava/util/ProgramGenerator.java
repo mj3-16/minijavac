@@ -168,7 +168,7 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
   // ;
   private Statement<String> genEmptyStatement(SourceOfRandomness random) {
     nodes++;
-    return new Statement.EmptyStatement<>();
+    return new Statement.Empty<>();
   }
 
   // while ( Expression ) Statement
@@ -208,33 +208,28 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
         nodes++;
         return selectWithRandomWeight(
             random,
-            tuple(0.8, r -> new Expression.VariableExpression<>(genIdent(r))),
-            tuple(0.1, r -> new Expression.VariableExpression<>("null")),
-            tuple(0.1, r -> new Expression.VariableExpression<>("this")),
-            tuple(1.0, r -> new Expression.BooleanLiteralExpression<>(r.nextBoolean())),
-            tuple(1.0, r -> new Expression.IntegerLiteralExpression<>(genInt(r))),
+            tuple(0.8, r -> new Expression.Variable<>(genIdent(r))),
+            tuple(0.1, r -> new Expression.Variable<>("null")),
+            tuple(0.1, r -> new Expression.Variable<>("this")),
+            tuple(1.0, r -> new Expression.BooleanLiteral<>(r.nextBoolean())),
+            tuple(1.0, r -> new Expression.IntegerLiteral<>(genInt(r))),
             tuple(
                 0.1,
                 r ->
-                    new Expression.BinaryOperatorExpression<>(
+                    new Expression.BinaryOperator<>(
                         r.choose(Expression.BinOp.values()), genExpression(r), genExpression(r))),
             tuple(
                 0.1,
                 r ->
-                    new Expression.UnaryOperatorExpression<>(
+                    new Expression.UnaryOperator<>(
                         r.choose(Expression.UnOp.values()), genExpression(r))),
             tuple(
                 0.1,
-                r ->
-                    new Expression.MethodCallExpression<>(
-                        genExpression(r), genIdent(r), genArguments(r))),
-            tuple(0.1, r -> new Expression.FieldAccessExpression<>(genExpression(r), genIdent(r))),
-            tuple(
-                0.1,
-                r -> new Expression.ArrayAccessExpression<>(genExpression(r), genExpression(r))),
-            tuple(0.1, r -> new Expression.NewObjectExpression<>(genIdent(r))),
-            tuple(
-                0.1, r -> new Expression.NewArrayExpression<>(genArrayType(r), genExpression(r))));
+                r -> new Expression.MethodCall<>(genExpression(r), genIdent(r), genArguments(r))),
+            tuple(0.1, r -> new Expression.FieldAccess<>(genExpression(r), genIdent(r))),
+            tuple(0.1, r -> new Expression.ArrayAccess<>(genExpression(r), genExpression(r))),
+            tuple(0.1, r -> new Expression.NewObject<>(genIdent(r))),
+            tuple(0.1, r -> new Expression.NewArray<>(genArrayType(r), genExpression(r))));
       } catch (StackOverflowError e) {
         nodes--;
         overflows++; // This is so that we eventually terminate. See followShortcuts().

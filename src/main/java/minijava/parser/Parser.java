@@ -16,7 +16,7 @@ import minijava.util.LookAheadIterator;
 
 public class Parser {
   private static final Token EOF_TOKEN = new Token(EOF, new Position(0, 0), null);
-  private static final Expression<String> THIS_EXPR = new Expression.VariableExpression<>("this");
+  private static final Expression<String> THIS_EXPR = new Expression.Variable<>("this");
   private final LookAheadIterator<Token> tokens;
   private Token currentToken;
 
@@ -304,7 +304,7 @@ public class Parser {
   /** EmptyStatement -> ; */
   private Statement<String> parseEmptyStatement() {
     expectAndConsume(SEMICOLON);
-    return new Statement.EmptyStatement<>();
+    return new Statement.Empty<>();
   }
 
   /** WhileStatement -> while ( Expression ) Statement */
@@ -372,7 +372,7 @@ public class Parser {
       consumeToken();
       Expression<String> rhs = parseExpressionWithPrecedenceClimbing(precedence);
 
-      result = new Expression.BinaryOperatorExpression<>(operator, result, rhs);
+      result = new Expression.BinaryOperator<>(operator, result, rhs);
     }
     return result;
   }
@@ -428,7 +428,7 @@ public class Parser {
     if (currentToken.isOneOf(NOT, SUB)) {
       Expression.UnOp operator = getUnaryOperator(currentToken);
       consumeToken();
-      return new Expression.UnaryOperatorExpression<>(operator, parseUnaryExpression());
+      return new Expression.UnaryOperator<>(operator, parseUnaryExpression());
     }
     return parsePostfixExpression();
   }
@@ -463,7 +463,7 @@ public class Parser {
     if (isCurrentTokenTypeOf(LPAREN)) {
       return parseMethodInvocation(lhs, identifier);
     }
-    return new Expression.FieldAccessExpression<>(lhs, identifier);
+    return new Expression.FieldAccess<>(lhs, identifier);
   }
 
   /** MethodInvocation -> ( Arguments ) */
@@ -471,7 +471,7 @@ public class Parser {
     expectAndConsume(LPAREN);
     List<Expression<String>> arguments = parseArguments();
     expectAndConsume(RPAREN);
-    return new Expression.MethodCallExpression<>(lhs, identifier, arguments);
+    return new Expression.MethodCall<>(lhs, identifier, arguments);
   }
 
   /** ArrayAccess -> [ Expression ] */
@@ -479,7 +479,7 @@ public class Parser {
     expectAndConsume(LBRACK);
     Expression<String> index = parseExpression();
     expectAndConsume(RBRACK);
-    return new Expression.ArrayAccessExpression<>(array, index);
+    return new Expression.ArrayAccess<>(array, index);
   }
 
   /** Arguments -> (Expression (,Expression)*)? */
@@ -504,19 +504,19 @@ public class Parser {
     switch (currentToken.terminal) {
       case NULL:
         expectAndConsume(NULL);
-        primaryExpression = new Expression.VariableExpression<>("null");
+        primaryExpression = new Expression.Variable<>("null");
         break;
       case FALSE:
         expectAndConsume(FALSE);
-        primaryExpression = new Expression.BooleanLiteralExpression<>(false);
+        primaryExpression = new Expression.BooleanLiteral<>(false);
         break;
       case TRUE:
         expectAndConsume(TRUE);
-        primaryExpression = new Expression.BooleanLiteralExpression<>(true);
+        primaryExpression = new Expression.BooleanLiteral<>(true);
         break;
       case INTEGER_LITERAL:
         String literal = expectAndConsumeAndReturnValue(INTEGER_LITERAL);
-        primaryExpression = new Expression.IntegerLiteralExpression<>(literal);
+        primaryExpression = new Expression.IntegerLiteral<>(literal);
         break;
       case IDENT:
         String identifier = expectAndConsumeAndReturnValue(IDENT);
@@ -525,15 +525,14 @@ public class Parser {
           expectAndConsume(LPAREN);
           arguments = parseArguments();
           expectAndConsume(RPAREN);
-          primaryExpression =
-              new Expression.MethodCallExpression<>(THIS_EXPR, identifier, arguments);
+          primaryExpression = new Expression.MethodCall<>(THIS_EXPR, identifier, arguments);
         } else {
-          primaryExpression = new Expression.VariableExpression<>(identifier);
+          primaryExpression = new Expression.Variable<>(identifier);
         }
         break;
       case THIS:
         expectAndConsume(THIS);
-        primaryExpression = new Expression.VariableExpression<>("this");
+        primaryExpression = new Expression.Variable<>("this");
         break;
       case LPAREN:
         expectAndConsume(LPAREN);
@@ -581,7 +580,7 @@ public class Parser {
   private Expression<String> parseNewObjectExpression(String type) {
     expectAndConsume(LPAREN);
     expectAndConsume(RPAREN);
-    return new Expression.NewObjectExpression<>(type);
+    return new Expression.NewObject<>(type);
   }
 
   /** NewArrayExpression -> [ Expression ] ([])* */
@@ -595,6 +594,6 @@ public class Parser {
       expectAndConsume(RBRACK);
       dim++;
     }
-    return new Expression.NewArrayExpression<>(new Type<>(elementTypeRef, dim), size);
+    return new Expression.NewArray<>(new Type<>(elementTypeRef, dim), size);
   }
 }

@@ -10,7 +10,7 @@ public interface Statement<TRef> extends BlockStatement<TRef> {
     return acceptVisitor((Statement.Visitor<TRef, TRet>) visitor);
   }
 
-  class EmptyStatement<TRef> implements Statement<TRef> {
+  class Empty<TRef> implements Statement<TRef> {
     @Override
     public <TRet> TRet acceptVisitor(Statement.Visitor<TRef, TRet> visitor) {
       return visitor.visitEmptyStatement(this);
@@ -84,7 +84,7 @@ public interface Statement<TRef> extends BlockStatement<TRef> {
 
     TRet visitBlock(Block<TRef> that);
 
-    TRet visitEmptyStatement(EmptyStatement<TRef> that);
+    TRet visitEmptyStatement(Empty<TRef> that);
 
     TRet visitIf(If<TRef> that);
 

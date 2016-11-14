@@ -95,7 +95,7 @@ public class PrettyPrinter<TRef>
     List<BlockStatement<TRef>> nonEmptyStatements =
         that.statements
             .stream()
-            .filter(s -> !(s instanceof Statement.EmptyStatement))
+            .filter(s -> !(s instanceof Statement.Empty))
             .collect(Collectors.toList());
     if (nonEmptyStatements.isEmpty()) {
       return sb.append(" }");
@@ -188,7 +188,7 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitEmptyStatement(Statement.EmptyStatement<TRef> that) {
+  public CharSequence visitEmptyStatement(Statement.Empty<TRef> that) {
     return ";";
   }
 
@@ -216,7 +216,7 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitBinaryOperator(Expression.BinaryOperatorExpression<TRef> that) {
+  public CharSequence visitBinaryOperator(Expression.BinaryOperator<TRef> that) {
     StringBuilder b = new StringBuilder("(");
     CharSequence left = that.left.acceptVisitor(this);
     b.append(left);
@@ -230,7 +230,7 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitUnaryOperator(Expression.UnaryOperatorExpression<TRef> that) {
+  public CharSequence visitUnaryOperator(Expression.UnaryOperator<TRef> that) {
     StringBuilder b = new StringBuilder("(");
     b.append(that.op.string);
     b.append(that.expression.acceptVisitor(this));
@@ -239,7 +239,7 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitMethodCall(Expression.MethodCallExpression<TRef> that) {
+  public CharSequence visitMethodCall(Expression.MethodCall<TRef> that) {
     StringBuilder b = new StringBuilder();
     b.append("(");
     b.append(that.self.acceptVisitor(this));
@@ -262,7 +262,7 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitFieldAccess(Expression.FieldAccessExpression<TRef> that) {
+  public CharSequence visitFieldAccess(Expression.FieldAccess<TRef> that) {
     StringBuilder b = new StringBuilder("(");
     b.append(that.self.acceptVisitor(this));
     b.append(".");
@@ -272,7 +272,7 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitArrayAccess(Expression.ArrayAccessExpression<TRef> that) {
+  public CharSequence visitArrayAccess(Expression.ArrayAccess<TRef> that) {
     StringBuilder b = new StringBuilder("(").append(that.array.acceptVisitor(this)).append("[");
     CharSequence indexExpr = that.index.acceptVisitor(this);
     b.append(outerParanthesesRemoved(indexExpr));
@@ -281,7 +281,7 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitNewObjectExpr(Expression.NewObjectExpression<TRef> that) {
+  public CharSequence visitNewObjectExpr(Expression.NewObject<TRef> that) {
     StringBuilder b = new StringBuilder("(new ");
     b.append(that.type.toString());
     b.append("())");
@@ -289,7 +289,7 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitNewArrayExpr(Expression.NewArrayExpression<TRef> that) {
+  public CharSequence visitNewArrayExpr(Expression.NewArray<TRef> that) {
     StringBuilder b = new StringBuilder("(new ").append(that.type.typeRef.toString()).append("[");
     // bracketing exception for definition of array size applies here
     CharSequence sizeExpr = outerParanthesesRemoved(that.size.acceptVisitor(this));
@@ -300,17 +300,17 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitVariable(Expression.VariableExpression<TRef> that) {
+  public CharSequence visitVariable(Expression.Variable<TRef> that) {
     return that.var.toString();
   }
 
   @Override
-  public CharSequence visitBooleanLiteral(Expression.BooleanLiteralExpression<TRef> that) {
+  public CharSequence visitBooleanLiteral(Expression.BooleanLiteral<TRef> that) {
     return Boolean.toString(that.literal);
   }
 
   @Override
-  public CharSequence visitIntegerLiteral(Expression.IntegerLiteralExpression<TRef> that) {
+  public CharSequence visitIntegerLiteral(Expression.IntegerLiteral<TRef> that) {
     return that.literal;
   }
 }
