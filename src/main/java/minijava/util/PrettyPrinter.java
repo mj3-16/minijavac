@@ -14,14 +14,14 @@ import minijava.ast.Class;
  * cheap to create new instances of this class and therefore it is generally not advisable to reuse
  * instances.
  */
-public class PrettyPrinter<TRef>
-    implements Program.Visitor<TRef, CharSequence>,
-        Class.Visitor<TRef, CharSequence>,
-        Field.Visitor<TRef, CharSequence>,
-        Method.Visitor<TRef, CharSequence>,
-        Type.Visitor<TRef, CharSequence>,
-        BlockStatement.Visitor<TRef, CharSequence>,
-        Expression.Visitor<TRef, CharSequence> {
+public class PrettyPrinter
+    implements Program.Visitor<Object, CharSequence>,
+        Class.Visitor<Object, CharSequence>,
+        Field.Visitor<Object, CharSequence>,
+        Method.Visitor<Object, CharSequence>,
+        Type.Visitor<Object, CharSequence>,
+        BlockStatement.Visitor<Object, CharSequence>,
+        Expression.Visitor<Object, CharSequence> {
 
   private int indentLevel = 0;
 
@@ -39,7 +39,7 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitProgram(Program<TRef> that) {
+  public CharSequence visitProgram(Program<? extends Object> that) {
     return that.declarations
         .stream()
         .sorted((left, right) -> left.name.compareTo(right.name))
@@ -48,7 +48,7 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitClassDeclaration(Class<TRef> that) {
+  public CharSequence visitClassDeclaration(Class<? extends Object> that) {
     StringBuilder sb = new StringBuilder("class ").append(that.name).append(" {");
     if (that.fields.isEmpty() && that.methods.isEmpty()) {
       return sb.append(" }").append(System.lineSeparator());
@@ -70,14 +70,14 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitMethod(Method<TRef> that) {
+  public CharSequence visitMethod(Method<? extends Object> that) {
     StringBuilder sb = new StringBuilder("public ");
     if (that.isStatic) {
       sb.append("static ");
     }
     sb.append(that.returnType.acceptVisitor(this)).append(" ").append(that.name).append("(");
-    Iterator<Method.Parameter<TRef>> iterator = that.parameters.iterator();
-    Method.Parameter<TRef> next;
+    Iterator<? extends Method.Parameter<?>> iterator = that.parameters.iterator();
+    Method.Parameter<? extends Object> next;
     if (iterator.hasNext()) {
       next = iterator.next();
       sb.append(next.type.acceptVisitor(this)).append(" ").append(next.name);
@@ -90,9 +90,9 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitBlock(Block<TRef> that) {
+  public CharSequence visitBlock(Block<? extends Object> that) {
     StringBuilder sb = new StringBuilder("{");
-    List<BlockStatement<TRef>> nonEmptyStatements =
+    List<BlockStatement<? extends Object>> nonEmptyStatements =
         that.statements
             .stream()
             .filter(s -> !(s instanceof Statement.EmptyStatement))
@@ -111,7 +111,7 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitIf(Statement.If<TRef> that) {
+  public CharSequence visitIf(Statement.If<? extends Object> that) {
     StringBuilder b = new StringBuilder().append("if (");
     // bracketing exception for condition in if statement applies here
     CharSequence condition = that.condition.acceptVisitor(this);
@@ -130,7 +130,7 @@ public class PrettyPrinter<TRef>
     if (!that.else_.isPresent()) {
       return b;
     }
-    Statement<TRef> else_ = that.else_.get();
+    Statement<? extends Object> else_ = that.else_.get();
     // if 'then' part was a block, 'else' follows '}' directly
     if (that.then instanceof Block) {
       b.append(" else");
@@ -151,7 +151,7 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitWhile(Statement.While<TRef> that) {
+  public CharSequence visitWhile(Statement.While<? extends Object> that) {
     StringBuilder sb = new StringBuilder("while (");
     // bracketing exception for condition in while statement applies here
     CharSequence condition = that.condition.acceptVisitor(this);
@@ -166,7 +166,7 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitField(Field<TRef> that) {
+  public CharSequence visitField(Field<? extends Object> that) {
     return new StringBuilder("public ")
         .append(that.type.acceptVisitor(this))
         .append(" ")
@@ -175,25 +175,26 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitType(Type<TRef> that) {
+  public CharSequence visitType(Type<? extends Object> that) {
     StringBuilder b = new StringBuilder(that.typeRef.toString());
     b.append(Strings.repeat("[]", that.dimension));
     return b;
   }
 
   @Override
-  public CharSequence visitExpressionStatement(Statement.ExpressionStatement<TRef> that) {
+  public CharSequence visitExpressionStatement(
+      Statement.ExpressionStatement<? extends Object> that) {
     CharSequence expr = that.expression.acceptVisitor(this);
     return new StringBuilder(outerParanthesesRemoved(expr)).append(";");
   }
 
   @Override
-  public CharSequence visitEmptyStatement(Statement.EmptyStatement<TRef> that) {
+  public CharSequence visitEmptyStatement(Statement.EmptyStatement<? extends Object> that) {
     return ";";
   }
 
   @Override
-  public CharSequence visitReturn(Statement.Return<TRef> that) {
+  public CharSequence visitReturn(Statement.Return<? extends Object> that) {
     StringBuilder b = new StringBuilder("return");
     if (that.expression.isPresent()) {
       b.append(" ");
@@ -204,7 +205,7 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitVariable(BlockStatement.Variable<TRef> that) {
+  public CharSequence visitVariable(BlockStatement.Variable<? extends Object> that) {
     StringBuilder b = new StringBuilder(that.type.acceptVisitor(this));
     b.append(" ");
     b.append(that.name);
@@ -216,7 +217,8 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitBinaryOperator(Expression.BinaryOperatorExpression<TRef> that) {
+  public CharSequence visitBinaryOperator(
+      Expression.BinaryOperatorExpression<? extends Object> that) {
     StringBuilder b = new StringBuilder("(");
     CharSequence left = that.left.acceptVisitor(this);
     b.append(left);
@@ -230,7 +232,8 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitUnaryOperator(Expression.UnaryOperatorExpression<TRef> that) {
+  public CharSequence visitUnaryOperator(
+      Expression.UnaryOperatorExpression<? extends Object> that) {
     StringBuilder b = new StringBuilder("(");
     b.append(that.op.string);
     b.append(that.expression.acceptVisitor(this));
@@ -239,15 +242,15 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitMethodCall(Expression.MethodCallExpression<TRef> that) {
+  public CharSequence visitMethodCall(Expression.MethodCallExpression<? extends Object> that) {
     StringBuilder b = new StringBuilder();
     b.append("(");
     b.append(that.self.acceptVisitor(this));
     b.append(".");
     b.append(that.method.toString());
     b.append("(");
-    Iterator<Expression<TRef>> iterator = that.arguments.iterator();
-    Expression<TRef> next;
+    Iterator<? extends Expression<?>> iterator = that.arguments.iterator();
+    Expression<? extends Object> next;
     if (iterator.hasNext()) {
       next = iterator.next();
       b.append(outerParanthesesRemoved(next.acceptVisitor(this)));
@@ -262,7 +265,7 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitFieldAccess(Expression.FieldAccessExpression<TRef> that) {
+  public CharSequence visitFieldAccess(Expression.FieldAccessExpression<? extends Object> that) {
     StringBuilder b = new StringBuilder("(");
     b.append(that.self.acceptVisitor(this));
     b.append(".");
@@ -272,7 +275,7 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitArrayAccess(Expression.ArrayAccessExpression<TRef> that) {
+  public CharSequence visitArrayAccess(Expression.ArrayAccessExpression<? extends Object> that) {
     StringBuilder b = new StringBuilder("(").append(that.array.acceptVisitor(this)).append("[");
     CharSequence indexExpr = that.index.acceptVisitor(this);
     b.append(outerParanthesesRemoved(indexExpr));
@@ -281,7 +284,7 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitNewObjectExpr(Expression.NewObjectExpression<TRef> that) {
+  public CharSequence visitNewObjectExpr(Expression.NewObjectExpression<? extends Object> that) {
     StringBuilder b = new StringBuilder("(new ");
     b.append(that.type.toString());
     b.append("())");
@@ -289,7 +292,7 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitNewArrayExpr(Expression.NewArrayExpression<TRef> that) {
+  public CharSequence visitNewArrayExpr(Expression.NewArrayExpression<? extends Object> that) {
     StringBuilder b = new StringBuilder("(new ").append(that.type.typeRef.toString()).append("[");
     // bracketing exception for definition of array size applies here
     CharSequence sizeExpr = outerParanthesesRemoved(that.size.acceptVisitor(this));
@@ -300,17 +303,19 @@ public class PrettyPrinter<TRef>
   }
 
   @Override
-  public CharSequence visitVariable(Expression.VariableExpression<TRef> that) {
+  public CharSequence visitVariable(Expression.VariableExpression<? extends Object> that) {
     return that.var.toString();
   }
 
   @Override
-  public CharSequence visitBooleanLiteral(Expression.BooleanLiteralExpression<TRef> that) {
+  public CharSequence visitBooleanLiteral(
+      Expression.BooleanLiteralExpression<? extends Object> that) {
     return Boolean.toString(that.literal);
   }
 
   @Override
-  public CharSequence visitIntegerLiteral(Expression.IntegerLiteralExpression<TRef> that) {
+  public CharSequence visitIntegerLiteral(
+      Expression.IntegerLiteralExpression<? extends Object> that) {
     return that.literal;
   }
 }
