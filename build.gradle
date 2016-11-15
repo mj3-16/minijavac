@@ -17,7 +17,7 @@ repositories {
 }
 
 googleJavaFormat {
-    toolVersion '1.2-SNAPSHOT'
+    toolVersion '1.1'
     exclude 'mjtest/*'
 }
 
