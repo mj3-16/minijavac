@@ -167,10 +167,7 @@ public class TerminalStreamGenerator extends Generator<TerminalStream> {
     ret.add(IDENT);
     selectWithRandomWeight(
         random,
-        tuple(
-            0.4,
-            r -> {
-            }),
+        tuple(0.4, r -> {}),
         tuple(
             0.6,
             r -> {
@@ -204,10 +201,7 @@ public class TerminalStreamGenerator extends Generator<TerminalStream> {
 
     selectWithRandomWeight(
         random,
-        tuple(
-            0.3,
-            r -> {
-            }),
+        tuple(0.3, r -> {}),
         tuple(
             0.7,
             r -> {
@@ -265,10 +259,7 @@ public class TerminalStreamGenerator extends Generator<TerminalStream> {
     genLogicalOrExpression(random);
     selectWithRandomWeight(
         random,
-        tuple(
-            0.7,
-            r -> {
-            }),
+        tuple(0.7, r -> {}),
         tuple(
             0.3,
             r -> {
