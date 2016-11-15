@@ -70,7 +70,7 @@ public class Lexer implements Iterator<Token> {
   private final InputStream input;
   private int ch = -2;
   private int line = 1;
-  private int column = 0;
+  private int column = -1; // after calling nextChar the first time, this will be 0
   private Token eof;
   private SourcePosition tokenBegin;
 

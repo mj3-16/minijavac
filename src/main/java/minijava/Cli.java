@@ -73,7 +73,11 @@ class Cli {
       err.println("error: access to file '" + path + "' was denied");
       return 1;
     } catch (MJError e) {
-      err.println(e.getMessage());
+      try {
+        err.println(e.getSourceReferencingMessage(Files.readAllLines(path)));
+      } catch (IOException io) {
+        err.println(e.getMessage());
+      }
       return 1;
     } catch (NoSuchFileException e) {
       err.println("error: file '" + path + "' doesn't exist");
