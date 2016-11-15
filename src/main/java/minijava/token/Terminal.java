@@ -68,6 +68,10 @@ public enum Terminal {
   final Associativity associativity;
   final Integer precedence;
 
+  public boolean hasLexval() {
+    return this == IDENT || this == INTEGER_LITERAL || this == RESERVED;
+  }
+
   Terminal(String string, Associativity associativity, Integer precedence) {
     assert (associativity == null) == (precedence == null);
     this.string = string;

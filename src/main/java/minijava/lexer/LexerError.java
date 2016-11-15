@@ -1,11 +1,11 @@
 package minijava.lexer;
 
 import minijava.MJError;
-import minijava.token.Position;
+import minijava.util.SourcePosition;
 
 class LexerError extends MJError {
 
-  LexerError(Position position, String message) {
+  LexerError(SourcePosition position, String message) {
     super("Lexer error at " + position + ":" + message);
   }
 }

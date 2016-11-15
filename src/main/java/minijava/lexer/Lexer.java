@@ -11,9 +11,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.EnumSet;
 import java.util.Iterator;
 import minijava.MJError;
-import minijava.token.Position;
 import minijava.token.Terminal;
 import minijava.token.Token;
+import minijava.util.SourcePosition;
+import minijava.util.SourceRange;
 
 /** SLL(1) parser style lexer implementation. */
 public class Lexer implements Iterator<Token> {
@@ -71,7 +72,7 @@ public class Lexer implements Iterator<Token> {
   private int line = 1;
   private int column = 0;
   private Token eof;
-  private Position tokenBegin;
+  private SourcePosition tokenBegin;
 
   public Lexer(InputStream input) {
     this.input = new BufferedInputStream(input);
@@ -96,7 +97,8 @@ public class Lexer implements Iterator<Token> {
       ch = input.read();
       if (ch > 127 || ch < -1) {
         throw new LexerError(
-            new Position(line, column), String.format("Unsupported character with code %d", ch));
+            new SourcePosition(line, column),
+            String.format("Unsupported character with code %d", ch));
       }
       if (ch == '\n') {
         column = 0;
@@ -112,7 +114,7 @@ public class Lexer implements Iterator<Token> {
   private Token scan() {
     while (true) {
       skipWhitespace();
-      tokenBegin = new Position(line, column);
+      tokenBegin = new SourcePosition(line, column);
       if (isDigit(ch)) {
         return scanInt();
       }
@@ -326,7 +328,7 @@ public class Lexer implements Iterator<Token> {
       nextChar();
       if (prev == -1 || ch == -1) {
         throw new LexerError(
-            new Position(line, column),
+            new SourcePosition(line, column),
             "Reached EOF, but comment starting at " + tokenBegin + " is not complete");
       }
       if (prev == '*' && ch == '/') {
@@ -434,11 +436,15 @@ public class Lexer implements Iterator<Token> {
   }
 
   private Token createToken(Terminal terminal, String content) {
-    return new Token(terminal, tokenBegin, content);
+    SourceRange range = new SourceRange(tokenBegin, content.length());
+    return new Token(terminal, range, content);
   }
 
   private Token createToken(Terminal terminal) {
-    return new Token(terminal, tokenBegin, null);
+    // terminal.string == null can only happen if terminal == EOF
+    int length = terminal.string == null ? 1 : terminal.string.length();
+    SourceRange range = new SourceRange(tokenBegin, length);
+    return new Token(terminal, range, null);
   }
 
   @Override

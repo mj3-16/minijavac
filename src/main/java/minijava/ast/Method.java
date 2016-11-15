@@ -1,8 +1,10 @@
 package minijava.ast;
 
 import java.util.List;
+import minijava.util.SourceRange;
+import minijava.util.SyntaxElement;
 
-public class Method<TRef> {
+public class Method<TRef> extends SyntaxElement.DefaultImpl {
   public final boolean isStatic;
   public final Type<TRef> returnType;
   public final String name;
@@ -20,7 +22,9 @@ public class Method<TRef> {
       Type<TRef> returnType,
       String name,
       List<Parameter<TRef>> parameters,
-      Block<TRef> body) {
+      Block<TRef> body,
+      SourceRange range) {
+    super(range);
     this.isStatic = isStatic;
     this.returnType = returnType;
     this.name = name;
@@ -36,11 +40,12 @@ public class Method<TRef> {
     TRet visitMethod(Method<TRef> that);
   }
 
-  public static class Parameter<TRef> {
+  public static class Parameter<TRef> extends SyntaxElement.DefaultImpl {
     public final Type<TRef> type;
     public final String name;
 
-    public Parameter(Type<TRef> type, String name) {
+    public Parameter(Type<TRef> type, String name, SourceRange range) {
+      super(range);
       this.type = type;
       this.name = name;
     }

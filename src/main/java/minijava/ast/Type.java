@@ -1,11 +1,15 @@
 package minijava.ast;
 
-public class Type<TRef> {
+import minijava.util.SourceRange;
+import minijava.util.SyntaxElement;
+
+public class Type<TRef> extends SyntaxElement.DefaultImpl {
 
   public final TRef typeRef;
   public final int dimension;
 
-  public Type(TRef typeRef, int dimension) {
+  public Type(TRef typeRef, int dimension, SourceRange range) {
+    super(range);
     this.typeRef = typeRef;
     this.dimension = dimension;
   }

@@ -1,11 +1,14 @@
 package minijava.ast;
 
 import java.util.List;
+import minijava.util.SourceRange;
+import minijava.util.SyntaxElement;
 
-public class Program<TRef> {
+public class Program<TRef> extends SyntaxElement.DefaultImpl {
   public final List<Class<TRef>> declarations;
 
-  public Program(List<Class<TRef>> declarations) {
+  public Program(List<Class<TRef>> declarations, SourceRange range) {
+    super(range);
     this.declarations = declarations;
   }
 

@@ -50,7 +50,7 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
     }
 
     nodes++;
-    return new Program<>(decls);
+    return new Program<>(decls, SourceRange.FIRST_CHAR);
   }
 
   // class IDENT { ClassMember* }
@@ -67,7 +67,7 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
       }
     }
     nodes++;
-    return new Class<>(genIdent(random), fields, methods);
+    return new Class<>(genIdent(random), fields, methods, SourceRange.FIRST_CHAR);
   }
 
   // Field | Method | MainMethod
@@ -79,19 +79,24 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
   // public Type IDENT ;
   private Field<String> genField(SourceOfRandomness random) {
     nodes++;
-    return new Field<>(genType(random), genIdent(random));
+    return new Field<>(genType(random), genIdent(random), SourceRange.FIRST_CHAR);
   }
 
   // public Type IDENT ( Parameters? ) Block
   private Method<String> genMethod(SourceOfRandomness random) {
     boolean isStatic = random.nextBoolean();
-    Type<String> returnType = isStatic ? new Type<>("void", 0) : genType(random);
+    Type<String> returnType =
+        isStatic ? new Type<>("void", 0, SourceRange.FIRST_CHAR) : genType(random);
 
     int n = nextArity(random, 2);
     List<Method.Parameter<String>> parameters = new ArrayList<>(n);
 
     if (isStatic) {
-      parameters.add(new Method.Parameter<>(new Type<>("String", 1), genIdent(random)));
+      parameters.add(
+          new Method.Parameter<>(
+              new Type<>("String", 1, SourceRange.FIRST_CHAR),
+              genIdent(random),
+              SourceRange.FIRST_CHAR));
     } else {
       for (int i = 0; i < n; ++i) {
         parameters.add(genParameter(random));
@@ -101,13 +106,14 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
     Block<String> body = genBlock(random);
 
     nodes++;
-    return new Method<>(isStatic, returnType, genIdent(random), parameters, body);
+    return new Method<>(
+        isStatic, returnType, genIdent(random), parameters, body, SourceRange.FIRST_CHAR);
   }
 
   // Type IDENT
   private Method.Parameter<String> genParameter(SourceOfRandomness random) {
     nodes++;
-    return new Method.Parameter<>(genType(random), genIdent(random));
+    return new Method.Parameter<>(genType(random), genIdent(random), SourceRange.FIRST_CHAR);
   }
 
   private static String genIdent(SourceOfRandomness random) {
@@ -119,7 +125,7 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
     int n = random.nextInt(0, 3);
     String typeName = random.choose(Arrays.asList("void", "int", "boolean", genIdent(random)));
     nodes++;
-    return new Type<>(typeName, n);
+    return new Type<>(typeName, n, SourceRange.FIRST_CHAR);
   }
 
   /*
@@ -149,7 +155,7 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
       statements.add(genBlockStatement(random));
     }
     nodes++;
-    return new Block<>(statements);
+    return new Block<>(statements, SourceRange.FIRST_CHAR);
   }
 
   // Statement | LocalVariableDeclarationStatement
@@ -162,19 +168,21 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
   // Type IDENT (= Expression)? ;
   private BlockStatement<String> genLocalVariableStatement(SourceOfRandomness random) {
     nodes++;
-    return new Statement.Variable<>(genType(random), genIdent(random), genExpression(random));
+    return new Statement.Variable<>(
+        genType(random), genIdent(random), genExpression(random), SourceRange.FIRST_CHAR);
   }
 
   // ;
   private Statement<String> genEmptyStatement(SourceOfRandomness random) {
     nodes++;
-    return new Statement.Empty<>();
+    return new Statement.Empty<>(SourceRange.FIRST_CHAR);
   }
 
   // while ( Expression ) Statement
   private Statement<String> genWhileStatement(SourceOfRandomness random) {
     nodes++;
-    return new Statement.While<>(genExpression(random), genStatement(random));
+    return new Statement.While<>(
+        genExpression(random), genStatement(random), SourceRange.FIRST_CHAR);
   }
 
   // if ( Expression ) Statement (else Statement)?
@@ -182,14 +190,20 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
     nodes++;
     return selectWithRandomWeight(
         random,
-        tuple(0.3, r -> new Statement.If<>(genExpression(r), genBlock(r), null)),
-        tuple(0.7, r -> new Statement.If<>(genExpression(r), genBlock(r), genStatement(r))));
+        tuple(
+            0.3,
+            r -> new Statement.If<>(genExpression(r), genBlock(r), null, SourceRange.FIRST_CHAR)),
+        tuple(
+            0.7,
+            r ->
+                new Statement.If<>(
+                    genExpression(r), genBlock(r), genStatement(r), SourceRange.FIRST_CHAR)));
   }
 
   // Expression ;
   private Statement<String> genExpressionStatement(SourceOfRandomness random) {
     nodes++;
-    return new Statement.ExpressionStatement<>(genExpression(random));
+    return new Statement.ExpressionStatement<>(genExpression(random), SourceRange.FIRST_CHAR);
   }
 
   // return Expression? ;
@@ -197,8 +211,8 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
     nodes++;
     return selectWithRandomWeight(
         random,
-        tuple(0.3, r -> new Statement.Return<>()),
-        tuple(0.7, r -> new Statement.Return<>(genExpression(r))));
+        tuple(0.3, r -> new Statement.Return<>(null, SourceRange.FIRST_CHAR)),
+        tuple(0.7, r -> new Statement.Return<>(genExpression(r), SourceRange.FIRST_CHAR)));
   }
 
   // AssignmentExpression
@@ -208,28 +222,48 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
         nodes++;
         return selectWithRandomWeight(
             random,
-            tuple(0.8, r -> new Expression.Variable<>(genIdent(r))),
-            tuple(0.1, r -> new Expression.Variable<>("null")),
-            tuple(0.1, r -> new Expression.Variable<>("this")),
-            tuple(1.0, r -> new Expression.BooleanLiteral<>(r.nextBoolean())),
-            tuple(1.0, r -> new Expression.IntegerLiteral<>(genInt(r))),
+            tuple(0.8, r -> new Expression.Variable<>(genIdent(r), SourceRange.FIRST_CHAR)),
+            tuple(0.1, r -> new Expression.Variable<>("null", SourceRange.FIRST_CHAR)),
+            tuple(0.1, r -> new Expression.Variable<>("this", SourceRange.FIRST_CHAR)),
+            tuple(
+                1.0, r -> new Expression.BooleanLiteral<>(r.nextBoolean(), SourceRange.FIRST_CHAR)),
+            tuple(1.0, r -> new Expression.IntegerLiteral<>(genInt(r), SourceRange.FIRST_CHAR)),
             tuple(
                 0.1,
                 r ->
                     new Expression.BinaryOperator<>(
-                        r.choose(Expression.BinOp.values()), genExpression(r), genExpression(r))),
+                        r.choose(Expression.BinOp.values()),
+                        genExpression(r),
+                        genExpression(r),
+                        SourceRange.FIRST_CHAR)),
             tuple(
                 0.1,
                 r ->
                     new Expression.UnaryOperator<>(
-                        r.choose(Expression.UnOp.values()), genExpression(r))),
+                        r.choose(Expression.UnOp.values()),
+                        genExpression(r),
+                        SourceRange.FIRST_CHAR)),
             tuple(
                 0.1,
-                r -> new Expression.MethodCall<>(genExpression(r), genIdent(r), genArguments(r))),
-            tuple(0.1, r -> new Expression.FieldAccess<>(genExpression(r), genIdent(r))),
-            tuple(0.1, r -> new Expression.ArrayAccess<>(genExpression(r), genExpression(r))),
-            tuple(0.1, r -> new Expression.NewObject<>(genIdent(r))),
-            tuple(0.1, r -> new Expression.NewArray<>(genArrayType(r), genExpression(r))));
+                r ->
+                    new Expression.MethodCall<>(
+                        genExpression(r), genIdent(r), genArguments(r), SourceRange.FIRST_CHAR)),
+            tuple(
+                0.1,
+                r ->
+                    new Expression.FieldAccess<>(
+                        genExpression(r), genIdent(r), SourceRange.FIRST_CHAR)),
+            tuple(
+                0.1,
+                r ->
+                    new Expression.ArrayAccess<>(
+                        genExpression(r), genExpression(r), SourceRange.FIRST_CHAR)),
+            tuple(0.1, r -> new Expression.NewObject<>(genIdent(r), SourceRange.FIRST_CHAR)),
+            tuple(
+                0.1,
+                r ->
+                    new Expression.NewArray<>(
+                        genArrayType(r), genExpression(r), SourceRange.FIRST_CHAR)));
       } catch (StackOverflowError e) {
         nodes--;
         overflows++; // This is so that we eventually terminate. See followShortcuts().
@@ -248,7 +282,7 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
 
   private Type<String> genArrayType(SourceOfRandomness random) {
     Type<String> t = genType(random);
-    return new Type<>(t.typeRef, Math.max(t.dimension, 1));
+    return new Type<>(t.typeRef, Math.max(t.dimension, 1), SourceRange.FIRST_CHAR);
   }
 
   private static String genInt(SourceOfRandomness r) {

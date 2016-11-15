@@ -1,10 +1,14 @@
 package minijava.ast;
 
-public class Field<TRef> {
+import minijava.util.SourceRange;
+import minijava.util.SyntaxElement;
+
+public class Field<TRef> extends SyntaxElement.DefaultImpl {
   public final Type<TRef> type;
   public final String name;
 
-  public Field(Type<TRef> type, String name) {
+  public Field(Type<TRef> type, String name, SourceRange range) {
+    super(range);
     this.type = type;
     this.name = name;
   }

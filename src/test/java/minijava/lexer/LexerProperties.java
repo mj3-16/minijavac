@@ -9,9 +9,9 @@ import com.pholser.junit.quickcheck.Property;
 import com.pholser.junit.quickcheck.generator.Size;
 import com.pholser.junit.quickcheck.runner.JUnitQuickcheck;
 import java.util.List;
-import minijava.token.Position;
 import minijava.token.Terminal;
 import minijava.token.Token;
+import minijava.util.SourceRange;
 import org.junit.Assert;
 import org.junit.runner.RunWith;
 
@@ -30,7 +30,7 @@ public class LexerProperties {
     List<Token> expected =
         seq(tokens)
             .filter(t -> t.terminal != EOF)
-            .append(new Token(EOF, new Position(0, 0), null))
+            .append(new Token(EOF, SourceRange.FIRST_CHAR, null))
             .toList();
 
     String input = prettyPrint(expected);
@@ -63,7 +63,7 @@ public class LexerProperties {
    */
   private String prettyPrint(Iterable<Token> tokens) {
     char last = ' '; // so that we don't start with a space
-    Token prev = new Token(Terminal.EOF, new Position(0, 0), null);
+    Token prev = new Token(Terminal.EOF, SourceRange.FIRST_CHAR, null);
 
     StringBuilder sb = new StringBuilder(4096);
     for (Token t : tokens) {

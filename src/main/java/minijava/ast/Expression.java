@@ -1,16 +1,33 @@
 package minijava.ast;
 
 import java.util.List;
+import minijava.util.SourceRange;
+import minijava.util.SyntaxElement;
 
-public interface Expression<TRef> {
+public interface Expression<TRef> extends SyntaxElement {
   <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor);
 
-  class ArrayAccess<TRef> implements Expression<TRef> {
+  /** We can't reuse SyntaxElement.DefaultImpl, so this bull shit is necessary */
+  abstract class Base<TRef> implements Expression<TRef> {
+    public final SourceRange range;
+
+    Base(SourceRange range) {
+      this.range = range;
+    }
+
+    @Override
+    public SourceRange getRange() {
+      return range;
+    }
+  }
+
+  class ArrayAccess<TRef> extends Base<TRef> {
 
     public final Expression<TRef> array;
     public final Expression<TRef> index;
 
-    public ArrayAccess(Expression<TRef> array, Expression<TRef> index) {
+    public ArrayAccess(Expression<TRef> array, Expression<TRef> index, SourceRange range) {
+      super(range);
       this.array = array;
       this.index = index;
     }
@@ -21,12 +38,14 @@ public interface Expression<TRef> {
     }
   }
 
-  class BinaryOperator<TRef> implements Expression<TRef> {
+  class BinaryOperator<TRef> extends Base<TRef> {
     public final BinOp op;
     public final Expression<TRef> left;
     public final Expression<TRef> right;
 
-    public BinaryOperator(BinOp op, Expression<TRef> left, Expression<TRef> right) {
+    public BinaryOperator(
+        BinOp op, Expression<TRef> left, Expression<TRef> right, SourceRange range) {
+      super(range);
       this.op = op;
       this.left = left;
       this.right = right;
@@ -38,11 +57,12 @@ public interface Expression<TRef> {
     }
   }
 
-  class BooleanLiteral<TRef> implements Expression<TRef> {
+  class BooleanLiteral<TRef> extends Base<TRef> {
 
     public final boolean literal;
 
-    public BooleanLiteral(boolean literal) {
+    public BooleanLiteral(boolean literal, SourceRange range) {
+      super(range);
       this.literal = literal;
     }
 
@@ -52,12 +72,13 @@ public interface Expression<TRef> {
     }
   }
 
-  class FieldAccess<TRef> implements Expression<TRef> {
+  class FieldAccess<TRef> extends Base<TRef> {
 
     public final Expression<TRef> self;
     public final TRef field;
 
-    public FieldAccess(Expression<TRef> self, TRef field) {
+    public FieldAccess(Expression<TRef> self, TRef field, SourceRange range) {
+      super(range);
       this.self = self;
       this.field = field;
     }
@@ -68,11 +89,12 @@ public interface Expression<TRef> {
     }
   }
 
-  class IntegerLiteral<TRef> implements Expression<TRef> {
+  class IntegerLiteral<TRef> extends Base<TRef> {
 
     public final String literal;
 
-    public IntegerLiteral(String literal) {
+    public IntegerLiteral(String literal, SourceRange range) {
+      super(range);
       this.literal = literal;
     }
 
@@ -82,13 +104,15 @@ public interface Expression<TRef> {
     }
   }
 
-  class MethodCall<TRef> implements Expression<TRef> {
+  class MethodCall<TRef> extends Base<TRef> {
 
     public final Expression<TRef> self;
     public final TRef method;
     public final List<Expression<TRef>> arguments;
 
-    public MethodCall(Expression<TRef> self, TRef method, List<Expression<TRef>> arguments) {
+    public MethodCall(
+        Expression<TRef> self, TRef method, List<Expression<TRef>> arguments, SourceRange range) {
+      super(range);
       this.self = self;
       this.method = method;
       this.arguments = arguments;
@@ -100,12 +124,13 @@ public interface Expression<TRef> {
     }
   }
 
-  class NewArray<TRef> implements Expression<TRef> {
+  class NewArray<TRef> extends Base<TRef> {
 
     public final Type<TRef> type;
     public final Expression<TRef> size;
 
-    public NewArray(Type<TRef> type, Expression<TRef> size) {
+    public NewArray(Type<TRef> type, Expression<TRef> size, SourceRange range) {
+      super(range);
       this.type = type;
       this.size = size;
     }
@@ -116,11 +141,12 @@ public interface Expression<TRef> {
     }
   }
 
-  class NewObject<TRef> implements Expression<TRef> {
+  class NewObject<TRef> extends Base<TRef> {
 
     public final TRef type;
 
-    public NewObject(TRef type) {
+    public NewObject(TRef type, SourceRange range) {
+      super(range);
       this.type = type;
     }
 
@@ -130,12 +156,13 @@ public interface Expression<TRef> {
     }
   }
 
-  class UnaryOperator<TRef> implements Expression<TRef> {
+  class UnaryOperator<TRef> extends Base<TRef> {
 
     public final UnOp op;
     public final Expression<TRef> expression;
 
-    public UnaryOperator(UnOp op, Expression<TRef> expression) {
+    public UnaryOperator(UnOp op, Expression<TRef> expression, SourceRange range) {
+      super(range);
       this.op = op;
       this.expression = expression;
     }
@@ -147,11 +174,12 @@ public interface Expression<TRef> {
   }
 
   /** Subsumes @null@, @this@ and regular variables. */
-  class Variable<TRef> implements Expression<TRef> {
+  class Variable<TRef> extends Base<TRef> {
 
     public final TRef var;
 
-    public Variable(TRef var) {
+    public Variable(TRef var, SourceRange range) {
+      super(range);
       this.var = var;
     }
 

@@ -6,9 +6,9 @@ import com.pholser.junit.quickcheck.generator.Generator;
 import com.pholser.junit.quickcheck.random.SourceOfRandomness;
 import java.util.Set;
 import java.util.stream.IntStream;
-import minijava.token.Position;
 import minijava.token.Terminal;
 import minijava.token.Token;
+import minijava.util.SourceRange;
 import org.jooq.lambda.Seq;
 
 /**
@@ -29,9 +29,9 @@ public class TokenGenerator extends Generator<Token> {
       case INTEGER_LITERAL:
       case RESERVED:
         String lexval = generateStringForTerminal(terminal, random);
-        return new Token(terminal, new Position(0, 0), lexval);
+        return new Token(terminal, SourceRange.FIRST_CHAR, lexval);
       default:
-        return new Token(terminal, new Position(0, 0), null);
+        return new Token(terminal, SourceRange.FIRST_CHAR, null);
     }
   }
 
