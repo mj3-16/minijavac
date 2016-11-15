@@ -7,7 +7,6 @@ import static org.hamcrest.Matchers.is;
 
 import com.google.common.collect.ImmutableList;
 import minijava.ast.*;
-import minijava.ast.BlockStatement.Variable;
 import minijava.ast.Class;
 import minijava.ast.Expression.*;
 import minijava.ast.Method.Parameter;
@@ -17,6 +16,7 @@ import org.junit.Test;
 
 public class PrettyPrinterTest {
 
+  private static final SourceRange r = SourceRange.FIRST_CHAR;
   private PrettyPrinter prettyPrinter;
 
   @Before
@@ -29,9 +29,10 @@ public class PrettyPrinterTest {
     Program<Object> p =
         new Program<>(
             ImmutableList.of(
-                new Class<>("A", ImmutableList.of(), ImmutableList.of()),
-                new Class<>("Z", ImmutableList.of(), ImmutableList.of()),
-                new Class<>("C", ImmutableList.of(), ImmutableList.of())));
+                new Class<>("A", ImmutableList.of(), ImmutableList.of(), r),
+                new Class<>("Z", ImmutableList.of(), ImmutableList.of(), r),
+                new Class<>("C", ImmutableList.of(), ImmutableList.of(), r)),
+            r);
     CharSequence actual = p.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo(format("class A { }%nclass C { }%nclass Z { }%n"))));
   }
@@ -40,7 +41,10 @@ public class PrettyPrinterTest {
   public void visitClassWithOneField() throws Exception {
     Class<Object> node =
         new Class<>(
-            "Foo", ImmutableList.of(new Field<>(new Type<>("int", 0), "i")), ImmutableList.of());
+            "Foo",
+            ImmutableList.of(new Field<>(new Type<>("int", 0, r), "i", r)),
+            ImmutableList.of(),
+            r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo(format("class Foo {%n\tpublic int i;%n}%n"))));
   }
@@ -51,12 +55,13 @@ public class PrettyPrinterTest {
         new Class<>(
             "Foo",
             ImmutableList.of(
-                new Field<>(new Type<>("boolean", 0), "G"),
-                new Field<>(new Type<>("int", 0), "U"),
-                new Field<>(new Type<>("int", 0), "A"),
-                new Field<>(new Type<>("int", 0), "Z"),
-                new Field<>(new Type<>("boolean", 0), "B")),
-            ImmutableList.of());
+                new Field<>(new Type<>("boolean", 0, r), "G", r),
+                new Field<>(new Type<>("int", 0, r), "U", r),
+                new Field<>(new Type<>("int", 0, r), "A", r),
+                new Field<>(new Type<>("int", 0, r), "Z", r),
+                new Field<>(new Type<>("boolean", 0, r), "B", r)),
+            ImmutableList.of(),
+            r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(
         actual.toString(),
@@ -81,10 +86,12 @@ public class PrettyPrinterTest {
             ImmutableList.of(
                 new Method<>(
                     true,
-                    new Type<>("int", 0),
+                    new Type<>("int", 0, r),
                     "m",
                     ImmutableList.of(),
-                    new Block<>(ImmutableList.of()))));
+                    new Block<>(ImmutableList.of(), r),
+                    r)),
+            r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(
         actual.toString(), is(equalTo(format("class Foo {%n\tpublic static int m() { }%n}%n"))));
@@ -99,22 +106,26 @@ public class PrettyPrinterTest {
             ImmutableList.of(
                 new Method<>(
                     false,
-                    new Type<>("int", 0),
+                    new Type<>("int", 0, r),
                     "a",
                     ImmutableList.of(),
-                    new Block<>(ImmutableList.of())),
+                    new Block<>(ImmutableList.of(), r),
+                    r),
                 new Method<>(
                     false,
-                    new Type<>("int", 0),
+                    new Type<>("int", 0, r),
                     "Z",
                     ImmutableList.of(),
-                    new Block<>(ImmutableList.of())),
+                    new Block<>(ImmutableList.of(), r),
+                    r),
                 new Method<>(
                     false,
-                    new Type<>("int", 0),
+                    new Type<>("int", 0, r),
                     "B",
                     ImmutableList.of(),
-                    new Block<>(ImmutableList.of()))));
+                    new Block<>(ImmutableList.of(), r),
+                    r)),
+            r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(
         actual.toString(),
@@ -133,17 +144,15 @@ public class PrettyPrinterTest {
     Method<Object> node =
         new Method<>(
             true,
-            new Type<>("void", 0),
+            new Type<>("void", 0, r),
             "main",
             ImmutableList.of(
-                new Parameter<>(new Type<>("String", 1), "args"),
-                new Parameter<>(new Type<>("int", 0), "numArgs")),
+                new Parameter<>(new Type<>("String", 1, r), "args", r),
+                new Parameter<>(new Type<>("int", 0, r), "numArgs", r)),
             new Block<>(
-                ImmutableList.of(
-                    new EmptyStatement<>(),
-                    new EmptyStatement<>(),
-                    new EmptyStatement<>(),
-                    new EmptyStatement<>())));
+                ImmutableList.of(new Empty<>(r), new Empty<>(r), new Empty<>(r), new Empty<>(r)),
+                r),
+            r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(
         actual.toString(),
@@ -155,13 +164,15 @@ public class PrettyPrinterTest {
     Method<Object> node =
         new Method<>(
             false,
-            new Type<>("int", 0),
+            new Type<>("int", 0, r),
             "m",
             ImmutableList.of(),
             new Block<>(
                 ImmutableList.of(
-                    new ExpressionStatement<>(new IntegerLiteralExpression<Object>("0") {}),
-                    new EmptyStatement<>())));
+                    new ExpressionStatement<>(new IntegerLiteral<Object>("0", r) {}, r),
+                    new Empty<>(r)),
+                r),
+            r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo(format("public int m() {%n\t0;%n}"))));
   }
@@ -171,9 +182,10 @@ public class PrettyPrinterTest {
     Block<Object> node =
         new Block<>(
             ImmutableList.of(
-                new Variable<>(new Type<>("int", 0), "i", null),
-                new Variable<>(new Type<>("String", 2), "s", null),
-                new Variable<>(new Type<>("boolean", 0), "b", null)));
+                new BlockStatement.Variable<>(new Type<>("int", 0, r), "i", null, r),
+                new BlockStatement.Variable<>(new Type<>("String", 2, r), "s", null, r),
+                new BlockStatement.Variable<>(new Type<>("boolean", 0, r), "b", null, r)),
+            r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(
         actual.toString(), is(equalTo(format("{%n\tint i;%n\tString[][] s;%n\tboolean b;%n}"))));
@@ -181,8 +193,7 @@ public class PrettyPrinterTest {
 
   @Test
   public void visitIfWithSingleThenStatement() throws Exception {
-    If<Object> node =
-        new If<>(new Expression.BooleanLiteralExpression<>(true), new EmptyStatement<>(), null);
+    If<Object> node = new If<>(new BooleanLiteral<>(true, r), new Empty<>(r), null, r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo(format("if (true)%n\t;"))));
   }
@@ -191,113 +202,110 @@ public class PrettyPrinterTest {
   public void visitIfWithMultipleThenStatements() throws Exception {
     If<Object> node =
         new If<>(
-            new Expression.BooleanLiteralExpression<>(true),
-            new Block<>(ImmutableList.of(new EmptyStatement<>(), new EmptyStatement<>())),
-            null);
+            new BooleanLiteral<>(true, r),
+            new Block<>(ImmutableList.of(new Empty<>(r), new Empty<>(r)), r),
+            null,
+            r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo("if (true) { }")));
   }
 
   @Test
   public void visitLocalVariableDeclaration_WithoutInit() throws Exception {
-    Variable<Object> node = new Variable<>(new Type<>("int", 0), "i", null);
+    BlockStatement.Variable<Object> node =
+        new BlockStatement.Variable<>(new Type<>("int", 0, r), "i", null, r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo("int i;")));
   }
 
   @Test
   public void visitLocalVariableDeclaration_WithInit() throws Exception {
-    Variable<Object> node =
-        new Variable<>(
-            new Type<>("int", 0),
+    BlockStatement.Variable<Object> node =
+        new BlockStatement.Variable<>(
+            new Type<>("int", 0, r),
             "i",
-            new BinaryOperatorExpression<>(
-                BinOp.PLUS,
-                new Expression.IntegerLiteralExpression<>("4"),
-                new Expression.IntegerLiteralExpression<>("6")));
+            new BinaryOperator<>(
+                BinOp.PLUS, new IntegerLiteral<>("4", r), new IntegerLiteral<>("6", r), r),
+            r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo("int i = 4 + 6;")));
   }
 
   @Test
   public void visitMethodCall_NoParameters() throws Exception {
-    MethodCallExpression<Object> node =
-        new MethodCallExpression<>(new VariableExpression<>("o"), "m", ImmutableList.of());
+    MethodCall<Object> node = new MethodCall<>(new Variable<>("o", r), "m", ImmutableList.of(), r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo("(o.m())")));
   }
 
   @Test
   public void visitMethodCall_OneParameter() throws Exception {
-    MethodCallExpression<Object> node =
-        new MethodCallExpression<>(
-            new VariableExpression<>("o"),
-            "m",
-            ImmutableList.of(new BooleanLiteralExpression<>(true)));
+    MethodCall<Object> node =
+        new MethodCall<>(
+            new Variable<>("o", r), "m", ImmutableList.of(new BooleanLiteral<>(true, r)), r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo("(o.m(true))")));
   }
 
   @Test
   public void visitMethodCall_MultipleParameters() throws Exception {
-    MethodCallExpression<Object> node =
-        new MethodCallExpression<>(
-            new VariableExpression<>("o"),
+    MethodCall<Object> node =
+        new MethodCall<>(
+            new Variable<>("o", r),
             "m",
             ImmutableList.of(
-                new BooleanLiteralExpression<>(true),
-                new BinaryOperatorExpression<>(
-                    BinOp.PLUS,
-                    new IntegerLiteralExpression<>("5"),
-                    new IntegerLiteralExpression<>("8"))));
+                new BooleanLiteral<>(true, r),
+                new BinaryOperator<>(
+                    BinOp.PLUS, new IntegerLiteral<>("5", r), new IntegerLiteral<>("8", r), r)),
+            r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo("(o.m(true, 5 + 8))")));
   }
 
   @Test
   public void visitFieldAccess() throws Exception {
-    FieldAccessExpression<Object> node =
-        new FieldAccessExpression<>(new VariableExpression<>("myObject"), "field");
+    FieldAccess<Object> node = new FieldAccess<>(new Variable<>("myObject", r), "field", r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo("(myObject.field)")));
   }
 
   @Test
   public void visitArrayAccess() throws Exception {
-    ArrayAccessExpression<Object> node =
-        new ArrayAccessExpression<>(
-            new VariableExpression<>("array"), new IntegerLiteralExpression<>("5"));
+    ArrayAccess<Object> node =
+        new ArrayAccess<>(new Variable<>("array", r), new IntegerLiteral<>("5", r), r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo("(array[5])")));
   }
 
   @Test
   public void visitArrayAccess_IndexIsCompositeExpression() throws Exception {
-    ArrayAccessExpression<Object> node =
-        new ArrayAccessExpression<>(
-            new VariableExpression<>("array"),
-            new UnaryOperatorExpression<>(
+    ArrayAccess<Object> node =
+        new ArrayAccess<>(
+            new Variable<>("array", r),
+            new UnaryOperator<>(
                 UnOp.NEGATE,
-                new BinaryOperatorExpression<>(
+                new BinaryOperator<>(
                     BinOp.MINUS,
-                    new Expression.IntegerLiteralExpression<>("15"),
-                    new UnaryOperatorExpression<>(
-                        UnOp.NEGATE, new Expression.IntegerLiteralExpression<>("7")))));
+                    new IntegerLiteral<>("15", r),
+                    new UnaryOperator<>(UnOp.NEGATE, new IntegerLiteral<>("7", r), r),
+                    r),
+                r),
+            r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo("(array[-(15 - (-7))])")));
   }
 
   @Test
   public void visitNewObjectExpression() throws Exception {
-    NewObjectExpression<Object> node = new NewObjectExpression<>("MyClass");
+    NewObject<Object> node = new NewObject<>("MyClass", r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo("(new MyClass())")));
   }
 
   @Test
   public void visitNewArrayExpression() throws Exception {
-    NewArrayExpression<Object> node =
-        new NewArrayExpression<>(new Type("boolean", 4), new IntegerLiteralExpression("25"));
+    NewArray<Object> node =
+        new NewArray<>(new Type("boolean", 4, r), new IntegerLiteral("25", r), r);
 
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo("(new boolean[25][][][])")));
@@ -305,16 +313,16 @@ public class PrettyPrinterTest {
 
   @Test
   public void visitNewArrayExpression_SizeExpressionIsACompositeExpression() throws Exception {
-    NewArrayExpression<Object> node =
-        new NewArrayExpression<>(
-            new Type("boolean", 4),
-            new BinaryOperatorExpression(
+    NewArray<Object> node =
+        new NewArray<>(
+            new Type("boolean", 4, r),
+            new BinaryOperator(
                 BinOp.PLUS,
-                new BinaryOperatorExpression(
-                    BinOp.MINUS,
-                    new IntegerLiteralExpression("25"),
-                    new IntegerLiteralExpression("5")),
-                new UnaryOperatorExpression(UnOp.NEGATE, new IntegerLiteralExpression("19"))));
+                new BinaryOperator(
+                    BinOp.MINUS, new IntegerLiteral("25", r), new IntegerLiteral("5", r), r),
+                new UnaryOperator(UnOp.NEGATE, new IntegerLiteral("19", r), r),
+                r),
+            r);
 
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo("(new boolean[(25 - 5) + (-19)][][][])")));
@@ -324,12 +332,11 @@ public class PrettyPrinterTest {
   public void visitWhile() throws Exception {
     While<Object> node =
         new While<>(
-            new BinaryOperatorExpression<>(
-                BinOp.PLUS,
-                new IntegerLiteralExpression<>("6"),
-                new IntegerLiteralExpression<>("2")),
+            new BinaryOperator<>(
+                BinOp.PLUS, new IntegerLiteral<>("6", r), new IntegerLiteral<>("2", r), r),
             new ExpressionStatement<>(
-                new UnaryOperatorExpression<>(UnOp.NEGATE, new IntegerLiteralExpression<>("5"))));
+                new UnaryOperator<>(UnOp.NEGATE, new IntegerLiteral<>("5", r), r), r),
+            r);
 
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo(format("while (6 + 2)%n\t-5;"))));
@@ -337,7 +344,7 @@ public class PrettyPrinterTest {
 
   @Test
   public void visitWhile_null() throws Exception {
-    While<Object> node = new While<>(new VariableExpression<>("null"), new EmptyStatement<>());
+    While<Object> node = new While<>(new Variable<>("null", r), new Empty<>(r), r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo(format("while (null)%n\t;"))));
   }
@@ -346,13 +353,10 @@ public class PrettyPrinterTest {
   public void visitWhile_EmptyBlock() throws Exception {
     While<Object> node =
         new While<>(
-            new BinaryOperatorExpression<>(
-                BinOp.PLUS,
-                new IntegerLiteralExpression<>("6"),
-                new IntegerLiteralExpression<>("2")),
-            new Block<>(
-                ImmutableList.of(
-                    new Statement.EmptyStatement<>(), new Statement.EmptyStatement<>())));
+            new BinaryOperator<>(
+                BinOp.PLUS, new IntegerLiteral<>("6", r), new IntegerLiteral<>("2", r), r),
+            new Block<>(ImmutableList.of(new Empty<>(r), new Empty<>(r)), r),
+            r);
 
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo("while (6 + 2) { }")));
@@ -366,121 +370,156 @@ public class PrettyPrinterTest {
                 new Class<>(
                     "HelloWorld",
                     ImmutableList.of(
-                        new Field<>(new Type<>("int", 0), "c"),
-                        new Field<>(new Type<>("boolean", 1), "array")),
+                        new Field<>(new Type<>("int", 0, r), "c", r),
+                        new Field<>(new Type<>("boolean", 1, r), "array", r)),
                     ImmutableList.of(
                         new Method<>(
                             true,
-                            new Type<>("void", 0),
+                            new Type<>("void", 0, r),
                             "main",
-                            ImmutableList.of(new Parameter<>(new Type<>("String", 1), "args")),
+                            ImmutableList.of(
+                                new Parameter<>(new Type<>("String", 1, r), "args", r)),
                             new Block<>(
                                 ImmutableList.of(
                                     new ExpressionStatement<>(
-                                        new MethodCallExpression<>(
-                                            new FieldAccessExpression<>(
-                                                new VariableExpression<>("System"), "out"),
+                                        new MethodCall<>(
+                                            new FieldAccess<>(
+                                                new Variable<>("System", r), "out", r),
                                             "println",
                                             ImmutableList.of(
-                                                new BinaryOperatorExpression<>(
+                                                new BinaryOperator<>(
                                                     BinOp.PLUS,
-                                                    new IntegerLiteralExpression("43110"),
-                                                    new IntegerLiteralExpression<>("0"))))),
+                                                    new IntegerLiteral("43110", r),
+                                                    new IntegerLiteral<>("0", r),
+                                                    r)),
+                                            r),
+                                        r),
                                     new BlockStatement.Variable(
-                                        new Type<>("boolean", 0),
+                                        new Type<>("boolean", 0, r),
                                         "b",
-                                        new BinaryOperatorExpression(
+                                        new BinaryOperator(
                                             BinOp.AND,
-                                            new Expression.BooleanLiteralExpression(true),
-                                            new Expression.UnaryOperatorExpression(
+                                            new BooleanLiteral(true, r),
+                                            new UnaryOperator(
                                                 Expression.UnOp.NOT,
-                                                new Expression.BooleanLiteralExpression(false)))),
+                                                new BooleanLiteral(false, r),
+                                                r),
+                                            r),
+                                        r),
                                     new If<>(
-                                        new BinaryOperatorExpression(
+                                        new BinaryOperator(
                                             BinOp.EQ,
-                                            new BinaryOperatorExpression(
+                                            new BinaryOperator(
                                                 BinOp.PLUS,
-                                                new IntegerLiteralExpression("23"),
-                                                new IntegerLiteralExpression("19")),
-                                            new BinaryOperatorExpression(
+                                                new IntegerLiteral("23", r),
+                                                new IntegerLiteral("19", r),
+                                                r),
+                                            new BinaryOperator(
                                                 BinOp.MULTIPLY,
-                                                new BinaryOperatorExpression(
+                                                new BinaryOperator(
                                                     BinOp.PLUS,
-                                                    new IntegerLiteralExpression("42"),
-                                                    new IntegerLiteralExpression("0")),
-                                                new IntegerLiteralExpression("1"))),
+                                                    new IntegerLiteral("42", r),
+                                                    new IntegerLiteral("0", r),
+                                                    r),
+                                                new IntegerLiteral("1", r),
+                                                r),
+                                            r),
                                         new Statement.ExpressionStatement<>(
-                                            new BinaryOperatorExpression(
+                                            new BinaryOperator(
                                                 BinOp.ASSIGN,
-                                                new VariableExpression<>("b"),
-                                                new BinaryOperatorExpression(
+                                                new Variable<>("b", r),
+                                                new BinaryOperator(
                                                     BinOp.LT,
-                                                    new IntegerLiteralExpression("0"),
-                                                    new IntegerLiteralExpression("1")))),
+                                                    new IntegerLiteral("0", r),
+                                                    new IntegerLiteral("1", r),
+                                                    r),
+                                                r),
+                                            r),
                                         // else part of first if
                                         new If(
-                                            new Expression.UnaryOperatorExpression(
+                                            new UnaryOperator(
                                                 Expression.UnOp.NOT,
-                                                new Expression.ArrayAccessExpression(
-                                                    new VariableExpression("array"),
-                                                    new BinaryOperatorExpression(
+                                                new ArrayAccess(
+                                                    new Variable("array", r),
+                                                    new BinaryOperator(
                                                         BinOp.PLUS,
-                                                        new IntegerLiteralExpression("2"),
-                                                        new IntegerLiteralExpression("2")))),
+                                                        new IntegerLiteral("2", r),
+                                                        new IntegerLiteral("2", r),
+                                                        r),
+                                                    r),
+                                                r),
                                             new Block(
                                                 ImmutableList.of(
-                                                    new Variable<>(
-                                                        new Type<Object>("int", 0),
+                                                    new BlockStatement.Variable(
+                                                        new Type<Object>("int", 0, r),
                                                         "x",
-                                                        new IntegerLiteralExpression<>("0")),
+                                                        new IntegerLiteral<>("0", r),
+                                                        r),
                                                     new Statement.ExpressionStatement<>(
-                                                        new BinaryOperatorExpression<>(
+                                                        new BinaryOperator<>(
                                                             BinOp.ASSIGN,
-                                                            new VariableExpression<>("x"),
-                                                            new BinaryOperatorExpression<>(
+                                                            new Variable<>("x", r),
+                                                            new BinaryOperator<>(
                                                                 BinOp.PLUS,
-                                                                new VariableExpression<>("x"),
-                                                                new IntegerLiteralExpression<>(
-                                                                    "1")))))),
+                                                                new Variable<>("x", r),
+                                                                new IntegerLiteral<>("1", r),
+                                                                r),
+                                                            r),
+                                                        r)),
+                                                r),
                                             new Block(
                                                 ImmutableList.of(
                                                     new Statement.ExpressionStatement<>(
-                                                        new MethodCallExpression<>(
-                                                            new Expression.NewObjectExpression<>(
-                                                                "HelloWorld"),
+                                                        new MethodCall<>(
+                                                            new NewObject<>("HelloWorld", r),
                                                             "bar",
                                                             ImmutableList.of(
-                                                                new BinaryOperatorExpression<>(
+                                                                new BinaryOperator<>(
                                                                     BinOp.PLUS,
-                                                                    new IntegerLiteralExpression<>(
-                                                                        "42"),
-                                                                    new BinaryOperatorExpression<>(
+                                                                    new IntegerLiteral<>("42", r),
+                                                                    new BinaryOperator<>(
                                                                         BinOp.MULTIPLY,
-                                                                        new IntegerLiteralExpression<>(
-                                                                            "0"),
-                                                                        new IntegerLiteralExpression<>(
-                                                                            "1"))),
-                                                                new UnaryOperatorExpression<>(
+                                                                        new IntegerLiteral<>(
+                                                                            "0", r),
+                                                                        new IntegerLiteral<>(
+                                                                            "1", r),
+                                                                        r),
+                                                                    r),
+                                                                new UnaryOperator<>(
                                                                     UnOp.NEGATE,
-                                                                    new IntegerLiteralExpression<>(
-                                                                        "1")))))))))))),
+                                                                    new IntegerLiteral<>("1", r),
+                                                                    r)),
+                                                            r),
+                                                        r)),
+                                                r),
+                                            r),
+                                        r)),
+                                r),
+                            r),
                         new Method<>(
                             false,
-                            new Type<>("int", 0),
+                            new Type<>("int", 0, r),
                             "bar",
                             ImmutableList.of(
-                                new Parameter<>(new Type<>("int", 0), "a"),
-                                new Parameter<>(new Type<>("int", 0), "b")),
+                                new Parameter<>(new Type<>("int", 0, r), "a", r),
+                                new Parameter<>(new Type<>("int", 0, r), "b", r)),
                             new Block<>(
                                 ImmutableList.of(
                                     new Return<>(
-                                        new BinaryOperatorExpression<>(
+                                        new BinaryOperator<>(
                                             BinOp.ASSIGN,
-                                            new VariableExpression<>("c"),
-                                            new BinaryOperatorExpression<String>(
+                                            new Variable<>("c", r),
+                                            new BinaryOperator<>(
                                                 BinOp.PLUS,
-                                                new VariableExpression<>("a"),
-                                                new VariableExpression<>("b")))))))))));
+                                                new Variable<>("a", r),
+                                                new Variable<>("b", r),
+                                                r),
+                                            r),
+                                        r)),
+                                r),
+                            r)),
+                    r)),
+            r);
 
     CharSequence actual = program.acceptVisitor(prettyPrinter);
 

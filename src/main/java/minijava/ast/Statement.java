@@ -1,6 +1,7 @@
 package minijava.ast;
 
 import java.util.Optional;
+import minijava.util.SourceRange;
 
 public interface Statement<TRef> extends BlockStatement<TRef> {
 
@@ -10,19 +11,42 @@ public interface Statement<TRef> extends BlockStatement<TRef> {
     return acceptVisitor((Statement.Visitor<? super TRef, TRet>) visitor);
   }
 
-  class EmptyStatement<TRef> implements Statement<TRef> {
+  /** We can't reuse SyntaxElement.DefaultImpl, so this bull shit is necessary */
+  abstract class Base<TRef> implements Statement<TRef> {
+    public final SourceRange range;
+
+    Base(SourceRange range) {
+      this.range = range;
+    }
+
     @Override
-    public <TRet> TRet acceptVisitor(Statement.Visitor<? super TRef, TRet> visitor) {
-      return visitor.visitEmptyStatement(this);
+    public SourceRange getRange() {
+      return range;
     }
   }
 
-  class If<TRef> implements Statement<TRef> {
+  class Empty<TRef> extends Base<TRef> {
+    public Empty(SourceRange range) {
+      super(range);
+    }
+
+    @Override
+    public <TRet> TRet acceptVisitor(Statement.Visitor<? super TRef, TRet> visitor) {
+      return visitor.visitEmpty(this);
+    }
+  }
+
+  class If<TRef> extends Base<TRef> {
     public final Expression<TRef> condition;
     public final Statement<TRef> then;
     public final Optional<Statement<TRef>> else_;
 
-    public If(Expression<TRef> condition, Statement<TRef> then, Statement<TRef> else_) {
+    public If(
+        Expression<TRef> condition,
+        Statement<TRef> then,
+        Statement<TRef> else_,
+        SourceRange range) {
+      super(range);
       this.condition = condition;
       this.then = then;
       this.else_ = Optional.ofNullable(else_);
@@ -34,15 +58,12 @@ public interface Statement<TRef> extends BlockStatement<TRef> {
     }
   }
 
-  class Return<TRef> implements Statement<TRef> {
+  class Return<TRef> extends Base<TRef> {
     public final Optional<Expression<TRef>> expression;
 
-    public Return() {
-      this.expression = Optional.empty();
-    }
-
-    public Return(Expression<TRef> expression) {
-      this.expression = Optional.of(expression);
+    public Return(Expression<TRef> expression, SourceRange range) {
+      super(range);
+      this.expression = Optional.ofNullable(expression);
     }
 
     @Override
@@ -51,11 +72,12 @@ public interface Statement<TRef> extends BlockStatement<TRef> {
     }
   }
 
-  class While<TRef> implements Statement<TRef> {
+  class While<TRef> extends Base<TRef> {
     public final Expression<TRef> condition;
     public final Statement<TRef> body;
 
-    public While(Expression<TRef> condition, Statement<TRef> body) {
+    public While(Expression<TRef> condition, Statement<TRef> body, SourceRange range) {
+      super(range);
       this.condition = condition;
       this.body = body;
     }
@@ -66,11 +88,12 @@ public interface Statement<TRef> extends BlockStatement<TRef> {
     }
   }
 
-  class ExpressionStatement<TRef> implements Statement<TRef> {
+  class ExpressionStatement<TRef> extends Base<TRef> {
 
     public final Expression<TRef> expression;
 
-    public ExpressionStatement(Expression<TRef> expression) {
+    public ExpressionStatement(Expression<TRef> expression, SourceRange range) {
+      super(range);
       this.expression = expression;
     }
 
@@ -84,7 +107,7 @@ public interface Statement<TRef> extends BlockStatement<TRef> {
 
     TRet visitBlock(Block<? extends TRef> that);
 
-    TRet visitEmptyStatement(EmptyStatement<? extends TRef> that);
+    TRet visitEmpty(Empty<? extends TRef> that);
 
     TRet visitIf(If<? extends TRef> that);
 

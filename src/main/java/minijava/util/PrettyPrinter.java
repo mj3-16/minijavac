@@ -95,7 +95,7 @@ public class PrettyPrinter
     List<BlockStatement<? extends Object>> nonEmptyStatements =
         that.statements
             .stream()
-            .filter(s -> !(s instanceof Statement.EmptyStatement))
+            .filter(s -> !(s instanceof Statement.Empty))
             .collect(Collectors.toList());
     if (nonEmptyStatements.isEmpty()) {
       return sb.append(" }");
@@ -189,7 +189,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitEmptyStatement(Statement.EmptyStatement<? extends Object> that) {
+  public CharSequence visitEmpty(Statement.Empty<? extends Object> that) {
     return ";";
   }
 
@@ -217,8 +217,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitBinaryOperator(
-      Expression.BinaryOperatorExpression<? extends Object> that) {
+  public CharSequence visitBinaryOperator(Expression.BinaryOperator<? extends Object> that) {
     StringBuilder b = new StringBuilder("(");
     CharSequence left = that.left.acceptVisitor(this);
     b.append(left);
@@ -232,8 +231,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitUnaryOperator(
-      Expression.UnaryOperatorExpression<? extends Object> that) {
+  public CharSequence visitUnaryOperator(Expression.UnaryOperator<? extends Object> that) {
     StringBuilder b = new StringBuilder("(");
     b.append(that.op.string);
     b.append(that.expression.acceptVisitor(this));
@@ -242,7 +240,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitMethodCall(Expression.MethodCallExpression<? extends Object> that) {
+  public CharSequence visitMethodCall(Expression.MethodCall<? extends Object> that) {
     StringBuilder b = new StringBuilder();
     b.append("(");
     b.append(that.self.acceptVisitor(this));
@@ -265,7 +263,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitFieldAccess(Expression.FieldAccessExpression<? extends Object> that) {
+  public CharSequence visitFieldAccess(Expression.FieldAccess<? extends Object> that) {
     StringBuilder b = new StringBuilder("(");
     b.append(that.self.acceptVisitor(this));
     b.append(".");
@@ -275,7 +273,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitArrayAccess(Expression.ArrayAccessExpression<? extends Object> that) {
+  public CharSequence visitArrayAccess(Expression.ArrayAccess<? extends Object> that) {
     StringBuilder b = new StringBuilder("(").append(that.array.acceptVisitor(this)).append("[");
     CharSequence indexExpr = that.index.acceptVisitor(this);
     b.append(outerParanthesesRemoved(indexExpr));
@@ -284,7 +282,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitNewObjectExpr(Expression.NewObjectExpression<? extends Object> that) {
+  public CharSequence visitNewObject(Expression.NewObject<? extends Object> that) {
     StringBuilder b = new StringBuilder("(new ");
     b.append(that.type.toString());
     b.append("())");
@@ -292,7 +290,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitNewArrayExpr(Expression.NewArrayExpression<? extends Object> that) {
+  public CharSequence visitNewArray(Expression.NewArray<? extends Object> that) {
     StringBuilder b = new StringBuilder("(new ").append(that.type.typeRef.toString()).append("[");
     // bracketing exception for definition of array size applies here
     CharSequence sizeExpr = outerParanthesesRemoved(that.size.acceptVisitor(this));
@@ -303,19 +301,17 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitVariable(Expression.VariableExpression<? extends Object> that) {
+  public CharSequence visitVariable(Expression.Variable<? extends Object> that) {
     return that.var.toString();
   }
 
   @Override
-  public CharSequence visitBooleanLiteral(
-      Expression.BooleanLiteralExpression<? extends Object> that) {
+  public CharSequence visitBooleanLiteral(Expression.BooleanLiteral<? extends Object> that) {
     return Boolean.toString(that.literal);
   }
 
   @Override
-  public CharSequence visitIntegerLiteral(
-      Expression.IntegerLiteralExpression<? extends Object> that) {
+  public CharSequence visitIntegerLiteral(Expression.IntegerLiteral<? extends Object> that) {
     return that.literal;
   }
 }

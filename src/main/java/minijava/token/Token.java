@@ -4,18 +4,19 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static minijava.token.Terminal.*;
 
 import java.util.Arrays;
+import minijava.util.SourceRange;
+import minijava.util.SyntaxElement;
 import org.jetbrains.annotations.Nullable;
 
 /** Instances of this class are immutable. */
-public class Token {
+public class Token extends SyntaxElement.DefaultImpl {
 
   public final Terminal terminal;
-  public final Position position;
   @Nullable public final String lexval;
 
-  public Token(Terminal terminal, Position position, @Nullable String lexval) {
+  public Token(Terminal terminal, SourceRange range, @Nullable String lexval) {
+    super(range);
     this.terminal = checkNotNull(terminal);
-    this.position = checkNotNull(position);
     if (!isOneOf(IDENT, INTEGER_LITERAL, RESERVED) && lexval != null) {
       throw new IllegalArgumentException(
           "lexval may only be set for identifiers, integer literals or the reserved terminals");
