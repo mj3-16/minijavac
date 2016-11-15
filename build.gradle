@@ -27,6 +27,8 @@ dependencies {
     compile 'commons-io:commons-io:2.4'
     compile 'com.intellij:annotations:5.1'
     compile 'org.jooq:jool:0.9.9'
+    compile 'org.pcollections:pcollections:2.1.2'
+    testCompile 'com.github.npathai:hamcrest-optional:1.0'
     testCompile 'com.pholser:junit-quickcheck-core:0.6.1'
     testCompile 'com.pholser:junit-quickcheck-generators:0.6.1'
     testCompile 'junit:junit:4.12'

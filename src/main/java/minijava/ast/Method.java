@@ -4,10 +4,10 @@ import java.util.List;
 import minijava.util.SourceRange;
 import minijava.util.SyntaxElement;
 
-public class Method<TRef> extends SyntaxElement.DefaultImpl {
+public class Method<TRef> extends SyntaxElement.DefaultImpl implements Definition {
   public final boolean isStatic;
   public final Type<TRef> returnType;
-  public final String name;
+  private final String name;
   public final List<Parameter<TRef>> parameters;
   public final Block<TRef> body;
 
@@ -32,15 +32,30 @@ public class Method<TRef> extends SyntaxElement.DefaultImpl {
     this.body = body;
   }
 
+  @Override
+  public String name() {
+    return this.name;
+  }
+
   public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
     return visitor.visitMethod(this);
+  }
+
+  @Override
+  public Kind kind() {
+    return Kind.METHOD;
+  }
+
+  @Override
+  public SourceRange getRange() {
+    return super.range;
   }
 
   public interface Visitor<TRef, TRet> {
     TRet visitMethod(Method<? extends TRef> that);
   }
 
-  public static class Parameter<TRef> extends SyntaxElement.DefaultImpl {
+  public static class Parameter<TRef> extends SyntaxElement.DefaultImpl implements Definition {
     public final Type<TRef> type;
     public final String name;
 
@@ -48,6 +63,21 @@ public class Method<TRef> extends SyntaxElement.DefaultImpl {
       super(range);
       this.type = type;
       this.name = name;
+    }
+
+    @Override
+    public String name() {
+      return name;
+    }
+
+    @Override
+    public Kind kind() {
+      return Kind.PARAMETER;
+    }
+
+    @Override
+    public SourceRange getRange() {
+      return super.range;
     }
   }
 }

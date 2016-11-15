@@ -237,7 +237,7 @@ public interface Expression<TRef> extends SyntaxElement {
 
     TReturn visitNewObject(NewObject<? extends TRef> that);
 
-    TReturn visitNewArray(NewArray<? extends TRef> size);
+    TReturn visitNewArray(NewArray<? extends TRef> that);
 
     TReturn visitVariable(Variable<? extends TRef> that);
 

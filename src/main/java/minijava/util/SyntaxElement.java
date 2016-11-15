@@ -6,12 +6,17 @@ public interface SyntaxElement {
 
   SourceRange getRange();
 
-  class DefaultImpl {
+  class DefaultImpl implements SyntaxElement {
 
-    public final SourceRange range;
+    private final SourceRange range;
 
     public DefaultImpl(SourceRange range) {
       this.range = checkNotNull(range);
+    }
+
+    @Override
+    public SourceRange getRange() {
+      return range;
     }
   }
 }
