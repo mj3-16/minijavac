@@ -15,6 +15,7 @@ import java.io.PrintStream;
 import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.List;
+import minijava.ast.Nameable;
 import minijava.ast.Program;
 import minijava.lexer.Lexer;
 import minijava.parser.Parser;
@@ -103,7 +104,7 @@ class Cli {
   }
 
   private void printAst(InputStream in) {
-    Program<String> ast = new Parser(new Lexer(in)).parse();
+    Program<Nameable> ast = new Parser(new Lexer(in)).parse();
     out.print(ast.acceptVisitor(new PrettyPrinter()));
   }
 

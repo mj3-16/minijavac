@@ -1,11 +1,12 @@
 package minijava.util;
 
+import minijava.ast.Nameable;
 import minijava.ast.Program;
 
 class GeneratedProgram {
-  final Program<String> program;
+  final Program<Nameable> program;
 
-  GeneratedProgram(Program<String> program) {
+  GeneratedProgram(Program<Nameable> program) {
     this.program = program;
   }
 }
