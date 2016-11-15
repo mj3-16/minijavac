@@ -32,12 +32,12 @@ public class Method<TRef> extends SyntaxElement.DefaultImpl {
     this.body = body;
   }
 
-  public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
+  public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
     return visitor.visitMethod(this);
   }
 
   public interface Visitor<TRef, TRet> {
-    TRet visitMethod(Method<TRef> that);
+    TRet visitMethod(Method<? extends TRef> that);
   }
 
   public static class Parameter<TRef> extends SyntaxElement.DefaultImpl {

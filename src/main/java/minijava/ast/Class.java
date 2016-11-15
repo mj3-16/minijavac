@@ -25,11 +25,11 @@ public class Class<TRef> extends SyntaxElement.DefaultImpl {
     this.methods = Collections.unmodifiableList(methods);
   }
 
-  public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
+  public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
     return visitor.visitClassDeclaration(this);
   }
 
   public interface Visitor<TRef, TReturn> {
-    TReturn visitClassDeclaration(Class<TRef> that);
+    TReturn visitClassDeclaration(Class<? extends TRef> that);
   }
 }

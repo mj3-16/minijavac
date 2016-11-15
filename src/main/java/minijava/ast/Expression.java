@@ -5,7 +5,7 @@ import minijava.util.SourceRange;
 import minijava.util.SyntaxElement;
 
 public interface Expression<TRef> extends SyntaxElement {
-  <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor);
+  <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor);
 
   /** We can't reuse SyntaxElement.DefaultImpl, so this bull shit is necessary */
   abstract class Base<TRef> implements Expression<TRef> {
@@ -33,7 +33,7 @@ public interface Expression<TRef> extends SyntaxElement {
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
+    public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
       return visitor.visitArrayAccess(this);
     }
   }
@@ -52,7 +52,7 @@ public interface Expression<TRef> extends SyntaxElement {
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
+    public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
       return visitor.visitBinaryOperator(this);
     }
   }
@@ -67,7 +67,7 @@ public interface Expression<TRef> extends SyntaxElement {
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
+    public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
       return visitor.visitBooleanLiteral(this);
     }
   }
@@ -84,7 +84,7 @@ public interface Expression<TRef> extends SyntaxElement {
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
+    public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
       return visitor.visitFieldAccess(this);
     }
   }
@@ -99,7 +99,7 @@ public interface Expression<TRef> extends SyntaxElement {
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
+    public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
       return visitor.visitIntegerLiteral(this);
     }
   }
@@ -119,7 +119,7 @@ public interface Expression<TRef> extends SyntaxElement {
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
+    public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
       return visitor.visitMethodCall(this);
     }
   }
@@ -136,7 +136,7 @@ public interface Expression<TRef> extends SyntaxElement {
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
+    public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
       return visitor.visitNewArrayExpr(this);
     }
   }
@@ -151,7 +151,7 @@ public interface Expression<TRef> extends SyntaxElement {
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
+    public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
       return visitor.visitNewObjectExpr(this);
     }
   }
@@ -168,7 +168,7 @@ public interface Expression<TRef> extends SyntaxElement {
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
+    public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
       return visitor.visitUnaryOperator(this);
     }
   }
@@ -184,7 +184,7 @@ public interface Expression<TRef> extends SyntaxElement {
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
+    public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
       return visitor.visitVariable(this);
     }
   }
@@ -225,24 +225,24 @@ public interface Expression<TRef> extends SyntaxElement {
 
   interface Visitor<TRef, TReturn> {
 
-    TReturn visitBinaryOperator(BinaryOperator<TRef> that);
+    TReturn visitBinaryOperator(BinaryOperator<? extends TRef> that);
 
-    TReturn visitUnaryOperator(UnaryOperator<TRef> that);
+    TReturn visitUnaryOperator(UnaryOperator<? extends TRef> that);
 
-    TReturn visitMethodCall(MethodCall<TRef> that);
+    TReturn visitMethodCall(MethodCall<? extends TRef> that);
 
-    TReturn visitFieldAccess(FieldAccess<TRef> that);
+    TReturn visitFieldAccess(FieldAccess<? extends TRef> that);
 
-    TReturn visitArrayAccess(ArrayAccess<TRef> that);
+    TReturn visitArrayAccess(ArrayAccess<? extends TRef> that);
 
-    TReturn visitNewObjectExpr(NewObject<TRef> that);
+    TReturn visitNewObjectExpr(NewObject<? extends TRef> that);
 
-    TReturn visitNewArrayExpr(NewArray<TRef> size);
+    TReturn visitNewArrayExpr(NewArray<? extends TRef> size);
 
-    TReturn visitVariable(Variable<TRef> that);
+    TReturn visitVariable(Variable<? extends TRef> that);
 
-    TReturn visitBooleanLiteral(BooleanLiteral<TRef> that);
+    TReturn visitBooleanLiteral(BooleanLiteral<? extends TRef> that);
 
-    TReturn visitIntegerLiteral(IntegerLiteral<TRef> that);
+    TReturn visitIntegerLiteral(IntegerLiteral<? extends TRef> that);
   }
 }

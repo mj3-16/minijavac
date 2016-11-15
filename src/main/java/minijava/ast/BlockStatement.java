@@ -4,7 +4,7 @@ import minijava.util.SourceRange;
 import minijava.util.SyntaxElement;
 
 public interface BlockStatement<TRef> extends SyntaxElement {
-  <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor);
+  <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor);
 
   /** We can't reuse SyntaxElement.DefaultImpl, so this bull shit is necessary */
   abstract class Base<TRef> implements BlockStatement<TRef> {
@@ -33,13 +33,13 @@ public interface BlockStatement<TRef> extends SyntaxElement {
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
+    public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
       return visitor.visitVariable(this);
     }
   }
 
   interface Visitor<TRef, TRet> extends Statement.Visitor<TRef, TRet> {
 
-    TRet visitVariable(Variable<TRef> that);
+    TRet visitVariable(Variable<? extends TRef> that);
   }
 }

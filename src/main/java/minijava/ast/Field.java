@@ -13,11 +13,11 @@ public class Field<TRef> extends SyntaxElement.DefaultImpl {
     this.name = name;
   }
 
-  public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
+  public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
     return visitor.visitField(this);
   }
 
   public interface Visitor<TRef, TRet> {
-    TRet visitField(Field<TRef> that);
+    TRet visitField(Field<? extends TRef> that);
   }
 }

@@ -12,12 +12,12 @@ public class Program<TRef> extends SyntaxElement.DefaultImpl {
     this.declarations = declarations;
   }
 
-  public <TRet> TRet acceptVisitor(Visitor<TRef, TRet> visitor) {
+  public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
     return visitor.visitProgram(this);
   }
 
   public interface Visitor<TRef, TReturn> {
 
-    TReturn visitProgram(Program<TRef> that);
+    TReturn visitProgram(Program<? extends TRef> that);
   }
 }

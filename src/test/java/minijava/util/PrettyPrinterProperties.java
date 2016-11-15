@@ -16,7 +16,7 @@ import org.junit.runner.RunWith;
 @RunWith(JUnitQuickcheck.class)
 public class PrettyPrinterProperties {
 
-  private static final PrettyPrinter<String> PRETTY_PRINTER = new PrettyPrinter<>();
+  private static final PrettyPrinter PRETTY_PRINTER = new PrettyPrinter();
 
   @Property(trials = 800)
   public void shouldBeIdempotent(
