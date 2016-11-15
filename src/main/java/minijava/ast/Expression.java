@@ -137,7 +137,7 @@ public interface Expression<TRef> extends SyntaxElement {
 
     @Override
     public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
-      return visitor.visitNewArrayExpr(this);
+      return visitor.visitNewArray(this);
     }
   }
 
@@ -152,7 +152,7 @@ public interface Expression<TRef> extends SyntaxElement {
 
     @Override
     public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
-      return visitor.visitNewObjectExpr(this);
+      return visitor.visitNewObject(this);
     }
   }
 
@@ -235,9 +235,9 @@ public interface Expression<TRef> extends SyntaxElement {
 
     TReturn visitArrayAccess(ArrayAccess<? extends TRef> that);
 
-    TReturn visitNewObjectExpr(NewObject<? extends TRef> that);
+    TReturn visitNewObject(NewObject<? extends TRef> that);
 
-    TReturn visitNewArrayExpr(NewArray<? extends TRef> size);
+    TReturn visitNewArray(NewArray<? extends TRef> size);
 
     TReturn visitVariable(Variable<? extends TRef> that);
 

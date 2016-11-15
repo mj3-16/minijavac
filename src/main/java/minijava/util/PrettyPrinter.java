@@ -189,7 +189,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitEmptyStatement(Statement.Empty<? extends Object> that) {
+  public CharSequence visitEmpty(Statement.Empty<? extends Object> that) {
     return ";";
   }
 
@@ -282,7 +282,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitNewObjectExpr(Expression.NewObject<? extends Object> that) {
+  public CharSequence visitNewObject(Expression.NewObject<? extends Object> that) {
     StringBuilder b = new StringBuilder("(new ");
     b.append(that.type.toString());
     b.append("())");
@@ -290,7 +290,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitNewArrayExpr(Expression.NewArray<? extends Object> that) {
+  public CharSequence visitNewArray(Expression.NewArray<? extends Object> that) {
     StringBuilder b = new StringBuilder("(new ").append(that.type.typeRef.toString()).append("[");
     // bracketing exception for definition of array size applies here
     CharSequence sizeExpr = outerParanthesesRemoved(that.size.acceptVisitor(this));
