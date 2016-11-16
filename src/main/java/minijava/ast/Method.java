@@ -41,6 +41,16 @@ public class Method<TRef> extends SyntaxElement.DefaultImpl implements Definitio
     return visitor.visitMethod(this);
   }
 
+  @Override
+  public Kind kind() {
+    return Kind.METHOD;
+  }
+
+  @Override
+  public SourceRange getRange() {
+    return super.range;
+  }
+
   public interface Visitor<TRef, TRet> {
     TRet visitMethod(Method<? extends TRef> that);
   }
@@ -58,6 +68,16 @@ public class Method<TRef> extends SyntaxElement.DefaultImpl implements Definitio
     @Override
     public String name() {
       return name;
+    }
+
+    @Override
+    public Kind kind() {
+      return Kind.PARAMETER;
+    }
+
+    @Override
+    public SourceRange getRange() {
+      return super.range;
     }
   }
 }

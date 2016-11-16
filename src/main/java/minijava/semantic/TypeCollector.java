@@ -28,7 +28,7 @@ class TypeCollector implements Program.Visitor<Nameable, SymbolTable> {
                 + "(defined at "
                 + c.range()
                 + ") is already defined at "
-                + sameType.get().range());
+                + sameType.get().getRange());
       }
       symtab.insert(c.name(), c);
     }

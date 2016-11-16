@@ -25,7 +25,7 @@ public class BasicType implements Definition {
   }
 
   @Override
-  public SourceRange range() {
+  public SourceRange getRange() {
     throw new UnsupportedOperationException("Basic types are not defined in source code");
   }
 }

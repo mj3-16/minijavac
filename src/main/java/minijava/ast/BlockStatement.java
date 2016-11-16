@@ -43,8 +43,8 @@ public interface BlockStatement<TRef> extends SyntaxElement {
     }
 
     @Override
-    public SourceRange range() {
-      return getRange();
+    public Kind kind() {
+      return Kind.VARIABLE;
     }
   }
 

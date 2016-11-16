@@ -3,13 +3,16 @@ package minijava.ast;
 import minijava.util.SourceRange;
 
 public interface Definition extends Nameable {
-  //Kind kind();
+  Kind kind();
 
-  SourceRange range();
+  SourceRange getRange();
 
   enum Kind {
     CLASS,
+    FIELD,
+    METHOD,
+    PARAMETER,
     PRIMITIVE_TYPE,
-    FIELD
+    VARIABLE
   }
 }

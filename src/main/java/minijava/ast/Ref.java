@@ -2,7 +2,7 @@ package minijava.ast;
 
 public class Ref implements Nameable {
 
-  private final Definition def;
+  public Definition def;
 
   public Ref(Definition def) {
     this.def = def;
