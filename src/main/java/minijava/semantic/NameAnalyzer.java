@@ -20,7 +20,7 @@ class NameAnalyzer
         Field.Visitor<Nameable, Field<Ref>>,
         Type.Visitor<Nameable, Type<Ref>>,
         Method.Visitor<Nameable, Method<Ref>>,
-        BlockStatement.Visitor<Nameable, Statement<Ref>>,
+        BlockStatement.Visitor<Nameable, BlockStatement<Ref>>,
         Expression.Visitor<Nameable, Expression<Ref>> {
 
   // contains BasicType and Class<? extends Nameable> Definitions
@@ -135,13 +135,13 @@ class NameAnalyzer
 
     fieldsAndVariables.enterScope();
     // then might be a block and therefore enters and leaves another subscope, but that's ok
-    Statement<Ref> newThen = that.then.acceptVisitor(this);
+    Statement<Ref> newThen = (Statement<Ref>) that.then.acceptVisitor(this);
     fieldsAndVariables.leaveScope();
 
     Statement<Ref> newElse = null;
     if (that.else_.isPresent()) {
       fieldsAndVariables.enterScope();
-      newElse = that.else_.get().acceptVisitor(this);
+      newElse = (Statement<Ref>) that.else_.get().acceptVisitor(this);
       fieldsAndVariables.leaveScope();
     }
     return new Statement.If<>(newCondition, newThen, newElse, that.getRange());
@@ -158,7 +158,7 @@ class NameAnalyzer
     Expression<Ref> cond = that.condition.acceptVisitor(this);
     fieldsAndVariables.enterScope();
     // if body is a block it might enter another subscope (see visitBlock) but that doesn't really matter)
-    Statement<Ref> body = that.body.acceptVisitor(this);
+    Statement<Ref> body = (Statement<Ref>) that.body.acceptVisitor(this);
     fieldsAndVariables.leaveScope();
     return new Statement.While<>(cond, body, that.getRange());
   }
@@ -173,7 +173,6 @@ class NameAnalyzer
   }
 
   @Override
-  // TODO: Type problem with BlockStatement.Visitor (needs to return more specific Statement<Ref> because of visitReturn, visitWhile, ...)
   public BlockStatement<Ref> visitVariable(BlockStatement.Variable<? extends Nameable> that) {
     Type<Ref> variableType = that.type.acceptVisitor(this);
     if (fieldsAndVariables.inCurrentScope(that.name())) {
