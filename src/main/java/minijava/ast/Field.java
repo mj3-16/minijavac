@@ -22,6 +22,16 @@ public class Field<TRef> extends SyntaxElement.DefaultImpl implements Definition
     return visitor.visitField(this);
   }
 
+  @Override
+  public Kind kind() {
+    return Kind.FIELD;
+  }
+
+  @Override
+  public SourceRange range() {
+    return null;
+  }
+
   public interface Visitor<TRef, TRet> {
     TRet visitField(Field<? extends TRef> that);
   }

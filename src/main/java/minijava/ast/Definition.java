@@ -1,3 +1,15 @@
 package minijava.ast;
 
-public interface Definition extends Nameable {}
+import minijava.util.SourceRange;
+
+public interface Definition extends Nameable {
+  //Kind kind();
+
+  SourceRange range();
+
+  enum Kind {
+    CLASS,
+    PRIMITIVE_TYPE,
+    FIELD
+  }
+}

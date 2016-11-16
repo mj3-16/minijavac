@@ -41,6 +41,11 @@ public interface BlockStatement<TRef> extends SyntaxElement {
     public String name() {
       return this.name;
     }
+
+    @Override
+    public SourceRange range() {
+      return getRange();
+    }
   }
 
   interface Visitor<TRef, TRet> extends Statement.Visitor<TRef, TRet> {
