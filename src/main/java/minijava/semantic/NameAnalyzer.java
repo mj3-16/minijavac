@@ -13,7 +13,8 @@ class NameAnalyzer
         Field.Visitor<Nameable, Field<Ref>>,
         Type.Visitor<Nameable, Type<Ref>>,
         Method.Visitor<Nameable, Method<Ref>>,
-        Statement.Visitor<Nameable, Statement<Ref>> {
+        BlockStatement.Visitor<Nameable, Statement<Ref>>,
+        Expression.Visitor<Nameable, Expression<Ref>> {
 
   private SymbolTable types = new SymbolTable();
   private SymbolTable fieldsAndVariables = new SymbolTable();
@@ -97,7 +98,7 @@ class NameAnalyzer
       }
       fieldsAndVariables.insert(p.name(), p);
     }
-    Block<Ref> block = (Block) that.body.acceptVisitor(this);
+    Block<Ref> block = (Block<Ref>) that.body.acceptVisitor(this);
     // go back to field scope
     fieldsAndVariables.leaveScope();
     return new Method<>(that.isStatic, returnType, that.name(), newParams, block, that.range());
@@ -105,36 +106,147 @@ class NameAnalyzer
 
   @Override
   public Block<Ref> visitBlock(Block<? extends Nameable> that) {
-    return null;
-  }
-
-  private static void test(String s) {
-    int s = 5;
+    fieldsAndVariables.enterScope();
+    List<BlockStatement<Ref>> newStatements = new ArrayList<>(that.statements.size());
+    for (BlockStatement<? extends Nameable> s : that.statements) {
+      newStatements.add(s.acceptVisitor(this));
+    }
+    fieldsAndVariables.leaveScope();
+    return new Block<>(newStatements, that.range);
   }
 
   @Override
   public Statement<Ref> visitEmpty(Statement.Empty<? extends Nameable> that) {
-    return null;
+    return new Statement.Empty<>(that.range);
   }
 
   @Override
   public Statement<Ref> visitIf(Statement.If<? extends Nameable> that) {
-    return null;
+    Expression<Ref> newCondition = that.condition.acceptVisitor(this);
+
+    fieldsAndVariables.enterScope();
+    Statement<Ref> newThen = that.then.acceptVisitor(this);
+    fieldsAndVariables.leaveScope();
+
+    Statement<Ref> newElse = null;
+    if (that.else_.isPresent()) {
+      fieldsAndVariables.enterScope();
+      newElse = that.else_.get().acceptVisitor(this);
+      fieldsAndVariables.leaveScope();
+    }
+    return new Statement.If<>(newCondition, newThen, newElse, that.range);
   }
 
   @Override
   public Statement<Ref> visitExpressionStatement(
       Statement.ExpressionStatement<? extends Nameable> that) {
-    return null;
+    Expression<Ref> expr = that.expression.acceptVisitor(this);
+    return new Statement.ExpressionStatement<>(expr, that.range);
   }
 
   @Override
   public Statement<Ref> visitWhile(Statement.While<? extends Nameable> that) {
-    return null;
+    Expression<Ref> cond = that.condition.acceptVisitor(this);
+    fieldsAndVariables.enterScope();
+    Statement<Ref> body = that.body.acceptVisitor(this);
+    fieldsAndVariables.leaveScope();
+    return new Statement.While<>(cond, body, that.range);
   }
 
   @Override
   public Statement<Ref> visitReturn(Statement.Return<? extends Nameable> that) {
+    if (that.expression.isPresent()) {
+      Expression<Ref> expr = that.expression.get().acceptVisitor(this);
+      return new Statement.Return<>(expr, that.range);
+    }
+    return new Statement.Return<>(null, that.range);
+  }
+
+  @Override
+  public BlockStatement.Variable<Ref> visitVariable(
+      BlockStatement.Variable<? extends Nameable> that) {
+    fieldsAndVariables.insert(that.name(), that);
+    Type<Ref> variableType = that.type.acceptVisitor(this);
+    Expression<Ref> rhsExpression = that.rhs.acceptVisitor(this);
+    return new BlockStatement.Variable<>(variableType, that.name(), rhsExpression, that.range());
+  }
+
+  @Override
+  public Expression<Ref> visitBinaryOperator(Expression.BinaryOperator<? extends Nameable> that) {
+    Expression<Ref> left = that.left.acceptVisitor(this);
+    Expression<Ref> right = that.right.acceptVisitor(this);
+    return new Expression.BinaryOperator<>(that.op, left, right, that.range);
+  }
+
+  @Override
+  public Expression<Ref> visitUnaryOperator(Expression.UnaryOperator<? extends Nameable> that) {
+    Expression<Ref> expr = that.expression.acceptVisitor(this);
+    return new Expression.UnaryOperator<>(that.op, expr, that.range);
+  }
+
+  @Override
+  public Expression<Ref> visitMethodCall(Expression.MethodCall<? extends Nameable> that) {
+    Optional<Definition> method = methods.lookup(that.method.name());
+    if (method.isPresent()) {
+      Expression<Ref> self = that.self.acceptVisitor(this);
+      List<Expression<Ref>> newArgs = new ArrayList<>(that.arguments.size());
+      for (Expression<? extends Nameable> argument : that.arguments) {
+        newArgs.add(argument.acceptVisitor(this));
+      }
+      return new Expression.MethodCall<>(self, new Ref(method.get()), newArgs, that.range);
+    }
+    throw new SemanticError("method doesn't exist");
+  }
+
+  @Override
+  public Expression<Ref> visitFieldAccess(Expression.FieldAccess<? extends Nameable> that) {
+    Optional<Definition> field = fieldsAndVariables.lookup(that.field.name());
+    if (field.isPresent()) {
+      Expression<Ref> self = that.self.acceptVisitor(this);
+      return new Expression.FieldAccess<>(self, new Ref(field.get()), that.range);
+    }
+    throw new SemanticError("Field doesn't exist");
+  }
+
+  @Override
+  public Expression<Ref> visitArrayAccess(Expression.ArrayAccess<? extends Nameable> that) {
+    Expression<Ref> refExpression = that.array.acceptVisitor(this);
+    Expression<Ref> idx = that.index.acceptVisitor(this);
     return null;
+  }
+
+  @Override
+  public Expression<Ref> visitNewObject(Expression.NewObject<? extends Nameable> that) {
+    Optional<Definition> optDef = fieldsAndVariables.lookup(that.type.name());
+    if (optDef.isPresent()) {
+      return new Expression.NewObject<>(new Ref(optDef.get()), that.range);
+    }
+    throw new SemanticError();
+  }
+
+  @Override
+  public Expression<Ref> visitNewArray(Expression.NewArray<? extends Nameable> that) {
+    Type<Ref> type = that.type.acceptVisitor(this);
+    Expression<Ref> expr = that.size.acceptVisitor(this);
+    return new Expression.NewArray<>(type, expr, that.range);
+  }
+
+  @Override
+  public Expression<Ref> visitVariable(Expression.Variable<? extends Nameable> that) {
+    Optional<Definition> optDef = fieldsAndVariables.lookup(that.var.name());
+    if (optDef.isPresent()) {
+      return new Expression.Variable<>(new Ref(optDef.get()), that.range);
+    }
+    throw new SemanticError();
+  }
+
+  @Override
+  public Expression<Ref> visitBooleanLiteral(Expression.BooleanLiteral<? extends Nameable> that) {
+    return (Expression<Ref>) that;
+  }
+
+  @Override
+  public Expression<Ref> visitIntegerLiteral(Expression.IntegerLiteral<? extends Nameable> that) {
+    return (Expression<Ref>) that;
   }
 }
