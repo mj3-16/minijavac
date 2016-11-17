@@ -16,7 +16,7 @@ public interface Expression<TRef> extends SyntaxElement {
     }
 
     @Override
-    public SourceRange getRange() {
+    public SourceRange range() {
       return range;
     }
   }

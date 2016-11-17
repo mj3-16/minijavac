@@ -15,7 +15,7 @@ public interface BlockStatement<TRef> extends SyntaxElement {
     }
 
     @Override
-    public SourceRange getRange() {
+    public SourceRange range() {
       return range;
     }
   }

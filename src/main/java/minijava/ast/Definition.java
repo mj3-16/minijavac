@@ -1,11 +1,9 @@
 package minijava.ast;
 
-import minijava.util.SourceRange;
+import minijava.util.SyntaxElement;
 
-public interface Definition extends Nameable {
+public interface Definition extends Nameable, SyntaxElement {
   Kind kind();
-
-  SourceRange getRange();
 
   enum Kind {
     CLASS,
