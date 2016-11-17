@@ -234,6 +234,19 @@ class NameAnalyzer
     return var;
   }
 
+  private boolean expectType(Type<Ref> type, Type<Ref> expected) {
+    if(type.equals(expected)) {
+      return true;
+    }
+    return false;
+  }
+
+  private void expectBasicType(BasicType basicType, Type<Ref> type) {
+    if(type.dimension != 0 && !(type.typeRef.def == basicType)) {
+      throw new SemanticError("Expected type " + type + " but was " + basicType);
+    }
+  }
+
   @Override
   public Tuple2<Expression<Ref>, Type<Ref>> visitBinaryOperator(
       Expression.BinaryOperator<? extends Nameable> that) {
@@ -246,6 +259,10 @@ class NameAnalyzer
     //
     // Here is probably the right place to switch over that.op and handle all
     // cases... Let me pregenerate something
+
+    if(left.v2.equals(right.v2)) {
+      throw new SemanticError("Incompatible types: left: " +left.v2+ " right: " +right.v2);
+    }
 
     Type<Ref> resultType = null; // The result of that switch statement
     switch (that.op) {
@@ -266,12 +283,16 @@ class NameAnalyzer
         // so, check that left.v1 and left.v2 is int
 
         // Then we can just reuse left's type
+        expectBasicType(BasicType.INT, left.v2);
+        expectBasicType(BasicType.INT, right.v2);
         resultType = left.v2;
         break;
       case OR:
       case AND:
         // bool -> bool -> bool
         // dito
+        expectBasicType(BasicType.BOOLEAN, left.v2);
+        expectBasicType(BasicType.BOOLEAN, right.v2);
         resultType = left.v2;
         break;
       case EQ:
@@ -279,6 +300,7 @@ class NameAnalyzer
         // T -> T -> bool
         // For reference types, it doesn't matter what actual type they are,
         // as long as they're both references (e.g. Foo foo; Bar bar; foo == bar is OK)
+        
         resultType = new Type<>(new Ref(BasicType.BOOLEAN), 0, SourceRange.FIRST_CHAR);
         break;
       case LT:
@@ -286,6 +308,8 @@ class NameAnalyzer
       case GT:
       case GEQ:
         // int -> int -> bool
+        expectBasicType(BasicType.INT, left.v2);
+        expectBasicType(BasicType.INT, right.v2);
         resultType = new Type<>(new Ref(BasicType.BOOLEAN), 0, SourceRange.FIRST_CHAR);
         break;
     }
