@@ -6,14 +6,14 @@ import java.util.Set;
 import minijava.ast.*;
 import minijava.ast.Class;
 
-class TypeCollector implements Program.Visitor<Nameable, SymbolTable> {
+class TypeCollector implements Program.Visitor<Nameable, SymbolTable<Definition>> {
 
   private static final Set<BasicType> BASIC_TYPES =
       ImmutableSet.of(BasicType.INT, BasicType.BOOLEAN, BasicType.VOID);
 
   @Override
-  public SymbolTable visitProgram(Program<? extends Nameable> that) {
-    SymbolTable symtab = new SymbolTable();
+  public SymbolTable<Definition> visitProgram(Program<? extends Nameable> that) {
+    SymbolTable<Definition> symtab = new SymbolTable<>();
     symtab.enterScope();
     // basic types are just there
     for (BasicType b : BASIC_TYPES) {
@@ -28,7 +28,7 @@ class TypeCollector implements Program.Visitor<Nameable, SymbolTable> {
                 + "(defined at "
                 + c.range()
                 + ") is already defined at "
-                + sameType.get().getRange());
+                + sameType.get().range());
       }
       symtab.insert(c.name(), c);
     }

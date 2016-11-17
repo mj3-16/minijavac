@@ -4,7 +4,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 public interface SyntaxElement {
 
-  SourceRange getRange();
+  SourceRange range();
 
   class DefaultImpl implements SyntaxElement {
 
@@ -15,7 +15,7 @@ public interface SyntaxElement {
     }
 
     @Override
-    public SourceRange getRange() {
+    public SourceRange range() {
       return range;
     }
   }

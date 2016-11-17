@@ -25,7 +25,11 @@ public class BasicType implements Definition {
   }
 
   @Override
-  public SourceRange getRange() {
-    throw new UnsupportedOperationException("Basic types are not defined in source code");
+  public SourceRange range() {
+    // TODO: Hmm, we regularly use range(), this is no option.
+    //throw new UnsupportedOperationException("Basic types are not defined in source code");
+
+    // Let's return a bull shit range instead
+    return SourceRange.FIRST_CHAR;
   }
 }

@@ -14,14 +14,14 @@ import org.junit.Test;
 
 public class SymbolTableTest {
 
-  SymbolTable symtab;
+  SymbolTable<Definition> symtab;
 
   private static final Definition SOME_DEFINITION =
       new Field<>(new Type<>("int", 0, SOME_RANGE), "myName", SOME_RANGE);
 
   @Before
   public void setUp() {
-    symtab = new SymbolTable();
+    symtab = new SymbolTable<>();
   }
 
   @Test(expected = IllegalStateException.class)

@@ -10,6 +10,9 @@ public class Type<TRef> extends SyntaxElement.DefaultImpl {
 
   public Type(TRef typeRef, int dimension, SourceRange range) {
     super(range);
+    if (dimension < 0) {
+      throw new IndexOutOfBoundsException("dimension was negative");
+    }
     this.typeRef = typeRef;
     this.dimension = dimension;
   }
