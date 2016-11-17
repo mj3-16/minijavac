@@ -20,9 +20,9 @@ public interface BlockStatement<TRef> extends SyntaxElement {
     }
   }
 
-  class Variable<TRef> extends Base<TRef> {
+  class Variable<TRef> extends Base<TRef> implements Definition {
     public final Type<TRef> type;
-    public final String name;
+    private final String name;
     public final Expression<TRef> rhs;
 
     public Variable(Type<TRef> type, String name, Expression<TRef> rhs, SourceRange range) {
@@ -35,6 +35,11 @@ public interface BlockStatement<TRef> extends SyntaxElement {
     @Override
     public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
       return visitor.visitVariable(this);
+    }
+
+    @Override
+    public String name() {
+      return this.name;
     }
   }
 

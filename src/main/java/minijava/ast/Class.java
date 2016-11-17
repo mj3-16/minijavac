@@ -5,8 +5,8 @@ import java.util.List;
 import minijava.util.SourceRange;
 import minijava.util.SyntaxElement;
 
-public class Class<TRef> extends SyntaxElement.DefaultImpl {
-  public final String name;
+public class Class<TRef> extends SyntaxElement.DefaultImpl implements Definition {
+  private final String name;
   public final List<Field<TRef>> fields;
   public final List<Method<TRef>> methods;
 
@@ -27,6 +27,11 @@ public class Class<TRef> extends SyntaxElement.DefaultImpl {
 
   public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
     return visitor.visitClassDeclaration(this);
+  }
+
+  @Override
+  public String name() {
+    return this.name;
   }
 
   public interface Visitor<TRef, TReturn> {
