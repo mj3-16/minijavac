@@ -41,11 +41,6 @@ public interface BlockStatement<TRef> extends SyntaxElement {
     public String name() {
       return this.name;
     }
-
-    @Override
-    public Kind kind() {
-      return Kind.VARIABLE;
-    }
   }
 
   interface Visitor<TRef, TRet> extends Statement.Visitor<TRef, TRet> {

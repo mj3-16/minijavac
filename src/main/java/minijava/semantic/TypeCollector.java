@@ -8,15 +8,15 @@ import minijava.ast.Class;
 
 class TypeCollector implements Program.Visitor<Nameable, SymbolTable<Definition>> {
 
-  private static final Set<BasicType> BASIC_TYPES =
-      ImmutableSet.of(BasicType.INT, BasicType.BOOLEAN, BasicType.VOID);
+  private static final Set<BuiltinType> BASIC_TYPES =
+      ImmutableSet.of(BuiltinType.INT, BuiltinType.BOOLEAN, BuiltinType.VOID);
 
   @Override
   public SymbolTable<Definition> visitProgram(Program<? extends Nameable> that) {
     SymbolTable<Definition> symtab = new SymbolTable<>();
     symtab.enterScope();
     // basic types are just there
-    for (BasicType b : BASIC_TYPES) {
+    for (BuiltinType b : BASIC_TYPES) {
       symtab.insert(b.name(), b);
     }
     for (Class<? extends Nameable> c : that.declarations) {
