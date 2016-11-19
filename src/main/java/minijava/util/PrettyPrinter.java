@@ -314,4 +314,10 @@ public class PrettyPrinter
   public CharSequence visitIntegerLiteral(Expression.IntegerLiteral<? extends Nameable> that) {
     return that.literal;
   }
+
+  @Override
+  public CharSequence visitReferenceTypeLiteral(
+      Expression.ReferenceTypeLiteral<? extends Nameable> that) {
+    return that.name();
+  }
 }

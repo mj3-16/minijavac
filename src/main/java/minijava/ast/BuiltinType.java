@@ -11,6 +11,7 @@ public class BuiltinType implements Definition {
   public static final BuiltinType INT = new BuiltinType("int");
   public static final BuiltinType BOOLEAN = new BuiltinType("boolean");
   public static final BuiltinType VOID = new BuiltinType("void");
+  public static final BuiltinType ANY = new BuiltinType("any");
 
   private final String name;
 
