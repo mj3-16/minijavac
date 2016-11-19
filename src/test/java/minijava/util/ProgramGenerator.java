@@ -224,8 +224,8 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
             random,
             tuple(
                 0.8, r -> new Expression.Variable<>(new Name(genIdent(r)), SourceRange.FIRST_CHAR)),
-            tuple(0.1, r -> new Expression.Variable<>(new Name("null"), SourceRange.FIRST_CHAR)),
-            tuple(0.1, r -> new Expression.Variable<>(new Name("this"), SourceRange.FIRST_CHAR)),
+            tuple(0.1, r -> Expression.ReferenceTypeLiteral.this_(SourceRange.FIRST_CHAR)),
+            tuple(0.1, r -> Expression.ReferenceTypeLiteral.null_(SourceRange.FIRST_CHAR)),
             tuple(
                 1.0, r -> new Expression.BooleanLiteral<>(r.nextBoolean(), SourceRange.FIRST_CHAR)),
             tuple(1.0, r -> new Expression.IntegerLiteral<>(genInt(r), SourceRange.FIRST_CHAR)),
