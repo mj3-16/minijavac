@@ -260,7 +260,6 @@ public class NameAnalyzer
     if (locals.lookup(that.name()).isPresent()) {
       throw new SemanticError("Cannot redefine " + that.name() + " at " + that.range());
     }
-    System.out.println(that.name());
 
     Expression<Ref> rhs = null;
 
@@ -571,7 +570,7 @@ public class NameAnalyzer
     assert that.name().equals("this");
 
     if (currentMethod.isStatic) {
-      throw new SemanticError("Can't access 'this' in a static method");
+      throw new SemanticError("Can't access 'this' in a static method at " + that.range());
     }
 
     return tuple((Expression.ReferenceTypeLiteral<Ref>) that, currentClass);

@@ -202,7 +202,7 @@ public interface Expression<TRef> extends SyntaxElement {
     }
 
     public static <T> ReferenceTypeLiteral<T> null_(SourceRange range) {
-      return new ReferenceTypeLiteral<T>("this", range);
+      return new ReferenceTypeLiteral<T>("null", range);
     }
 
     @Override
