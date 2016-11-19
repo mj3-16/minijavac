@@ -51,6 +51,9 @@ public class NameAnalyzer
       Class<Ref> refClass = c.acceptVisitor(this);
       refClasses.add(refClass);
     }
+    if (mainMethod == null) {
+      throw new SemanticError("No main method defined");
+    }
     return new Program<>(refClasses, that.range());
   }
 
@@ -247,7 +250,18 @@ public class NameAnalyzer
    */
   private void checkType(Type<Ref> expected, Type<Ref> actual) {
 
-    SemanticError e = new SemanticError("Expected type " + expected + ", but got " + actual);
+    SemanticError e =
+        new SemanticError(
+            "Expected type "
+                + expected
+                + "("
+                + expected.range()
+                + ")"
+                + ", but got "
+                + actual
+                + "("
+                + actual.range()
+                + ")");
 
     if (expected.dimension == actual.dimension
         && expected.typeRef.name().equals(actual.typeRef.name())) {
@@ -394,7 +408,7 @@ public class NameAnalyzer
           // Otherwise just return what we know
           return tuple(new Expression.UnaryOperator<>(that.op, lit, that.range()), Type.INT);
         }
-        expected = Type.BOOLEAN;
+        expected = Type.INT;
         break;
     }
 
@@ -474,7 +488,8 @@ public class NameAnalyzer
     Expression.Variable<Nameable> system = (Expression.Variable) fieldAccess.self;
     if (!system.var.name().equals("System")
         || locals.lookup("System").isPresent()
-        || fields.lookup("System").isPresent()) {
+        || fields.lookup("System").isPresent()
+        || types.lookup("System").isPresent()) {
       return null;
     }
     // "System" is not defined in the current scope somewhere
