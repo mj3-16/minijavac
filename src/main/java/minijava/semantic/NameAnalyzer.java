@@ -105,7 +105,6 @@ public class NameAnalyzer
     if (!optDef.isPresent()) {
       throw new SemanticError("Type " + typeName + " is not defined");
     }
-    System.out.println(optDef.get().name());
     return new Type<>(new Ref(optDef.get()), that.dimension, that.range());
   }
 

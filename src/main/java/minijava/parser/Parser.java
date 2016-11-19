@@ -616,7 +616,7 @@ public class Parser {
     expectAndConsume(LBRACK);
     Expression<Nameable> size = parseExpression();
     SourcePosition end = expectAndConsume(RBRACK).range().end;
-    int dim = 1;
+    int dim = 0;
     while (matchCurrentAndLookAhead(LBRACK, RBRACK)) {
       expectAndConsume(LBRACK);
       end = expectAndConsume(RBRACK).range().end;

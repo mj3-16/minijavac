@@ -1,5 +1,6 @@
 package minijava.ast;
 
+import minijava.util.PrettyPrinter;
 import minijava.util.SourceRange;
 import minijava.util.SyntaxElement;
 
@@ -24,6 +25,15 @@ public class Type<TRef> extends SyntaxElement.DefaultImpl {
     }
     this.typeRef = typeRef;
     this.dimension = dimension;
+  }
+
+  @Override
+  public String toString() {
+    try {
+      return ((Type<Nameable>) this).acceptVisitor(new PrettyPrinter()).toString();
+    } catch (ClassCastException e) {
+      return super.toString();
+    }
   }
 
   public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
