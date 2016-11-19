@@ -14,6 +14,7 @@ import minijava.ast.Expression.NewArray;
 import minijava.ast.Expression.NewObject;
 import minijava.ast.Method.Parameter;
 import minijava.ast.Statement.ExpressionStatement;
+import minijava.util.SourcePosition;
 import minijava.util.SourceRange;
 import org.jetbrains.annotations.NotNull;
 import org.jooq.lambda.tuple.Tuple2;
@@ -40,6 +41,7 @@ public class NameAnalyzer
   private Type<Ref> currentClass;
   private Method<? extends Nameable> currentMethod;
   private Method<? extends Nameable> mainMethod;
+  private boolean hasReturned;
 
   @Override
   public Program<Ref> visitProgram(Program<? extends Nameable> that) {
@@ -164,13 +166,15 @@ public class NameAnalyzer
       locals.insert(p.name(), p);
     }
 
+    hasReturned = false;
     Block<Ref> block = (Block<Ref>) that.body.acceptVisitor(this);
     locals.leaveScope();
+    // Check if we returned on each possible path and if not, that the return type was void.
+    if (!hasReturned) {
+      // Check if we implicitly returned
+      checkType(Type.VOID, returnType);
+    }
     return new Method<>(that.isStatic, returnType, that.name(), newParams, block, that.range());
-  }
-
-  private static Type<Ref> arrayOf(Type<Ref> type) {
-    return new Type<>(type.typeRef, type.dimension + 1, type.range());
   }
 
   @Override
@@ -196,17 +200,30 @@ public class NameAnalyzer
     Expression<Ref> newCondition = cond.v1;
     checkType(Type.BOOLEAN, cond.v2);
 
+    // Save the old returned flag. If this was true, hasReturned will be true afterwards,
+    // no matter what the results of the two branches are.
+    boolean oldHasReturned = hasReturned;
+    hasReturned = false; // This is actually not necessary, but let's be explicit
+
     locals.enterScope();
     // then might be a block and therefore enters and leaves another subscope, but that's ok
     Statement<Ref> newThen = (Statement<Ref>) that.then.acceptVisitor(this);
     locals.leaveScope();
+
+    boolean thenHasReturned = hasReturned;
+    hasReturned = false;
 
     Statement<Ref> newElse = null;
     if (that.else_.isPresent()) {
       locals.enterScope();
       newElse = (Statement<Ref>) that.else_.get().acceptVisitor(this);
       locals.leaveScope();
-    }
+    } // else hasReturned would also be false (we could always fall through the if statement)
+
+    boolean elseHasReturned = hasReturned;
+
+    // Either we returned before this is even executed or we returned in both branches. Otherwise we didn't return.
+    hasReturned = oldHasReturned || thenHasReturned && elseHasReturned;
     return new Statement.If<>(newCondition, newThen, newElse, that.range());
   }
 
@@ -223,10 +240,23 @@ public class NameAnalyzer
     Tuple2<Expression<Ref>, Type<Ref>> cond = that.condition.acceptVisitor(this);
     checkType(Type.BOOLEAN, cond.v2);
 
+    // In contrast to if, where we actually have two branches of control flow, there's no elaborate
+    // hasReturned handling necessary here.
+    // Suppose hasReturned was true, then it will stay true throughout the rest of the method.
+    // Suppose hasReturned was false, then we won't set it to true, even if the body says so.
+    // We can't always predict the value of the condition after all.
+    //
+    // So: just save the flag before the body and restore it after analyzing the body.
+
+    boolean oldHasReturned = hasReturned;
+
     locals.enterScope();
     // if body is a block it might enter another subscope (see visitBlock) but that doesn't really matter)
     Statement<Ref> body = (Statement<Ref>) that.body.acceptVisitor(this);
     locals.leaveScope();
+
+    hasReturned = oldHasReturned;
+
     return new Statement.While<>(cond.v1, body, that.range());
   }
 
@@ -237,9 +267,11 @@ public class NameAnalyzer
       checkElementTypeIsNotVoid(returnType);
       Tuple2<Expression<Ref>, Type<Ref>> expr = that.expression.get().acceptVisitor(this);
       checkType(returnType, expr.v2);
+      hasReturned = true;
       return new Statement.Return<>(expr.v1, that.range());
     } else {
       checkType(returnType, Type.VOID);
+      hasReturned = true;
       return new Statement.Return<>(null, that.range());
     }
   }
@@ -393,20 +425,9 @@ public class NameAnalyzer
       case NEGATE:
         // int -> int
         if (that.expression instanceof IntegerLiteral) {
-          // handle the case of negative literals
-          // This is non-compositional, because 0x80000000 is a negative number,
-          // but its absolute value cannot be represented in 32 bits, thus is
-          // not a valid integer literal.
           IntegerLiteral<Ref> lit =
               (IntegerLiteral<Ref>) that.expression; // that cast is safe, see visitIntegerLiteral
-          if (Ints.tryParse("-" + lit.literal) == null) {
-            // insert range
-            throw new SemanticError(
-                "The literal '-" + lit.literal + "' is not a valid 32-bit number");
-          }
-
-          // Otherwise just return what we know
-          return tuple(new Expression.UnaryOperator<>(that.op, lit, that.range()), Type.INT);
+          return handleNegativeIntegerLiterals(that, lit);
         }
         expected = Type.INT;
         break;
@@ -416,6 +437,43 @@ public class NameAnalyzer
     checkType(expected, expr.v2);
 
     return tuple(new Expression.UnaryOperator<>(that.op, expr.v1, that.range()), expr.v2);
+  }
+
+  @NotNull
+  private Tuple2<Expression<Ref>, Type<Ref>> handleNegativeIntegerLiterals(
+      Expression.UnaryOperator<? extends Nameable> that, IntegerLiteral<Ref> lit) {
+    // handle the case of negative literals
+    // This is non-compositional, because 0x80000000 is a negative number,
+    // but its absolute value cannot be represented in 32 bits, thus is
+    // not a valid integer literal.
+    if (Ints.tryParse("-" + lit.literal) == null) {
+      // insert range
+      throw new SemanticError("The literal '-" + lit.literal + "' is not a valid 32-bit number");
+    }
+
+    // Also, for the case that we got -(2147483648), which will be parsed
+    // as the exact same AST, we have to reject, because this is checked
+    // differently by Java.
+    // Since we don't save parentheses in the AST (rightly so), we differentiate
+    // by SourceRange :ugly_face:
+    SourcePosition endOfMinus = that.range().begin.moveHorizontal(1);
+    if (endOfMinus.compareTo(lit.range().begin) < 0 && Ints.tryParse(lit.literal) == null) {
+      // -2147483648
+      //  ^ endOfMinus
+      //  ^ lit.range().begin
+      //
+      // vs.
+      //
+      // -(2147483648)
+      //  ^ endOfMinus
+      //   ^ lit.range().begin
+
+      // insert range
+      throw new SemanticError("The literal '" + lit.literal + "' is not a valid 32-bit number");
+    }
+
+    // Otherwise just return what we know
+    return tuple(new Expression.UnaryOperator<>(that.op, lit, that.range()), Type.INT);
   }
 
   @Override
@@ -596,6 +654,9 @@ public class NameAnalyzer
         return tuple(new Expression.Variable<>(new Ref(decl), that.range), decl.type);
       } else if (varOpt.get() instanceof Parameter) {
         Parameter<Ref> p = (Parameter<Ref>) varOpt.get();
+        // Because of a hack where we represent main's parameter with type void, we have to check
+        // if the expression is a variable of type void.
+        checkElementTypeIsNotVoid(p.type);
         return tuple(new Expression.Variable<>(new Ref(p), that.range), p.type);
       } else {
         // We must have put something else into locals, this mustn't happen.
