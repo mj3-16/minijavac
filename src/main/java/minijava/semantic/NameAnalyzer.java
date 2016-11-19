@@ -95,6 +95,7 @@ public class NameAnalyzer
   @Override
   public Field<Ref> visitField(Field<? extends Nameable> that) {
     Type<Ref> type = that.type.acceptVisitor(this);
+    checkElementTypeIsNotVoid(type);
     return new Field<>(type, that.name(), that.range());
   }
 
@@ -124,7 +125,8 @@ public class NameAnalyzer
         throw new SemanticError(
             "The main method must have exactly one parameter. This should have been caught by the parser");
       }
-      Type<? extends Nameable> type = that.parameters.get(0).type;
+      Parameter<? extends Nameable> p = that.parameters.get(0);
+      Type<? extends Nameable> type = p.type;
       if (!type.typeRef.name().equals("String") || type.dimension != 1) {
         throw new SemanticError(
             "The main method's parameter must have type String[]. This should have been caught by the parser");
@@ -136,6 +138,9 @@ public class NameAnalyzer
         throw new SemanticError("There is already a main method defined at " + mainMethod.range());
       }
       mainMethod = that;
+      newParams.add(
+          new Parameter<>(
+              Type.VOID, p.name, p.range())); // A hack to disallow redefinition and usage
     } else {
       for (Parameter<? extends Nameable> p : that.parameters) {
         Type<Ref> type = p.type.acceptVisitor(this);
@@ -155,6 +160,7 @@ public class NameAnalyzer
       }
       locals.insert(p.name(), p);
     }
+
     Block<Ref> block = (Block<Ref>) that.body.acceptVisitor(this);
     locals.leaveScope();
     return new Method<>(that.isStatic, returnType, that.name(), newParams, block, that.range());
@@ -234,16 +240,31 @@ public class NameAnalyzer
     }
   }
 
+  /**
+   * This is reflexive in both arguments, so swapping them should not change the outcome of this
+   * function
+   */
   private void checkType(Type<Ref> expected, Type<Ref> actual) {
-    if (expected == Type.ANY || actual == Type.ANY) {
-      // Any is compatible with all other types
+
+    SemanticError e = new SemanticError("Expected type " + expected + ", but got " + actual);
+
+    if (expected.dimension == actual.dimension
+        && expected.typeRef.name().equals(actual.typeRef.name())) {
       return;
     }
 
-    if (expected.dimension != actual.dimension
-        || !expected.typeRef.name().equals(actual.typeRef.name())) {
-      throw new SemanticError("Expected type " + expected + ", but got " + actual);
-    }
+    // If any of the element types is now void, we should throw.
+    if (expected.typeRef.name().equals("void") || actual.typeRef.name().equals("void")) throw e;
+
+    // The only way this could ever work out is that either actual or expected is of type Any (type of null)
+    // and the other is a reference type (every remaining type except non-array builtins).
+    // Remember that actual != expected and that either dimensions or the typeRef mismatch
+    if (expected == Type.ANY && (actual.dimension > 0 || actual.typeRef.def instanceof Class))
+      return;
+    if (actual == Type.ANY && (expected.dimension > 0 || expected.typeRef.def instanceof Class))
+      return;
+
+    throw e;
   }
 
   private void checkElementTypeIsNotVoid(Type<Ref> actual) {
@@ -298,7 +319,8 @@ public class NameAnalyzer
           throw new SemanticError("Cannot assign to the expression at " + left.v1.range());
         }
         // Also left.v2 must match right.v2
-        checkType(left.v2, right.v2);
+        checkType(
+            left.v2, right.v2); // This would be broken for type Any, but null can't be assigned to
         // The result type of the assignment expression is just left.v2
         resultType = left.v2;
         break;
