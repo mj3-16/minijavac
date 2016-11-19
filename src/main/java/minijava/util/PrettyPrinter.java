@@ -296,7 +296,7 @@ public class PrettyPrinter
     CharSequence sizeExpr = outerParanthesesRemoved(that.size.acceptVisitor(this));
     return b.append(sizeExpr)
         .append("]")
-        .append(Strings.repeat("[]", that.type.dimension - 1))
+        .append(Strings.repeat("[]", that.type.dimension))
         .append(")");
   }
 

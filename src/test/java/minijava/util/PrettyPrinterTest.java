@@ -312,7 +312,7 @@ public class PrettyPrinterTest {
   @Test
   public void visitNewArrayExpression() throws Exception {
     NewArray<Nameable> node =
-        new NewArray<>(new Type<>(new Name("boolean"), 4, r), new IntegerLiteral<>("25", r), r);
+        new NewArray<>(new Type<>(new Name("boolean"), 3, r), new IntegerLiteral<>("25", r), r);
 
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo("(new boolean[25][][][])")));
@@ -322,7 +322,7 @@ public class PrettyPrinterTest {
   public void visitNewArrayExpression_SizeExpressionIsACompositeExpression() throws Exception {
     NewArray<Nameable> node =
         new NewArray<>(
-            new Type<>(new Name("boolean"), 4, r),
+            new Type<>(new Name("boolean"), 3, r),
             new BinaryOperator<>(
                 BinOp.PLUS,
                 new BinaryOperator<>(
