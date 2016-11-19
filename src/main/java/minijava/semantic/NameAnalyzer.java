@@ -231,6 +231,7 @@ public class NameAnalyzer
   public Statement<Ref> visitReturn(Statement.Return<? extends Nameable> that) {
     Type<Ref> returnType = currentMethod.returnType.acceptVisitor(this);
     if (that.expression.isPresent()) {
+      checkElementTypeIsNotVoid(returnType);
       Tuple2<Expression<Ref>, Type<Ref>> expr = that.expression.get().acceptVisitor(this);
       checkType(returnType, expr.v2);
       return new Statement.Return<>(expr.v1, that.range());
