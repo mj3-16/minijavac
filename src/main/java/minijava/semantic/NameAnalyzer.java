@@ -101,7 +101,7 @@ public class NameAnalyzer
   public Field<Ref> visitField(Field<? extends Nameable> that) {
     Type<Ref> type = that.type.acceptVisitor(this);
     checkElementTypeIsNotVoid(type);
-    return new Field<>(type, that.name(), that.range());
+    return new Field<>(type, that.name(), that.range(), currentClass);
   }
 
   @Override
@@ -174,7 +174,8 @@ public class NameAnalyzer
       // Check if we implicitly returned
       checkType(Type.VOID, returnType);
     }
-    return new Method<>(that.isStatic, returnType, that.name(), newParams, block, that.range());
+    return new Method<>(
+        that.isStatic, returnType, that.name(), newParams, block, that.range(), currentClass);
   }
 
   @Override
@@ -507,6 +508,7 @@ public class NameAnalyzer
     }
 
     Method<Nameable> m = methodOpt.get();
+    m.definingClass = self.v2;
 
     if (m.isStatic) {
       throw new SemanticError("Static methods cannot be called.");
@@ -594,6 +596,7 @@ public class NameAnalyzer
     }
 
     Field<Nameable> field = fieldOpt.get();
+    field.definingClass = self.v2;
     Type<Ref> returnType = field.type.acceptVisitor(this);
     return tuple(new Expression.FieldAccess<>(self.v1, new Ref(field), that.range), returnType);
   }

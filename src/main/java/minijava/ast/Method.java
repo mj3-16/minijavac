@@ -10,6 +10,7 @@ public class Method<TRef> extends SyntaxElement.DefaultImpl implements Definitio
   private final String name;
   public final List<Parameter<TRef>> parameters;
   public final Block<TRef> body;
+  public Type<Ref> definingClass;
 
   /**
    * Constructs a new method node.
@@ -30,6 +31,18 @@ public class Method<TRef> extends SyntaxElement.DefaultImpl implements Definitio
     this.name = name;
     this.parameters = parameters;
     this.body = body;
+  }
+
+  public Method(
+      boolean isStatic,
+      Type<TRef> returnType,
+      String name,
+      List<Parameter<TRef>> parameters,
+      Block<TRef> body,
+      SourceRange range,
+      Type<Ref> definingClass) {
+    this(isStatic, returnType, name, parameters, body, range);
+    this.definingClass = definingClass;
   }
 
   @Override

@@ -20,6 +20,7 @@ import minijava.ast.Program;
 import minijava.ast.Ref;
 import minijava.lexer.Lexer;
 import minijava.parser.Parser;
+import minijava.semantic.AnalyzedTypesReplacer;
 import minijava.semantic.NameAnalyzer;
 import minijava.token.Token;
 import minijava.util.PrettyPrinter;
@@ -117,6 +118,7 @@ class Cli {
   private void check(InputStream in) {
     Program<Nameable> ast = new Parser(new Lexer(in)).parse();
     Program<Ref> renamed = ast.acceptVisitor(new NameAnalyzer());
+    renamed.acceptVisitor(new AnalyzedTypesReplacer());
     out.print(renamed.acceptVisitor(new PrettyPrinter()));
   }
 
