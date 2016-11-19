@@ -260,12 +260,18 @@ public class NameAnalyzer
     if (locals.lookup(that.name()).isPresent()) {
       throw new SemanticError("Cannot redefine " + that.name() + " at " + that.range());
     }
-    Tuple2<Expression<Ref>, Type<Ref>> rhs = that.rhs.acceptVisitor(this);
+    System.out.println(that.name());
 
-    checkType(variableType, rhs.v2);
+    Expression<Ref> rhs = null;
+
+    if (that.rhs.isPresent()) {
+      Tuple2<Expression<Ref>, Type<Ref>> ret = that.rhs.get().acceptVisitor(this);
+      checkType(variableType, ret.v2);
+      rhs = ret.v1;
+    }
 
     BlockStatement.Variable<Ref> var =
-        new BlockStatement.Variable<>(variableType, that.name(), rhs.v1, that.range());
+        new BlockStatement.Variable<>(variableType, that.name(), rhs, that.range());
     locals.insert(that.name(), var);
     return var;
   }
