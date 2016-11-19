@@ -198,11 +198,15 @@ public interface Expression<TRef> extends SyntaxElement {
     }
 
     public static <T> ReferenceTypeLiteral<T> this_(SourceRange range) {
-      return new ReferenceTypeLiteral<T>("this", range);
+      return new ReferenceTypeLiteral<>("this", range);
     }
 
     public static <T> ReferenceTypeLiteral<T> null_(SourceRange range) {
-      return new ReferenceTypeLiteral<T>("null", range);
+      return new ReferenceTypeLiteral<>("null", range);
+    }
+
+    public static <T> ReferenceTypeLiteral<T> systemOut(SourceRange range) {
+      return new ReferenceTypeLiteral<>("System.out", range);
     }
 
     @Override
