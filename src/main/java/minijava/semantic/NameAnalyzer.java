@@ -292,7 +292,9 @@ public class NameAnalyzer
         // make sure that we can actually assign something to left.v1, e.g.
         // it should be a fieldaccess or variableexpression.
         if (!(left.v1 instanceof Expression.FieldAccess)
-            && !(left.v1 instanceof Expression.Variable)) {
+            && !(left.v1 instanceof Expression.Variable)
+            && !(left.v1 instanceof Expression.ArrayAccess)
+            && !(left.v1 instanceof Expression.NewObject)) {
           throw new SemanticError("Cannot assign to the expression at " + left.v1.range());
         }
         // Also left.v2 must match right.v2
