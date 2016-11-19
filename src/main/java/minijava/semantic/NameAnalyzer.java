@@ -406,7 +406,12 @@ public class NameAnalyzer
   @Override
   public Tuple2<Expression<Ref>, Type<Ref>> visitMethodCall(
       Expression.MethodCall<? extends Nameable> that) {
-    Tuple2<Expression<Ref>, Type<Ref>> self = that.self.acceptVisitor(this);
+
+    Tuple2<Expression<Ref>, Type<Ref>> self = systemOutPrintlnHackForSelf(that);
+    if (self == null) {
+      // That was not a call matching System.out.println(). So we procede regularly
+      self = that.self.acceptVisitor(this);
+    }
 
     Optional<Class<Nameable>> definingClass = isTypeWithMembers(self.v2);
 
@@ -454,6 +459,30 @@ public class NameAnalyzer
     return tuple(
         new Expression.MethodCall<>(self.v1, new Ref(m), resolvedArguments, that.range),
         returnType);
+  }
+
+  private Tuple2<Expression<Ref>, Type<Ref>> systemOutPrintlnHackForSelf(
+      Expression.MethodCall<? extends Nameable> that) {
+    if (!(that.self instanceof Expression.FieldAccess)) {
+      return null;
+    }
+    Expression.FieldAccess<Nameable> fieldAccess = (Expression.FieldAccess<Nameable>) that.self;
+    if (!(fieldAccess.self instanceof Expression.Variable)) {
+      return null;
+    }
+    Expression.Variable<Nameable> system = (Expression.Variable) fieldAccess.self;
+    if (!system.var.name().equals("System")
+        || locals.lookup("System").isPresent()
+        || fields.lookup("System").isPresent()) {
+      return null;
+    }
+    // "System" is not defined in the current scope somewhere
+    // We know that the expression looks like this now: System.<foo>.<methodname>()
+    if (!fieldAccess.field.name().equals("out") || !that.method.name().equals("println")) {
+      return null;
+    }
+
+    return tuple(Expression.ReferenceTypeLiteral.systemOut(fieldAccess.range()), Type.SYSTEM_OUT);
   }
 
   @NotNull
