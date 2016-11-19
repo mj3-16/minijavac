@@ -23,11 +23,6 @@ public class Field<TRef> extends SyntaxElement.DefaultImpl implements Definition
   }
 
   @Override
-  public Kind kind() {
-    return Kind.FIELD;
-  }
-
-  @Override
   public SourceRange range() {
     return null;
   }

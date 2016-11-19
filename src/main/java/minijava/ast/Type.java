@@ -5,6 +5,12 @@ import minijava.util.SyntaxElement;
 
 public class Type<TRef> extends SyntaxElement.DefaultImpl {
 
+  public static final Type<Ref> INT =
+      new Type<>(new Ref(BuiltinType.INT), 0, SourceRange.FIRST_CHAR);
+  public static final Type<Ref> BOOLEAN =
+      new Type<>(new Ref(BuiltinType.BOOLEAN), 0, SourceRange.FIRST_CHAR);
+  public static final Type<Ref> VOID =
+      new Type<>(new Ref(BuiltinType.VOID), 0, SourceRange.FIRST_CHAR);
   public final TRef typeRef;
   public final int dimension;
 

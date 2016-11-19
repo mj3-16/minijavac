@@ -37,11 +37,6 @@ public class Class<TRef> extends SyntaxElement.DefaultImpl implements Definition
   }
 
   @Override
-  public Kind kind() {
-    return Kind.CLASS;
-  }
-
-  @Override
   public SourceRange range() {
     return range;
   }
