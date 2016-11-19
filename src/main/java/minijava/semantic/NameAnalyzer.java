@@ -235,6 +235,11 @@ public class NameAnalyzer
   }
 
   private void checkType(Type<Ref> expected, Type<Ref> actual) {
+    if (expected == Type.ANY || actual == Type.ANY) {
+      // Any is compatible with all other types
+      return;
+    }
+
     if (expected.dimension != actual.dimension
         || !expected.typeRef.name().equals(actual.typeRef.name())) {
       throw new SemanticError("Expected type " + expected + ", but got " + actual);
