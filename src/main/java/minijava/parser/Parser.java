@@ -17,9 +17,8 @@ import minijava.util.SourceRange;
 
 public class Parser {
   private static final Token EOF_TOKEN = new Token(EOF, SourceRange.FIRST_CHAR, null);
-  // TODO: Maybe move this elsewhere? The Renamer uses this too
-  public static final Expression<Nameable> THIS_EXPR =
-      new Expression.Variable<>(new Name("this"), SourceRange.FIRST_CHAR);
+  private static final Expression<Nameable> THIS_EXPR =
+      Expression.ReferenceTypeLiteral.this_(SourceRange.FIRST_CHAR);
   private final LookAheadIterator<Token> tokens;
   private Token currentToken;
 
@@ -526,11 +525,11 @@ public class Parser {
    */
   private Expression<Nameable> parsePrimaryExpression() {
     Expression<Nameable> primaryExpression = null;
-    SourceRange range = null;
+    SourceRange range;
     switch (currentToken.terminal) {
       case NULL:
         range = expectAndConsume(NULL).range();
-        primaryExpression = new Expression.Variable<>(new Name("null"), range);
+        primaryExpression = Expression.ReferenceTypeLiteral.null_(range);
         break;
       case FALSE:
         range = expectAndConsume(FALSE).range();
@@ -560,7 +559,7 @@ public class Parser {
         break;
       case THIS:
         range = expectAndConsume(THIS).range();
-        primaryExpression = new Expression.Variable<>(new Name("this"), range);
+        primaryExpression = Expression.ReferenceTypeLiteral.this_(range);
         break;
       case LPAREN:
         expectAndConsume(LPAREN);

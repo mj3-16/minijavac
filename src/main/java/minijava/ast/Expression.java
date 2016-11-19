@@ -189,6 +189,33 @@ public interface Expression<TRef> extends SyntaxElement {
     }
   }
 
+  class ReferenceTypeLiteral<TRef> extends Base<TRef> implements Definition {
+    private final String name;
+
+    private ReferenceTypeLiteral(String name, SourceRange range) {
+      super(range);
+      this.name = name;
+    }
+
+    public static <T> ReferenceTypeLiteral<T> this_(SourceRange range) {
+      return new ReferenceTypeLiteral<T>("this", range);
+    }
+
+    public static <T> ReferenceTypeLiteral<T> null_(SourceRange range) {
+      return new ReferenceTypeLiteral<T>("this", range);
+    }
+
+    @Override
+    public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
+      return visitor.visitReferenceTypeLiteral(this);
+    }
+
+    @Override
+    public String name() {
+      return name;
+    }
+  }
+
   enum UnOp {
     NOT("!"),
     NEGATE("-");
@@ -244,5 +271,7 @@ public interface Expression<TRef> extends SyntaxElement {
     TReturn visitBooleanLiteral(BooleanLiteral<? extends TRef> that);
 
     TReturn visitIntegerLiteral(IntegerLiteral<? extends TRef> that);
+
+    TReturn visitReferenceTypeLiteral(ReferenceTypeLiteral<? extends TRef> that);
   }
 }

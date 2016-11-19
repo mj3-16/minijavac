@@ -11,6 +11,9 @@ public class Type<TRef> extends SyntaxElement.DefaultImpl {
       new Type<>(new Ref(BuiltinType.BOOLEAN), 0, SourceRange.FIRST_CHAR);
   public static final Type<Ref> VOID =
       new Type<>(new Ref(BuiltinType.VOID), 0, SourceRange.FIRST_CHAR);
+  public static final Type<Ref> ANY =
+      new Type<>(new Ref(BuiltinType.ANY), 0, SourceRange.FIRST_CHAR);
+
   public final TRef typeRef;
   public final int dimension;
 

@@ -14,11 +14,11 @@ import minijava.ast.Expression.NewArray;
 import minijava.ast.Expression.NewObject;
 import minijava.ast.Method.Parameter;
 import minijava.ast.Statement.ExpressionStatement;
-import minijava.parser.Parser;
+import minijava.util.SourceRange;
 import org.jetbrains.annotations.NotNull;
 import org.jooq.lambda.tuple.Tuple2;
 
-class NameAnalyzer
+public class NameAnalyzer
     implements Program.Visitor<Nameable, Program<Ref>>,
         Class.Visitor<Nameable, Class<Ref>>,
         Field.Visitor<Nameable, Field<Ref>>,
@@ -27,6 +27,8 @@ class NameAnalyzer
         BlockStatement.Visitor<Nameable, BlockStatement<Ref>>,
         Expression.Visitor<Nameable, Tuple2<Expression<Ref>, Type<Ref>>> {
 
+  private static final Expression<Nameable> THIS_EXPR =
+      Expression.ReferenceTypeLiteral.this_(SourceRange.FIRST_CHAR);
   // contains BasicType and Class<? extends Nameable> Definitions
   // TODO: make them both derive from a common interface type
   private SymbolTable<Definition> types = new SymbolTable<>();
@@ -35,10 +37,13 @@ class NameAnalyzer
   private SymbolTable<Definition> locals = new SymbolTable<>();
   private SymbolTable<Field<? extends Nameable>> fields = new SymbolTable<>();
   private SymbolTable<Method<? extends Nameable>> methods = new SymbolTable<>();
+  private Type<Ref> currentClass;
   private Method<? extends Nameable> currentMethod;
+  private Method<? extends Nameable> mainMethod;
 
   @Override
   public Program<Ref> visitProgram(Program<? extends Nameable> that) {
+    mainMethod = null;
     // collect all types first (throws if duplicates exist)
     this.types = that.acceptVisitor(new TypeCollector());
     List<Class<Ref>> refClasses = new ArrayList<>(that.declarations.size());
@@ -51,6 +56,7 @@ class NameAnalyzer
 
   @Override
   public Class<Ref> visitClassDeclaration(Class<? extends Nameable> that) {
+    currentClass = new Type<>(new Ref(that), 0, that.range());
     // fields in current class
     fields = new SymbolTable<>();
     fields.enterScope();
@@ -99,6 +105,7 @@ class NameAnalyzer
     if (!optDef.isPresent()) {
       throw new SemanticError("Type " + typeName + " is not defined");
     }
+    System.out.println(optDef.get().name());
     return new Type<>(new Ref(optDef.get()), that.dimension, that.range());
   }
 
@@ -107,14 +114,41 @@ class NameAnalyzer
     Type<Ref> returnType = that.returnType.acceptVisitor(this);
     // check types and transform parameters
     List<Parameter<Ref>> newParams = new ArrayList<>(that.parameters.size());
-    for (Parameter<? extends Nameable> p : that.parameters) {
-      Type<Ref> type = p.type.acceptVisitor(this);
-      checkElementTypeIsNotVoid(type);
-      newParams.add(new Parameter<>(type, p.name(), p.range()));
+    // main gets special treatment. we ignore its parameter completely.
+    if (that.isStatic) {
+      // handle this quite specially
+      if (!that.name().equals("main")) {
+        throw new SemanticError(
+            "Static methods must be named main. This should have been caught by the parser");
+      }
+      if (that.parameters.size() != 1) {
+        throw new SemanticError(
+            "The main method must have exactly one parameter. This should have been caught by the parser");
+      }
+      Type<? extends Nameable> type = that.parameters.get(0).type;
+      if (!type.typeRef.name().equals("String") || type.dimension != 1) {
+        throw new SemanticError(
+            "The main method's parameter must have type String[]. This should have been caught by the parser");
+      }
+      // This should also have been caught by the parser
+      checkType(Type.VOID, returnType);
+
+      if (mainMethod != null) {
+        throw new SemanticError("There is already a main method defined at " + mainMethod.range());
+      }
+      mainMethod = that;
+    } else {
+      for (Parameter<? extends Nameable> p : that.parameters) {
+        Type<Ref> type = p.type.acceptVisitor(this);
+        checkElementTypeIsNotVoid(type);
+        newParams.add(new Parameter<>(type, p.name(), p.range()));
+      }
     }
 
     // We collect local variables into a fresh symboltable
     locals = new SymbolTable<>();
+    locals.enterScope();
+
     // check for parameters with same name
     for (Parameter<Ref> p : newParams) {
       if (locals.lookup(p.name()).isPresent()) {
@@ -123,7 +157,12 @@ class NameAnalyzer
       locals.insert(p.name(), p);
     }
     Block<Ref> block = (Block<Ref>) that.body.acceptVisitor(this);
+    locals.leaveScope();
     return new Method<>(that.isStatic, returnType, that.name(), newParams, block, that.range());
+  }
+
+  private static Type<Ref> arrayOf(Type<Ref> type) {
+    return new Type<>(type.typeRef, type.dimension + 1, type.range());
   }
 
   @Override
@@ -204,7 +243,7 @@ class NameAnalyzer
   }
 
   private void checkElementTypeIsNotVoid(Type<Ref> actual) {
-    if (!actual.typeRef.name().equals("void")) {
+    if (actual.typeRef.name().equals("void")) {
       throw new SemanticError(
           "Cannot use something of (element) type void here: " + actual.range());
     }
@@ -219,8 +258,8 @@ class NameAnalyzer
   public BlockStatement<Ref> visitVariable(BlockStatement.Variable<? extends Nameable> that) {
     Type<Ref> variableType = that.type.acceptVisitor(this);
     checkElementTypeIsNotVoid(variableType);
-    if (locals.lookup(that.name()) != null) {
-      throw new SemanticError();
+    if (locals.lookup(that.name()).isPresent()) {
+      throw new SemanticError("Cannot redefine " + that.name() + " at " + that.range());
     }
     Tuple2<Expression<Ref>, Type<Ref>> rhs = that.rhs.acceptVisitor(this);
 
@@ -358,6 +397,10 @@ class NameAnalyzer
 
     Method<Nameable> m = methodOpt.get();
 
+    if (m.isStatic) {
+      throw new SemanticError("Static methods cannot be called.");
+    }
+
     // Now that we have the method, we have access to its type.
     // Check that argument types match declared parameter types!
     if (m.parameters.size() != that.arguments.size()) {
@@ -488,12 +531,11 @@ class NameAnalyzer
     if (fieldOpt.isPresent()) {
       // Analyze as if there was a preceding 'this.' in front of the variable
       // The field is there, so we can let errors pass through without causing confusion
-      return new Expression.FieldAccess<>(Parser.THIS_EXPR, that.var, that.range)
-          .acceptVisitor(this);
+      return new Expression.FieldAccess<>(THIS_EXPR, that.var, that.range).acceptVisitor(this);
     }
 
-    // TODO - Names
-    throw new SemanticError("No such variable in scope");
+    throw new SemanticError(
+        "Variable '" + that.var.name() + "' used at " + that.range() + " was not in scope.");
   }
 
   @Override
@@ -513,5 +555,20 @@ class NameAnalyzer
     }
     // type parameter is not used by IntegerLiteral, cast is safe
     return tuple((IntegerLiteral<Ref>) that, Type.INT);
+  }
+
+  @Override
+  public Tuple2<Expression<Ref>, Type<Ref>> visitReferenceTypeLiteral(
+      Expression.ReferenceTypeLiteral<? extends Nameable> that) {
+    if (that.name().equals("null")) {
+      return tuple((Expression.ReferenceTypeLiteral<Ref>) that, Type.ANY);
+    }
+    assert that.name().equals("this");
+
+    if (currentMethod.isStatic) {
+      throw new SemanticError("Can't access 'this' in a static method");
+    }
+
+    return tuple((Expression.ReferenceTypeLiteral<Ref>) that, currentClass);
   }
 }
