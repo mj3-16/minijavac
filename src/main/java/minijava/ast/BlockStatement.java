@@ -1,5 +1,6 @@
 package minijava.ast;
 
+import java.util.Optional;
 import minijava.util.SourceRange;
 import minijava.util.SyntaxElement;
 
@@ -23,13 +24,13 @@ public interface BlockStatement<TRef> extends SyntaxElement {
   class Variable<TRef> extends Base<TRef> implements Definition {
     public final Type<TRef> type;
     private final String name;
-    public final Expression<TRef> rhs;
+    public final Optional<Expression<TRef>> rhs;
 
     public Variable(Type<TRef> type, String name, Expression<TRef> rhs, SourceRange range) {
       super(range);
       this.type = type;
       this.name = name;
-      this.rhs = rhs;
+      this.rhs = Optional.ofNullable(rhs);
     }
 
     @Override

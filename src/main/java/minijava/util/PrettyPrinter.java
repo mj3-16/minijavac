@@ -209,9 +209,9 @@ public class PrettyPrinter
     StringBuilder b = new StringBuilder(that.type.acceptVisitor(this));
     b.append(" ");
     b.append(that.name());
-    if (that.rhs != null) {
+    if (that.rhs.isPresent()) {
       b.append(" = ");
-      b.append(outerParanthesesRemoved(that.rhs.acceptVisitor(this)));
+      b.append(outerParanthesesRemoved(that.rhs.get().acceptVisitor(this)));
     }
     return b.append(";");
   }
