@@ -20,28 +20,28 @@ class ParserError extends MJError {
     super(
         String.format(
             "Parser error at %s parsed via %s: expected %s but got %s",
-            actualToken.range, rule, expectedTerminal, actualToken));
-    this.range = actualToken.range;
+            actualToken.range(), rule, expectedTerminal, actualToken));
+    this.range = actualToken.range();
   }
 
   ParserError(String rule, Terminal expectedTerminal, String expectedValue, Token actualToken) {
     super(
         String.format(
             "Parser error at %s parsed via %s: expected %s with value '%s' but got %s",
-            actualToken.range, rule, expectedTerminal, expectedValue, actualToken));
-    this.range = actualToken.range;
+            actualToken.range(), rule, expectedTerminal, expectedValue, actualToken));
+    this.range = actualToken.range();
   }
 
   ParserError(String rule, Token unexpectedToken, Terminal[] expectedTerminals) {
     super(
         String.format(
             "Parser error at %s parsed via %s: unexpected %s with value '%s' expected one of %s",
-            unexpectedToken.range,
+            unexpectedToken.range(),
             rule,
             unexpectedToken.terminal,
             unexpectedToken.lexval,
             Arrays.toString(expectedTerminals)));
-    this.range = unexpectedToken.range;
+    this.range = unexpectedToken.range();
   }
 
   @Override

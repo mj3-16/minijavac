@@ -73,6 +73,7 @@ public class Lexer implements Iterator<Token> {
   private int column = -1; // after calling nextChar the first time, this will be 0
   private Token eof;
   private SourcePosition tokenBegin;
+  private boolean inlineNUL = false;
 
   public Lexer(InputStream input) {
     this.input = new BufferedInputStream(input);
@@ -106,6 +107,7 @@ public class Lexer implements Iterator<Token> {
       } else {
         column++;
       }
+      inlineNUL = ch == 0 && input.available() > 0;
     } catch (IOException e) {
       throw new MJError(e);
     }
@@ -124,8 +126,10 @@ public class Lexer implements Iterator<Token> {
       switch (ch) {
         case -1:
         case 0:
-          eof = createToken(EOF);
-          return eof;
+          if (inlineNUL) {
+            throw new LexerError(new SourcePosition(line, column), "Invalid NUL byte");
+          }
+          return (eof = createToken(EOF));
         case '+':
           nextChar();
           return scanPlus();

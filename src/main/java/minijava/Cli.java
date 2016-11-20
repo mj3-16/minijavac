@@ -15,9 +15,13 @@ import java.io.PrintStream;
 import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.List;
+import minijava.ast.Nameable;
 import minijava.ast.Program;
+import minijava.ast.Ref;
 import minijava.lexer.Lexer;
 import minijava.parser.Parser;
+import minijava.semantic.AnalyzedTypesReplacer;
+import minijava.semantic.NameAnalyzer;
 import minijava.token.Token;
 import minijava.util.PrettyPrinter;
 
@@ -33,6 +37,7 @@ class Cli {
                 "  --lextest    run lexical analysis on file's content and print tokens to stdout",
                 "  --parsetest  run syntactical analysis on file's content",
                 "  --print-ast  pretty-print abstract syntax tree to stdout",
+                "  --check      parse the given file and perform semantic checks",
                 "  --help       display this help and exit",
                 "",
                 "  One (and only one) of --echo, --lextest, --parsetest or --print-ast is required."
@@ -68,6 +73,8 @@ class Cli {
         parsetest(in);
       } else if (params.printAst) {
         printAst(in);
+      } else if (params.check) {
+        check(in);
       }
     } catch (AccessDeniedException e) {
       err.println("error: access to file '" + path + "' was denied");
@@ -107,8 +114,15 @@ class Cli {
   }
 
   private void printAst(InputStream in) {
-    Program<String> ast = new Parser(new Lexer(in)).parse();
+    Program<Nameable> ast = new Parser(new Lexer(in)).parse();
     out.print(ast.acceptVisitor(new PrettyPrinter()));
+  }
+
+  private void check(InputStream in) {
+    Program<Nameable> ast = new Parser(new Lexer(in)).parse();
+    Program<Ref> renamed = ast.acceptVisitor(new NameAnalyzer());
+    renamed.acceptVisitor(new AnalyzedTypesReplacer());
+    out.print(renamed.acceptVisitor(new PrettyPrinter()));
   }
 
   private static class Parameters {
@@ -130,6 +144,10 @@ class Cli {
     @Parameter(names = "--print-ast")
     boolean printAst;
 
+    /** True if the --check option was set */
+    @Parameter(names = "--check")
+    boolean check;
+
     /** True if the --help option was set */
     @Parameter(names = "--help")
     boolean help;
@@ -148,7 +166,8 @@ class Cli {
     boolean valid() {
       return !invalid
           && (help
-              || ((Booleans.countTrue(echo, lextest, parsetest, printAst) == 1) && (file != null)));
+              || ((Booleans.countTrue(echo, lextest, parsetest, printAst, check) == 1)
+                  && (file != null)));
     }
 
     static Parameters parse(String... args) {

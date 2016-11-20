@@ -17,8 +17,8 @@ import minijava.util.SourceRange;
 
 public class Parser {
   private static final Token EOF_TOKEN = new Token(EOF, SourceRange.FIRST_CHAR, null);
-  private static final Expression<String> THIS_EXPR =
-      new Expression.Variable<>("this", SourceRange.FIRST_CHAR);
+  private static final Expression<Nameable> THIS_EXPR =
+      Expression.ReferenceTypeLiteral.this_(SourceRange.FIRST_CHAR);
   private final LookAheadIterator<Token> tokens;
   private Token currentToken;
 
@@ -34,7 +34,7 @@ public class Parser {
       currentToken = EOF_TOKEN;
     } else {
       // Just pretend there are inifinitely many single byte EOF tokens
-      currentToken = new Token(EOF, new SourceRange(currentToken.range.end, 1), null);
+      currentToken = new Token(EOF, new SourceRange(currentToken.range().end, 1), null);
     }
     return eaten;
   }
@@ -89,45 +89,46 @@ public class Parser {
     return true;
   }
 
-  public Program<String> parse() {
+  public Program<Nameable> parse() {
     consumeToken();
     return parseProgramm();
   }
 
   /** Program -> ClassDeclaration* */
-  private Program<String> parseProgramm() {
+  private Program<Nameable> parseProgramm() {
     SourcePosition begin = SourcePosition.BEGIN_OF_PROGRAM;
-    List<Class<String>> classes = new ArrayList<>();
+    List<Class<Nameable>> classes = new ArrayList<>();
     while (isCurrentTokenNotTypeOf(EOF)) {
       classes.add(parseClassDeclaration());
     }
-    SourcePosition end = expectAndConsume(EOF).range.end;
+    SourcePosition end = expectAndConsume(EOF).range().end;
     return new Program<>(classes, new SourceRange(begin, end));
   }
 
   /** ClassDeclaration -> class IDENT { PublicClassMember* } */
-  private Class<String> parseClassDeclaration() {
-    SourcePosition begin = expectAndConsume(CLASS).range.begin;
+  private Class<Nameable> parseClassDeclaration() {
+    SourcePosition begin = expectAndConsume(CLASS).range().begin;
     Token identifier = expectAndConsume(IDENT);
     expectAndConsume(LBRACE);
-    List<Field<String>> fields = new ArrayList<>();
-    List<Method<String>> methods = new ArrayList<>();
+    List<Field<Nameable>> fields = new ArrayList<>();
+    List<Method<Nameable>> methods = new ArrayList<>();
     while (isCurrentTokenNotTypeOf(RBRACE) && isCurrentTokenNotTypeOf(EOF)) {
       parsePublicClassMember(fields, methods);
     }
-    SourcePosition end = expectAndConsume(RBRACE).range.end;
+    SourcePosition end = expectAndConsume(RBRACE).range().end;
     return new Class<>(identifier.lexval, fields, methods, new SourceRange(begin, end));
   }
 
   /** PublicClassMember -> public ClassMember */
-  private void parsePublicClassMember(List<Field<String>> fields, List<Method<String>> methods) {
-    SourcePosition begin = expectAndConsume(PUBLIC).range.begin;
+  private void parsePublicClassMember(
+      List<Field<Nameable>> fields, List<Method<Nameable>> methods) {
+    SourcePosition begin = expectAndConsume(PUBLIC).range().begin;
     parseClassMember(fields, methods, begin);
   }
 
   /** ClassMember -> MainMethod | FieldOrMethod */
   private void parseClassMember(
-      List<Field<String>> fields, List<Method<String>> methods, SourcePosition begin) {
+      List<Field<Nameable>> fields, List<Method<Nameable>> methods, SourcePosition begin) {
     switch (currentToken.terminal) {
       case STATIC:
         methods.add(parseMainMethod(begin));
@@ -139,48 +140,49 @@ public class Parser {
   }
 
   /** MainMethod -> static void IDENT ( String [] IDENT ) Block */
-  private Method<String> parseMainMethod(SourcePosition begin) {
+  private Method<Nameable> parseMainMethod(SourcePosition begin) {
     expectAndConsume(STATIC);
     Token void_ = expectAndConsume(VOID);
-    Type<String> voidType = new Type<>("void", 0, void_.range);
+    Type<Nameable> voidType = new Type<>(new Name("void"), 0, void_.range());
     Token name = expectAndConsume(IDENT);
     expectAndConsume(LPAREN);
-    SourcePosition typeBegin = expectAndConsume(IDENT, "String").range.begin;
+    SourcePosition typeBegin = expectAndConsume(IDENT, "String").range().begin;
     expectAndConsume(LBRACK);
-    SourcePosition typeEnd = expectAndConsume(RBRACK).range.end;
-    Type<String> parameterType = new Type<>("String", 1, new SourceRange(typeBegin, typeEnd));
+    SourcePosition typeEnd = expectAndConsume(RBRACK).range().end;
+    Type<Nameable> parameterType =
+        new Type<>(new Name("String"), 1, new SourceRange(typeBegin, typeEnd));
     Token ident = expectAndConsume(IDENT);
     expectAndConsume(RPAREN);
-    Block<String> block = parseBlock();
-    Method.Parameter<String> parameter =
+    Block<Nameable> block = parseBlock();
+    Method.Parameter<Nameable> parameter =
         new Method.Parameter<>(
-            parameterType, ident.lexval, new SourceRange(typeBegin, ident.range.end));
+            parameterType, ident.lexval, new SourceRange(typeBegin, ident.range().end));
     return new Method<>(
         true,
         voidType,
         name.lexval,
         ImmutableList.of(parameter),
         block,
-        new SourceRange(begin, block.range.end));
+        new SourceRange(begin, block.range().end));
   }
 
   /** TypeIdentFieldOrMethod -> Type IDENT FieldOrMethod */
   private void parseTypeIdentFieldOrMethod(
-      List<Field<String>> fields, List<Method<String>> methods, SourcePosition begin) {
-    Type<String> type = parseType();
+      List<Field<Nameable>> fields, List<Method<Nameable>> methods, SourcePosition begin) {
+    Type<Nameable> type = parseType();
     String name = expectAndConsume(IDENT).lexval;
     parseFieldOrMethod(type, name, fields, methods, begin);
   }
 
   /** FieldOrMethod -> ; | Method */
   private void parseFieldOrMethod(
-      Type<String> type,
+      Type<Nameable> type,
       String name,
-      List<Field<String>> fields,
-      List<Method<String>> methods,
+      List<Field<Nameable>> fields,
+      List<Method<Nameable>> methods,
       SourcePosition begin) {
     if (isCurrentTokenTypeOf(SEMICOLON)) {
-      SourcePosition end = expectAndConsume(SEMICOLON).range.end;
+      SourcePosition end = expectAndConsume(SEMICOLON).range().end;
       fields.add(new Field<>(type, name, new SourceRange(begin, end)));
     } else {
       methods.add(parseMethod(type, name, begin));
@@ -188,21 +190,21 @@ public class Parser {
   }
 
   /** Method -> ( Parameters? ) Block */
-  private Method<String> parseMethod(Type<String> type, String name, SourcePosition begin) {
-    List<Method.Parameter<String>> parameters = new ArrayList<>();
+  private Method<Nameable> parseMethod(Type<Nameable> type, String name, SourcePosition begin) {
+    List<Method.Parameter<Nameable>> parameters = new ArrayList<>();
     expectAndConsume(LPAREN);
     if (isCurrentTokenNotTypeOf(RPAREN)) {
       parameters = parseParameters();
     }
     expectAndConsume(RPAREN);
-    Block<String> block = parseBlock();
+    Block<Nameable> block = parseBlock();
     return new Method<>(
-        false, type, name, parameters, block, new SourceRange(begin, block.range.end));
+        false, type, name, parameters, block, new SourceRange(begin, block.range().end));
   }
 
   /** Parameters -> Parameter | Parameter , Parameters */
-  private List<Method.Parameter<String>> parseParameters() {
-    List<Method.Parameter<String>> parameters = new ArrayList<>();
+  private List<Method.Parameter<Nameable>> parseParameters() {
+    List<Method.Parameter<Nameable>> parameters = new ArrayList<>();
     parameters.add(parseParameter());
     while (isCurrentTokenTypeOf(COMMA)) {
       expectAndConsume(COMMA);
@@ -212,18 +214,18 @@ public class Parser {
   }
 
   /** Parameter -> Type IDENT */
-  private Method.Parameter<String> parseParameter() {
-    Type<String> type = parseType();
+  private Method.Parameter<Nameable> parseParameter() {
+    Type<Nameable> type = parseType();
     Token identifier = expectAndConsume(IDENT);
     return new Method.Parameter<>(
-        type, identifier.lexval, new SourceRange(type.range.begin, identifier.range.end));
+        type, identifier.lexval, new SourceRange(type.range().begin, identifier.range().end));
   }
 
   /** Type -> BasicType ([])* */
-  private Type<String> parseType() {
+  private Type<Nameable> parseType() {
     // Only later call is in parseLocalVariableDeclarationStatement()
     // parseType() does not recurse however, so we are safe.
-    SourcePosition begin = currentToken.range.begin;
+    SourcePosition begin = currentToken.range().begin;
     String type = parseBasicType();
     int dimension = 0;
     while (isCurrentTokenTypeOf(LBRACK) && isCurrentTokenNotTypeOf(EOF)) {
@@ -231,8 +233,8 @@ public class Parser {
       expectAndConsume(RBRACK);
       dimension++;
     }
-    SourcePosition end = currentToken.range.end;
-    return new Type<>(type, dimension, new SourceRange(begin, end));
+    SourcePosition end = currentToken.range().end;
+    return new Type<>(new Name(type), dimension, new SourceRange(begin, end));
   }
 
   /** BasicType -> int | boolean | void | IDENT */
@@ -260,7 +262,7 @@ public class Parser {
    * Statement -> Block | EmptyStatement | IfStatement | ExpressionStatement | WhileStatement |
    * ReturnStatement
    */
-  private Statement<String> parseStatement() {
+  private Statement<Nameable> parseStatement() {
     // Also called from BlockStatement, IfStatement and WhileStatement.
     // There is possibility for endless recursion here, but that's OK
     // because it's not tail recursive (which we have to optimize away
@@ -285,18 +287,18 @@ public class Parser {
   }
 
   /** Block -> { BlockStatement* } */
-  private Block<String> parseBlock() {
-    List<BlockStatement<String>> blockStatements = new ArrayList<>();
-    SourcePosition begin = expectAndConsume(LBRACE).range.begin;
+  private Block<Nameable> parseBlock() {
+    List<BlockStatement<Nameable>> blockStatements = new ArrayList<>();
+    SourcePosition begin = expectAndConsume(LBRACE).range().begin;
     while (isCurrentTokenNotTypeOf(RBRACE) && isCurrentTokenNotTypeOf(EOF)) {
       blockStatements.add(parseBlockStatement());
     }
-    SourcePosition end = expectAndConsume(RBRACE).range.end;
+    SourcePosition end = expectAndConsume(RBRACE).range().end;
     return new Block<>(blockStatements, new SourceRange(begin, end));
   }
 
   /** BlockStatement -> Statement | LocalVariableDeclarationStatement */
-  private BlockStatement<String> parseBlockStatement() {
+  private BlockStatement<Nameable> parseBlockStatement() {
     if (currentToken.isOneOf(INT, BOOLEAN, VOID)
         || matchCurrentAndLookAhead(IDENT, LBRACK, RBRACK)
         || matchCurrentAndLookAhead(IDENT, IDENT)) {
@@ -307,80 +309,80 @@ public class Parser {
   }
 
   /** LocalVariableDeclarationStatement -> Type IDENT (= Expression)? ; */
-  private BlockStatement<String> parseLocalVariableDeclarationStatement() {
-    Type<String> type = parseType();
-    SourcePosition begin = type.range.end;
+  private BlockStatement<Nameable> parseLocalVariableDeclarationStatement() {
+    Type<Nameable> type = parseType();
+    SourcePosition begin = type.range().end;
     String identifier = expectAndConsume(IDENT).lexval;
-    Expression<String> expression = null;
+    Expression<Nameable> expression = null;
     if (isCurrentTokenTypeOf(ASSIGN)) {
       expectAndConsume(ASSIGN);
       expression = parseExpression();
     }
-    SourcePosition end = expectAndConsume(SEMICOLON).range.end;
+    SourcePosition end = expectAndConsume(SEMICOLON).range().end;
     return new Statement.Variable<>(type, identifier, expression, new SourceRange(begin, end));
   }
 
   /** EmptyStatement -> ; */
-  private Statement<String> parseEmptyStatement() {
-    SourceRange range = expectAndConsume(SEMICOLON).range;
+  private Statement<Nameable> parseEmptyStatement() {
+    SourceRange range = expectAndConsume(SEMICOLON).range();
     return new Statement.Empty<>(range);
   }
 
   /** WhileStatement -> while ( Expression ) Statement */
-  private Statement<String> parseWhileStatement() {
-    SourcePosition begin = expectAndConsume(WHILE).range.begin;
+  private Statement<Nameable> parseWhileStatement() {
+    SourcePosition begin = expectAndConsume(WHILE).range().begin;
     expectAndConsume(LPAREN);
-    Expression<String> condition = parseExpression();
+    Expression<Nameable> condition = parseExpression();
     expectAndConsume(RPAREN);
-    Statement<String> body = parseStatement();
-    return new Statement.While<>(condition, body, new SourceRange(begin, body.getRange().end));
+    Statement<Nameable> body = parseStatement();
+    return new Statement.While<>(condition, body, new SourceRange(begin, body.range().end));
   }
 
   /** IfStatement -> if ( Expression ) Statement (else Statement)? */
-  private Statement<String> parseIfStatement() {
-    SourcePosition begin = expectAndConsume(IF).range.begin;
+  private Statement<Nameable> parseIfStatement() {
+    SourcePosition begin = expectAndConsume(IF).range().begin;
     expectAndConsume(LPAREN);
-    Expression<String> condition = parseExpression();
+    Expression<Nameable> condition = parseExpression();
     expectAndConsume(RPAREN);
-    Statement<String> then = parseStatement();
-    SourcePosition end = then.getRange().end;
-    Statement<String> else_ = null;
+    Statement<Nameable> then = parseStatement();
+    SourcePosition end = then.range().end;
+    Statement<Nameable> else_ = null;
     if (isCurrentTokenTypeOf(ELSE)) {
       expectAndConsume(ELSE);
       else_ = parseStatement();
-      end = else_.getRange().end;
+      end = else_.range().end;
     }
     return new Statement.If<>(condition, then, else_, new SourceRange(begin, end));
   }
 
   /** ExpressionStatement -> Expression ; */
-  private Statement<String> parseExpressionStatement() {
-    Expression<String> expression = parseExpression();
-    SourcePosition begin = expression.getRange().begin;
-    SourcePosition end = expectAndConsume(SEMICOLON).range.end;
+  private Statement<Nameable> parseExpressionStatement() {
+    Expression<Nameable> expression = parseExpression();
+    SourcePosition begin = expression.range().begin;
+    SourcePosition end = expectAndConsume(SEMICOLON).range().end;
     return new Statement.ExpressionStatement<>(expression, new SourceRange(begin, end));
   }
 
   /** ReturnStatement -> return Expression? ; */
-  private Statement<String> parseReturnStatement() {
-    SourcePosition begin = expectAndConsume(RETURN).range.begin;
-    Expression<String> expression = null;
+  private Statement<Nameable> parseReturnStatement() {
+    SourcePosition begin = expectAndConsume(RETURN).range().begin;
+    Expression<Nameable> expression = null;
     if (isCurrentTokenNotTypeOf(SEMICOLON)) {
       expression = parseExpression();
     }
-    SourcePosition end = expectAndConsume(SEMICOLON).range.end;
+    SourcePosition end = expectAndConsume(SEMICOLON).range().end;
     return new Statement.Return<>(expression, new SourceRange(begin, end));
   }
 
   /** Expression is parsed with Precedence Climbing */
-  private Expression<String> parseExpression() {
+  private Expression<Nameable> parseExpression() {
     return parseExpressionWithPrecedenceClimbing(0);
   }
 
-  private Expression<String> parseExpressionWithPrecedenceClimbing(int minPrecedence) {
+  private Expression<Nameable> parseExpressionWithPrecedenceClimbing(int minPrecedence) {
     // This is the other method that could possibly blow up the stack,
     // which we can do nothing about.
-    Expression<String> result = parseUnaryExpression();
+    Expression<Nameable> result = parseUnaryExpression();
     while (isCurrentTokenBinaryOperator()
         && isOperatorPrecedenceGreaterOrEqualThan(minPrecedence)) {
       Expression.BinOp operator = getBinaryOperator(currentToken);
@@ -389,9 +391,9 @@ public class Parser {
         precedence++;
       }
       consumeToken();
-      Expression<String> rhs = parseExpressionWithPrecedenceClimbing(precedence);
-      SourcePosition begin = result.getRange().begin;
-      SourcePosition end = rhs.getRange().end;
+      Expression<Nameable> rhs = parseExpressionWithPrecedenceClimbing(precedence);
+      SourcePosition begin = result.range().begin;
+      SourcePosition end = rhs.range().end;
       result = new Expression.BinaryOperator<>(operator, result, rhs, new SourceRange(begin, end));
     }
     return result;
@@ -428,7 +430,7 @@ public class Parser {
       case MOD:
         return Expression.BinOp.MODULO;
       default:
-        throw new ParserError(token.range, "Token is not a BinaryOperator");
+        throw new ParserError(token.range(), "Token is not a BinaryOperator");
     }
   }
 
@@ -439,23 +441,23 @@ public class Parser {
       case SUB:
         return Expression.UnOp.NEGATE;
       default:
-        throw new ParserError(token.range, "Token is not an UnaryOperator");
+        throw new ParserError(token.range(), "Token is not an UnaryOperator");
     }
   }
 
   /** UnaryExpression -> PostfixExpression | (! | -) UnaryExpression */
-  private Expression<String> parseUnaryExpression() {
+  private Expression<Nameable> parseUnaryExpression() {
     if (currentToken.isOneOf(NOT, SUB)) {
       Expression.UnOp operator = getUnaryOperator(currentToken);
-      SourceRange range = consumeToken().range;
+      SourceRange range = consumeToken().range();
       return new Expression.UnaryOperator<>(operator, parseUnaryExpression(), range);
     }
     return parsePostfixExpression();
   }
 
   /** PostfixExpression -> PrimaryExpression (PostfixOp)* */
-  private Expression<String> parsePostfixExpression() {
-    Expression<String> primaryExpression = parsePrimaryExpression();
+  private Expression<Nameable> parsePostfixExpression() {
+    Expression<Nameable> primaryExpression = parsePrimaryExpression();
     while ((isCurrentTokenTypeOf(LBRACK) || isCurrentTokenTypeOf(PERIOD))
         && isCurrentTokenNotTypeOf(EOF)) {
       primaryExpression = parsePostfixOp(primaryExpression);
@@ -464,7 +466,7 @@ public class Parser {
   }
 
   /** PostfixOp -> MethodInvocation | FieldAccess | ArrayAccess */
-  private Expression<String> parsePostfixOp(Expression<String> lhs) {
+  private Expression<Nameable> parsePostfixOp(Expression<Nameable> lhs) {
     switch (currentToken.terminal) {
       case PERIOD:
         return parseDotIdentFieldAccessMethodInvocation(lhs);
@@ -476,37 +478,37 @@ public class Parser {
   }
 
   /** DotIdentFieldAccessMethodInvocation -> . IDENT (MethodInvocation)? */
-  private Expression<String> parseDotIdentFieldAccessMethodInvocation(Expression<String> lhs) {
+  private Expression<Nameable> parseDotIdentFieldAccessMethodInvocation(Expression<Nameable> lhs) {
     expectAndConsume(PERIOD);
     Token identifier = expectAndConsume(IDENT);
     // is it FieldAccess (false) or MethodInvocation (true)?
     if (isCurrentTokenTypeOf(LPAREN)) {
       return parseMethodInvocation(lhs, identifier.lexval);
     }
-    SourceRange range = new SourceRange(lhs.getRange().begin, identifier.range.end);
-    return new Expression.FieldAccess<>(lhs, identifier.lexval, range);
+    SourceRange range = new SourceRange(lhs.range().begin, identifier.range().end);
+    return new Expression.FieldAccess<>(lhs, new Name(identifier.lexval), range);
   }
 
   /** MethodInvocation -> ( Arguments ) */
-  private Expression<String> parseMethodInvocation(Expression<String> lhs, String identifier) {
+  private Expression<Nameable> parseMethodInvocation(Expression<Nameable> lhs, String identifier) {
     expectAndConsume(LPAREN);
-    List<Expression<String>> arguments = parseArguments();
-    SourcePosition end = expectAndConsume(RPAREN).range.end;
-    SourceRange range = new SourceRange(lhs.getRange().begin, end);
-    return new Expression.MethodCall<>(lhs, identifier, arguments, range);
+    List<Expression<Nameable>> arguments = parseArguments();
+    SourcePosition end = expectAndConsume(RPAREN).range().end;
+    SourceRange range = new SourceRange(lhs.range().begin, end);
+    return new Expression.MethodCall<>(lhs, new Name(identifier), arguments, range);
   }
 
   /** ArrayAccess -> [ Expression ] */
-  private Expression<String> parseArrayAccess(Expression<String> array) {
+  private Expression<Nameable> parseArrayAccess(Expression<Nameable> array) {
     expectAndConsume(LBRACK);
-    Expression<String> index = parseExpression();
-    SourcePosition end = expectAndConsume(RBRACK).range.end;
-    return new Expression.ArrayAccess<>(array, index, new SourceRange(array.getRange().begin, end));
+    Expression<Nameable> index = parseExpression();
+    SourcePosition end = expectAndConsume(RBRACK).range().end;
+    return new Expression.ArrayAccess<>(array, index, new SourceRange(array.range().begin, end));
   }
 
   /** Arguments -> (Expression (,Expression)*)? */
-  private List<Expression<String>> parseArguments() {
-    List<Expression<String>> arguments = new ArrayList<>();
+  private List<Expression<Nameable>> parseArguments() {
+    List<Expression<Nameable>> arguments = new ArrayList<>();
     if (isCurrentTokenNotTypeOf(RPAREN)) {
       arguments.add(parseExpression());
       while (isCurrentTokenTypeOf(COMMA) && isCurrentTokenNotTypeOf(EOF)) {
@@ -521,42 +523,43 @@ public class Parser {
    * PrimaryExpression -> null | false | true | INTEGER_LITERAL | IDENT | IDENT ( Arguments ) | this
    * | ( Expression ) | NewObjectArrayExpression
    */
-  private Expression<String> parsePrimaryExpression() {
-    Expression<String> primaryExpression = null;
-    SourceRange range = null;
+  private Expression<Nameable> parsePrimaryExpression() {
+    Expression<Nameable> primaryExpression = null;
+    SourceRange range;
     switch (currentToken.terminal) {
       case NULL:
-        range = expectAndConsume(NULL).range;
-        primaryExpression = new Expression.Variable<>("null", range);
+        range = expectAndConsume(NULL).range();
+        primaryExpression = Expression.ReferenceTypeLiteral.null_(range);
         break;
       case FALSE:
-        range = expectAndConsume(FALSE).range;
+        range = expectAndConsume(FALSE).range();
         primaryExpression = new Expression.BooleanLiteral<>(false, range);
         break;
       case TRUE:
-        range = expectAndConsume(TRUE).range;
+        range = expectAndConsume(TRUE).range();
         primaryExpression = new Expression.BooleanLiteral<>(true, range);
         break;
       case INTEGER_LITERAL:
         Token literal = expectAndConsume(INTEGER_LITERAL);
-        primaryExpression = new Expression.IntegerLiteral<>(literal.lexval, literal.range);
+        primaryExpression = new Expression.IntegerLiteral<>(literal.lexval, literal.range());
         break;
       case IDENT:
         Token identifier = expectAndConsume(IDENT);
-        List<Expression<String>> arguments;
+        List<Expression<Nameable>> arguments;
         if (isCurrentTokenTypeOf(LPAREN)) {
           expectAndConsume(LPAREN);
           arguments = parseArguments();
-          range = new SourceRange(identifier.range.begin, expectAndConsume(RPAREN).range.end);
+          range = new SourceRange(identifier.range().begin, expectAndConsume(RPAREN).range().end);
           primaryExpression =
-              new Expression.MethodCall<>(THIS_EXPR, identifier.lexval, arguments, range);
+              new Expression.MethodCall<>(THIS_EXPR, new Name(identifier.lexval), arguments, range);
         } else {
-          primaryExpression = new Expression.Variable<>(identifier.lexval, identifier.range);
+          primaryExpression =
+              new Expression.Variable<>(new Name(identifier.lexval), identifier.range());
         }
         break;
       case THIS:
-        range = expectAndConsume(THIS).range;
-        primaryExpression = new Expression.Variable<>("this", range);
+        range = expectAndConsume(THIS).range();
+        primaryExpression = Expression.ReferenceTypeLiteral.this_(range);
         break;
       case LPAREN:
         expectAndConsume(LPAREN);
@@ -573,25 +576,25 @@ public class Parser {
   }
 
   /** NewObjectArrayExpression -> BasicType NewArrayExpression | IDENT NewObjectExpression */
-  private Expression<String> parseNewObjectArrayExpression() {
-    SourcePosition begin = expectAndConsume(NEW).range.begin;
+  private Expression<Nameable> parseNewObjectArrayExpression() {
+    SourcePosition begin = expectAndConsume(NEW).range().begin;
     switch (currentToken.terminal) {
       case INT:
         Token integer = expectAndConsume(INT);
-        return parseNewArrayExpression("int", begin, integer.range.begin);
+        return parseNewArrayExpression("int", begin, integer.range().begin);
       case BOOLEAN:
         Token bool = expectAndConsume(BOOLEAN);
-        return parseNewArrayExpression("boolean", begin, bool.range.begin);
+        return parseNewArrayExpression("boolean", begin, bool.range().begin);
       case VOID:
         Token void_ = expectAndConsume(VOID);
-        return parseNewArrayExpression("void", begin, void_.range.begin);
+        return parseNewArrayExpression("void", begin, void_.range().begin);
       case IDENT:
         Token identifier = expectAndConsume(IDENT);
         switch (currentToken.terminal) {
           case LPAREN:
             return parseNewObjectExpression(identifier.lexval, begin);
           case LBRACK:
-            return parseNewArrayExpression(identifier.lexval, begin, identifier.range.begin);
+            return parseNewArrayExpression(identifier.lexval, begin, identifier.range().begin);
           default:
             return unexpectCurrentToken(LPAREN, LBRACK);
         }
@@ -601,26 +604,27 @@ public class Parser {
   }
 
   /** NewObjectExpression -> ( ) */
-  private Expression<String> parseNewObjectExpression(String type, SourcePosition begin) {
+  private Expression<Nameable> parseNewObjectExpression(String type, SourcePosition begin) {
     expectAndConsume(LPAREN);
-    SourcePosition end = expectAndConsume(RPAREN).range.end;
-    return new Expression.NewObject<>(type, new SourceRange(begin, end));
+    SourcePosition end = expectAndConsume(RPAREN).range().end;
+    return new Expression.NewObject<>(new Name(type), new SourceRange(begin, end));
   }
 
   /** NewArrayExpression -> [ Expression ] ([])* */
-  private Expression<String> parseNewArrayExpression(
+  private Expression<Nameable> parseNewArrayExpression(
       String elementTypeRef, SourcePosition newBegin, SourcePosition typeBegin) {
     expectAndConsume(LBRACK);
-    Expression<String> size = parseExpression();
-    SourcePosition end = expectAndConsume(RBRACK).range.end;
-    int dim = 1;
+    Expression<Nameable> size = parseExpression();
+    SourcePosition end = expectAndConsume(RBRACK).range().end;
+    int dim = 0;
     while (matchCurrentAndLookAhead(LBRACK, RBRACK)) {
       expectAndConsume(LBRACK);
-      end = expectAndConsume(RBRACK).range.end;
+      end = expectAndConsume(RBRACK).range().end;
       dim++;
     }
     SourceRange typeRange = new SourceRange(typeBegin, end);
     SourceRange newRange = new SourceRange(newBegin, end);
-    return new Expression.NewArray<>(new Type<>(elementTypeRef, dim, typeRange), size, newRange);
+    return new Expression.NewArray<>(
+        new Type<>(new Name(elementTypeRef), dim, typeRange), size, newRange);
   }
 }

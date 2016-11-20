@@ -20,7 +20,7 @@ public interface Statement<TRef> extends BlockStatement<TRef> {
     }
 
     @Override
-    public SourceRange getRange() {
+    public SourceRange range() {
       return range;
     }
   }

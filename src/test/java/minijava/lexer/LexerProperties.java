@@ -5,7 +5,6 @@ import static org.jooq.lambda.Seq.seq;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-
 import com.pholser.junit.quickcheck.From;
 import com.pholser.junit.quickcheck.Property;
 import com.pholser.junit.quickcheck.generator.Size;
