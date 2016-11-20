@@ -14,12 +14,6 @@ public class SemanticError extends MJError {
     this.secondRange = null;
   }
 
-  SemanticError(SourceRange range, SourceRange secondRange, String message) {
-    super(String.format("Semantic error at %s: %s", range, message));
-    this.range = range;
-    this.secondRange = secondRange;
-  }
-
   @Override
   public String getSourceReferencingMessage(List<String> sourceFile) {
     String message =

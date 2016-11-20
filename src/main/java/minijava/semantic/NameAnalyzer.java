@@ -285,42 +285,6 @@ public class NameAnalyzer
    * This is reflexive in both arguments, so swapping them should not change the outcome of this
    * function
    */
-  /*  private void checkType(Type<Ref> expected, Type<Ref> actual) {
-
-    SemanticError e =
-        new SemanticError(
-            expected.range(),
-            actual.range(),
-            "Expected type "
-                + expected
-                + "("
-                + expected.range()
-                + ")"
-                + ", but got "
-                + actual
-                + "("
-                + actual.range()
-                + ")");
-
-    if (expected.dimension == actual.dimension
-        && expected.typeRef.name().equals(actual.typeRef.name())) {
-      return;
-    }
-
-    // If any of the element types is now void, we should throw.
-    if (expected.typeRef.name().equals("void") || actual.typeRef.name().equals("void")) throw e;
-
-    // The only way this could ever work out is that either actual or expected is of type Any (type of null)
-    // and the other is a reference type (every remaining type except non-array builtins).
-    // Remember that actual != expected and that either dimensions or the typeRef mismatch
-    if (expected == Type.ANY && (actual.dimension > 0 || actual.typeRef.def instanceof Class))
-      return;
-    if (actual == Type.ANY && (expected.dimension > 0 || expected.typeRef.def instanceof Class))
-      return;
-
-    throw e;
-  }*/
-
   private void checkType(Type<Ref> expected, Type<Ref> actual, SourceRange range) {
     SemanticError e =
         new SemanticError(range, "Expected type " + expected + ", but got type " + actual);
