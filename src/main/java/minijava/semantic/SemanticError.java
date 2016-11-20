@@ -6,12 +6,10 @@ import minijava.util.SourceRange;
 
 public class SemanticError extends MJError {
   public final SourceRange range;
-  public final SourceRange secondRange;
 
   SemanticError(SourceRange range, String message) {
     super(String.format("Semantic error at %s: %s", range, message));
     this.range = range;
-    this.secondRange = null;
   }
 
   @Override
@@ -21,10 +19,6 @@ public class SemanticError extends MJError {
             + System.lineSeparator()
             + System.lineSeparator()
             + range.annotateSourceFileExcerpt(sourceFile);
-    if (null != secondRange) {
-      message += System.lineSeparator() + secondRange.annotateSourceFileExcerpt(sourceFile);
-    }
-
     return message;
   }
 }
