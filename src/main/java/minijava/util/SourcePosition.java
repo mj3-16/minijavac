@@ -27,7 +27,8 @@ public class SourcePosition implements Comparable<SourcePosition> {
 
   @Override
   public int compareTo(@NotNull SourcePosition other) {
-    return Integer.compare(tokenNumber, other.tokenNumber);
+    int o = line - other.line;
+    return o == 0 ? column - other.column : o;
   }
 
   // if we implement Comparable, we probably should also implement equals.

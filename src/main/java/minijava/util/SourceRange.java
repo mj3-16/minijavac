@@ -3,6 +3,9 @@ package minijava.util;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
+import com.google.common.base.Strings;
+import java.util.List;
+
 /**
  * A half-open interval in the concrete syntax, denoting the extent of some syntax element. In
  * particular, @end@ is one beyond the last character of the syntax element.
@@ -25,6 +28,53 @@ public class SourceRange {
 
   public SourceRange(SourcePosition begin, int length) {
     this(begin, begin.moveHorizontal(length));
+  }
+
+  public String annotateSourceFileExcerpt(List<String> sourceFile) {
+    StringBuilder sb = new StringBuilder();
+    if (begin.line < end.line) {
+      // we can only really squiggle at the side
+      int digits = (int) Math.floor(Math.log10(end.line)) + 1;
+      // recall that SourceRange indexes lines starting with 1
+      int begin = Math.max(this.begin.line, 1);
+      int end = Math.min(this.end.line, sourceFile.size());
+      for (int i = begin; i <= end; ++i) {
+        sb.append(String.format("%" + digits + "d|> %s", i, sourceFile.get(i - 1)));
+        sb.append(System.lineSeparator());
+      }
+    } else {
+      assert begin.line == end.line;
+
+      int line0 = begin.line - 1; // recall that lines start with 1
+      // I kill myself if I copy&paste even one more line, promise.
+      if (line0 >= sourceFile.size()) {
+        // squiggle the EOF
+        line0 = sourceFile.size() - 1;
+        String prefix = String.format("%d| ", line0 + 1);
+        sb.append(prefix);
+        String lastLine = sourceFile.get(line0);
+        sb.append(lastLine);
+        sb.append(System.lineSeparator());
+        int offset = prefix.length() + lastLine.length();
+        String space = (prefix + lastLine).substring(0, offset).replaceAll("\\S", " ");
+        sb.append(space);
+        sb.append("^");
+        sb.append(System.lineSeparator());
+      } else {
+        String prefix = String.format("%d| ", line0 + 1);
+        sb.append(prefix);
+        String lastLine = sourceFile.get(line0);
+        sb.append(lastLine);
+        sb.append(System.lineSeparator());
+        int squiggleOffset = prefix.length() + begin.column;
+        int squiggleLength = end.column - begin.column;
+        String space = (prefix + lastLine).substring(0, squiggleOffset).replaceAll("\\S", " ");
+        sb.append(space);
+        sb.append(Strings.repeat("^", squiggleLength));
+        sb.append(System.lineSeparator());
+      }
+    }
+    return sb.toString();
   }
 
   @Override
