@@ -585,7 +585,7 @@ public class NameAnalyzer
     if (!system.var.name().equals("System")
         || locals.lookup("System").isPresent()
         || fields.lookup("System").isPresent()
-        || types.lookup("System").isPresent()) {
+    /*|| types.lookup("System").isPresent()*/ ) {
       return null;
     }
     // "System" is not defined in the current scope somewhere
