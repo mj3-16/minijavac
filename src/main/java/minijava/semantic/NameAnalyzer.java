@@ -134,7 +134,7 @@ public class NameAnalyzer
             that.range(), "The main method's parameter must have type String[].");
       }
       // This should also have been caught by the parser
-      checkType(Type.VOID, returnType);
+      checkType(Type.VOID, returnType, returnType.range());
 
       if (mainMethod != null) {
         throw new SemanticError(
@@ -171,7 +171,7 @@ public class NameAnalyzer
     // Check if we returned on each possible path and if not, that the return type was void.
     if (!hasReturned) {
       // Check if we implicitly returned
-      checkType(Type.VOID, returnType);
+      checkType(Type.VOID, returnType, returnType.range());
     }
     return new Method<>(
         that.isStatic, returnType, that.name(), newParams, block, that.range(), currentClass);
@@ -198,7 +198,7 @@ public class NameAnalyzer
   public Statement<Ref> visitIf(Statement.If<? extends Nameable> that) {
     Tuple2<Expression<Ref>, Type<Ref>> cond = that.condition.acceptVisitor(this);
     Expression<Ref> newCondition = cond.v1;
-    checkType(Type.BOOLEAN, cond.v2);
+    checkType(Type.BOOLEAN, cond.v2, cond.v1.range());
 
     // Save the old returned flag. If this was true, hasReturned will be true afterwards,
     // no matter what the results of the two branches are.
@@ -238,7 +238,7 @@ public class NameAnalyzer
   @Override
   public Statement<Ref> visitWhile(Statement.While<? extends Nameable> that) {
     Tuple2<Expression<Ref>, Type<Ref>> cond = that.condition.acceptVisitor(this);
-    checkType(Type.BOOLEAN, cond.v2);
+    checkType(Type.BOOLEAN, cond.v2, cond.v1.range());
 
     // In contrast to if, where we actually have two branches of control flow, there's no elaborate
     // hasReturned handling necessary here.
@@ -267,7 +267,7 @@ public class NameAnalyzer
       if (!currentMethod.equals(mainMethod)) {
         checkElementTypeIsNotVoid(returnType);
         Tuple2<Expression<Ref>, Type<Ref>> expr = that.expression.get().acceptVisitor(this);
-        checkType(returnType, expr.v2);
+        checkType(returnType, expr.v2, expr.v1.range());
         hasReturned = true;
         return new Statement.Return<>(expr.v1, that.range());
       } else {
@@ -275,7 +275,7 @@ public class NameAnalyzer
             that.expression.get().range(), "Returning a value is not valid in main method");
       }
     } else {
-      checkType(returnType, Type.VOID);
+      checkType(Type.VOID, returnType, returnType.range());
       hasReturned = true;
       return new Statement.Return<>(null, that.range());
     }
@@ -285,7 +285,7 @@ public class NameAnalyzer
    * This is reflexive in both arguments, so swapping them should not change the outcome of this
    * function
    */
-  private void checkType(Type<Ref> expected, Type<Ref> actual) {
+  /*  private void checkType(Type<Ref> expected, Type<Ref> actual) {
 
     SemanticError e =
         new SemanticError(
@@ -301,6 +301,29 @@ public class NameAnalyzer
                 + "("
                 + actual.range()
                 + ")");
+
+    if (expected.dimension == actual.dimension
+        && expected.typeRef.name().equals(actual.typeRef.name())) {
+      return;
+    }
+
+    // If any of the element types is now void, we should throw.
+    if (expected.typeRef.name().equals("void") || actual.typeRef.name().equals("void")) throw e;
+
+    // The only way this could ever work out is that either actual or expected is of type Any (type of null)
+    // and the other is a reference type (every remaining type except non-array builtins).
+    // Remember that actual != expected and that either dimensions or the typeRef mismatch
+    if (expected == Type.ANY && (actual.dimension > 0 || actual.typeRef.def instanceof Class))
+      return;
+    if (actual == Type.ANY && (expected.dimension > 0 || expected.typeRef.def instanceof Class))
+      return;
+
+    throw e;
+  }*/
+
+  private void checkType(Type<Ref> expected, Type<Ref> actual, SourceRange range) {
+    SemanticError e =
+        new SemanticError(range, "Expected type " + expected + ", but got type " + actual);
 
     if (expected.dimension == actual.dimension
         && expected.typeRef.name().equals(actual.typeRef.name())) {
@@ -345,7 +368,7 @@ public class NameAnalyzer
 
     if (that.rhs.isPresent()) {
       Tuple2<Expression<Ref>, Type<Ref>> ret = that.rhs.get().acceptVisitor(this);
-      checkType(variableType, ret.v2);
+      checkType(variableType, ret.v2, ret.v1.range());
       rhs = ret.v1;
     }
 
@@ -370,12 +393,13 @@ public class NameAnalyzer
             && !(left.v1 instanceof Expression.Variable)
             && !(left.v1 instanceof Expression.ArrayAccess)
             && !(left.v1 instanceof Expression.NewObject)) {
-          throw new SemanticError(
-              left.v1.range(), "Cannot assign to the expression at " + left.v1.range());
+          throw new SemanticError(left.v1.range(), "Expression is not assignable");
         }
         // Also left.v2 must match right.v2
         checkType(
-            left.v2, right.v2); // This would be broken for type Any, but null can't be assigned to
+            left.v2,
+            right.v2,
+            right.v1.range()); // This would be broken for type Any, but null can't be assigned to
         // The result type of the assignment expression is just left.v2
         resultType = left.v2;
         break;
@@ -386,23 +410,23 @@ public class NameAnalyzer
       case MODULO:
         // int -> int -> int
         // so, check that left.v1 and left.v2 is int
-        checkType(Type.INT, left.v2);
-        checkType(Type.INT, right.v2);
+        checkType(Type.INT, left.v2, left.v1.range());
+        checkType(Type.INT, right.v2, right.v1.range());
         // Then we can just reuse left's type
         resultType = left.v2;
         break;
       case OR:
       case AND:
         // bool -> bool -> bool
-        checkType(Type.BOOLEAN, left.v2);
-        checkType(Type.BOOLEAN, right.v2);
+        checkType(Type.BOOLEAN, left.v2, left.v1.range());
+        checkType(Type.BOOLEAN, right.v2, right.v1.range());
         resultType = left.v2;
         break;
       case EQ:
       case NEQ:
         // T -> T -> bool
         // The Ts have to match
-        checkType(left.v2, right.v2);
+        checkType(left.v2, right.v2, right.v1.range());
         resultType = Type.BOOLEAN;
         break;
       case LT:
@@ -410,8 +434,8 @@ public class NameAnalyzer
       case GT:
       case GEQ:
         // int -> int -> bool
-        checkType(Type.INT, left.v2);
-        checkType(Type.INT, right.v2);
+        checkType(Type.INT, left.v2, left.v1.range());
+        checkType(Type.INT, right.v2, right.v1.range());
         resultType = Type.BOOLEAN;
         break;
     }
@@ -442,7 +466,7 @@ public class NameAnalyzer
     }
 
     Tuple2<Expression<Ref>, Type<Ref>> expr = that.expression.acceptVisitor(this);
-    checkType(expected, expr.v2);
+    checkType(expected, expr.v2, expr.v1.range());
 
     return tuple(new Expression.UnaryOperator<>(that.op, expr.v1, that.range()), expr.v2);
   }
@@ -537,7 +561,7 @@ public class NameAnalyzer
     for (int i = 0; i < m.parameters.size(); ++i) {
       Type<Ref> paramType = m.parameters.get(i).type.acceptVisitor(this);
       Tuple2<Expression<Ref>, Type<Ref>> arg = that.arguments.get(i).acceptVisitor(this);
-      checkType(paramType, arg.v2);
+      checkType(paramType, arg.v2, arg.v1.range());
       resolvedArguments.add(arg.v1);
     }
 
@@ -621,7 +645,7 @@ public class NameAnalyzer
     Tuple2<Expression<Ref>, Type<Ref>> arr = that.array.acceptVisitor(this);
     Tuple2<Expression<Ref>, Type<Ref>> idx = that.index.acceptVisitor(this);
 
-    checkType(Type.INT, idx.v2);
+    checkType(Type.INT, idx.v2, idx.v1.range());
     checkElementTypeIsNotVoid(arr.v2);
     checkIsArrayType(arr.v2);
 
@@ -651,7 +675,7 @@ public class NameAnalyzer
     Type<Ref> type = that.type.acceptVisitor(this);
     Tuple2<Expression<Ref>, Type<Ref>> size = that.size.acceptVisitor(this);
 
-    checkType(Type.INT, size.v2);
+    checkType(Type.INT, size.v2, size.v1.range());
 
     // TODO - discuss: The +1 will probably introduce a bug, but I find it much more intuitive to increment dimension
     // here than in the parser, e.g. NewArray.type should denote the type of the elements of the new array
