@@ -23,12 +23,12 @@ public class SourceRangeTest {
   }
 
   private static SourceRange sl(int beginLine, int beginColumn, int length) {
-    return new SourceRange(new SourcePosition(beginLine, beginColumn), length);
+    return new SourceRange(new SourcePosition(0, beginLine, beginColumn), length);
   }
 
   private static SourceRange ml(int beginLine, int beginColumn, int endLine, int endColumn) {
     return new SourceRange(
-        new SourcePosition(beginLine, beginColumn), new SourcePosition(endLine, endColumn));
+        new SourcePosition(0, beginLine, beginColumn), new SourcePosition(0, endLine, endColumn));
   }
 
   private static String f(String s) {

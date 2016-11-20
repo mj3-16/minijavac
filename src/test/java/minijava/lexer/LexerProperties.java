@@ -57,8 +57,8 @@ public class LexerProperties {
 
     // SourceRanges should be useful, e.g. to exactly determine where the token came from
     StringBuilder sb = new StringBuilder();
-    SourcePosition pos = new SourcePosition(1, 0);
     int i = 0;
+    SourcePosition pos = new SourcePosition(1, 0, i);
     for (char c : Lists.charactersOf(input)) {
       if (i >= actual.size()) {
         break;
@@ -92,9 +92,9 @@ public class LexerProperties {
       }
 
       if (c == '\n') {
-        pos = new SourcePosition(pos.line + 1, 0);
+        pos = new SourcePosition(pos.line + 1, 0, i);
       } else {
-        pos = new SourcePosition(pos.line, pos.column + 1);
+        pos = new SourcePosition(pos.line, pos.column + 1, i);
       }
     }
   }

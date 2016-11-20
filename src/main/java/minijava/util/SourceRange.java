@@ -4,7 +4,6 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.common.base.Strings;
-import com.google.common.collect.Lists;
 import java.util.List;
 
 /**
@@ -68,28 +67,6 @@ public class SourceRange {
         sb.append(Strings.repeat(" ", squiggleOffset));
         sb.append(Strings.repeat("^", squiggleLength));
         sb.append(System.lineSeparator());
-      }
-    }
-    return sb.toString();
-  }
-
-  public String extractFromSourceString(String source) {
-    int line = 1;
-    int column = 0;
-    StringBuilder sb = new StringBuilder();
-    for (char c : Lists.charactersOf(source)) {
-      SourcePosition pos = new SourcePosition(line, column);
-      if (pos.compareTo(begin) >= 0 && pos.compareTo(end) < 0) {
-        sb.append(c);
-      } else if (pos.compareTo(end) >= 0) {
-        break;
-      }
-
-      if (c == '\n') {
-        line++;
-        column = 0;
-      } else {
-        column++;
       }
     }
     return sb.toString();
