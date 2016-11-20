@@ -70,8 +70,8 @@ public class LexerProperties {
         break;
       }
 
-      if (pos.compareTo(t.range.end) >= 0) {
-        assert pos.equals(t.range.end);
+      if (pos.compareTo(t.range().end) >= 0) {
+        assert pos.equals(t.range().end);
         String lookedUp = sb.toString();
         String repr = t.terminal.hasLexval() ? t.lexval : t.terminal.string;
         // Some printfs for debugging:
@@ -87,7 +87,7 @@ public class LexerProperties {
         t = actual.get(i);
       }
 
-      if (pos.compareTo(t.range.begin) >= 0) {
+      if (pos.compareTo(t.range().begin) >= 0) {
         sb.append(c);
       }
 

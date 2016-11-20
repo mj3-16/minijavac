@@ -35,24 +35,40 @@ public class SourceRange {
     StringBuilder sb = new StringBuilder();
     if (begin.line < end.line) {
       // we can only really squiggle at the side
-      int digits = (int) Math.ceil(Math.log10(end.line)) + 1;
+      int digits = (int) Math.floor(Math.log10(end.line)) + 1;
       // recall that SourceRange indexes lines starting with 1
-      int begin = Math.max(this.begin.line - 1, 1);
-      int end = Math.min(this.end.line + 1, sourceFile.size());
+      int begin = Math.max(this.begin.line, 1);
+      int end = Math.min(this.end.line, sourceFile.size());
       for (int i = begin; i <= end; ++i) {
         sb.append(String.format("%" + digits + "d|> %s", i, sourceFile.get(i - 1)));
         sb.append(System.lineSeparator());
       }
     } else {
       assert begin.line == end.line;
-      String prefix = String.format("%d| ", begin.line);
-      int squiggleOffset = prefix.length() + begin.column;
-      int squiggleLength = end.column - begin.column;
-      sb.append(prefix);
-      sb.append(sourceFile.get(begin.line - 1));
-      sb.append(System.lineSeparator());
-      sb.append(Strings.repeat(" ", squiggleOffset));
-      sb.append(Strings.repeat("^", squiggleLength));
+
+      int line0 = begin.line - 1; // recall that lines start with 1
+      if (line0 >= sourceFile.size()) {
+        // squiggle the EOF
+        line0 = sourceFile.size() - 1;
+        String prefix = String.format("%d| ", line0 + 1);
+        sb.append(prefix);
+        String lastLine = sourceFile.get(line0);
+        sb.append(lastLine);
+        sb.append(System.lineSeparator());
+        sb.append(Strings.repeat(" ", prefix.length() + lastLine.length()));
+        sb.append("^");
+        sb.append(System.lineSeparator());
+      } else {
+        String prefix = String.format("%d| ", line0 + 1);
+        sb.append(prefix);
+        int squiggleOffset = prefix.length() + begin.column;
+        int squiggleLength = end.column - begin.column;
+        sb.append(sourceFile.get(line0));
+        sb.append(System.lineSeparator());
+        sb.append(Strings.repeat(" ", squiggleOffset));
+        sb.append(Strings.repeat("^", squiggleLength));
+        sb.append(System.lineSeparator());
+      }
     }
     return sb.toString();
   }
