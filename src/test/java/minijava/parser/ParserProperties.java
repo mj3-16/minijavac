@@ -21,7 +21,8 @@ public class ParserProperties {
 
     for (int i = 0; i < program.terminals.size(); ++i) {
       tokens.add(
-          new Token(program.terminals.get(i), new SourceRange(new SourcePosition(1, i), 1), null));
+          new Token(
+              program.terminals.get(i), new SourceRange(new SourcePosition(0, 1, i), 1), null));
     }
 
     // Debug printfs:
