@@ -5,7 +5,10 @@ import static minijava.token.Terminal.*;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.EnumSet;
@@ -74,6 +77,7 @@ public class Lexer implements Iterator<Token> {
   private SourcePosition tokenBegin;
   private Token eof;
   private boolean inlineNUL = false;
+  private int currentTokenNumber = 0;
 
   public Lexer(InputStream input) {
     this.input = new BufferedInputStream(input);
@@ -98,7 +102,7 @@ public class Lexer implements Iterator<Token> {
       ch = input.read();
       if (ch > 127 || ch < -1) {
         throw new LexerError(
-            new SourcePosition(line, column),
+            new SourcePosition(currentTokenNumber, line, column),
             String.format("Unsupported character with code %d", ch));
       }
       if (ch == '\n') {
@@ -116,7 +120,7 @@ public class Lexer implements Iterator<Token> {
   private Token scan() {
     while (true) {
       skipWhitespace();
-      tokenBegin = new SourcePosition(line, column);
+      tokenBegin = new SourcePosition(currentTokenNumber, line, column);
       if (isDigit(ch)) {
         return scanInt();
       }
@@ -127,7 +131,8 @@ public class Lexer implements Iterator<Token> {
         case -1:
         case 0:
           if (inlineNUL) {
-            throw new LexerError(new SourcePosition(line, column), "Invalid NUL byte");
+            throw new LexerError(
+                new SourcePosition(currentTokenNumber, line, column), "Invalid NUL byte");
           }
           return (eof = createToken(EOF));
         case '+':
@@ -332,7 +337,7 @@ public class Lexer implements Iterator<Token> {
       nextChar();
       if (prev == -1 || ch == -1) {
         throw new LexerError(
-            new SourcePosition(line, column),
+            new SourcePosition(currentTokenNumber, line, column),
             "Reached EOF, but comment starting at " + tokenBegin + " is not complete");
       }
       if (prev == '*' && ch == '/') {
@@ -441,6 +446,7 @@ public class Lexer implements Iterator<Token> {
 
   private Token createToken(Terminal terminal, String content) {
     SourceRange range = new SourceRange(tokenBegin, content.length());
+    currentTokenNumber++;
     return new Token(terminal, range, content);
   }
 
@@ -448,6 +454,7 @@ public class Lexer implements Iterator<Token> {
     // terminal.string == null can only happen if terminal == EOF
     int length = terminal.string == null ? 1 : terminal.string.length();
     SourceRange range = new SourceRange(tokenBegin, length);
+    currentTokenNumber++;
     return new Token(terminal, range, null);
   }
 
