@@ -81,7 +81,7 @@ class Cli {
       return 1;
     } catch (MJError e) {
       try {
-        err.println(e.getSourceReferencingMessage(Files.readAllLines(path)));
+        err.println("error: " + e.getSourceReferencingMessage(Files.readAllLines(path)));
       } catch (IOException io) {
         err.println(e.getMessage());
       }
