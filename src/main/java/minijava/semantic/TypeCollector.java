@@ -24,10 +24,7 @@ class TypeCollector implements Program.Visitor<Nameable, SymbolTable<Definition>
       if (sameType.isPresent()) {
         throw new SemanticError(
             c.range(),
-            "Type with name "
-                + c.name()
-                + " is already defined at "
-                + sameType.get().range());
+            "Type with name " + c.name() + " is already defined at " + sameType.get().range());
       }
       symtab.insert(c.name(), c);
     }
