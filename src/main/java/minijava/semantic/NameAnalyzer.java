@@ -14,7 +14,6 @@ import minijava.ast.Expression.NewArray;
 import minijava.ast.Expression.NewObject;
 import minijava.ast.Method.Parameter;
 import minijava.ast.Statement.ExpressionStatement;
-import minijava.util.SourcePosition;
 import minijava.util.SourceRange;
 import org.jetbrains.annotations.NotNull;
 import org.jooq.lambda.tuple.Tuple2;
@@ -457,22 +456,22 @@ public class NameAnalyzer
     // differently by Java.
     // Since we don't save parentheses in the AST (rightly so), we differentiate
     // by SourceRange :ugly_face:
-    SourcePosition endOfMinus = that.range().begin.moveHorizontal(1);
-    if (endOfMinus.compareTo(lit.range().begin) < 0 && Ints.tryParse(lit.literal) == null) {
-      // -2147483648
-      //  ^ endOfMinus
-      //  ^ lit.range().begin
+    int minusTokenNumber = that.range().begin.tokenNumber;
+    int litTokenNumber = lit.range().begin.tokenNumber;
+    if (litTokenNumber > minusTokenNumber + 1 && Ints.tryParse(lit.literal) == null) {
+      // MINUS INT(2147483648)
+      //  ^ minusTokenNumber
+      //       ^ litTokenNumber = minusTokenNumber + 1
       //
       // vs.
       //
-      // -(2147483648)
-      //  ^ endOfMinus
-      //   ^ lit.range().begin
+      // MINUS LPAREN INT(2147483648) RPAREN
+      //   ^ minusTokenNumber
+      //              ^ litTokenNumber > minusTokenNumber + 1
 
       // insert range
       throw new SemanticError("The literal '" + lit.literal + "' is not a valid 32-bit number");
     }
-
     // Otherwise just return what we know
     return tuple(new Expression.UnaryOperator<>(that.op, lit, that.range()), Type.INT);
   }
