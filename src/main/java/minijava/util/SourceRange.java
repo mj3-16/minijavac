@@ -46,6 +46,7 @@ public class SourceRange {
       assert begin.line == end.line;
 
       int line0 = begin.line - 1; // recall that lines start with 1
+      // I kill myself if I copy&paste even one more line, promise.
       if (line0 >= sourceFile.size()) {
         // squiggle the EOF
         line0 = sourceFile.size() - 1;
@@ -54,17 +55,21 @@ public class SourceRange {
         String lastLine = sourceFile.get(line0);
         sb.append(lastLine);
         sb.append(System.lineSeparator());
-        sb.append(Strings.repeat(" ", prefix.length() + lastLine.length()));
+        int offset = prefix.length() + lastLine.length();
+        String space = (prefix + lastLine).substring(0, offset).replaceAll("\\S", " ");
+        sb.append(space);
         sb.append("^");
         sb.append(System.lineSeparator());
       } else {
         String prefix = String.format("%d| ", line0 + 1);
         sb.append(prefix);
+        String lastLine = sourceFile.get(line0);
+        sb.append(lastLine);
+        sb.append(System.lineSeparator());
         int squiggleOffset = prefix.length() + begin.column;
         int squiggleLength = end.column - begin.column;
-        sb.append(sourceFile.get(line0));
-        sb.append(System.lineSeparator());
-        sb.append(Strings.repeat(" ", squiggleOffset));
+        String space = (prefix + lastLine).substring(0, squiggleOffset).replaceAll("\\S", " ");
+        sb.append(space);
         sb.append(Strings.repeat("^", squiggleLength));
         sb.append(System.lineSeparator());
       }

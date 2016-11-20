@@ -44,6 +44,11 @@ public class SourceRangeTest {
           {f("1%n2%n3%n4"), ml(2, 0, 3, 0), f("2|> 2%n3|> 3%n")},
           {f("1%n2%n3%n4"), ml(1, 0, 2, 0), f("1|> 1%n2|> 2%n")},
           {f("1%n2%n3%n4"), ml(4, 0, 5, 0), f("4|> 4%n")},
+          {
+            "\t \tsingle line with tabs",
+            sl(1, 3, 4),
+            f("1| \t \tsingle line with tabs%n   \t \t^^^^%n")
+          },
         });
   }
 

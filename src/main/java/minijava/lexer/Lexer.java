@@ -106,7 +106,7 @@ public class Lexer implements Iterator<Token> {
             String.format("Unsupported character with code %d", ch));
       }
       if (ch == '\n') {
-        column = 0;
+        column = -1;
         line++;
       } else {
         column++;
