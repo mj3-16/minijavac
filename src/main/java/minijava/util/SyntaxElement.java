@@ -4,14 +4,19 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 public interface SyntaxElement {
 
-  SourceRange getRange();
+  SourceRange range();
 
-  class DefaultImpl {
+  class DefaultImpl implements SyntaxElement {
 
-    public final SourceRange range;
+    private final SourceRange range;
 
     public DefaultImpl(SourceRange range) {
       this.range = checkNotNull(range);
+    }
+
+    @Override
+    public SourceRange range() {
+      return range;
     }
   }
 }

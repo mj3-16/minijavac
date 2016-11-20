@@ -41,10 +41,10 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
   }
 
   // ClassDeclaration*
-  private Program<String> generateProgram(SourceOfRandomness random) {
+  private Program<Nameable> generateProgram(SourceOfRandomness random) {
     nodes = 0;
     int n = nextArity(random, 10);
-    List<Class<String>> decls = new ArrayList<>();
+    List<Class<Nameable>> decls = new ArrayList<>();
     for (int i = 0; i < n; ++i) {
       decls.add(genClassDeclaration(random));
     }
@@ -54,16 +54,16 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
   }
 
   // class IDENT { ClassMember* }
-  private Class<String> genClassDeclaration(SourceOfRandomness random) {
+  private Class<Nameable> genClassDeclaration(SourceOfRandomness random) {
     int numberOfClassMembers = nextArity(random, 10);
-    List<Method<String>> methods = new ArrayList<>();
-    List<Field<String>> fields = new ArrayList<>();
+    List<Method<Nameable>> methods = new ArrayList<>();
+    List<Field<Nameable>> fields = new ArrayList<>();
     for (int i = 0; i < numberOfClassMembers; ++i) {
       Object member = genClassMember(random);
       if (member instanceof Field) {
-        fields.add((Field<String>) member);
+        fields.add((Field<Nameable>) member);
       } else {
-        methods.add((Method<String>) member);
+        methods.add((Method<Nameable>) member);
       }
     }
     nodes++;
@@ -77,24 +77,24 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
   }
 
   // public Type IDENT ;
-  private Field<String> genField(SourceOfRandomness random) {
+  private Field<Nameable> genField(SourceOfRandomness random) {
     nodes++;
     return new Field<>(genType(random), genIdent(random), SourceRange.FIRST_CHAR);
   }
 
   // public Type IDENT ( Parameters? ) Block
-  private Method<String> genMethod(SourceOfRandomness random) {
+  private Method<Nameable> genMethod(SourceOfRandomness random) {
     boolean isStatic = random.nextBoolean();
-    Type<String> returnType =
-        isStatic ? new Type<>("void", 0, SourceRange.FIRST_CHAR) : genType(random);
+    Type<Nameable> returnType =
+        isStatic ? new Type<>(new Name("void"), 0, SourceRange.FIRST_CHAR) : genType(random);
 
     int n = nextArity(random, 2);
-    List<Method.Parameter<String>> parameters = new ArrayList<>(n);
+    List<Method.Parameter<Nameable>> parameters = new ArrayList<>(n);
 
     if (isStatic) {
       parameters.add(
           new Method.Parameter<>(
-              new Type<>("String", 1, SourceRange.FIRST_CHAR),
+              new Type<>(new Name("String"), 1, SourceRange.FIRST_CHAR),
               genIdent(random),
               SourceRange.FIRST_CHAR));
     } else {
@@ -103,7 +103,7 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
       }
     }
 
-    Block<String> body = genBlock(random);
+    Block<Nameable> body = genBlock(random);
 
     nodes++;
     return new Method<>(
@@ -111,7 +111,7 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
   }
 
   // Type IDENT
-  private Method.Parameter<String> genParameter(SourceOfRandomness random) {
+  private Method.Parameter<Nameable> genParameter(SourceOfRandomness random) {
     nodes++;
     return new Method.Parameter<>(genType(random), genIdent(random), SourceRange.FIRST_CHAR);
   }
@@ -121,11 +121,11 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
   }
 
   // Type [ ] | BasicType
-  private Type<String> genType(SourceOfRandomness random) {
+  private Type<Nameable> genType(SourceOfRandomness random) {
     int n = random.nextInt(0, 3);
     String typeName = random.choose(Arrays.asList("void", "int", "boolean", genIdent(random)));
     nodes++;
-    return new Type<>(typeName, n, SourceRange.FIRST_CHAR);
+    return new Type<>(new Name(typeName), n, SourceRange.FIRST_CHAR);
   }
 
   /*
@@ -136,7 +136,7 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
   | WhileStatement
   | ReturnStatement
   */
-  private Statement<String> genStatement(SourceOfRandomness random) {
+  private Statement<Nameable> genStatement(SourceOfRandomness random) {
     return selectWithRandomWeight(
         random,
         tuple(0.1, this::genEmptyStatement),
@@ -148,9 +148,9 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
   }
 
   // { BlockStatement * }
-  private Block<String> genBlock(SourceOfRandomness random) {
+  private Block<Nameable> genBlock(SourceOfRandomness random) {
     int n = nextArity(random, 3);
-    List<BlockStatement<String>> statements = new ArrayList<>(n);
+    List<BlockStatement<Nameable>> statements = new ArrayList<>(n);
     for (int i = 0; i < n; ++i) {
       statements.add(genBlockStatement(random));
     }
@@ -159,34 +159,34 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
   }
 
   // Statement | LocalVariableDeclarationStatement
-  private BlockStatement<String> genBlockStatement(SourceOfRandomness random) {
+  private BlockStatement<Nameable> genBlockStatement(SourceOfRandomness random) {
     nodes++;
     return selectWithRandomWeight(
         random, tuple(0.3, this::genLocalVariableStatement), tuple(0.7, this::genStatement));
   }
 
   // Type IDENT (= Expression)? ;
-  private BlockStatement<String> genLocalVariableStatement(SourceOfRandomness random) {
+  private BlockStatement<Nameable> genLocalVariableStatement(SourceOfRandomness random) {
     nodes++;
     return new Statement.Variable<>(
         genType(random), genIdent(random), genExpression(random), SourceRange.FIRST_CHAR);
   }
 
   // ;
-  private Statement<String> genEmptyStatement(SourceOfRandomness random) {
+  private Statement<Nameable> genEmptyStatement(SourceOfRandomness random) {
     nodes++;
     return new Statement.Empty<>(SourceRange.FIRST_CHAR);
   }
 
   // while ( Expression ) Statement
-  private Statement<String> genWhileStatement(SourceOfRandomness random) {
+  private Statement<Nameable> genWhileStatement(SourceOfRandomness random) {
     nodes++;
     return new Statement.While<>(
         genExpression(random), genStatement(random), SourceRange.FIRST_CHAR);
   }
 
   // if ( Expression ) Statement (else Statement)?
-  private Statement<String> genIfStatement(SourceOfRandomness random) {
+  private Statement<Nameable> genIfStatement(SourceOfRandomness random) {
     nodes++;
     return selectWithRandomWeight(
         random,
@@ -201,13 +201,13 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
   }
 
   // Expression ;
-  private Statement<String> genExpressionStatement(SourceOfRandomness random) {
+  private Statement<Nameable> genExpressionStatement(SourceOfRandomness random) {
     nodes++;
     return new Statement.ExpressionStatement<>(genExpression(random), SourceRange.FIRST_CHAR);
   }
 
   // return Expression? ;
-  private Statement<String> genReturnStatement(SourceOfRandomness random) {
+  private Statement<Nameable> genReturnStatement(SourceOfRandomness random) {
     nodes++;
     return selectWithRandomWeight(
         random,
@@ -216,15 +216,16 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
   }
 
   // AssignmentExpression
-  private Expression<String> genExpression(SourceOfRandomness random) {
+  private Expression<Nameable> genExpression(SourceOfRandomness random) {
     while (true) {
       try {
         nodes++;
         return selectWithRandomWeight(
             random,
-            tuple(0.8, r -> new Expression.Variable<>(genIdent(r), SourceRange.FIRST_CHAR)),
-            tuple(0.1, r -> new Expression.Variable<>("null", SourceRange.FIRST_CHAR)),
-            tuple(0.1, r -> new Expression.Variable<>("this", SourceRange.FIRST_CHAR)),
+            tuple(
+                0.8, r -> new Expression.Variable<>(new Name(genIdent(r)), SourceRange.FIRST_CHAR)),
+            tuple(0.1, r -> Expression.ReferenceTypeLiteral.this_(SourceRange.FIRST_CHAR)),
+            tuple(0.1, r -> Expression.ReferenceTypeLiteral.null_(SourceRange.FIRST_CHAR)),
             tuple(
                 1.0, r -> new Expression.BooleanLiteral<>(r.nextBoolean(), SourceRange.FIRST_CHAR)),
             tuple(1.0, r -> new Expression.IntegerLiteral<>(genInt(r), SourceRange.FIRST_CHAR)),
@@ -247,18 +248,23 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
                 0.1,
                 r ->
                     new Expression.MethodCall<>(
-                        genExpression(r), genIdent(r), genArguments(r), SourceRange.FIRST_CHAR)),
+                        genExpression(r),
+                        new Name(genIdent(r)),
+                        genArguments(r),
+                        SourceRange.FIRST_CHAR)),
             tuple(
                 0.1,
                 r ->
                     new Expression.FieldAccess<>(
-                        genExpression(r), genIdent(r), SourceRange.FIRST_CHAR)),
+                        genExpression(r), new Name(genIdent(r)), SourceRange.FIRST_CHAR)),
             tuple(
                 0.1,
                 r ->
                     new Expression.ArrayAccess<>(
                         genExpression(r), genExpression(r), SourceRange.FIRST_CHAR)),
-            tuple(0.1, r -> new Expression.NewObject<>(genIdent(r), SourceRange.FIRST_CHAR)),
+            tuple(
+                0.1,
+                r -> new Expression.NewObject<>(new Name(genIdent(r)), SourceRange.FIRST_CHAR)),
             tuple(
                 0.1,
                 r ->
@@ -280,8 +286,8 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
     }
   }
 
-  private Type<String> genArrayType(SourceOfRandomness random) {
-    Type<String> t = genType(random);
+  private Type<Nameable> genArrayType(SourceOfRandomness random) {
+    Type<Nameable> t = genType(random);
     return new Type<>(t.typeRef, Math.max(t.dimension, 1), SourceRange.FIRST_CHAR);
   }
 
@@ -290,9 +296,9 @@ public class ProgramGenerator extends Generator<GeneratedProgram> {
   }
 
   // (Expression (, Expression)*)?
-  private List<Expression<String>> genArguments(SourceOfRandomness random) {
+  private List<Expression<Nameable>> genArguments(SourceOfRandomness random) {
     int n = nextArity(random, 3);
-    List<Expression<String>> ret = new ArrayList<>(n);
+    List<Expression<Nameable>> ret = new ArrayList<>(n);
     for (int i = 0; i < n; ++i) {
       ret.add(genExpression(random));
     }

@@ -15,13 +15,13 @@ import minijava.ast.Class;
  * instances.
  */
 public class PrettyPrinter
-    implements Program.Visitor<Object, CharSequence>,
-        Class.Visitor<Object, CharSequence>,
-        Field.Visitor<Object, CharSequence>,
-        Method.Visitor<Object, CharSequence>,
-        Type.Visitor<Object, CharSequence>,
-        BlockStatement.Visitor<Object, CharSequence>,
-        Expression.Visitor<Object, CharSequence> {
+    implements Program.Visitor<Nameable, CharSequence>,
+        Class.Visitor<Nameable, CharSequence>,
+        Field.Visitor<Nameable, CharSequence>,
+        Method.Visitor<Nameable, CharSequence>,
+        Type.Visitor<Nameable, CharSequence>,
+        BlockStatement.Visitor<Nameable, CharSequence>,
+        Expression.Visitor<Nameable, CharSequence> {
 
   private int indentLevel = 0;
 
@@ -39,17 +39,17 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitProgram(Program<? extends Object> that) {
+  public CharSequence visitProgram(Program<? extends Nameable> that) {
     return that.declarations
         .stream()
-        .sorted((left, right) -> left.name.compareTo(right.name))
+        .sorted((left, right) -> left.name().compareTo(right.name()))
         .map(c -> c.acceptVisitor(this))
         .collect(Collectors.joining());
   }
 
   @Override
-  public CharSequence visitClassDeclaration(Class<? extends Object> that) {
-    StringBuilder sb = new StringBuilder("class ").append(that.name).append(" {");
+  public CharSequence visitClassDeclaration(Class<? extends Nameable> that) {
+    StringBuilder sb = new StringBuilder("class ").append(that.name()).append(" {");
     if (that.fields.isEmpty() && that.methods.isEmpty()) {
       return sb.append(" }").append(System.lineSeparator());
     }
@@ -57,12 +57,12 @@ public class PrettyPrinter
     indentLevel++;
     that.methods
         .stream()
-        .sorted((left, right) -> left.name.compareTo(right.name))
+        .sorted((left, right) -> left.name().compareTo(right.name()))
         .map(m -> m.acceptVisitor(this))
         .forEach(s -> sb.append(indent()).append(s).append(System.lineSeparator()));
     that.fields
         .stream()
-        .sorted((left, right) -> left.name.compareTo(right.name))
+        .sorted((left, right) -> left.name().compareTo(right.name()))
         .map(m -> m.acceptVisitor(this))
         .forEach(s -> sb.append(indent()).append(s).append(System.lineSeparator()));
     indentLevel--;
@@ -70,14 +70,14 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitMethod(Method<? extends Object> that) {
+  public CharSequence visitMethod(Method<? extends Nameable> that) {
     StringBuilder sb = new StringBuilder("public ");
     if (that.isStatic) {
       sb.append("static ");
     }
-    sb.append(that.returnType.acceptVisitor(this)).append(" ").append(that.name).append("(");
-    Iterator<? extends Method.Parameter<?>> iterator = that.parameters.iterator();
-    Method.Parameter<? extends Object> next;
+    sb.append(that.returnType.acceptVisitor(this)).append(" ").append(that.name()).append("(");
+    Iterator<? extends Method.Parameter<? extends Nameable>> iterator = that.parameters.iterator();
+    Method.Parameter<? extends Nameable> next;
     if (iterator.hasNext()) {
       next = iterator.next();
       sb.append(next.type.acceptVisitor(this)).append(" ").append(next.name);
@@ -90,9 +90,9 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitBlock(Block<? extends Object> that) {
+  public CharSequence visitBlock(Block<? extends Nameable> that) {
     StringBuilder sb = new StringBuilder("{");
-    List<BlockStatement<? extends Object>> nonEmptyStatements =
+    List<BlockStatement<? extends Nameable>> nonEmptyStatements =
         that.statements
             .stream()
             .filter(s -> !(s instanceof Statement.Empty))
@@ -111,7 +111,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitIf(Statement.If<? extends Object> that) {
+  public CharSequence visitIf(Statement.If<? extends Nameable> that) {
     StringBuilder b = new StringBuilder().append("if (");
     // bracketing exception for condition in if statement applies here
     CharSequence condition = that.condition.acceptVisitor(this);
@@ -130,7 +130,7 @@ public class PrettyPrinter
     if (!that.else_.isPresent()) {
       return b;
     }
-    Statement<? extends Object> else_ = that.else_.get();
+    Statement<? extends Nameable> else_ = that.else_.get();
     // if 'then' part was a block, 'else' follows '}' directly
     if (that.then instanceof Block) {
       b.append(" else");
@@ -151,7 +151,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitWhile(Statement.While<? extends Object> that) {
+  public CharSequence visitWhile(Statement.While<? extends Nameable> that) {
     StringBuilder sb = new StringBuilder("while (");
     // bracketing exception for condition in while statement applies here
     CharSequence condition = that.condition.acceptVisitor(this);
@@ -166,35 +166,35 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitField(Field<? extends Object> that) {
+  public CharSequence visitField(Field<? extends Nameable> that) {
     return new StringBuilder("public ")
         .append(that.type.acceptVisitor(this))
         .append(" ")
-        .append(that.name)
+        .append(that.name())
         .append(";");
   }
 
   @Override
-  public CharSequence visitType(Type<? extends Object> that) {
-    StringBuilder b = new StringBuilder(that.typeRef.toString());
+  public CharSequence visitType(Type<? extends Nameable> that) {
+    StringBuilder b = new StringBuilder(that.typeRef.name());
     b.append(Strings.repeat("[]", that.dimension));
     return b;
   }
 
   @Override
   public CharSequence visitExpressionStatement(
-      Statement.ExpressionStatement<? extends Object> that) {
+      Statement.ExpressionStatement<? extends Nameable> that) {
     CharSequence expr = that.expression.acceptVisitor(this);
     return new StringBuilder(outerParanthesesRemoved(expr)).append(";");
   }
 
   @Override
-  public CharSequence visitEmpty(Statement.Empty<? extends Object> that) {
+  public CharSequence visitEmpty(Statement.Empty<? extends Nameable> that) {
     return ";";
   }
 
   @Override
-  public CharSequence visitReturn(Statement.Return<? extends Object> that) {
+  public CharSequence visitReturn(Statement.Return<? extends Nameable> that) {
     StringBuilder b = new StringBuilder("return");
     if (that.expression.isPresent()) {
       b.append(" ");
@@ -205,19 +205,19 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitVariable(BlockStatement.Variable<? extends Object> that) {
+  public CharSequence visitVariable(BlockStatement.Variable<? extends Nameable> that) {
     StringBuilder b = new StringBuilder(that.type.acceptVisitor(this));
     b.append(" ");
-    b.append(that.name);
-    if (that.rhs != null) {
+    b.append(that.name());
+    if (that.rhs.isPresent()) {
       b.append(" = ");
-      b.append(outerParanthesesRemoved(that.rhs.acceptVisitor(this)));
+      b.append(outerParanthesesRemoved(that.rhs.get().acceptVisitor(this)));
     }
     return b.append(";");
   }
 
   @Override
-  public CharSequence visitBinaryOperator(Expression.BinaryOperator<? extends Object> that) {
+  public CharSequence visitBinaryOperator(Expression.BinaryOperator<? extends Nameable> that) {
     StringBuilder b = new StringBuilder("(");
     CharSequence left = that.left.acceptVisitor(this);
     b.append(left);
@@ -231,7 +231,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitUnaryOperator(Expression.UnaryOperator<? extends Object> that) {
+  public CharSequence visitUnaryOperator(Expression.UnaryOperator<? extends Nameable> that) {
     StringBuilder b = new StringBuilder("(");
     b.append(that.op.string);
     b.append(that.expression.acceptVisitor(this));
@@ -240,15 +240,15 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitMethodCall(Expression.MethodCall<? extends Object> that) {
+  public CharSequence visitMethodCall(Expression.MethodCall<? extends Nameable> that) {
     StringBuilder b = new StringBuilder();
     b.append("(");
     b.append(that.self.acceptVisitor(this));
     b.append(".");
-    b.append(that.method.toString());
+    b.append(that.method.name());
     b.append("(");
-    Iterator<? extends Expression<?>> iterator = that.arguments.iterator();
-    Expression<? extends Object> next;
+    Iterator<? extends Expression<? extends Nameable>> iterator = that.arguments.iterator();
+    Expression<? extends Nameable> next;
     if (iterator.hasNext()) {
       next = iterator.next();
       b.append(outerParanthesesRemoved(next.acceptVisitor(this)));
@@ -263,17 +263,17 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitFieldAccess(Expression.FieldAccess<? extends Object> that) {
+  public CharSequence visitFieldAccess(Expression.FieldAccess<? extends Nameable> that) {
     StringBuilder b = new StringBuilder("(");
     b.append(that.self.acceptVisitor(this));
     b.append(".");
-    b.append(that.field.toString());
+    b.append(that.field.name());
     b.append(")");
     return b;
   }
 
   @Override
-  public CharSequence visitArrayAccess(Expression.ArrayAccess<? extends Object> that) {
+  public CharSequence visitArrayAccess(Expression.ArrayAccess<? extends Nameable> that) {
     StringBuilder b = new StringBuilder("(").append(that.array.acceptVisitor(this)).append("[");
     CharSequence indexExpr = that.index.acceptVisitor(this);
     b.append(outerParanthesesRemoved(indexExpr));
@@ -282,36 +282,42 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitNewObject(Expression.NewObject<? extends Object> that) {
+  public CharSequence visitNewObject(Expression.NewObject<? extends Nameable> that) {
     StringBuilder b = new StringBuilder("(new ");
-    b.append(that.type.toString());
+    b.append(that.type.name());
     b.append("())");
     return b;
   }
 
   @Override
-  public CharSequence visitNewArray(Expression.NewArray<? extends Object> that) {
-    StringBuilder b = new StringBuilder("(new ").append(that.type.typeRef.toString()).append("[");
+  public CharSequence visitNewArray(Expression.NewArray<? extends Nameable> that) {
+    StringBuilder b = new StringBuilder("(new ").append(that.type.typeRef.name()).append("[");
     // bracketing exception for definition of array size applies here
     CharSequence sizeExpr = outerParanthesesRemoved(that.size.acceptVisitor(this));
     return b.append(sizeExpr)
         .append("]")
-        .append(Strings.repeat("[]", that.type.dimension - 1))
+        .append(Strings.repeat("[]", that.type.dimension))
         .append(")");
   }
 
   @Override
-  public CharSequence visitVariable(Expression.Variable<? extends Object> that) {
-    return that.var.toString();
+  public CharSequence visitVariable(Expression.Variable<? extends Nameable> that) {
+    return that.var.name();
   }
 
   @Override
-  public CharSequence visitBooleanLiteral(Expression.BooleanLiteral<? extends Object> that) {
+  public CharSequence visitBooleanLiteral(Expression.BooleanLiteral<? extends Nameable> that) {
     return Boolean.toString(that.literal);
   }
 
   @Override
-  public CharSequence visitIntegerLiteral(Expression.IntegerLiteral<? extends Object> that) {
+  public CharSequence visitIntegerLiteral(Expression.IntegerLiteral<? extends Nameable> that) {
     return that.literal;
+  }
+
+  @Override
+  public CharSequence visitReferenceTypeLiteral(
+      Expression.ReferenceTypeLiteral<? extends Nameable> that) {
+    return that.name();
   }
 }

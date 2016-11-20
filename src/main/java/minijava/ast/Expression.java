@@ -16,7 +16,7 @@ public interface Expression<TRef> extends SyntaxElement {
     }
 
     @Override
-    public SourceRange getRange() {
+    public SourceRange range() {
       return range;
     }
   }
@@ -189,6 +189,37 @@ public interface Expression<TRef> extends SyntaxElement {
     }
   }
 
+  class ReferenceTypeLiteral<TRef> extends Base<TRef> implements Definition {
+    private final String name;
+
+    private ReferenceTypeLiteral(String name, SourceRange range) {
+      super(range);
+      this.name = name;
+    }
+
+    public static <T> ReferenceTypeLiteral<T> this_(SourceRange range) {
+      return new ReferenceTypeLiteral<>("this", range);
+    }
+
+    public static <T> ReferenceTypeLiteral<T> null_(SourceRange range) {
+      return new ReferenceTypeLiteral<>("null", range);
+    }
+
+    public static <T> ReferenceTypeLiteral<T> systemOut(SourceRange range) {
+      return new ReferenceTypeLiteral<>("System.out", range);
+    }
+
+    @Override
+    public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
+      return visitor.visitReferenceTypeLiteral(this);
+    }
+
+    @Override
+    public String name() {
+      return name;
+    }
+  }
+
   enum UnOp {
     NOT("!"),
     NEGATE("-");
@@ -237,12 +268,14 @@ public interface Expression<TRef> extends SyntaxElement {
 
     TReturn visitNewObject(NewObject<? extends TRef> that);
 
-    TReturn visitNewArray(NewArray<? extends TRef> size);
+    TReturn visitNewArray(NewArray<? extends TRef> that);
 
     TReturn visitVariable(Variable<? extends TRef> that);
 
     TReturn visitBooleanLiteral(BooleanLiteral<? extends TRef> that);
 
     TReturn visitIntegerLiteral(IntegerLiteral<? extends TRef> that);
+
+    TReturn visitReferenceTypeLiteral(ReferenceTypeLiteral<? extends TRef> that);
   }
 }

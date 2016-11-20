@@ -4,12 +4,13 @@ import java.util.List;
 import minijava.util.SourceRange;
 import minijava.util.SyntaxElement;
 
-public class Method<TRef> extends SyntaxElement.DefaultImpl {
+public class Method<TRef> extends SyntaxElement.DefaultImpl implements Definition {
   public final boolean isStatic;
   public final Type<TRef> returnType;
-  public final String name;
+  private final String name;
   public final List<Parameter<TRef>> parameters;
   public final Block<TRef> body;
+  public Type<Ref> definingClass;
 
   /**
    * Constructs a new method node.
@@ -32,6 +33,23 @@ public class Method<TRef> extends SyntaxElement.DefaultImpl {
     this.body = body;
   }
 
+  public Method(
+      boolean isStatic,
+      Type<TRef> returnType,
+      String name,
+      List<Parameter<TRef>> parameters,
+      Block<TRef> body,
+      SourceRange range,
+      Type<Ref> definingClass) {
+    this(isStatic, returnType, name, parameters, body, range);
+    this.definingClass = definingClass;
+  }
+
+  @Override
+  public String name() {
+    return this.name;
+  }
+
   public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
     return visitor.visitMethod(this);
   }
@@ -40,7 +58,7 @@ public class Method<TRef> extends SyntaxElement.DefaultImpl {
     TRet visitMethod(Method<? extends TRef> that);
   }
 
-  public static class Parameter<TRef> extends SyntaxElement.DefaultImpl {
+  public static class Parameter<TRef> extends SyntaxElement.DefaultImpl implements Definition {
     public final Type<TRef> type;
     public final String name;
 
@@ -48,6 +66,11 @@ public class Method<TRef> extends SyntaxElement.DefaultImpl {
       super(range);
       this.type = type;
       this.name = name;
+    }
+
+    @Override
+    public String name() {
+      return name;
     }
   }
 }
