@@ -675,7 +675,7 @@ public class NameAnalyzer
     // So it wasn't a local var... Maybe it was a field of the enclosing class
     Optional<Field<? extends Nameable>> fieldOpt = fields.lookup(that.var.name());
 
-    if (fieldOpt.isPresent()) {
+    if (fieldOpt.isPresent() && !currentMethod.isStatic) {
       // Analyze as if there was a preceding 'this.' in front of the variable
       // The field is there, so we can let errors pass through without causing confusion
       return new Expression.FieldAccess<>(THIS_EXPR, that.var, that.range).acceptVisitor(this);
