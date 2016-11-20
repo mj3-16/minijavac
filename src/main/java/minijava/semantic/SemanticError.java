@@ -6,22 +6,31 @@ import minijava.util.SourceRange;
 
 public class SemanticError extends MJError {
   public final SourceRange range;
+  public final SourceRange secondRange;
 
   SemanticError(SourceRange range, String message) {
     super(String.format("Semantic error at %s: %s", range, message));
     this.range = range;
+    this.secondRange = null;
   }
 
-  SemanticError(SourceRange leftRange, SourceRange rightRange, String message) {
-    super(String.format("Semantic error at %s: %s", leftRange, message));
-    this.range = leftRange;
+  SemanticError(SourceRange range, SourceRange secondRange, String message) {
+    super(String.format("Semantic error at %s: %s", range, message));
+    this.range = range;
+    this.secondRange = secondRange;
   }
 
   @Override
   public String getSourceReferencingMessage(List<String> sourceFile) {
-    return getMessage()
-        + System.lineSeparator()
-        + System.lineSeparator()
-        + range.annotateSourceFileExcerpt(sourceFile);
+    String message =
+        getMessage()
+            + System.lineSeparator()
+            + System.lineSeparator()
+            + range.annotateSourceFileExcerpt(sourceFile);
+    if (null != secondRange) {
+      message += System.lineSeparator() + secondRange.annotateSourceFileExcerpt(sourceFile);
+    }
+
+    return message;
   }
 }

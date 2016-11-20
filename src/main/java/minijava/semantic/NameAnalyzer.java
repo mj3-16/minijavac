@@ -122,21 +122,16 @@ public class NameAnalyzer
     if (that.isStatic) {
       // handle this quite specially
       if (!that.name().equals("main")) {
-        throw new SemanticError(
-            that.range(),
-            "Static methods must be named main. This should have been caught by the parser");
+        throw new SemanticError(that.range(), "Static methods must be named main.");
       }
       if (that.parameters.size() != 1) {
-        throw new SemanticError(
-            that.range(),
-            "The main method must have exactly one parameter. This should have been caught by the parser");
+        throw new SemanticError(that.range(), "The main method must have exactly one parameter.");
       }
       Parameter<? extends Nameable> p = that.parameters.get(0);
       Type<? extends Nameable> type = p.type;
       if (!type.typeRef.name().equals("String") || type.dimension != 1) {
         throw new SemanticError(
-            that.range(),
-            "The main method's parameter must have type String[]. This should have been caught by the parser");
+            that.range(), "The main method's parameter must have type String[].");
       }
       // This should also have been caught by the parser
       checkType(Type.VOID, returnType);
@@ -269,11 +264,16 @@ public class NameAnalyzer
   public Statement<Ref> visitReturn(Statement.Return<? extends Nameable> that) {
     Type<Ref> returnType = currentMethod.returnType.acceptVisitor(this);
     if (that.expression.isPresent()) {
-      checkElementTypeIsNotVoid(returnType);
-      Tuple2<Expression<Ref>, Type<Ref>> expr = that.expression.get().acceptVisitor(this);
-      checkType(returnType, expr.v2);
-      hasReturned = true;
-      return new Statement.Return<>(expr.v1, that.range());
+      if (!currentMethod.equals(mainMethod)) {
+        checkElementTypeIsNotVoid(returnType);
+        Tuple2<Expression<Ref>, Type<Ref>> expr = that.expression.get().acceptVisitor(this);
+        checkType(returnType, expr.v2);
+        hasReturned = true;
+        return new Statement.Return<>(expr.v1, that.range());
+      } else {
+        throw new SemanticError(
+            that.expression.get().range(), "Returning a value is not valid in main method");
+      }
     } else {
       checkType(returnType, Type.VOID);
       hasReturned = true;
@@ -323,14 +323,13 @@ public class NameAnalyzer
 
   private void checkElementTypeIsNotVoid(Type<Ref> actual) {
     if (actual.typeRef.name().equals("void")) {
-      throw new SemanticError(
-          actual.range(), "Cannot use something of (element) type void here: " + actual.range());
+      throw new SemanticError(actual.range(), "Cannot use something of (element) type void");
     }
   }
 
   private void checkIsArrayType(Type<Ref> actual) {
     if (actual.dimension == 0) {
-      throw new SemanticError(actual.range(), "Expected an array type here: " + actual.range());
+      throw new SemanticError(actual.range(), "Expected an array type");
     }
   }
 
@@ -639,9 +638,7 @@ public class NameAnalyzer
     // This actually should never happen to begin with..
     // The parser will not produce such a type.
     if (!(optDef.get() instanceof Class)) {
-      throw new SemanticError(
-          that.range(),
-          "Only reference types can be allocated with new. This should have been caught by the parser.");
+      throw new SemanticError(that.range(), "Only reference types can be allocated with new.");
     }
 
     Ref ref = new Ref(optDef.get());
