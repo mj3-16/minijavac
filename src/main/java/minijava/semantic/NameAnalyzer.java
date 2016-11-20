@@ -356,8 +356,7 @@ public class NameAnalyzer
         // it should be a fieldaccess or variableexpression.
         if (!(left.v1 instanceof Expression.FieldAccess)
             && !(left.v1 instanceof Expression.Variable)
-            && !(left.v1 instanceof Expression.ArrayAccess)
-            && !(left.v1 instanceof Expression.NewObject)) {
+            && !(left.v1 instanceof Expression.ArrayAccess)) {
           throw new SemanticError(left.v1.range(), "Expression is not assignable");
         }
         // Also left.v2 must match right.v2
