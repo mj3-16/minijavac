@@ -53,7 +53,7 @@ public class NameAnalyzer
       refClasses.add(refClass);
     }
     if (mainMethod == null) {
-      throw new SemanticError("No main method defined");
+      throw new SemanticError(that.range(), "No main method defined");
     }
     return new Program<>(refClasses, that.range());
   }
@@ -67,7 +67,8 @@ public class NameAnalyzer
     List<Field<Ref>> newFields = new ArrayList<>(that.fields.size());
     for (Field<? extends Nameable> f : that.fields) {
       if (fields.inCurrentScope(f.name())) {
-        throw new SemanticError();
+        throw new SemanticError(
+            f.range(), "Field '" + f.name() + "' is already defined in this scope");
       }
       fields.insert(f.name(), f);
       Field<Ref> field = f.acceptVisitor(this);
@@ -81,7 +82,8 @@ public class NameAnalyzer
     // First pick up all method declarations
     for (Method<? extends Nameable> m : that.methods) {
       if (methods.inCurrentScope(m.name())) {
-        throw new SemanticError();
+        throw new SemanticError(
+            m.range(), "Method '" + m.name() + "' is already defined in this scope");
       }
       methods.insert(m.name(), m);
     }
@@ -99,7 +101,7 @@ public class NameAnalyzer
   @Override
   public Field<Ref> visitField(Field<? extends Nameable> that) {
     Type<Ref> type = that.type.acceptVisitor(this);
-    checkElementTypeIsNotVoid(type);
+    checkElementTypeIsNotVoid(type, type.range());
     return new Field<>(type, that.name(), that.range(), currentClass);
   }
 
@@ -108,7 +110,7 @@ public class NameAnalyzer
     String typeName = that.typeRef.name();
     Optional<Definition> optDef = types.lookup(typeName);
     if (!optDef.isPresent()) {
-      throw new SemanticError("Type " + typeName + " is not defined");
+      throw new SemanticError(that.range(), "Type '" + typeName + "' is not defined");
     }
     return new Type<>(new Ref(optDef.get()), that.dimension, that.range());
   }
@@ -122,24 +124,23 @@ public class NameAnalyzer
     if (that.isStatic) {
       // handle this quite specially
       if (!that.name().equals("main")) {
-        throw new SemanticError(
-            "Static methods must be named main. This should have been caught by the parser");
+        throw new SemanticError(that.range(), "Static methods must be named main.");
       }
       if (that.parameters.size() != 1) {
-        throw new SemanticError(
-            "The main method must have exactly one parameter. This should have been caught by the parser");
+        throw new SemanticError(that.range(), "The main method must have exactly one parameter.");
       }
       Parameter<? extends Nameable> p = that.parameters.get(0);
       Type<? extends Nameable> type = p.type;
       if (!type.typeRef.name().equals("String") || type.dimension != 1) {
         throw new SemanticError(
-            "The main method's parameter must have type String[]. This should have been caught by the parser");
+            that.range(), "The main method's parameter must have type String[].");
       }
       // This should also have been caught by the parser
-      checkType(Type.VOID, returnType);
+      checkType(Type.VOID, returnType, returnType.range());
 
       if (mainMethod != null) {
-        throw new SemanticError("There is already a main method defined at " + mainMethod.range());
+        throw new SemanticError(
+            that.range(), "There is already a main method defined at " + mainMethod.range());
       }
       mainMethod = that;
       newParams.add(
@@ -148,7 +149,7 @@ public class NameAnalyzer
     } else {
       for (Parameter<? extends Nameable> p : that.parameters) {
         Type<Ref> type = p.type.acceptVisitor(this);
-        checkElementTypeIsNotVoid(type);
+        checkElementTypeIsNotVoid(type, p.range());
         newParams.add(new Parameter<>(type, p.name(), p.range()));
       }
     }
@@ -160,7 +161,8 @@ public class NameAnalyzer
     // check for parameters with same name
     for (Parameter<Ref> p : newParams) {
       if (locals.lookup(p.name()).isPresent()) {
-        throw new SemanticError();
+        throw new SemanticError(
+            p.range(), "There is already a parameter defined with name '" + p.name() + "'");
       }
       locals.insert(p.name(), p);
     }
@@ -171,7 +173,7 @@ public class NameAnalyzer
     // Check if we returned on each possible path and if not, that the return type was void.
     if (!hasReturned) {
       // Check if we implicitly returned
-      checkType(Type.VOID, returnType);
+      checkType(Type.VOID, returnType, returnType.range());
     }
     return new Method<>(
         that.isStatic, returnType, that.name(), newParams, block, that.range(), currentClass);
@@ -198,7 +200,7 @@ public class NameAnalyzer
   public Statement<Ref> visitIf(Statement.If<? extends Nameable> that) {
     Tuple2<Expression<Ref>, Type<Ref>> cond = that.condition.acceptVisitor(this);
     Expression<Ref> newCondition = cond.v1;
-    checkType(Type.BOOLEAN, cond.v2);
+    checkType(Type.BOOLEAN, cond.v2, cond.v1.range());
 
     // Save the old returned flag. If this was true, hasReturned will be true afterwards,
     // no matter what the results of the two branches are.
@@ -238,7 +240,7 @@ public class NameAnalyzer
   @Override
   public Statement<Ref> visitWhile(Statement.While<? extends Nameable> that) {
     Tuple2<Expression<Ref>, Type<Ref>> cond = that.condition.acceptVisitor(this);
-    checkType(Type.BOOLEAN, cond.v2);
+    checkType(Type.BOOLEAN, cond.v2, cond.v1.range());
 
     // In contrast to if, where we actually have two branches of control flow, there's no elaborate
     // hasReturned handling necessary here.
@@ -264,13 +266,18 @@ public class NameAnalyzer
   public Statement<Ref> visitReturn(Statement.Return<? extends Nameable> that) {
     Type<Ref> returnType = currentMethod.returnType.acceptVisitor(this);
     if (that.expression.isPresent()) {
-      checkElementTypeIsNotVoid(returnType);
-      Tuple2<Expression<Ref>, Type<Ref>> expr = that.expression.get().acceptVisitor(this);
-      checkType(returnType, expr.v2);
-      hasReturned = true;
-      return new Statement.Return<>(expr.v1, that.range());
+      if (!currentMethod.equals(mainMethod)) {
+        checkElementTypeIsNotVoid(returnType, returnType.range());
+        Tuple2<Expression<Ref>, Type<Ref>> expr = that.expression.get().acceptVisitor(this);
+        checkType(returnType, expr.v2, expr.v1.range());
+        hasReturned = true;
+        return new Statement.Return<>(expr.v1, that.range());
+      } else {
+        throw new SemanticError(
+            that.expression.get().range(), "Returning a value is not valid in main method");
+      }
     } else {
-      checkType(returnType, Type.VOID);
+      checkType(Type.VOID, returnType, returnType.range());
       hasReturned = true;
       return new Statement.Return<>(null, that.range());
     }
@@ -280,20 +287,9 @@ public class NameAnalyzer
    * This is reflexive in both arguments, so swapping them should not change the outcome of this
    * function
    */
-  private void checkType(Type<Ref> expected, Type<Ref> actual) {
-
+  private void checkType(Type<Ref> expected, Type<Ref> actual, SourceRange range) {
     SemanticError e =
-        new SemanticError(
-            "Expected type "
-                + expected
-                + "("
-                + expected.range()
-                + ")"
-                + ", but got "
-                + actual
-                + "("
-                + actual.range()
-                + ")");
+        new SemanticError(range, "Expected type '" + expected + "', but got type '" + actual + "'");
 
     if (expected.dimension == actual.dimension
         && expected.typeRef.name().equals(actual.typeRef.name())) {
@@ -314,31 +310,30 @@ public class NameAnalyzer
     throw e;
   }
 
-  private void checkElementTypeIsNotVoid(Type<Ref> actual) {
+  private void checkElementTypeIsNotVoid(Type<Ref> actual, SourceRange range) {
     if (actual.typeRef.name().equals("void")) {
-      throw new SemanticError(
-          "Cannot use something of (element) type void here: " + actual.range());
+      throw new SemanticError(range, "Type void is not valid here");
     }
   }
 
-  private void checkIsArrayType(Type<Ref> actual) {
+  private void checkIsArrayType(Type<Ref> actual, SourceRange range) {
     if (actual.dimension == 0) {
-      throw new SemanticError("Expected an array type here: " + actual.range());
+      throw new SemanticError(range, "Expected an array type");
     }
   }
 
   public BlockStatement<Ref> visitVariable(BlockStatement.Variable<? extends Nameable> that) {
     Type<Ref> variableType = that.type.acceptVisitor(this);
-    checkElementTypeIsNotVoid(variableType);
+    checkElementTypeIsNotVoid(variableType, variableType.range());
     if (locals.lookup(that.name()).isPresent()) {
-      throw new SemanticError("Cannot redefine " + that.name() + " at " + that.range());
+      throw new SemanticError(that.range(), "Cannot redefine '" + that.name() + "'");
     }
 
     Expression<Ref> rhs = null;
 
     if (that.rhs.isPresent()) {
       Tuple2<Expression<Ref>, Type<Ref>> ret = that.rhs.get().acceptVisitor(this);
-      checkType(variableType, ret.v2);
+      checkType(variableType, ret.v2, ret.v1.range());
       rhs = ret.v1;
     }
 
@@ -363,11 +358,13 @@ public class NameAnalyzer
             && !(left.v1 instanceof Expression.Variable)
             && !(left.v1 instanceof Expression.ArrayAccess)
             && !(left.v1 instanceof Expression.NewObject)) {
-          throw new SemanticError("Cannot assign to the expression at " + left.v1.range());
+          throw new SemanticError(left.v1.range(), "Expression is not assignable");
         }
         // Also left.v2 must match right.v2
         checkType(
-            left.v2, right.v2); // This would be broken for type Any, but null can't be assigned to
+            left.v2,
+            right.v2,
+            right.v1.range()); // This would be broken for type Any, but null can't be assigned to
         // The result type of the assignment expression is just left.v2
         resultType = left.v2;
         break;
@@ -378,23 +375,23 @@ public class NameAnalyzer
       case MODULO:
         // int -> int -> int
         // so, check that left.v1 and left.v2 is int
-        checkType(Type.INT, left.v2);
-        checkType(Type.INT, right.v2);
+        checkType(Type.INT, left.v2, left.v1.range());
+        checkType(Type.INT, right.v2, right.v1.range());
         // Then we can just reuse left's type
         resultType = left.v2;
         break;
       case OR:
       case AND:
         // bool -> bool -> bool
-        checkType(Type.BOOLEAN, left.v2);
-        checkType(Type.BOOLEAN, right.v2);
+        checkType(Type.BOOLEAN, left.v2, left.v1.range());
+        checkType(Type.BOOLEAN, right.v2, right.v1.range());
         resultType = left.v2;
         break;
       case EQ:
       case NEQ:
         // T -> T -> bool
         // The Ts have to match
-        checkType(left.v2, right.v2);
+        checkType(left.v2, right.v2, right.v1.range());
         resultType = Type.BOOLEAN;
         break;
       case LT:
@@ -402,8 +399,8 @@ public class NameAnalyzer
       case GT:
       case GEQ:
         // int -> int -> bool
-        checkType(Type.INT, left.v2);
-        checkType(Type.INT, right.v2);
+        checkType(Type.INT, left.v2, left.v1.range());
+        checkType(Type.INT, right.v2, right.v1.range());
         resultType = Type.BOOLEAN;
         break;
     }
@@ -434,7 +431,7 @@ public class NameAnalyzer
     }
 
     Tuple2<Expression<Ref>, Type<Ref>> expr = that.expression.acceptVisitor(this);
-    checkType(expected, expr.v2);
+    checkType(expected, expr.v2, expr.v1.range());
 
     return tuple(new Expression.UnaryOperator<>(that.op, expr.v1, that.range()), expr.v2);
   }
@@ -448,7 +445,8 @@ public class NameAnalyzer
     // not a valid integer literal.
     if (Ints.tryParse("-" + lit.literal) == null) {
       // insert range
-      throw new SemanticError("The literal '-" + lit.literal + "' is not a valid 32-bit number");
+      throw new SemanticError(
+          lit.range(), "The literal '-" + lit.literal + "' is not a valid 32-bit number");
     }
 
     // Also, for the case that we got -(2147483648), which will be parsed
@@ -470,7 +468,8 @@ public class NameAnalyzer
       //              ^ litTokenNumber > minusTokenNumber + 1
 
       // insert range
-      throw new SemanticError("The literal '" + lit.literal + "' is not a valid 32-bit number");
+      throw new SemanticError(
+          lit.range(), "The literal '" + lit.literal + "' is not a valid 32-bit number");
     }
     // Otherwise just return what we know
     return tuple(new Expression.UnaryOperator<>(that.op, lit, that.range()), Type.INT);
@@ -490,7 +489,7 @@ public class NameAnalyzer
 
     if (!definingClass.isPresent()) {
       // TODO - Names
-      throw new SemanticError("only classes have methods");
+      throw new SemanticError(that.range(), "Only classes have methods");
     }
 
     Optional<Method<Nameable>> methodOpt =
@@ -503,28 +502,34 @@ public class NameAnalyzer
 
     if (!methodOpt.isPresent()) {
       // TODO - Names
-      throw new SemanticError("Class blah had no method blah");
+      throw new SemanticError(
+          that.range(),
+          "Class '" + definingClass.get().name() + "' has no method '" + that.method.name() + "'");
     }
 
     Method<Nameable> m = methodOpt.get();
     m.definingClass = self.v2;
 
     if (m.isStatic) {
-      throw new SemanticError("Static methods cannot be called.");
+      throw new SemanticError(that.range(), "Static methods cannot be called.");
     }
 
     // Now that we have the method, we have access to its type.
     // Check that argument types match declared parameter types!
     if (m.parameters.size() != that.arguments.size()) {
       throw new SemanticError(
-          "Number of declared parameters and actual number of arguments of the call mismatched");
+          that.range(),
+          "Number of declared parameters and actual number of arguments mismatch. Expected "
+              + m.parameters.size()
+              + " but got "
+              + that.arguments.size());
     }
 
     List<Expression<Ref>> resolvedArguments = new ArrayList<>(that.arguments.size());
     for (int i = 0; i < m.parameters.size(); ++i) {
       Type<Ref> paramType = m.parameters.get(i).type.acceptVisitor(this);
       Tuple2<Expression<Ref>, Type<Ref>> arg = that.arguments.get(i).acceptVisitor(this);
-      checkType(paramType, arg.v2);
+      checkType(paramType, arg.v2, arg.v1.range());
       resolvedArguments.add(arg.v1);
     }
 
@@ -578,7 +583,7 @@ public class NameAnalyzer
 
     if (!definingClass.isPresent()) {
       // TODO - Names
-      throw new SemanticError("only classes have fields");
+      throw new SemanticError(that.range(), "Only classes have fields");
     }
 
     Optional<Field<Nameable>> fieldOpt =
@@ -591,7 +596,9 @@ public class NameAnalyzer
 
     if (!fieldOpt.isPresent()) {
       // TODO - Names
-      throw new SemanticError("Class blah had no field blah");
+      throw new SemanticError(
+          that.range(),
+          "Class '" + definingClass.get().name() + "' has no field " + that.field.name());
     }
 
     Field<Nameable> field = fieldOpt.get();
@@ -606,9 +613,9 @@ public class NameAnalyzer
     Tuple2<Expression<Ref>, Type<Ref>> arr = that.array.acceptVisitor(this);
     Tuple2<Expression<Ref>, Type<Ref>> idx = that.index.acceptVisitor(this);
 
-    checkType(Type.INT, idx.v2);
-    checkElementTypeIsNotVoid(arr.v2);
-    checkIsArrayType(arr.v2);
+    checkType(Type.INT, idx.v2, idx.v1.range());
+    checkElementTypeIsNotVoid(arr.v2, arr.v1.range());
+    checkIsArrayType(arr.v2, arr.v1.range());
 
     Type<Ref> returnType = new Type<>(arr.v2.typeRef, arr.v2.dimension - 1, arr.v2.range());
     return tuple(new Expression.ArrayAccess<>(arr.v1, idx.v1, that.range()), returnType);
@@ -618,13 +625,12 @@ public class NameAnalyzer
   public Tuple2<Expression<Ref>, Type<Ref>> visitNewObject(NewObject<? extends Nameable> that) {
     Optional<Definition> optDef = types.lookup(that.type.name());
     if (!optDef.isPresent()) {
-      throw new SemanticError();
+      throw new SemanticError(that.range(), "Type is not present");
     }
     // This actually should never happen to begin with..
     // The parser will not produce such a type.
     if (!(optDef.get() instanceof Class)) {
-      throw new SemanticError(
-          "Only reference types can be allocated with new. This should have been caught by the parser.");
+      throw new SemanticError(that.range(), "Only reference types can be allocated with new.");
     }
 
     Ref ref = new Ref(optDef.get());
@@ -637,7 +643,7 @@ public class NameAnalyzer
     Type<Ref> type = that.type.acceptVisitor(this);
     Tuple2<Expression<Ref>, Type<Ref>> size = that.size.acceptVisitor(this);
 
-    checkType(Type.INT, size.v2);
+    checkType(Type.INT, size.v2, size.v1.range());
 
     // TODO - discuss: The +1 will probably introduce a bug, but I find it much more intuitive to increment dimension
     // here than in the parser, e.g. NewArray.type should denote the type of the elements of the new array
@@ -658,7 +664,7 @@ public class NameAnalyzer
         Parameter<Ref> p = (Parameter<Ref>) varOpt.get();
         // Because of a hack where we represent main's parameter with type void, we have to check
         // if the expression is a variable of type void.
-        checkElementTypeIsNotVoid(p.type);
+        checkElementTypeIsNotVoid(p.type, p.range());
         return tuple(new Expression.Variable<>(new Ref(p), that.range), p.type);
       } else {
         // We must have put something else into locals, this mustn't happen.
@@ -669,14 +675,13 @@ public class NameAnalyzer
     // So it wasn't a local var... Maybe it was a field of the enclosing class
     Optional<Field<? extends Nameable>> fieldOpt = fields.lookup(that.var.name());
 
-    if (fieldOpt.isPresent()) {
+    if (fieldOpt.isPresent() && !currentMethod.isStatic) {
       // Analyze as if there was a preceding 'this.' in front of the variable
       // The field is there, so we can let errors pass through without causing confusion
       return new Expression.FieldAccess<>(THIS_EXPR, that.var, that.range).acceptVisitor(this);
     }
 
-    throw new SemanticError(
-        "Variable '" + that.var.name() + "' used at " + that.range() + " was not in scope.");
+    throw new SemanticError(that.range(), "Variable '" + that.var.name() + "' is not in scope.");
   }
 
   @Override
@@ -692,7 +697,8 @@ public class NameAnalyzer
 
     if (Ints.tryParse(that.literal, 10) == null) {
       // insert range
-      throw new SemanticError("The literal '" + that.literal + "' is not a valid 32-bit number");
+      throw new SemanticError(
+          that.range(), "The literal '" + that.literal + "' is not a valid 32-bit number");
     }
     // type parameter is not used by IntegerLiteral, cast is safe
     return tuple((IntegerLiteral<Ref>) that, Type.INT);
@@ -707,7 +713,8 @@ public class NameAnalyzer
     assert that.name().equals("this");
 
     if (currentMethod.isStatic) {
-      throw new SemanticError("Can't access 'this' in a static method at " + that.range());
+      throw new SemanticError(
+          that.range(), "Cannot access 'this' in a static method " + that.name());
     }
 
     return tuple((Expression.ReferenceTypeLiteral<Ref>) that, currentClass);
