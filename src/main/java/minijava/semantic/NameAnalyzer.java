@@ -643,8 +643,8 @@ public class NameAnalyzer
     Tuple2<Expression<Ref>, Type<Ref>> size = that.size.acceptVisitor(this);
 
     checkType(Type.INT, size.v2, size.v1.range());
+    checkElementTypeIsNotVoid(type, that.range());
 
-    // TODO - discuss: The +1 will probably introduce a bug, but I find it much more intuitive to increment dimension
     // here than in the parser, e.g. NewArray.type should denote the type of the elements of the new array
     Type<Ref> returnType = new Type<>(type.typeRef, type.dimension + 1, type.range());
     return tuple(new NewArray<>(type, size.v1, that.range()), returnType);
