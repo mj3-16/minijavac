@@ -4,49 +4,49 @@ import minijava.ast.*;
 import minijava.ast.Class;
 
 public class AnalyzedTypesReplacer
-    implements Program.Visitor<Ref, Void>,
-        Class.Visitor<Ref, Void>,
-        Field.Visitor<Ref, Void>,
-        Method.Visitor<Ref, Void>,
-        BlockStatement.Visitor<Ref, Void>,
-        Expression.Visitor<Ref, Void> {
+    implements Program.Visitor<Void>,
+        Class.Visitor<Void>,
+        Field.Visitor<Void>,
+        Method.Visitor<Void>,
+        BlockStatement.Visitor<Void>,
+        Expression.Visitor<Void> {
 
   private SymbolTable<Definition> analyzedTypes = new SymbolTable<>();
-  private Type<Ref> currentClass;
+  private Type currentClass;
 
   @Override
-  public Void visitProgram(Program<? extends Ref> that) {
+  public Void visitProgram(Program that) {
     analyzedTypes = that.acceptVisitor(new TypeCollector());
-    for (Class<? extends Ref> declaration : that.declarations) {
+    for (Class declaration : that.declarations) {
       declaration.acceptVisitor(this);
     }
     return null;
   }
 
   @Override
-  public Void visitClassDeclaration(Class<? extends Ref> that) {
-    currentClass = new Type<>(new Ref(that), 0, that.range());
-    for (Field<? extends Ref> field : that.fields) {
+  public Void visitClassDeclaration(Class that) {
+    currentClass = new Type(new Ref(that), 0, that.range());
+    for (Field field : that.fields) {
       field.acceptVisitor(this);
     }
-    for (Method<? extends Ref> method : that.methods) {
+    for (Method method : that.methods) {
       method.acceptVisitor(this);
     }
     return null;
   }
 
   @Override
-  public Void visitField(Field<? extends Ref> that) {
+  public Void visitField(Field that) {
     that.definingClass = currentClass;
     that.type.typeRef.def = analyzedTypes.lookup(that.type.typeRef.def.name()).get();
     return null;
   }
 
   @Override
-  public Void visitMethod(Method<? extends Ref> that) {
+  public Void visitMethod(Method that) {
     that.definingClass = currentClass;
     that.returnType.typeRef.def = analyzedTypes.lookup(that.returnType.typeRef.def.name()).get();
-    for (Method.Parameter<? extends Ref> parameter : that.parameters) {
+    for (Method.Parameter parameter : that.parameters) {
       parameter.type.typeRef.def = analyzedTypes.lookup(parameter.type.typeRef.def.name()).get();
     }
     that.body.acceptVisitor(this);
@@ -54,27 +54,27 @@ public class AnalyzedTypesReplacer
   }
 
   @Override
-  public Void visitBlock(Block<? extends Ref> that) {
-    for (BlockStatement<? extends Ref> statement : that.statements) {
+  public Void visitBlock(Block that) {
+    for (BlockStatement statement : that.statements) {
       statement.acceptVisitor(this);
     }
     return null;
   }
 
   @Override
-  public Void visitVariable(BlockStatement.Variable<? extends Ref> that) {
+  public Void visitVariable(BlockStatement.Variable that) {
     that.type.typeRef.def = analyzedTypes.lookup(that.type.typeRef.def.name()).get();
     that.rhs.ifPresent(e -> e.acceptVisitor(this));
     return null;
   }
 
   @Override
-  public Void visitEmpty(Statement.Empty<? extends Ref> that) {
+  public Void visitEmpty(Statement.Empty that) {
     return null;
   }
 
   @Override
-  public Void visitIf(Statement.If<? extends Ref> that) {
+  public Void visitIf(Statement.If that) {
     that.condition.acceptVisitor(this);
     that.then.acceptVisitor(this);
     that.else_.ifPresent(s -> s.acceptVisitor(this));
@@ -82,50 +82,49 @@ public class AnalyzedTypesReplacer
   }
 
   @Override
-  public Void visitExpressionStatement(Statement.ExpressionStatement<? extends Ref> that) {
+  public Void visitExpressionStatement(Statement.ExpressionStatement that) {
     that.expression.acceptVisitor(this);
     return null;
   }
 
   @Override
-  public Void visitWhile(Statement.While<? extends Ref> that) {
+  public Void visitWhile(Statement.While that) {
     that.condition.acceptVisitor(this);
     that.body.acceptVisitor(this);
     return null;
   }
 
   @Override
-  public Void visitReturn(Statement.Return<? extends Ref> that) {
+  public Void visitReturn(Statement.Return that) {
     that.expression.ifPresent(e -> e.acceptVisitor(this));
     return null;
   }
 
   @Override
-  public Void visitBinaryOperator(Expression.BinaryOperator<? extends Ref> that) {
+  public Void visitBinaryOperator(Expression.BinaryOperator that) {
     that.left.acceptVisitor(this);
     that.right.acceptVisitor(this);
     return null;
   }
 
   @Override
-  public Void visitUnaryOperator(Expression.UnaryOperator<? extends Ref> that) {
+  public Void visitUnaryOperator(Expression.UnaryOperator that) {
     that.expression.acceptVisitor(this);
     return null;
   }
 
   @Override
-  public Void visitMethodCall(Expression.MethodCall<? extends Ref> that) {
-    for (Expression<? extends Ref> argument : that.arguments) {
+  public Void visitMethodCall(Expression.MethodCall that) {
+    for (Expression argument : that.arguments) {
       argument.acceptVisitor(this);
     }
-    Type<Ref> definingClass = ((Method<Ref>) that.method.def).definingClass;
+    Type definingClass = ((Method) that.method.def).definingClass;
     // special treatment for System.out.println(int)
     if (definingClass == Type.SYSTEM_OUT && that.method.def.name().equals("println")) {
       return null;
     }
-    Class<Ref> analyzedClass =
-        (Class<Ref>) analyzedTypes.lookup(definingClass.typeRef.name()).get();
-    Method<Ref> methodInAnalyzedClass =
+    Class analyzedClass = (Class) analyzedTypes.lookup(definingClass.typeRef.name()).get();
+    Method methodInAnalyzedClass =
         analyzedClass
             .methods
             .stream()
@@ -137,11 +136,10 @@ public class AnalyzedTypesReplacer
   }
 
   @Override
-  public Void visitFieldAccess(Expression.FieldAccess<? extends Ref> that) {
-    Type<Ref> definingClass = ((Field<Ref>) that.field.def).definingClass;
-    Class<Ref> analyzedClass =
-        (Class<Ref>) analyzedTypes.lookup(definingClass.typeRef.name()).get();
-    Field<Ref> fieldInAnalyzedClass =
+  public Void visitFieldAccess(Expression.FieldAccess that) {
+    Type definingClass = ((Field) that.field.def).definingClass;
+    Class analyzedClass = (Class) analyzedTypes.lookup(definingClass.typeRef.name()).get();
+    Field fieldInAnalyzedClass =
         analyzedClass
             .fields
             .stream()
@@ -153,42 +151,42 @@ public class AnalyzedTypesReplacer
   }
 
   @Override
-  public Void visitArrayAccess(Expression.ArrayAccess<? extends Ref> that) {
+  public Void visitArrayAccess(Expression.ArrayAccess that) {
     that.index.acceptVisitor(this);
     that.array.acceptVisitor(this);
     return null;
   }
 
   @Override
-  public Void visitNewObject(Expression.NewObject<? extends Ref> that) {
-    that.type.def = analyzedTypes.lookup(that.type.name()).get();
+  public Void visitNewObject(Expression.NewObject that) {
+    that.class_.def = analyzedTypes.lookup(that.class_.name()).get();
     return null;
   }
 
   @Override
-  public Void visitNewArray(Expression.NewArray<? extends Ref> that) {
+  public Void visitNewArray(Expression.NewArray that) {
     that.type.typeRef.def = analyzedTypes.lookup(that.type.typeRef.name()).get();
     that.size.acceptVisitor(this);
     return null;
   }
 
   @Override
-  public Void visitVariable(Expression.Variable<? extends Ref> that) {
+  public Void visitVariable(Expression.Variable that) {
     return null;
   }
 
   @Override
-  public Void visitBooleanLiteral(Expression.BooleanLiteral<? extends Ref> that) {
+  public Void visitBooleanLiteral(Expression.BooleanLiteral that) {
     return null;
   }
 
   @Override
-  public Void visitIntegerLiteral(Expression.IntegerLiteral<? extends Ref> that) {
+  public Void visitIntegerLiteral(Expression.IntegerLiteral that) {
     return null;
   }
 
   @Override
-  public Void visitReferenceTypeLiteral(Expression.ReferenceTypeLiteral<? extends Ref> that) {
+  public Void visitReferenceTypeLiteral(Expression.ReferenceTypeLiteral that) {
     return null;
   }
 }

@@ -15,9 +15,7 @@ import java.io.PrintStream;
 import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.List;
-import minijava.ast.Nameable;
 import minijava.ast.Program;
-import minijava.ast.Ref;
 import minijava.lexer.Lexer;
 import minijava.parser.Parser;
 import minijava.semantic.AnalyzedTypesReplacer;
@@ -114,13 +112,13 @@ class Cli {
   }
 
   private void printAst(InputStream in) {
-    Program<Nameable> ast = new Parser(new Lexer(in)).parse();
+    Program ast = new Parser(new Lexer(in)).parse();
     out.print(ast.acceptVisitor(new PrettyPrinter()));
   }
 
   private void check(InputStream in) {
-    Program<Nameable> ast = new Parser(new Lexer(in)).parse();
-    Program<Ref> renamed = ast.acceptVisitor(new NameAnalyzer());
+    Program ast = new Parser(new Lexer(in)).parse();
+    Program renamed = ast.acceptVisitor(new NameAnalyzer());
     renamed.acceptVisitor(new AnalyzedTypesReplacer());
   }
 

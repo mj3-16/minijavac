@@ -4,13 +4,13 @@ import java.util.List;
 import minijava.util.SourceRange;
 import minijava.util.SyntaxElement;
 
-public class Method<TRef> extends SyntaxElement.DefaultImpl implements Definition {
+public class Method extends SyntaxElement.DefaultImpl implements Definition {
   public final boolean isStatic;
-  public final Type<TRef> returnType;
+  public final Type returnType;
   private final String name;
-  public final List<Parameter<TRef>> parameters;
-  public final Block<TRef> body;
-  public Type<Ref> definingClass;
+  public final List<Parameter> parameters;
+  public final Block body;
+  public Type definingClass;
 
   /**
    * Constructs a new method node.
@@ -20,10 +20,10 @@ public class Method<TRef> extends SyntaxElement.DefaultImpl implements Definitio
    */
   public Method(
       boolean isStatic,
-      Type<TRef> returnType,
+      Type returnType,
       String name,
-      List<Parameter<TRef>> parameters,
-      Block<TRef> body,
+      List<Parameter> parameters,
+      Block body,
       SourceRange range) {
     super(range);
     this.isStatic = isStatic;
@@ -35,12 +35,12 @@ public class Method<TRef> extends SyntaxElement.DefaultImpl implements Definitio
 
   public Method(
       boolean isStatic,
-      Type<TRef> returnType,
+      Type returnType,
       String name,
-      List<Parameter<TRef>> parameters,
-      Block<TRef> body,
+      List<Parameter> parameters,
+      Block body,
       SourceRange range,
-      Type<Ref> definingClass) {
+      Type definingClass) {
     this(isStatic, returnType, name, parameters, body, range);
     this.definingClass = definingClass;
   }
@@ -50,19 +50,19 @@ public class Method<TRef> extends SyntaxElement.DefaultImpl implements Definitio
     return this.name;
   }
 
-  public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
+  public <TRet> TRet acceptVisitor(Visitor<TRet> visitor) {
     return visitor.visitMethod(this);
   }
 
-  public interface Visitor<TRef, TRet> {
-    TRet visitMethod(Method<? extends TRef> that);
+  public interface Visitor<TRet> {
+    TRet visitMethod(Method that);
   }
 
-  public static class Parameter<TRef> extends SyntaxElement.DefaultImpl implements Definition {
-    public final Type<TRef> type;
+  public static class Parameter extends SyntaxElement.DefaultImpl implements Definition {
+    public final Type type;
     public final String name;
 
-    public Parameter(Type<TRef> type, String name, SourceRange range) {
+    public Parameter(Type type, String name, SourceRange range) {
       super(range);
       this.type = type;
       this.name = name;

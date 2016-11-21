@@ -5,10 +5,10 @@ import java.util.List;
 import minijava.util.SourceRange;
 import minijava.util.SyntaxElement;
 
-public class Class<TRef> extends SyntaxElement.DefaultImpl implements Definition {
+public class Class extends SyntaxElement.DefaultImpl implements Definition {
   private final String name;
-  public final List<Field<TRef>> fields;
-  public final List<Method<TRef>> methods;
+  public final List<Field> fields;
+  public final List<Method> methods;
   private final SourceRange range;
 
   /**
@@ -18,8 +18,7 @@ public class Class<TRef> extends SyntaxElement.DefaultImpl implements Definition
    * methods}. The caller must make sure that, after handing over these lists, no modifications
    * happen to them.
    */
-  public Class(
-      String name, List<Field<TRef>> fields, List<Method<TRef>> methods, SourceRange range) {
+  public Class(String name, List<Field> fields, List<Method> methods, SourceRange range) {
     super(range);
     this.name = name;
     this.fields = Collections.unmodifiableList(fields);
@@ -27,7 +26,7 @@ public class Class<TRef> extends SyntaxElement.DefaultImpl implements Definition
     this.range = range;
   }
 
-  public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
+  public <T> T acceptVisitor(Visitor<T> visitor) {
     return visitor.visitClassDeclaration(this);
   }
 
@@ -41,7 +40,7 @@ public class Class<TRef> extends SyntaxElement.DefaultImpl implements Definition
     return range;
   }
 
-  public interface Visitor<TRef, TReturn> {
-    TReturn visitClassDeclaration(Class<? extends TRef> that);
+  public interface Visitor<T> {
+    T visitClassDeclaration(Class that);
   }
 }
