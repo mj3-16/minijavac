@@ -122,7 +122,6 @@ class Cli {
     Program<Nameable> ast = new Parser(new Lexer(in)).parse();
     Program<Ref> renamed = ast.acceptVisitor(new NameAnalyzer());
     renamed.acceptVisitor(new AnalyzedTypesReplacer());
-    out.print(renamed.acceptVisitor(new PrettyPrinter()));
   }
 
   private static class Parameters {
