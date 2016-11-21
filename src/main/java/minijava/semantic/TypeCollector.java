@@ -6,21 +6,21 @@ import java.util.Set;
 import minijava.ast.*;
 import minijava.ast.Class;
 
-class TypeCollector implements Program.Visitor<SymbolTable<Definition>> {
+class TypeCollector implements Program.Visitor<SymbolTable<BasicType>> {
 
-  private static final Set<BuiltinType> BASIC_TYPES =
+  private static final Set<BuiltinType> BUILTIN_TYPES =
       ImmutableSet.of(BuiltinType.INT, BuiltinType.BOOLEAN, BuiltinType.VOID);
 
   @Override
-  public SymbolTable<Definition> visitProgram(Program that) {
-    SymbolTable<Definition> symtab = new SymbolTable<>();
+  public SymbolTable<BasicType> visitProgram(Program that) {
+    SymbolTable<BasicType> symtab = new SymbolTable<>();
     symtab.enterScope();
-    // basic types are just there
-    for (BuiltinType b : BASIC_TYPES) {
+    // builtin types are just there
+    for (BuiltinType b : BUILTIN_TYPES) {
       symtab.insert(b.name(), b);
     }
     for (Class c : that.declarations) {
-      Optional<Definition> sameType = symtab.lookup(c.name());
+      Optional<BasicType> sameType = symtab.lookup(c.name());
       if (sameType.isPresent()) {
         throw new SemanticError(
             c.range(),

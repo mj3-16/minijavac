@@ -18,6 +18,15 @@ import minijava.util.SourceRange;
 import org.jetbrains.annotations.NotNull;
 import org.jooq.lambda.tuple.Tuple2;
 
+/**
+ * Performs name analysis for a Program.
+ *
+ * <p>It does so by first collecting all class definitions (including field and method names) in a
+ * first pass, then will resolve names and perform type checks in a tree traversing manner.
+ *
+ * <p>Expressions aren't only resolved, but also their types are inferred. This is why we do it in
+ * lock-step by returning a Pair.
+ */
 public class NameAnalyzer
     implements Program.Visitor<Program>,
         Class.Visitor<Class>,
@@ -26,21 +35,48 @@ public class NameAnalyzer
         Method.Visitor<Method>,
         BlockStatement.Visitor<BlockStatement>,
         Expression.Visitor<Tuple2<Expression, Type>> {
-
+  /**
+   * A dummy THIS_EXPR to be used when a Expression.Variable is determined to be really a
+   * Expression.FieldAccess to this. Example:
+   *
+   * <p>class A { int x; public void f() { x = 4; } }
+   *
+   * <p>The left hand side of the assignment to x will be parsed as a Expression.Variable, but will
+   * fall back to FieldAccess in name analysis, when it's clear there is no such local variable.
+   */
   private static final Expression THIS_EXPR =
       Expression.ReferenceTypeLiteral.this_(SourceRange.FIRST_CHAR);
-  // contains BasicType and Class<? extends Nameable> Definitions
-  // TODO: make them both derive from a common interface
-  private SymbolTable<Definition> types = new SymbolTable<>();
-
-  // TODO: make both BlockStatement.Variable and Parameter derive from a common interface
-  private SymbolTable<Definition> locals = new SymbolTable<>();
+  /**
+   * Tracks all types in the Program. This will be computed in a prior pass to be able to resolve
+   * MethodCalls and FieldAccesses.
+   */
+  private SymbolTable<BasicType> types = new SymbolTable<>();
+  /** The class whose body is under analysis. */
+  private Class currentClass;
+  /** Tracks all fields in the current class body. */
   private SymbolTable<Field> fields = new SymbolTable<>();
-  private Type currentClass;
+  /** The method whose body is under analysis. */
   private Method currentMethod;
+  /** Tracks all local variables in the current method body. */
+  private SymbolTable<Definition> locals = new SymbolTable<>();
+  /**
+   * Tracks the possibly defined main method for the Program under analysis. There must be exactly
+   * one static main method.
+   */
   private Method mainMethod;
+  /**
+   * This flag tracks if we have encountered a return statement on all control flow paths leading to
+   * the current statement. This is only modified in if and while statements. The information is
+   * used when having visited the body of a method, when this flag has to be true when the return
+   * type was is non-void.
+   */
   private boolean hasReturned;
 
+  /**
+   * We need to 1. collect all class declarations (including fields and methods) in a first pass
+   * with TypeCollector 2. Actually visit each class body to resolve referenced names. 3. Check that
+   * we found a main method.
+   */
   @Override
   public Program visitProgram(Program that) {
     mainMethod = null;
@@ -57,9 +93,13 @@ public class NameAnalyzer
     return new Program(refClasses, that.range());
   }
 
+  /**
+   * 1. Collect and resolve field references, checking for duplicates. 2. Collect and resolve method
+   * references, including bodies, checking for duplicates.
+   */
   @Override
   public Class visitClassDeclaration(Class that) {
-    currentClass = new Type(new Ref(that), 0, that.range());
+    currentClass = that;
     // fields in current class
     fields = new SymbolTable<>();
     fields.enterScope();
@@ -94,54 +134,74 @@ public class NameAnalyzer
     return new Class(that.name(), newFields, newMethods, that.range());
   }
 
+  /** Fields need to have their type resolved. Also that type musn't be void. */
   @Override
   public Field visitField(Field that) {
     Type type = that.type.acceptVisitor(this);
     checkElementTypeIsNotVoid(type, type.range());
-    return new Field(type, that.name(), that.range(), currentClass);
+    return new Field(type, that.name(), that.range(), new Ref<>(currentClass));
   }
 
+  /**
+   * Types are always arrays of a certain element type BasicType, which must be present in the
+   * pre-collected types SymbolTable.
+   */
   @Override
   public Type visitType(Type that) {
-    String typeName = that.typeRef.name();
-    Optional<Definition> optDef = types.lookup(typeName);
+    String typeName = that.basicType.name();
+    Optional<BasicType> optDef = types.lookup(typeName);
     if (!optDef.isPresent()) {
       throw new SemanticError(that.range(), "Type '" + typeName + "' is not defined");
     }
-    return new Type(new Ref(optDef.get()), that.dimension, that.range());
+    return new Type(new Ref<>(optDef.get()), that.dimension, that.range());
   }
 
+  /**
+   * Methods are quite involved.
+   *
+   * <p>1. Resolve the return type. 2. Check types and transform parameters. 2a. Handle the main
+   * method. Replace its argument's type with void to make it unusable. The rest is just sanity
+   * checks. 2b. Otherwise the method isn't static and we go through the parameter list and resolve
+   * types. 3. Add parameters to the locals SymbolTable, checking for duplicate names 4. Analyze the
+   * body (remember to set hasReturned to false) 5. Check if hasReturned is true. If not, the return
+   * type must be void. Otherwise we didn't return on all paths.
+   */
   @Override
   public Method visitMethod(Method that) {
+    // 1.
     Type returnType = that.returnType.acceptVisitor(this);
-    // check types and transform parameters
+
+    // 2. Check types and transform parameters
     List<Parameter> newParams = new ArrayList<>(that.parameters.size());
-    // main gets special treatment. we ignore its parameter completely.
+    // main gets special treatment. We replace its parameter type by void, to make it unusable.
     if (that.isStatic) {
-      // handle this quite specially
+      // We begin with some sanity checks that the parser should already have verified.
       if (!that.name().equals("main")) {
         throw new SemanticError(that.range(), "Static methods must be named main.");
       }
       if (that.parameters.size() != 1) {
         throw new SemanticError(that.range(), "The main method must have exactly one parameter.");
       }
+
       Parameter p = that.parameters.get(0);
       Type type = p.type;
-      if (!type.typeRef.name().equals("String") || type.dimension != 1) {
+      if (!type.basicType.name().equals("String") || type.dimension != 1) {
         throw new SemanticError(
             that.range(), "The main method's parameter must have type String[].");
       }
-      // This should also have been caught by the parser
       checkType(Type.VOID, returnType, returnType.range());
 
+      // Here begins the actual interesting part where things can go wrong.
       if (mainMethod != null) {
         throw new SemanticError(
             that.range(), "There is already a main method defined at " + mainMethod.range());
       }
       mainMethod = that;
-      newParams.add(
-          new Parameter(Type.VOID, p.name, p.range())); // A hack to disallow redefinition and usage
-    } else {
+      // Here we save the String[] parameter as type void instead.
+      // This is a hack so that we can't access it in the body, but it leads to confusing error messages.
+      // An alternative would be to define another special type like void for better error messages.
+      newParams.add(new Parameter(Type.VOID, p.name, p.range()));
+    } else { // !isStatic
       for (Parameter p : that.parameters) {
         Type type = p.type.acceptVisitor(this);
         checkElementTypeIsNotVoid(type, p.range());
@@ -149,7 +209,8 @@ public class NameAnalyzer
       }
     }
 
-    // We collect local variables into a fresh symboltable
+    // We collect local variables into a fresh symboltable. We need these later on,
+    // when we try to resolve Variables via FieldAccess on this. in method bodies.
     locals = new SymbolTable<>();
     locals.enterScope();
 
@@ -171,9 +232,16 @@ public class NameAnalyzer
       checkType(Type.VOID, returnType, returnType.range());
     }
     return new Method(
-        that.isStatic, returnType, that.name(), newParams, block, that.range(), currentClass);
+        that.isStatic,
+        returnType,
+        that.name(),
+        newParams,
+        block,
+        that.range(),
+        new Ref<>(currentClass));
   }
 
+  /** Straightforward. Remember to open a new scope for the block. */
   @Override
   public Block visitBlock(Block that) {
     locals.enterScope();
@@ -191,6 +259,13 @@ public class NameAnalyzer
     return new Statement.Empty(that.range());
   }
 
+  /**
+   * 1. check that the condition expression is well-typed and returns a boolean 2. visit then 3.
+   * visit else
+   *
+   * <p>Also remember to open and close Scopes. The hasReturned flag also deserves some special
+   * mention.
+   */
   @Override
   public Statement visitIf(Statement.If that) {
     Tuple2<Expression, Type> cond = that.condition.acceptVisitor(this);
@@ -207,6 +282,7 @@ public class NameAnalyzer
     Statement newThen = (Statement) that.then.acceptVisitor(this);
     locals.leaveScope();
 
+    // Save the result from then
     boolean thenHasReturned = hasReturned;
     hasReturned = false;
 
@@ -232,6 +308,7 @@ public class NameAnalyzer
     return new ExpressionStatement(expr, that.range());
   }
 
+  /** Analogous to If. */
   @Override
   public Statement visitWhile(Statement.While that) {
     Tuple2<Expression, Type> cond = that.condition.acceptVisitor(this);
@@ -257,6 +334,10 @@ public class NameAnalyzer
     return new Statement.While(cond.v1, body, that.range());
   }
 
+  /**
+   * If the expression to return is present, we visit it and make sure that the type matches the
+   * current methods return type. Otherwise, the current methods return type must be void.
+   */
   @Override
   public Statement visitReturn(Statement.Return that) {
     Type returnType = currentMethod.returnType.acceptVisitor(this);
@@ -280,33 +361,40 @@ public class NameAnalyzer
 
   /**
    * This is reflexive in both arguments, so swapping them should not change the outcome of this
-   * function
+   * function.
+   *
+   * <p>1. When the types are equal, we're OK. 2. If not and one of the basic types was void, we
+   * have an error (recall that when both are void, the dimensions mismatch). 3. Encode that type
+   * ANY_REF is compatible with any reference type, e.g. Class. 4. otherwise there's a type
+   * mismatch.
    */
   private void checkType(Type expected, Type actual, SourceRange range) {
     SemanticError e =
         new SemanticError(range, "Expected type '" + expected + "', but got type '" + actual + "'");
 
+    // 1.
     if (expected.dimension == actual.dimension
-        && expected.typeRef.name().equals(actual.typeRef.name())) {
+        && expected.basicType.name().equals(actual.basicType.name())) {
       return;
     }
 
-    // If any of the element types is now void, we should throw.
-    if (expected.typeRef.name().equals("void") || actual.typeRef.name().equals("void")) throw e;
+    // 2. If any of the element types is now void, we should throw.
+    if (expected.basicType.name().equals("void") || actual.basicType.name().equals("void")) throw e;
 
-    // The only way this could ever work out is that either actual or expected is of type Any (type of null)
+    // 3. The only way this could ever work out is that either actual or expected is of type Any (type of null)
     // and the other is a reference type (every remaining type except non-array builtins).
-    // Remember that actual != expected and that either dimensions or the typeRef mismatch
-    if (expected == Type.ANY && (actual.dimension > 0 || actual.typeRef.def instanceof Class))
+    // Remember that actual != expected and that either dimensions or the basicType mismatch
+    if (expected == Type.ANY_REF && (actual.dimension > 0 || actual.basicType.def instanceof Class))
       return;
-    if (actual == Type.ANY && (expected.dimension > 0 || expected.typeRef.def instanceof Class))
-      return;
+    if (actual == Type.ANY_REF
+        && (expected.dimension > 0 || expected.basicType.def instanceof Class)) return;
 
+    // 4.
     throw e;
   }
 
   private void checkElementTypeIsNotVoid(Type actual, SourceRange range) {
-    if (actual.typeRef.name().equals("void")) {
+    if (actual.basicType.name().equals("void")) {
       throw new SemanticError(range, "Type void is not valid here");
     }
   }
@@ -317,6 +405,10 @@ public class NameAnalyzer
     }
   }
 
+  /**
+   * The only notable thing here is that if the RHS is present, its type must match the type of the
+   * variable declaration.
+   */
   public BlockStatement visitVariable(BlockStatement.Variable that) {
     Type variableType = that.type.acceptVisitor(this);
     checkElementTypeIsNotVoid(variableType, variableType.range());
@@ -338,6 +430,10 @@ public class NameAnalyzer
     return var;
   }
 
+  /**
+   * This is mostly interesting from a type-checking perspective. Look into the respective switch
+   * cases.
+   */
   @Override
   public Tuple2<Expression, Type> visitBinaryOperator(Expression.BinaryOperator that) {
     Tuple2<Expression, Type> left = that.left.acceptVisitor(this);
@@ -459,7 +555,6 @@ public class NameAnalyzer
       //   ^ minusTokenNumber
       //              ^ litTokenNumber > minusTokenNumber + 1
 
-      // insert range
       throw new SemanticError(
           lit.range(), "The literal '" + lit.literal + "' is not a valid 32-bit number");
     }
@@ -470,19 +565,20 @@ public class NameAnalyzer
   @Override
   public Tuple2<Expression, Type> visitMethodCall(Expression.MethodCall that) {
 
+    // This will be null if this wasn't a call to System.out.println
     Tuple2<Expression, Type> self = systemOutPrintlnHackForSelf(that);
     if (self == null) {
       // That was not a call matching System.out.println(). So we procede regularly
       self = that.self.acceptVisitor(this);
     }
 
-    Optional<Class> definingClass = isTypeWithMembers(self.v2);
+    Optional<Class> definingClass = isClass(self.v2);
 
     if (!definingClass.isPresent()) {
-      // TODO - Names
       throw new SemanticError(that.range(), "Only classes have methods");
     }
 
+    // This will find the method in the class body of the self object
     Optional<Method> methodOpt =
         definingClass
             .get()
@@ -492,14 +588,13 @@ public class NameAnalyzer
             .findFirst();
 
     if (!methodOpt.isPresent()) {
-      // TODO - Names
       throw new SemanticError(
           that.range(),
           "Class '" + definingClass.get().name() + "' has no method '" + that.method.name() + "'");
     }
 
     Method m = methodOpt.get();
-    m.definingClass = self.v2;
+    m.definingClass = new Ref<>(definingClass.get());
 
     if (m.isStatic) {
       throw new SemanticError(that.range(), "Static methods cannot be called.");
@@ -516,6 +611,8 @@ public class NameAnalyzer
               + that.arguments.size());
     }
 
+    // We have to resolve argument expressions and match their type against the called
+    // method's parameter types.
     List<Expression> resolvedArguments = new ArrayList<>(that.arguments.size());
     for (int i = 0; i < m.parameters.size(); ++i) {
       Type paramType = m.parameters.get(i).type.acceptVisitor(this);
@@ -527,9 +624,11 @@ public class NameAnalyzer
     Type returnType = m.returnType.acceptVisitor(this);
 
     return tuple(
-        new Expression.MethodCall(self.v1, new Ref(m), resolvedArguments, that.range), returnType);
+        new Expression.MethodCall(self.v1, new Ref<>(m), resolvedArguments, that.range),
+        returnType);
   }
 
+  /** Returns null if we don't resolve this to System.out.println. */
   private Tuple2<Expression, Type> systemOutPrintlnHackForSelf(Expression.MethodCall that) {
     if (!(that.self instanceof Expression.FieldAccess)) {
       return null;
@@ -554,19 +653,19 @@ public class NameAnalyzer
   }
 
   @NotNull
-  private static Optional<Class> isTypeWithMembers(Type type) {
-    if (type.dimension > 0 || !(type.typeRef.def instanceof Class)) {
+  private static Optional<Class> isClass(Type type) {
+    if (type.dimension > 0 || !(type.basicType.def instanceof Class)) {
       return Optional.empty();
     }
 
-    return Optional.of((Class) type.typeRef.def);
+    return Optional.of((Class) type.basicType.def);
   }
 
   @Override
   public Tuple2<Expression, Type> visitFieldAccess(Expression.FieldAccess that) {
     Tuple2<Expression, Type> self = that.self.acceptVisitor(this);
 
-    Optional<Class> definingClass = isTypeWithMembers(self.v2);
+    Optional<Class> definingClass = isClass(self.v2);
 
     if (!definingClass.isPresent()) {
       throw new SemanticError(that.range(), "Only classes have fields");
@@ -587,9 +686,9 @@ public class NameAnalyzer
     }
 
     Field field = fieldOpt.get();
-    field.definingClass = self.v2;
+    field.definingClass = new Ref<>(definingClass.get());
     Type returnType = field.type.acceptVisitor(this);
-    return tuple(new Expression.FieldAccess(self.v1, new Ref(field), that.range), returnType);
+    return tuple(new Expression.FieldAccess(self.v1, new Ref<>(field), that.range), returnType);
   }
 
   @Override
@@ -601,13 +700,13 @@ public class NameAnalyzer
     checkElementTypeIsNotVoid(arr.v2, arr.v1.range());
     checkIsArrayType(arr.v2, arr.v1.range());
 
-    Type returnType = new Type(arr.v2.typeRef, arr.v2.dimension - 1, arr.v2.range());
+    Type returnType = new Type(arr.v2.basicType, arr.v2.dimension - 1, arr.v2.range());
     return tuple(new Expression.ArrayAccess(arr.v1, idx.v1, that.range()), returnType);
   }
 
   @Override
   public Tuple2<Expression, Type> visitNewObject(NewObject that) {
-    Optional<Definition> optDef = types.lookup(that.class_.name());
+    Optional<BasicType> optDef = types.lookup(that.class_.name());
     if (!optDef.isPresent()) {
       throw new SemanticError(that.range(), "Type is not present");
     }
@@ -617,9 +716,12 @@ public class NameAnalyzer
       throw new SemanticError(that.range(), "Only reference types can be allocated with new.");
     }
 
-    Ref ref = new Ref(optDef.get());
-    Type returnType = new Type(ref, 0, optDef.get().range());
-    return tuple(new NewObject(new Ref(optDef.get()), that.range()), returnType);
+    // Ref is invariant in its first type parameter, for good reason.
+    // Unfortunately that means we have to duplicate refs here.
+    Ref<BasicType> asBasicType = new Ref<>(optDef.get());
+    Ref<Class> asClass = new Ref<>((Class) optDef.get());
+    Type returnType = new Type(asBasicType, 0, optDef.get().range());
+    return tuple(new NewObject(asClass, that.range()), returnType);
   }
 
   @Override
@@ -631,10 +733,24 @@ public class NameAnalyzer
     checkElementTypeIsNotVoid(type, that.range());
 
     // here than in the parser, e.g. NewArray.type should denote the type of the elements of the new array
-    Type returnType = new Type(type.typeRef, type.dimension + 1, type.range());
+    Type returnType = new Type(type.basicType, type.dimension + 1, type.range());
     return tuple(new NewArray(type, size.v1, that.range()), returnType);
   }
 
+  /**
+   * The Expression.Variable case is rather interesting.
+   *
+   * <p>We try to resolve it as a local variable or parameter at first, by looking up its name in
+   * locals. If this was unsuccessful, we try to resolve the variable as a FieldAccess to this.,
+   * e.g:
+   *
+   * <p>class A { int x; public void f() { x = 4; } }
+   *
+   * <p>will first try to resolve x as a local variable and only then resolve it to a field access
+   * to the enclosing class with an implicit this.
+   *
+   * <p>This is the only place in the analyzer where we rewrite AST nodes to different types!
+   */
   @Override
   public Tuple2<Expression, Type> visitVariable(Expression.Variable that) {
     Optional<Definition> varOpt = locals.lookup(that.var.name());
@@ -642,13 +758,13 @@ public class NameAnalyzer
       // is it a local var decl or a parameter?
       if (varOpt.get() instanceof BlockStatement.Variable) {
         Statement.Variable decl = (Statement.Variable) varOpt.get();
-        return tuple(new Expression.Variable(new Ref(decl), that.range), decl.type);
+        return tuple(new Expression.Variable(new Ref<>(decl), that.range), decl.type);
       } else if (varOpt.get() instanceof Parameter) {
         Parameter p = (Parameter) varOpt.get();
         // Because of a hack where we represent main's parameter with type void, we have to check
         // if the expression is a variable of type void.
         checkElementTypeIsNotVoid(p.type, p.range());
-        return tuple(new Expression.Variable(new Ref(p), that.range), p.type);
+        return tuple(new Expression.Variable(new Ref<>(p), that.range), p.type);
       } else {
         // We must have put something else into locals, this mustn't happen.
         assert false;
@@ -661,7 +777,8 @@ public class NameAnalyzer
     if (fieldOpt.isPresent() && !currentMethod.isStatic) {
       // Analyze as if there was a preceding 'this.' in front of the variable
       // The field is there, so we can let errors pass through without causing confusion
-      return new Expression.FieldAccess(THIS_EXPR, that.var, that.range).acceptVisitor(this);
+      return new Expression.FieldAccess(THIS_EXPR, new Ref<>(fieldOpt.get()), that.range)
+          .acceptVisitor(this);
     }
 
     throw new SemanticError(that.range(), "Variable '" + that.var.name() + "' is not in scope.");
@@ -687,7 +804,7 @@ public class NameAnalyzer
   @Override
   public Tuple2<Expression, Type> visitReferenceTypeLiteral(Expression.ReferenceTypeLiteral that) {
     if (that.name().equals("null")) {
-      return tuple(that, Type.ANY);
+      return tuple(that, Type.ANY_REF);
     }
     assert that.name().equals("this");
 
@@ -696,6 +813,6 @@ public class NameAnalyzer
           that.range(), "Cannot access 'this' in a static method " + that.name());
     }
 
-    return tuple(that, currentClass);
+    return tuple(that, new Type(new Ref<>(currentClass), 0, currentClass.range()));
   }
 }

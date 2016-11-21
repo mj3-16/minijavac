@@ -141,13 +141,13 @@ public class Parser {
   private Method parseMainMethod(SourcePosition begin) {
     expectAndConsume(STATIC);
     Token void_ = expectAndConsume(VOID);
-    Type voidType = new Type(new Ref("void"), 0, void_.range());
+    Type voidType = new Type(new Ref<>("void"), 0, void_.range());
     Token name = expectAndConsume(IDENT);
     expectAndConsume(LPAREN);
     SourcePosition typeBegin = expectAndConsume(IDENT, "String").range().begin;
     expectAndConsume(LBRACK);
     SourcePosition typeEnd = expectAndConsume(RBRACK).range().end;
-    Type parameterType = new Type(new Ref("String"), 1, new SourceRange(typeBegin, typeEnd));
+    Type parameterType = new Type(new Ref<>("String"), 1, new SourceRange(typeBegin, typeEnd));
     Token ident = expectAndConsume(IDENT);
     expectAndConsume(RPAREN);
     Block block = parseBlock();
@@ -227,7 +227,7 @@ public class Parser {
       dimension++;
     }
     SourcePosition end = currentToken.range().end;
-    return new Type(new Ref(type), dimension, new SourceRange(begin, end));
+    return new Type(new Ref<>(type), dimension, new SourceRange(begin, end));
   }
 
   /** BasicType -> int | boolean | void | IDENT */
@@ -479,7 +479,7 @@ public class Parser {
       return parseMethodInvocation(lhs, identifier.lexval);
     }
     SourceRange range = new SourceRange(lhs.range().begin, identifier.range().end);
-    return new Expression.FieldAccess(lhs, new Ref(identifier.lexval), range);
+    return new Expression.FieldAccess(lhs, new Ref<>(identifier.lexval), range);
   }
 
   /** MethodInvocation -> ( Arguments ) */
@@ -488,7 +488,7 @@ public class Parser {
     List<Expression> arguments = parseArguments();
     SourcePosition end = expectAndConsume(RPAREN).range().end;
     SourceRange range = new SourceRange(lhs.range().begin, end);
-    return new Expression.MethodCall(lhs, new Ref(identifier), arguments, range);
+    return new Expression.MethodCall(lhs, new Ref<>(identifier), arguments, range);
   }
 
   /** ArrayAccess -> [ Expression ] */
@@ -544,10 +544,10 @@ public class Parser {
           arguments = parseArguments();
           range = new SourceRange(identifier.range().begin, expectAndConsume(RPAREN).range().end);
           primaryExpression =
-              new Expression.MethodCall(THIS_EXPR, new Ref(identifier.lexval), arguments, range);
+              new Expression.MethodCall(THIS_EXPR, new Ref<>(identifier.lexval), arguments, range);
         } else {
           primaryExpression =
-              new Expression.Variable(new Ref(identifier.lexval), identifier.range());
+              new Expression.Variable(new Ref<>(identifier.lexval), identifier.range());
         }
         break;
       case THIS:
@@ -600,7 +600,7 @@ public class Parser {
   private Expression parseNewObjectExpression(String type, SourcePosition begin) {
     expectAndConsume(LPAREN);
     SourcePosition end = expectAndConsume(RPAREN).range().end;
-    return new Expression.NewObject(new Ref(type), new SourceRange(begin, end));
+    return new Expression.NewObject(new Ref<>(type), new SourceRange(begin, end));
   }
 
   /** NewArrayExpression -> [ Expression ] ([])* */
@@ -618,6 +618,6 @@ public class Parser {
     SourceRange typeRange = new SourceRange(typeBegin, end);
     SourceRange newRange = new SourceRange(newBegin, end);
     return new Expression.NewArray(
-        new Type(new Ref(elementTypeRef), dim, typeRange), size, newRange);
+        new Type(new Ref<>(elementTypeRef), dim, typeRange), size, newRange);
   }
 }

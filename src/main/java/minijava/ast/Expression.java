@@ -74,9 +74,9 @@ public interface Expression extends SyntaxElement {
   class FieldAccess extends Base {
 
     public final Expression self;
-    public final Ref field;
+    public final Ref<Field> field;
 
-    public FieldAccess(Expression self, Ref field, SourceRange range) {
+    public FieldAccess(Expression self, Ref<Field> field, SourceRange range) {
       super(range);
       this.self = self;
       this.field = field;
@@ -106,10 +106,11 @@ public interface Expression extends SyntaxElement {
   class MethodCall extends Base {
 
     public final Expression self;
-    public final Ref method;
+    public final Ref<Method> method;
     public final List<Expression> arguments;
 
-    public MethodCall(Expression self, Ref method, List<Expression> arguments, SourceRange range) {
+    public MethodCall(
+        Expression self, Ref<Method> method, List<Expression> arguments, SourceRange range) {
       super(range);
       this.self = self;
       this.method = method;
@@ -141,9 +142,9 @@ public interface Expression extends SyntaxElement {
 
   class NewObject extends Base {
 
-    public final Ref class_;
+    public final Ref<Class> class_;
 
-    public NewObject(Ref class_, SourceRange range) {
+    public NewObject(Ref<Class> class_, SourceRange range) {
       super(range);
       this.class_ = class_;
     }
@@ -174,9 +175,9 @@ public interface Expression extends SyntaxElement {
   /** Subsumes @null@, @this@ and regular variables. */
   class Variable extends Base {
 
-    public final Ref var;
+    public final Ref<Definition> var;
 
-    public Variable(Ref var, SourceRange range) {
+    public Variable(Ref<Definition> var, SourceRange range) {
       super(range);
       this.var = var;
     }

@@ -25,7 +25,7 @@ public class AnalyzedTypesReplacer
 
   @Override
   public Void visitClassDeclaration(Class that) {
-    currentClass = new Type(new Ref(that), 0, that.range());
+    currentClass = new Type(new Ref<Definition>(that), 0, that.range());
     for (Field field : that.fields) {
       field.acceptVisitor(this);
     }
@@ -38,16 +38,18 @@ public class AnalyzedTypesReplacer
   @Override
   public Void visitField(Field that) {
     that.definingClass = currentClass;
-    that.type.typeRef.def = analyzedTypes.lookup(that.type.typeRef.def.name()).get();
+    that.type.basicType.def = analyzedTypes.lookup(that.type.basicType.def.name()).get();
     return null;
   }
 
   @Override
   public Void visitMethod(Method that) {
     that.definingClass = currentClass;
-    that.returnType.typeRef.def = analyzedTypes.lookup(that.returnType.typeRef.def.name()).get();
+    that.returnType.basicType.def =
+        analyzedTypes.lookup(that.returnType.basicType.def.name()).get();
     for (Method.Parameter parameter : that.parameters) {
-      parameter.type.typeRef.def = analyzedTypes.lookup(parameter.type.typeRef.def.name()).get();
+      parameter.type.basicType.def =
+          analyzedTypes.lookup(parameter.type.basicType.def.name()).get();
     }
     that.body.acceptVisitor(this);
     return null;
@@ -63,7 +65,7 @@ public class AnalyzedTypesReplacer
 
   @Override
   public Void visitVariable(BlockStatement.Variable that) {
-    that.type.typeRef.def = analyzedTypes.lookup(that.type.typeRef.def.name()).get();
+    that.type.basicType.def = analyzedTypes.lookup(that.type.basicType.def.name()).get();
     that.rhs.ifPresent(e -> e.acceptVisitor(this));
     return null;
   }
@@ -123,7 +125,7 @@ public class AnalyzedTypesReplacer
     if (definingClass == Type.SYSTEM_OUT && that.method.def.name().equals("println")) {
       return null;
     }
-    Class analyzedClass = (Class) analyzedTypes.lookup(definingClass.typeRef.name()).get();
+    Class analyzedClass = (Class) analyzedTypes.lookup(definingClass.basicType.name()).get();
     Method methodInAnalyzedClass =
         analyzedClass
             .methods
@@ -138,7 +140,7 @@ public class AnalyzedTypesReplacer
   @Override
   public Void visitFieldAccess(Expression.FieldAccess that) {
     Type definingClass = ((Field) that.field.def).definingClass;
-    Class analyzedClass = (Class) analyzedTypes.lookup(definingClass.typeRef.name()).get();
+    Class analyzedClass = (Class) analyzedTypes.lookup(definingClass.basicType.name()).get();
     Field fieldInAnalyzedClass =
         analyzedClass
             .fields
@@ -165,7 +167,7 @@ public class AnalyzedTypesReplacer
 
   @Override
   public Void visitNewArray(Expression.NewArray that) {
-    that.type.typeRef.def = analyzedTypes.lookup(that.type.typeRef.name()).get();
+    that.type.basicType.def = analyzedTypes.lookup(that.type.basicType.name()).get();
     that.size.acceptVisitor(this);
     return null;
   }

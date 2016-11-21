@@ -176,7 +176,7 @@ public class PrettyPrinter
 
   @Override
   public CharSequence visitType(Type that) {
-    StringBuilder b = new StringBuilder(that.typeRef.name());
+    StringBuilder b = new StringBuilder(that.basicType.name());
     b.append(Strings.repeat("[]", that.dimension));
     return b;
   }
@@ -290,7 +290,7 @@ public class PrettyPrinter
 
   @Override
   public CharSequence visitNewArray(Expression.NewArray that) {
-    StringBuilder b = new StringBuilder("(new ").append(that.type.typeRef.name()).append("[");
+    StringBuilder b = new StringBuilder("(new ").append(that.type.basicType.name()).append("[");
     // bracketing exception for definition of array size applies here
     CharSequence sizeExpr = outerParanthesesRemoved(that.size.acceptVisitor(this));
     return b.append(sizeExpr)

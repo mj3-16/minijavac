@@ -5,7 +5,7 @@ import java.util.List;
 import minijava.util.SourceRange;
 import minijava.util.SyntaxElement;
 
-public class Class extends SyntaxElement.DefaultImpl implements Definition {
+public class Class extends SyntaxElement.DefaultImpl implements BasicType {
   private final String name;
   public final List<Field> fields;
   public final List<Method> methods;

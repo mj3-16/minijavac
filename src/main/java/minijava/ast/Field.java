@@ -6,7 +6,7 @@ import minijava.util.SyntaxElement;
 public class Field extends SyntaxElement.DefaultImpl implements Definition {
   public final Type type;
   private final String name;
-  public Type definingClass;
+  public Ref<Class> definingClass;
 
   public Field(Type type, String name, SourceRange range) {
     super(range);
@@ -14,7 +14,7 @@ public class Field extends SyntaxElement.DefaultImpl implements Definition {
     this.name = name;
   }
 
-  public Field(Type type, String name, SourceRange range, Type definingClass) {
+  public Field(Type type, String name, SourceRange range, Ref<Class> definingClass) {
     this(type, name, range);
     this.definingClass = definingClass;
   }

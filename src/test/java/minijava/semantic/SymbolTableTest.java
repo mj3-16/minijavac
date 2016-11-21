@@ -19,7 +19,9 @@ public class SymbolTableTest {
 
   private static final Definition SOME_DEFINITION =
       new Field(
-          new Type(new Ref("int"), 0, SourceRange.FIRST_CHAR), "myName", SourceRange.FIRST_CHAR);
+          new Type(new Ref<Definition>("int"), 0, SourceRange.FIRST_CHAR),
+          "myName",
+          SourceRange.FIRST_CHAR);
 
   @Before
   public void setUp() {

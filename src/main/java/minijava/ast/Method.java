@@ -10,7 +10,7 @@ public class Method extends SyntaxElement.DefaultImpl implements Definition {
   private final String name;
   public final List<Parameter> parameters;
   public final Block body;
-  public Type definingClass;
+  public Ref<Class> definingClass;
 
   /**
    * Constructs a new method node.
@@ -40,7 +40,7 @@ public class Method extends SyntaxElement.DefaultImpl implements Definition {
       List<Parameter> parameters,
       Block body,
       SourceRange range,
-      Type definingClass) {
+      Ref<Class> definingClass) {
     this(isStatic, returnType, name, parameters, body, range);
     this.definingClass = definingClass;
   }
