@@ -7,6 +7,7 @@ import static org.junit.Assert.assertThat;
 
 import minijava.ast.Definition;
 import minijava.ast.Field;
+import minijava.ast.Ref;
 import minijava.ast.Type;
 import minijava.util.SourceRange;
 import org.junit.Before;
@@ -17,7 +18,8 @@ public class SymbolTableTest {
   SymbolTable<Definition> symtab;
 
   private static final Definition SOME_DEFINITION =
-      new Field<>(new Type<>("int", 0, SourceRange.FIRST_CHAR), "myName", SourceRange.FIRST_CHAR);
+      new Field(
+          new Type(new Ref<>("int"), 0, SourceRange.FIRST_CHAR), "myName", SourceRange.FIRST_CHAR);
 
   @Before
   public void setUp() {

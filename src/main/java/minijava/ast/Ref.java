@@ -1,15 +1,26 @@
 package minijava.ast;
 
-public class Ref implements Nameable {
+/**
+ * Collects name resolution information, such as the name of the identifier and its definition after
+ * the name has been resolved.
+ *
+ * @param <T> The type of Definition this points to.
+ */
+public class Ref<T extends Definition> {
 
-  public Definition def;
+  public final String name;
+  public T def;
 
-  public Ref(Definition def) {
+  public Ref(T def) {
     this.def = def;
+    this.name = def.name();
   }
 
-  @Override
+  public Ref(String name) {
+    this.name = name;
+  }
+
   public String name() {
-    return def.name();
+    return name;
   }
 }

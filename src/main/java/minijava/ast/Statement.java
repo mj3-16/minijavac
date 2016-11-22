@@ -3,16 +3,16 @@ package minijava.ast;
 import java.util.Optional;
 import minijava.util.SourceRange;
 
-public interface Statement<TRef> extends BlockStatement<TRef> {
+public interface Statement extends BlockStatement {
 
-  <TRet> TRet acceptVisitor(Statement.Visitor<? super TRef, TRet> visitor);
+  <T> T acceptVisitor(Statement.Visitor<T> visitor);
 
-  default <TRet> TRet acceptVisitor(BlockStatement.Visitor<? super TRef, TRet> visitor) {
-    return acceptVisitor((Statement.Visitor<? super TRef, TRet>) visitor);
+  default <T> T acceptVisitor(BlockStatement.Visitor<T> visitor) {
+    return acceptVisitor((Statement.Visitor<T>) visitor);
   }
 
   /** We can't reuse SyntaxElement.DefaultImpl, so this bull shit is necessary */
-  abstract class Base<TRef> implements Statement<TRef> {
+  abstract class Base implements Statement {
     public final SourceRange range;
 
     Base(SourceRange range) {
@@ -25,27 +25,23 @@ public interface Statement<TRef> extends BlockStatement<TRef> {
     }
   }
 
-  class Empty<TRef> extends Base<TRef> {
+  class Empty extends Base {
     public Empty(SourceRange range) {
       super(range);
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Statement.Visitor<? super TRef, TRet> visitor) {
+    public <T> T acceptVisitor(Statement.Visitor<T> visitor) {
       return visitor.visitEmpty(this);
     }
   }
 
-  class If<TRef> extends Base<TRef> {
-    public final Expression<TRef> condition;
-    public final Statement<TRef> then;
-    public final Optional<Statement<TRef>> else_;
+  class If extends Base {
+    public Expression condition;
+    public final Statement then;
+    public final Optional<Statement> else_;
 
-    public If(
-        Expression<TRef> condition,
-        Statement<TRef> then,
-        Statement<TRef> else_,
-        SourceRange range) {
+    public If(Expression condition, Statement then, Statement else_, SourceRange range) {
       super(range);
       this.condition = condition;
       this.then = then;
@@ -53,68 +49,68 @@ public interface Statement<TRef> extends BlockStatement<TRef> {
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Statement.Visitor<? super TRef, TRet> visitor) {
+    public <T> T acceptVisitor(Statement.Visitor<T> visitor) {
       return visitor.visitIf(this);
     }
   }
 
-  class Return<TRef> extends Base<TRef> {
-    public final Optional<Expression<TRef>> expression;
+  class Return extends Base {
+    public Optional<Expression> expression;
 
-    public Return(Expression<TRef> expression, SourceRange range) {
+    public Return(Expression expression, SourceRange range) {
       super(range);
       this.expression = Optional.ofNullable(expression);
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Statement.Visitor<? super TRef, TRet> visitor) {
+    public <T> T acceptVisitor(Statement.Visitor<T> visitor) {
       return visitor.visitReturn(this);
     }
   }
 
-  class While<TRef> extends Base<TRef> {
-    public final Expression<TRef> condition;
-    public final Statement<TRef> body;
+  class While extends Base {
+    public Expression condition;
+    public final Statement body;
 
-    public While(Expression<TRef> condition, Statement<TRef> body, SourceRange range) {
+    public While(Expression condition, Statement body, SourceRange range) {
       super(range);
       this.condition = condition;
       this.body = body;
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Statement.Visitor<? super TRef, TRet> visitor) {
+    public <T> T acceptVisitor(Statement.Visitor<T> visitor) {
       return visitor.visitWhile(this);
     }
   }
 
-  class ExpressionStatement<TRef> extends Base<TRef> {
+  class ExpressionStatement extends Base {
 
-    public final Expression<TRef> expression;
+    public Expression expression;
 
-    public ExpressionStatement(Expression<TRef> expression, SourceRange range) {
+    public ExpressionStatement(Expression expression, SourceRange range) {
       super(range);
       this.expression = expression;
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Statement.Visitor<? super TRef, TRet> visitor) {
+    public <T> T acceptVisitor(Statement.Visitor<T> visitor) {
       return visitor.visitExpressionStatement(this);
     }
   }
 
-  interface Visitor<TRef, TRet> {
+  interface Visitor<T> {
 
-    TRet visitBlock(Block<? extends TRef> that);
+    T visitBlock(Block that);
 
-    TRet visitEmpty(Empty<? extends TRef> that);
+    T visitEmpty(Empty that);
 
-    TRet visitIf(If<? extends TRef> that);
+    T visitIf(If that);
 
-    TRet visitExpressionStatement(ExpressionStatement<? extends TRef> that);
+    T visitExpressionStatement(ExpressionStatement that);
 
-    TRet visitWhile(While<? extends TRef> that);
+    T visitWhile(While that);
 
-    TRet visitReturn(Return<? extends TRef> that);
+    T visitReturn(Return that);
   }
 }

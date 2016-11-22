@@ -4,11 +4,11 @@ import java.util.List;
 import minijava.util.SourceRange;
 import minijava.util.SyntaxElement;
 
-public interface Expression<TRef> extends SyntaxElement {
-  <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor);
+public interface Expression extends SyntaxElement {
+  <T> T acceptVisitor(Visitor<T> visitor);
 
   /** We can't reuse SyntaxElement.DefaultImpl, so this bull shit is necessary */
-  abstract class Base<TRef> implements Expression<TRef> {
+  abstract class Base implements Expression {
     public final SourceRange range;
 
     Base(SourceRange range) {
@@ -21,30 +21,29 @@ public interface Expression<TRef> extends SyntaxElement {
     }
   }
 
-  class ArrayAccess<TRef> extends Base<TRef> {
+  class ArrayAccess extends Base {
 
-    public final Expression<TRef> array;
-    public final Expression<TRef> index;
+    public Expression array;
+    public Expression index;
 
-    public ArrayAccess(Expression<TRef> array, Expression<TRef> index, SourceRange range) {
+    public ArrayAccess(Expression array, Expression index, SourceRange range) {
       super(range);
       this.array = array;
       this.index = index;
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
+    public <T> T acceptVisitor(Visitor<T> visitor) {
       return visitor.visitArrayAccess(this);
     }
   }
 
-  class BinaryOperator<TRef> extends Base<TRef> {
+  class BinaryOperator extends Base {
     public final BinOp op;
-    public final Expression<TRef> left;
-    public final Expression<TRef> right;
+    public Expression left;
+    public Expression right;
 
-    public BinaryOperator(
-        BinOp op, Expression<TRef> left, Expression<TRef> right, SourceRange range) {
+    public BinaryOperator(BinOp op, Expression left, Expression right, SourceRange range) {
       super(range);
       this.op = op;
       this.left = left;
@@ -52,12 +51,12 @@ public interface Expression<TRef> extends SyntaxElement {
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
+    public <T> T acceptVisitor(Visitor<T> visitor) {
       return visitor.visitBinaryOperator(this);
     }
   }
 
-  class BooleanLiteral<TRef> extends Base<TRef> {
+  class BooleanLiteral extends Base {
 
     public final boolean literal;
 
@@ -67,29 +66,29 @@ public interface Expression<TRef> extends SyntaxElement {
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
+    public <T> T acceptVisitor(Visitor<T> visitor) {
       return visitor.visitBooleanLiteral(this);
     }
   }
 
-  class FieldAccess<TRef> extends Base<TRef> {
+  class FieldAccess extends Base {
 
-    public final Expression<TRef> self;
-    public final TRef field;
+    public Expression self;
+    public final Ref<Field> field;
 
-    public FieldAccess(Expression<TRef> self, TRef field, SourceRange range) {
+    public FieldAccess(Expression self, Ref<Field> field, SourceRange range) {
       super(range);
       this.self = self;
       this.field = field;
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
+    public <T> T acceptVisitor(Visitor<T> visitor) {
       return visitor.visitFieldAccess(this);
     }
   }
 
-  class IntegerLiteral<TRef> extends Base<TRef> {
+  class IntegerLiteral extends Base {
 
     public final String literal;
 
@@ -99,19 +98,19 @@ public interface Expression<TRef> extends SyntaxElement {
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
+    public <T> T acceptVisitor(Visitor<T> visitor) {
       return visitor.visitIntegerLiteral(this);
     }
   }
 
-  class MethodCall<TRef> extends Base<TRef> {
+  class MethodCall extends Base {
 
-    public final Expression<TRef> self;
-    public final TRef method;
-    public final List<Expression<TRef>> arguments;
+    public Expression self;
+    public final Ref<Method> method;
+    public final List<Expression> arguments;
 
     public MethodCall(
-        Expression<TRef> self, TRef method, List<Expression<TRef>> arguments, SourceRange range) {
+        Expression self, Ref<Method> method, List<Expression> arguments, SourceRange range) {
       super(range);
       this.self = self;
       this.method = method;
@@ -119,77 +118,77 @@ public interface Expression<TRef> extends SyntaxElement {
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
+    public <T> T acceptVisitor(Visitor<T> visitor) {
       return visitor.visitMethodCall(this);
     }
   }
 
-  class NewArray<TRef> extends Base<TRef> {
+  class NewArray extends Base {
 
-    public final Type<TRef> type;
-    public final Expression<TRef> size;
+    public final Type type;
+    public Expression size;
 
-    public NewArray(Type<TRef> type, Expression<TRef> size, SourceRange range) {
+    public NewArray(Type type, Expression size, SourceRange range) {
       super(range);
       this.type = type;
       this.size = size;
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
+    public <T> T acceptVisitor(Visitor<T> visitor) {
       return visitor.visitNewArray(this);
     }
   }
 
-  class NewObject<TRef> extends Base<TRef> {
+  class NewObject extends Base {
 
-    public final TRef type;
+    public final Ref<Class> class_;
 
-    public NewObject(TRef type, SourceRange range) {
+    public NewObject(Ref<Class> class_, SourceRange range) {
       super(range);
-      this.type = type;
+      this.class_ = class_;
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
+    public <T> T acceptVisitor(Visitor<T> visitor) {
       return visitor.visitNewObject(this);
     }
   }
 
-  class UnaryOperator<TRef> extends Base<TRef> {
+  class UnaryOperator extends Base {
 
     public final UnOp op;
-    public final Expression<TRef> expression;
+    public Expression expression;
 
-    public UnaryOperator(UnOp op, Expression<TRef> expression, SourceRange range) {
+    public UnaryOperator(UnOp op, Expression expression, SourceRange range) {
       super(range);
       this.op = op;
       this.expression = expression;
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
+    public <T> T acceptVisitor(Visitor<T> visitor) {
       return visitor.visitUnaryOperator(this);
     }
   }
 
   /** Subsumes @null@, @this@ and regular variables. */
-  class Variable<TRef> extends Base<TRef> {
+  class Variable extends Base {
 
-    public final TRef var;
+    public final Ref<Definition> var;
 
-    public Variable(TRef var, SourceRange range) {
+    public Variable(Ref<Definition> var, SourceRange range) {
       super(range);
       this.var = var;
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
+    public <T> T acceptVisitor(Visitor<T> visitor) {
       return visitor.visitVariable(this);
     }
   }
 
-  class ReferenceTypeLiteral<TRef> extends Base<TRef> implements Definition {
+  class ReferenceTypeLiteral extends Base implements Nameable {
     private final String name;
 
     private ReferenceTypeLiteral(String name, SourceRange range) {
@@ -197,20 +196,20 @@ public interface Expression<TRef> extends SyntaxElement {
       this.name = name;
     }
 
-    public static <T> ReferenceTypeLiteral<T> this_(SourceRange range) {
-      return new ReferenceTypeLiteral<>("this", range);
+    public static ReferenceTypeLiteral this_(SourceRange range) {
+      return new ReferenceTypeLiteral("this", range);
     }
 
-    public static <T> ReferenceTypeLiteral<T> null_(SourceRange range) {
-      return new ReferenceTypeLiteral<>("null", range);
+    public static ReferenceTypeLiteral null_(SourceRange range) {
+      return new ReferenceTypeLiteral("null", range);
     }
 
-    public static <T> ReferenceTypeLiteral<T> systemOut(SourceRange range) {
-      return new ReferenceTypeLiteral<>("System.out", range);
+    public static ReferenceTypeLiteral systemOut(SourceRange range) {
+      return new ReferenceTypeLiteral("System.out", range);
     }
 
     @Override
-    public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
+    public <T> T acceptVisitor(Expression.Visitor<T> visitor) {
       return visitor.visitReferenceTypeLiteral(this);
     }
 
@@ -254,28 +253,28 @@ public interface Expression<TRef> extends SyntaxElement {
     }
   }
 
-  interface Visitor<TRef, TReturn> {
+  interface Visitor<T> {
 
-    TReturn visitBinaryOperator(BinaryOperator<? extends TRef> that);
+    T visitBinaryOperator(BinaryOperator that);
 
-    TReturn visitUnaryOperator(UnaryOperator<? extends TRef> that);
+    T visitUnaryOperator(UnaryOperator that);
 
-    TReturn visitMethodCall(MethodCall<? extends TRef> that);
+    T visitMethodCall(MethodCall that);
 
-    TReturn visitFieldAccess(FieldAccess<? extends TRef> that);
+    T visitFieldAccess(FieldAccess that);
 
-    TReturn visitArrayAccess(ArrayAccess<? extends TRef> that);
+    T visitArrayAccess(ArrayAccess that);
 
-    TReturn visitNewObject(NewObject<? extends TRef> that);
+    T visitNewObject(NewObject that);
 
-    TReturn visitNewArray(NewArray<? extends TRef> that);
+    T visitNewArray(NewArray that);
 
-    TReturn visitVariable(Variable<? extends TRef> that);
+    T visitVariable(Variable that);
 
-    TReturn visitBooleanLiteral(BooleanLiteral<? extends TRef> that);
+    T visitBooleanLiteral(BooleanLiteral that);
 
-    TReturn visitIntegerLiteral(IntegerLiteral<? extends TRef> that);
+    T visitIntegerLiteral(IntegerLiteral that);
 
-    TReturn visitReferenceTypeLiteral(ReferenceTypeLiteral<? extends TRef> that);
+    T visitReferenceTypeLiteral(ReferenceTypeLiteral that);
   }
 }

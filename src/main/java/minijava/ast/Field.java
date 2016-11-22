@@ -3,18 +3,18 @@ package minijava.ast;
 import minijava.util.SourceRange;
 import minijava.util.SyntaxElement;
 
-public class Field<TRef> extends SyntaxElement.DefaultImpl implements Definition {
-  public final Type<TRef> type;
+public class Field extends SyntaxElement.DefaultImpl implements Definition {
+  public final Type type;
   private final String name;
-  public Type<Ref> definingClass;
+  public Ref<Class> definingClass;
 
-  public Field(Type<TRef> type, String name, SourceRange range) {
+  public Field(Type type, String name, SourceRange range) {
     super(range);
     this.type = type;
     this.name = name;
   }
 
-  public Field(Type<TRef> type, String name, SourceRange range, Type<Ref> definingClass) {
+  public Field(Type type, String name, SourceRange range, Ref<Class> definingClass) {
     this(type, name, range);
     this.definingClass = definingClass;
   }
@@ -24,11 +24,16 @@ public class Field<TRef> extends SyntaxElement.DefaultImpl implements Definition
     return this.name;
   }
 
-  public <TRet> TRet acceptVisitor(Visitor<? super TRef, TRet> visitor) {
+  public <T> T acceptVisitor(Visitor<T> visitor) {
     return visitor.visitField(this);
   }
 
-  public interface Visitor<TRef, TRet> {
-    TRet visitField(Field<? extends TRef> that);
+  @Override
+  public <T> T acceptVisitor(Definition.Visitor<T> visitor) {
+    return visitor.visitField(this);
+  }
+
+  public interface Visitor<T> {
+    T visitField(Field that);
   }
 }

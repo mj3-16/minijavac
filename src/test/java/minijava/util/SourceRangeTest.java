@@ -54,7 +54,7 @@ public class SourceRangeTest {
 
   @Test
   public void annotateSourceFileExcerpt_correctAnnotations() {
-    String[] lines = sourceFile.split("\\n");
+    String[] lines = sourceFile.split("\\r?\\n");
 
     String actualAnnotation = range.annotateSourceFileExcerpt(Arrays.asList(lines));
 

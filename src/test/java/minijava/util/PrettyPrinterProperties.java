@@ -6,7 +6,6 @@ import com.pholser.junit.quickcheck.generator.Size;
 import com.pholser.junit.quickcheck.runner.JUnitQuickcheck;
 import java.util.Arrays;
 import java.util.List;
-import minijava.ast.Nameable;
 import minijava.ast.Program;
 import minijava.lexer.Lexer;
 import minijava.parser.Parser;
@@ -18,16 +17,15 @@ import org.junit.runner.RunWith;
 public class PrettyPrinterProperties {
 
   @Property(trials = 800)
-  public void shouldBeIdempotent(
-      @From(ProgramGenerator.class) @Size(max = 1500) GeneratedProgram p) {
+  public void shouldBeIdempotent(@From(ProgramGenerator.class) @Size(max = 1500) Program p) {
 
-    String expected = p.program.acceptVisitor(new PrettyPrinter()).toString();
+    String expected = p.acceptVisitor(new PrettyPrinter()).toString();
 
     // Debug printfs:
     //    System.out.println("expected:");
     //    System.out.println(expected);
 
-    Program<Nameable> parsed = new Parser(new Lexer(expected)).parse();
+    Program parsed = new Parser(new Lexer(expected)).parse();
 
     String actual = parsed.acceptVisitor(new PrettyPrinter()).toString();
 
