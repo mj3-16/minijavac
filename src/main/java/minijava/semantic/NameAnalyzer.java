@@ -131,7 +131,7 @@ public class NameAnalyzer
   public Void visitField(Field that) {
     that.type.acceptVisitor(this);
     checkElementTypeIsNotVoid(that.type, that.type.range());
-    that.definingClass.def = currentClass;
+    that.definingClass = new Ref<>(currentClass);
     return null;
   }
 
@@ -671,7 +671,7 @@ public class NameAnalyzer
     }
 
     Field field = fieldOpt.get();
-    field.definingClass.def = definingClass.get();
+    field.definingClass = new Ref<>(definingClass.get());
     field.type.acceptVisitor(this);
     that.self = self.v1;
     that.field.def = field;

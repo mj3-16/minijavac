@@ -18,7 +18,6 @@ import java.util.List;
 import minijava.ast.Program;
 import minijava.lexer.Lexer;
 import minijava.parser.Parser;
-import minijava.semantic.AnalyzedTypesReplacer;
 import minijava.semantic.NameAnalyzer;
 import minijava.token.Token;
 import minijava.util.PrettyPrinter;
@@ -119,7 +118,6 @@ class Cli {
   private void check(InputStream in) {
     Program ast = new Parser(new Lexer(in)).parse();
     ast.acceptVisitor(new NameAnalyzer());
-    ast.acceptVisitor(new AnalyzedTypesReplacer());
   }
 
   private static class Parameters {

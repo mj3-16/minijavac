@@ -3,8 +3,8 @@ package minijava.parser;
 import static minijava.token.Terminal.*;
 import static minijava.token.Terminal.Associativity.*;
 
-import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import minijava.ast.*;
@@ -158,7 +158,7 @@ public class Parser {
         true,
         voidType,
         name.lexval,
-        ImmutableList.of(parameter),
+        Arrays.asList(parameter),
         block,
         new SourceRange(begin, block.range().end));
   }
