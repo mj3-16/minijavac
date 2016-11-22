@@ -44,7 +44,7 @@ public class PrettyPrinterTest {
     Class node =
         new Class(
             "Foo",
-            ImmutableList.of(new Field(new Type(new Ref<Definition>("int"), 0, r), "i", r)),
+            ImmutableList.of(new Field(new Type(new Ref<>("int"), 0, r), "i", r)),
             ImmutableList.of(),
             r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
@@ -57,11 +57,11 @@ public class PrettyPrinterTest {
         new Class(
             "Foo",
             ImmutableList.of(
-                new Field(new Type(new Ref<Definition>("boolean"), 0, r), "G", r),
-                new Field(new Type(new Ref<Definition>("int"), 0, r), "U", r),
-                new Field(new Type(new Ref<Definition>("int"), 0, r), "A", r),
-                new Field(new Type(new Ref<Definition>("int"), 0, r), "Z", r),
-                new Field(new Type(new Ref<Definition>("boolean"), 0, r), "B", r)),
+                new Field(new Type(new Ref<>("boolean"), 0, r), "G", r),
+                new Field(new Type(new Ref<>("int"), 0, r), "U", r),
+                new Field(new Type(new Ref<>("int"), 0, r), "A", r),
+                new Field(new Type(new Ref<>("int"), 0, r), "Z", r),
+                new Field(new Type(new Ref<>("boolean"), 0, r), "B", r)),
             ImmutableList.of(),
             r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
@@ -88,7 +88,7 @@ public class PrettyPrinterTest {
             ImmutableList.of(
                 new Method(
                     true,
-                    new Type(new Ref<Definition>("int"), 0, r),
+                    new Type(new Ref<>("int"), 0, r),
                     "m",
                     ImmutableList.of(),
                     new Block(ImmutableList.of(), r),
@@ -108,21 +108,21 @@ public class PrettyPrinterTest {
             ImmutableList.of(
                 new Method(
                     false,
-                    new Type(new Ref<Definition>("int"), 0, r),
+                    new Type(new Ref<>("int"), 0, r),
                     "a",
                     ImmutableList.of(),
                     new Block(ImmutableList.of(), r),
                     r),
                 new Method(
                     false,
-                    new Type(new Ref<Definition>("int"), 0, r),
+                    new Type(new Ref<>("int"), 0, r),
                     "Z",
                     ImmutableList.of(),
                     new Block(ImmutableList.of(), r),
                     r),
                 new Method(
                     false,
-                    new Type(new Ref<Definition>("int"), 0, r),
+                    new Type(new Ref<>("int"), 0, r),
                     "B",
                     ImmutableList.of(),
                     new Block(ImmutableList.of(), r),
@@ -146,11 +146,11 @@ public class PrettyPrinterTest {
     Method node =
         new Method(
             true,
-            new Type(new Ref<Definition>("void"), 0, r),
+            new Type(new Ref<>("void"), 0, r),
             "main",
             ImmutableList.of(
-                new Parameter(new Type(new Ref<Definition>("String"), 1, r), "args", r),
-                new Parameter(new Type(new Ref<Definition>("int"), 0, r), "numArgs", r)),
+                new Parameter(new Type(new Ref<>("String"), 1, r), "args", r),
+                new Parameter(new Type(new Ref<>("int"), 0, r), "numArgs", r)),
             new Block(ImmutableList.of(new Empty(r), new Empty(r), new Empty(r), new Empty(r)), r),
             r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
@@ -164,7 +164,7 @@ public class PrettyPrinterTest {
     Method node =
         new Method(
             false,
-            new Type(new Ref<Definition>("int"), 0, r),
+            new Type(new Ref<>("int"), 0, r),
             "m",
             ImmutableList.of(),
             new Block(
@@ -181,12 +181,9 @@ public class PrettyPrinterTest {
     Block node =
         new Block(
             ImmutableList.of(
-                new BlockStatement.Variable(
-                    new Type(new Ref<Definition>("int"), 0, r), "i", null, r),
-                new BlockStatement.Variable(
-                    new Type(new Ref<Definition>("String"), 2, r), "s", null, r),
-                new BlockStatement.Variable(
-                    new Type(new Ref<Definition>("boolean"), 0, r), "b", null, r)),
+                new BlockStatement.Variable(new Type(new Ref<>("int"), 0, r), "i", null, r),
+                new BlockStatement.Variable(new Type(new Ref<>("String"), 2, r), "s", null, r),
+                new BlockStatement.Variable(new Type(new Ref<>("boolean"), 0, r), "b", null, r)),
             r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(
@@ -215,7 +212,7 @@ public class PrettyPrinterTest {
   @Test
   public void visitLocalVariableDeclaration_WithoutInit() throws Exception {
     BlockStatement.Variable node =
-        new BlockStatement.Variable(new Type(new Ref<Definition>("int"), 0, r), "i", null, r);
+        new BlockStatement.Variable(new Type(new Ref<>("int"), 0, r), "i", null, r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo("int i;")));
   }
@@ -224,7 +221,7 @@ public class PrettyPrinterTest {
   public void visitLocalVariableDeclaration_WithInit() throws Exception {
     BlockStatement.Variable node =
         new BlockStatement.Variable(
-            new Type(new Ref<Definition>("int"), 0, r),
+            new Type(new Ref<>("int"), 0, r),
             "i",
             new BinaryOperator(
                 BinOp.PLUS, new IntegerLiteral("4", r), new IntegerLiteral("6", r), r),
@@ -236,11 +233,7 @@ public class PrettyPrinterTest {
   @Test
   public void visitMethodCall_NoParameters() throws Exception {
     MethodCall node =
-        new MethodCall(
-            new Variable(new Ref<Definition>("o"), r),
-            new Ref<Definition>("m"),
-            ImmutableList.of(),
-            r);
+        new MethodCall(new Variable(new Ref<>("o"), r), new Ref<>("m"), ImmutableList.of(), r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo("(o.m())")));
   }
@@ -249,8 +242,8 @@ public class PrettyPrinterTest {
   public void visitMethodCall_OneParameter() throws Exception {
     MethodCall node =
         new MethodCall(
-            new Variable(new Ref<Definition>("o"), r),
-            new Ref<Definition>("m"),
+            new Variable(new Ref<>("o"), r),
+            new Ref<>("m"),
             ImmutableList.of(new BooleanLiteral(true, r)),
             r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
@@ -261,8 +254,8 @@ public class PrettyPrinterTest {
   public void visitMethodCall_MultipleParameters() throws Exception {
     MethodCall node =
         new MethodCall(
-            new Variable(new Ref<Definition>("o"), r),
-            new Ref<Definition>("m"),
+            new Variable(new Ref<>("o"), r),
+            new Ref<>("m"),
             ImmutableList.of(
                 new BooleanLiteral(true, r),
                 new BinaryOperator(
@@ -275,8 +268,7 @@ public class PrettyPrinterTest {
   @Test
   public void visitFieldAccess() throws Exception {
     FieldAccess node =
-        new FieldAccess(
-            new Variable(new Ref<Definition>("myObject"), r), new Ref<Definition>("field"), r);
+        new FieldAccess(new Variable(new Ref<>("myObject"), r), new Ref<>("field"), r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo("(myObject.field)")));
   }
@@ -284,8 +276,7 @@ public class PrettyPrinterTest {
   @Test
   public void visitArrayAccess() throws Exception {
     ArrayAccess node =
-        new ArrayAccess(
-            new Variable(new Ref<Definition>("array"), r), new IntegerLiteral("5", r), r);
+        new ArrayAccess(new Variable(new Ref<>("array"), r), new IntegerLiteral("5", r), r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo("(array[5])")));
   }
@@ -294,7 +285,7 @@ public class PrettyPrinterTest {
   public void visitArrayAccess_IndexIsCompositeExpression() throws Exception {
     ArrayAccess node =
         new ArrayAccess(
-            new Variable(new Ref<Definition>("array"), r),
+            new Variable(new Ref<>("array"), r),
             new UnaryOperator(
                 UnOp.NEGATE,
                 new BinaryOperator(
@@ -310,7 +301,7 @@ public class PrettyPrinterTest {
 
   @Test
   public void visitNewObjectExpression() throws Exception {
-    NewObject node = new NewObject(new Ref<Definition>("MyClass"), r);
+    NewObject node = new NewObject(new Ref<>("MyClass"), r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo("(new MyClass())")));
   }
@@ -318,8 +309,7 @@ public class PrettyPrinterTest {
   @Test
   public void visitNewArrayExpression() throws Exception {
     NewArray node =
-        new NewArray(
-            new Type(new Ref<Definition>("boolean"), 3, r), new IntegerLiteral("25", r), r);
+        new NewArray(new Type(new Ref<>("boolean"), 3, r), new IntegerLiteral("25", r), r);
 
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo("(new boolean[25][][][])")));
@@ -329,7 +319,7 @@ public class PrettyPrinterTest {
   public void visitNewArrayExpression_SizeExpressionIsACompositeExpression() throws Exception {
     NewArray node =
         new NewArray(
-            new Type(new Ref<Definition>("boolean"), 3, r),
+            new Type(new Ref<>("boolean"), 3, r),
             new BinaryOperator(
                 BinOp.PLUS,
                 new BinaryOperator(
@@ -358,7 +348,7 @@ public class PrettyPrinterTest {
 
   @Test
   public void visitWhile_null() throws Exception {
-    While node = new While(new Variable(new Ref<Definition>("null"), r), new Empty(r), r);
+    While node = new While(new Variable(new Ref<>("null"), r), new Empty(r), r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);
     assertThat(actual.toString(), is(equalTo(format("while (null)%n\t;"))));
   }

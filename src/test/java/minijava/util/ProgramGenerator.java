@@ -125,7 +125,7 @@ public class ProgramGenerator extends Generator<Program> {
     int n = random.nextInt(0, 3);
     String typeName = random.choose(Arrays.asList("void", "int", "boolean", genIdent(random)));
     nodes++;
-    return new Type(new Ref<Definition>(typeName), n, SourceRange.FIRST_CHAR);
+    return new Type(new Ref<>(typeName), n, SourceRange.FIRST_CHAR);
   }
 
   /*
@@ -222,10 +222,7 @@ public class ProgramGenerator extends Generator<Program> {
         return selectWithRandomWeight(
             random,
             tuple(
-                0.8,
-                r ->
-                    new Expression.Variable(
-                        new Ref<Definition>(genIdent(r)), SourceRange.FIRST_CHAR)),
+                0.8, r -> new Expression.Variable(new Ref<>(genIdent(r)), SourceRange.FIRST_CHAR)),
             tuple(0.1, r -> Expression.ReferenceTypeLiteral.this_(SourceRange.FIRST_CHAR)),
             tuple(0.1, r -> Expression.ReferenceTypeLiteral.null_(SourceRange.FIRST_CHAR)),
             tuple(1.0, r -> new Expression.BooleanLiteral(r.nextBoolean(), SourceRange.FIRST_CHAR)),
@@ -250,26 +247,21 @@ public class ProgramGenerator extends Generator<Program> {
                 r ->
                     new Expression.MethodCall(
                         genExpression(r),
-                        new Ref<Definition>(genIdent(r)),
+                        new Ref<>(genIdent(r)),
                         genArguments(r),
                         SourceRange.FIRST_CHAR)),
             tuple(
                 0.1,
                 r ->
                     new Expression.FieldAccess(
-                        genExpression(r),
-                        new Ref<Definition>(genIdent(r)),
-                        SourceRange.FIRST_CHAR)),
+                        genExpression(r), new Ref<>(genIdent(r)), SourceRange.FIRST_CHAR)),
             tuple(
                 0.1,
                 r ->
                     new Expression.ArrayAccess(
                         genExpression(r), genExpression(r), SourceRange.FIRST_CHAR)),
             tuple(
-                0.1,
-                r ->
-                    new Expression.NewObject(
-                        new Ref<Definition>(genIdent(r)), SourceRange.FIRST_CHAR)),
+                0.1, r -> new Expression.NewObject(new Ref<>(genIdent(r)), SourceRange.FIRST_CHAR)),
             tuple(
                 0.1,
                 r ->

@@ -11,8 +11,8 @@ public class AnalyzedTypesReplacer
         BlockStatement.Visitor<Void>,
         Expression.Visitor<Void> {
 
-  private SymbolTable<Definition> analyzedTypes = new SymbolTable<>();
-  private Type currentClass;
+  private SymbolTable<BasicType> analyzedTypes = new SymbolTable<>();
+  private Class currentClass;
 
   @Override
   public Void visitProgram(Program that) {
@@ -25,7 +25,7 @@ public class AnalyzedTypesReplacer
 
   @Override
   public Void visitClassDeclaration(Class that) {
-    currentClass = new Type(new Ref<Definition>(that), 0, that.range());
+    currentClass = that;
     for (Field field : that.fields) {
       field.acceptVisitor(this);
     }
@@ -37,14 +37,14 @@ public class AnalyzedTypesReplacer
 
   @Override
   public Void visitField(Field that) {
-    that.definingClass = currentClass;
+    that.definingClass = new Ref<>(currentClass);
     that.type.basicType.def = analyzedTypes.lookup(that.type.basicType.def.name()).get();
     return null;
   }
 
   @Override
   public Void visitMethod(Method that) {
-    that.definingClass = currentClass;
+    that.definingClass = new Ref<>(currentClass);
     that.returnType.basicType.def =
         analyzedTypes.lookup(that.returnType.basicType.def.name()).get();
     for (Method.Parameter parameter : that.parameters) {
@@ -120,12 +120,13 @@ public class AnalyzedTypesReplacer
     for (Expression argument : that.arguments) {
       argument.acceptVisitor(this);
     }
-    Type definingClass = ((Method) that.method.def).definingClass;
+    Class definingClass = that.method.def.definingClass.def;
     // special treatment for System.out.println(int)
-    if (definingClass == Type.SYSTEM_OUT && that.method.def.name().equals("println")) {
+    if (definingClass.name().equals(Type.SYSTEM_OUT.basicType.name())
+        && that.method.def.name().equals("println")) {
       return null;
     }
-    Class analyzedClass = (Class) analyzedTypes.lookup(definingClass.basicType.name()).get();
+    Class analyzedClass = (Class) analyzedTypes.lookup(definingClass.name()).get();
     Method methodInAnalyzedClass =
         analyzedClass
             .methods
@@ -139,8 +140,8 @@ public class AnalyzedTypesReplacer
 
   @Override
   public Void visitFieldAccess(Expression.FieldAccess that) {
-    Type definingClass = ((Field) that.field.def).definingClass;
-    Class analyzedClass = (Class) analyzedTypes.lookup(definingClass.basicType.name()).get();
+    Class definingClass = that.field.def.definingClass.def;
+    Class analyzedClass = (Class) analyzedTypes.lookup(definingClass.name()).get();
     Field fieldInAnalyzedClass =
         analyzedClass
             .fields
@@ -161,7 +162,7 @@ public class AnalyzedTypesReplacer
 
   @Override
   public Void visitNewObject(Expression.NewObject that) {
-    that.class_.def = analyzedTypes.lookup(that.class_.name()).get();
+    that.class_.def = (Class) analyzedTypes.lookup(that.class_.name()).get();
     return null;
   }
 
