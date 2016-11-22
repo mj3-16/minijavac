@@ -188,7 +188,7 @@ public interface Expression extends SyntaxElement {
     }
   }
 
-  class ReferenceTypeLiteral extends Base implements Definition {
+  class ReferenceTypeLiteral extends Base implements Nameable {
     private final String name;
 
     private ReferenceTypeLiteral(String name, SourceRange range) {
@@ -209,7 +209,7 @@ public interface Expression extends SyntaxElement {
     }
 
     @Override
-    public <T> T acceptVisitor(Visitor<T> visitor) {
+    public <T> T acceptVisitor(Expression.Visitor<T> visitor) {
       return visitor.visitReferenceTypeLiteral(this);
     }
 

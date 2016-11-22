@@ -9,7 +9,7 @@ import com.google.common.collect.ImmutableList;
 import minijava.ast.*;
 import minijava.ast.Class;
 import minijava.ast.Expression.*;
-import minijava.ast.Method.Parameter;
+import minijava.ast.LocalVariable;
 import minijava.ast.Statement.*;
 import minijava.lexer.Lexer;
 import minijava.parser.Parser;
@@ -149,8 +149,8 @@ public class PrettyPrinterTest {
             new Type(new Ref<>("void"), 0, r),
             "main",
             ImmutableList.of(
-                new Parameter(new Type(new Ref<>("String"), 1, r), "args", r),
-                new Parameter(new Type(new Ref<>("int"), 0, r), "numArgs", r)),
+                new LocalVariable(new Type(new Ref<>("String"), 1, r), "args", r),
+                new LocalVariable(new Type(new Ref<>("int"), 0, r), "numArgs", r)),
             new Block(ImmutableList.of(new Empty(r), new Empty(r), new Empty(r), new Empty(r)), r),
             r);
     CharSequence actual = node.acceptVisitor(prettyPrinter);

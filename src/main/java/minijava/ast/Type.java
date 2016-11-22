@@ -22,7 +22,7 @@ public class Type extends SyntaxElement.DefaultImpl {
             false,
             VOID,
             "println",
-            ImmutableList.of(new Method.Parameter(INT, "blub", SourceRange.FIRST_CHAR)),
+            ImmutableList.of(new LocalVariable(INT, "blub", SourceRange.FIRST_CHAR)),
             null,
             SourceRange.FIRST_CHAR);
     Class class_ =

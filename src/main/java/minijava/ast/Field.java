@@ -28,6 +28,11 @@ public class Field extends SyntaxElement.DefaultImpl implements Definition {
     return visitor.visitField(this);
   }
 
+  @Override
+  public <T> T acceptVisitor(Definition.Visitor<T> visitor) {
+    return visitor.visitField(this);
+  }
+
   public interface Visitor<T> {
     T visitField(Field that);
   }

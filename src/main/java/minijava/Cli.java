@@ -18,7 +18,8 @@ import java.util.List;
 import minijava.ast.Program;
 import minijava.lexer.Lexer;
 import minijava.parser.Parser;
-import minijava.semantic.NameAnalyzer;
+import minijava.semantic.SemanticAnalyzer;
+import minijava.semantic.SemanticLinter;
 import minijava.token.Token;
 import minijava.util.PrettyPrinter;
 
@@ -117,7 +118,8 @@ class Cli {
 
   private void check(InputStream in) {
     Program ast = new Parser(new Lexer(in)).parse();
-    ast.acceptVisitor(new NameAnalyzer());
+    ast.acceptVisitor(new SemanticAnalyzer());
+    ast.acceptVisitor(new SemanticLinter());
   }
 
   private static class Parameters {

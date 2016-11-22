@@ -89,11 +89,11 @@ public class ProgramGenerator extends Generator<Program> {
         isStatic ? new Type(new Ref<>("void"), 0, SourceRange.FIRST_CHAR) : genType(random);
 
     int n = nextArity(random, 2);
-    List<Method.Parameter> parameters = new ArrayList<>(n);
+    List<LocalVariable> parameters = new ArrayList<>(n);
 
     if (isStatic) {
       parameters.add(
-          new Method.Parameter(
+          new LocalVariable(
               new Type(new Ref<>("String"), 1, SourceRange.FIRST_CHAR),
               genIdent(random),
               SourceRange.FIRST_CHAR));
@@ -111,9 +111,9 @@ public class ProgramGenerator extends Generator<Program> {
   }
 
   // Type IDENT
-  private Method.Parameter genParameter(SourceOfRandomness random) {
+  private LocalVariable genParameter(SourceOfRandomness random) {
     nodes++;
-    return new Method.Parameter(genType(random), genIdent(random), SourceRange.FIRST_CHAR);
+    return new LocalVariable(genType(random), genIdent(random), SourceRange.FIRST_CHAR);
   }
 
   private static String genIdent(SourceOfRandomness random) {

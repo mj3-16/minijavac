@@ -151,8 +151,8 @@ public class Parser {
     Token ident = expectAndConsume(IDENT);
     expectAndConsume(RPAREN);
     Block block = parseBlock();
-    Method.Parameter parameter =
-        new Method.Parameter(
+    LocalVariable parameter =
+        new LocalVariable(
             parameterType, ident.lexval, new SourceRange(typeBegin, ident.range().end));
     return new Method(
         true,
@@ -184,7 +184,7 @@ public class Parser {
 
   /** Method -> ( Parameters? ) Block */
   private Method parseMethod(Type type, String name, SourcePosition begin) {
-    List<Method.Parameter> parameters = new ArrayList<>();
+    List<LocalVariable> parameters = new ArrayList<>();
     expectAndConsume(LPAREN);
     if (isCurrentTokenNotTypeOf(RPAREN)) {
       parameters = parseParameters();
@@ -196,8 +196,8 @@ public class Parser {
   }
 
   /** Parameters -> Parameter | Parameter , Parameters */
-  private List<Method.Parameter> parseParameters() {
-    List<Method.Parameter> parameters = new ArrayList<>();
+  private List<LocalVariable> parseParameters() {
+    List<LocalVariable> parameters = new ArrayList<>();
     parameters.add(parseParameter());
     while (isCurrentTokenTypeOf(COMMA)) {
       expectAndConsume(COMMA);
@@ -207,10 +207,10 @@ public class Parser {
   }
 
   /** Parameter -> Type IDENT */
-  private Method.Parameter parseParameter() {
+  private LocalVariable parseParameter() {
     Type type = parseType();
     Token identifier = expectAndConsume(IDENT);
-    return new Method.Parameter(
+    return new LocalVariable(
         type, identifier.lexval, new SourceRange(type.range().begin, identifier.range().end));
   }
 

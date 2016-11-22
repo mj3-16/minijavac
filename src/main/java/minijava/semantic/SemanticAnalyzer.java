@@ -10,7 +10,7 @@ import minijava.ast.Expression.BooleanLiteral;
 import minijava.ast.Expression.IntegerLiteral;
 import minijava.ast.Expression.NewArray;
 import minijava.ast.Expression.NewObject;
-import minijava.ast.Method.Parameter;
+import minijava.ast.LocalVariable;
 import minijava.ast.Statement.ExpressionStatement;
 import minijava.util.SourceRange;
 import org.jetbrains.annotations.NotNull;
@@ -25,7 +25,7 @@ import org.jooq.lambda.tuple.Tuple2;
  * <p>Expressions aren't only resolved, but also their types are inferred. This is why we do it in
  * lock-step by returning a Pair.
  */
-public class NameAnalyzer
+public class SemanticAnalyzer
     implements Program.Visitor<Void>,
         Class.Visitor<Void>,
         Field.Visitor<Void>,
@@ -94,7 +94,7 @@ public class NameAnalyzer
    * references, including bodies, checking for duplicates.
    */
   @Override
-  public Void visitClassDeclaration(Class that) {
+  public Void visitClass(Class that) {
     currentClass = that;
     // fields in current class
     fields = new SymbolTable<>();
@@ -180,7 +180,7 @@ public class NameAnalyzer
         throw new SemanticError(that.range(), "The main method must have exactly one parameter.");
       }
 
-      Parameter p = that.parameters.get(0);
+      LocalVariable p = that.parameters.get(0);
       Type type = p.type;
       if (!type.basicType.name().equals("String") || type.dimension != 1) {
         throw new SemanticError(
@@ -197,9 +197,9 @@ public class NameAnalyzer
       // Here we save the String[] parameter as type void instead.
       // This is a hack so that we can't access it in the body, but it leads to confusing error messages.
       // An alternative would be to define another special type like void for better error messages.
-      that.parameters.set(0, new Parameter(Type.VOID, p.name(), p.range()));
+      that.parameters.set(0, new LocalVariable(Type.VOID, p.name(), p.range()));
     } else { // !isStatic
-      for (Parameter p : that.parameters) {
+      for (LocalVariable p : that.parameters) {
         p.type.acceptVisitor(this);
         checkElementTypeIsNotVoid(p.type, p.range());
       }
@@ -211,7 +211,7 @@ public class NameAnalyzer
     locals.enterScope();
 
     // check for parameters with same name
-    for (Parameter p : that.parameters) {
+    for (LocalVariable p : that.parameters) {
       if (locals.lookup(p.name()).isPresent()) {
         throw new SemanticError(
             p.range(), "There is already a parameter defined with name '" + p.name() + "'");
@@ -602,7 +602,7 @@ public class NameAnalyzer
     // We have to resolve argument expressions and match their type against the called
     // method's parameter types.
     for (int i = 0; i < m.parameters.size(); ++i) {
-      Parameter p = m.parameters.get(i);
+      LocalVariable p = m.parameters.get(i);
       p.type.acceptVisitor(this);
       Tuple2<Expression, Type> arg = that.arguments.get(i).acceptVisitor(this);
       checkType(p.type, arg.v2, arg.v1.range());
@@ -753,8 +753,8 @@ public class NameAnalyzer
         Statement.Variable decl = (Statement.Variable) varOpt.get();
         that.var.def = decl;
         return tuple(that, decl.type);
-      } else if (varOpt.get() instanceof Parameter) {
-        Parameter p = (Parameter) varOpt.get();
+      } else if (varOpt.get() instanceof LocalVariable) {
+        LocalVariable p = (LocalVariable) varOpt.get();
         // Because of a hack where we represent main's parameter with type void, we have to check
         // if the expression is a variable of type void.
         checkElementTypeIsNotVoid(p.type, p.range());

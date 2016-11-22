@@ -29,4 +29,20 @@ public class BuiltinType implements BasicType {
     // Let's return a bull shit range instead
     return SourceRange.FIRST_CHAR;
   }
+
+  @Override
+  public <T> T acceptVisitor(Visitor<T> visitor) {
+    switch (name) {
+      case "int":
+        return visitor.visitInt(this);
+      case "boolean":
+        return visitor.visitBoolean(this);
+      case "void":
+        return visitor.visitVoid(this);
+      case "any":
+        return visitor.visitAny(this);
+      default:
+        throw new UnsupportedOperationException("Unknown builtin type " + name);
+    }
+  }
 }

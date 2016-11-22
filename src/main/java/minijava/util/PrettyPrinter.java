@@ -48,7 +48,7 @@ public class PrettyPrinter
   }
 
   @Override
-  public CharSequence visitClassDeclaration(Class that) {
+  public CharSequence visitClass(Class that) {
     StringBuilder sb = new StringBuilder("class ").append(that.name()).append(" {");
     if (that.fields.isEmpty() && that.methods.isEmpty()) {
       return sb.append(" }").append(System.lineSeparator());
@@ -76,8 +76,8 @@ public class PrettyPrinter
       sb.append("static ");
     }
     sb.append(that.returnType.acceptVisitor(this)).append(" ").append(that.name()).append("(");
-    Iterator<? extends Method.Parameter> iterator = that.parameters.iterator();
-    Method.Parameter next;
+    Iterator<? extends LocalVariable> iterator = that.parameters.iterator();
+    LocalVariable next;
     if (iterator.hasNext()) {
       next = iterator.next();
       sb.append(next.type.acceptVisitor(this)).append(" ").append(next.name);

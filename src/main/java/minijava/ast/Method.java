@@ -8,7 +8,7 @@ public class Method extends SyntaxElement.DefaultImpl implements Definition {
   public final boolean isStatic;
   public final Type returnType;
   private final String name;
-  public final List<Parameter> parameters;
+  public final List<LocalVariable> parameters;
   public final Block body;
   public Ref<Class> definingClass;
 
@@ -22,7 +22,7 @@ public class Method extends SyntaxElement.DefaultImpl implements Definition {
       boolean isStatic,
       Type returnType,
       String name,
-      List<Parameter> parameters,
+      List<LocalVariable> parameters,
       Block body,
       SourceRange range) {
     super(range);
@@ -37,7 +37,7 @@ public class Method extends SyntaxElement.DefaultImpl implements Definition {
       boolean isStatic,
       Type returnType,
       String name,
-      List<Parameter> parameters,
+      List<LocalVariable> parameters,
       Block body,
       SourceRange range,
       Ref<Class> definingClass) {
@@ -54,23 +54,12 @@ public class Method extends SyntaxElement.DefaultImpl implements Definition {
     return visitor.visitMethod(this);
   }
 
-  public interface Visitor<TRet> {
-    TRet visitMethod(Method that);
+  @Override
+  public <T> T acceptVisitor(Definition.Visitor<T> visitor) {
+    return visitor.visitMethod(this);
   }
 
-  public static class Parameter extends SyntaxElement.DefaultImpl implements Definition {
-    public final Type type;
-    public final String name;
-
-    public Parameter(Type type, String name, SourceRange range) {
-      super(range);
-      this.type = type;
-      this.name = name;
-    }
-
-    @Override
-    public String name() {
-      return name;
-    }
+  public interface Visitor<TRet> {
+    TRet visitMethod(Method that);
   }
 }

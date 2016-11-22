@@ -27,7 +27,7 @@ public class Class extends SyntaxElement.DefaultImpl implements BasicType {
   }
 
   public <T> T acceptVisitor(Visitor<T> visitor) {
-    return visitor.visitClassDeclaration(this);
+    return visitor.visitClass(this);
   }
 
   @Override
@@ -40,7 +40,12 @@ public class Class extends SyntaxElement.DefaultImpl implements BasicType {
     return range;
   }
 
+  @Override
+  public <T> T acceptVisitor(BasicType.Visitor<T> visitor) {
+    return visitor.visitClass(this);
+  }
+
   public interface Visitor<T> {
-    T visitClassDeclaration(Class that);
+    T visitClass(Class that);
   }
 }
