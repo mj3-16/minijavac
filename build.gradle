@@ -39,7 +39,7 @@ dependencies {
 
 task mjtest(type: Exec) {
     workingDir './mjtest'
-    commandLine 'python3', './mjt.py', 'all', '../run', '--ci_testing', '--parallel'
+    commandLine 'python3', './mjt.py', 'all', '../run', '--ci_testing'//, '--parallel'
 }
 
 tasks.check.dependsOn mjtest

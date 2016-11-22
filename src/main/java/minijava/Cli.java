@@ -118,8 +118,8 @@ class Cli {
 
   private void check(InputStream in) {
     Program ast = new Parser(new Lexer(in)).parse();
-    Program renamed = ast.acceptVisitor(new NameAnalyzer());
-    renamed.acceptVisitor(new AnalyzedTypesReplacer());
+    ast.acceptVisitor(new NameAnalyzer());
+    ast.acceptVisitor(new AnalyzedTypesReplacer());
   }
 
   private static class Parameters {

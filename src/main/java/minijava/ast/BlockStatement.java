@@ -24,7 +24,7 @@ public interface BlockStatement extends SyntaxElement {
   class Variable extends Base implements Definition {
     public final Type type;
     private final String name;
-    public final Optional<Expression> rhs;
+    public Optional<Expression> rhs;
 
     public Variable(Type type, String name, Expression rhs, SourceRange range) {
       super(range);

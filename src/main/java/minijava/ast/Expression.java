@@ -23,8 +23,8 @@ public interface Expression extends SyntaxElement {
 
   class ArrayAccess extends Base {
 
-    public final Expression array;
-    public final Expression index;
+    public Expression array;
+    public Expression index;
 
     public ArrayAccess(Expression array, Expression index, SourceRange range) {
       super(range);
@@ -40,8 +40,8 @@ public interface Expression extends SyntaxElement {
 
   class BinaryOperator extends Base {
     public final BinOp op;
-    public final Expression left;
-    public final Expression right;
+    public Expression left;
+    public Expression right;
 
     public BinaryOperator(BinOp op, Expression left, Expression right, SourceRange range) {
       super(range);
@@ -73,7 +73,7 @@ public interface Expression extends SyntaxElement {
 
   class FieldAccess extends Base {
 
-    public final Expression self;
+    public Expression self;
     public final Ref<Field> field;
 
     public FieldAccess(Expression self, Ref<Field> field, SourceRange range) {
@@ -105,7 +105,7 @@ public interface Expression extends SyntaxElement {
 
   class MethodCall extends Base {
 
-    public final Expression self;
+    public Expression self;
     public final Ref<Method> method;
     public final List<Expression> arguments;
 
@@ -126,7 +126,7 @@ public interface Expression extends SyntaxElement {
   class NewArray extends Base {
 
     public final Type type;
-    public final Expression size;
+    public Expression size;
 
     public NewArray(Type type, Expression size, SourceRange range) {
       super(range);
@@ -158,7 +158,7 @@ public interface Expression extends SyntaxElement {
   class UnaryOperator extends Base {
 
     public final UnOp op;
-    public final Expression expression;
+    public Expression expression;
 
     public UnaryOperator(UnOp op, Expression expression, SourceRange range) {
       super(range);

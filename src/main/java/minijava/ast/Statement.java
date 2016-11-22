@@ -37,7 +37,7 @@ public interface Statement extends BlockStatement {
   }
 
   class If extends Base {
-    public final Expression condition;
+    public Expression condition;
     public final Statement then;
     public final Optional<Statement> else_;
 
@@ -55,7 +55,7 @@ public interface Statement extends BlockStatement {
   }
 
   class Return extends Base {
-    public final Optional<Expression> expression;
+    public Optional<Expression> expression;
 
     public Return(Expression expression, SourceRange range) {
       super(range);
@@ -69,7 +69,7 @@ public interface Statement extends BlockStatement {
   }
 
   class While extends Base {
-    public final Expression condition;
+    public Expression condition;
     public final Statement body;
 
     public While(Expression condition, Statement body, SourceRange range) {
@@ -86,7 +86,7 @@ public interface Statement extends BlockStatement {
 
   class ExpressionStatement extends Base {
 
-    public final Expression expression;
+    public Expression expression;
 
     public ExpressionStatement(Expression expression, SourceRange range) {
       super(range);

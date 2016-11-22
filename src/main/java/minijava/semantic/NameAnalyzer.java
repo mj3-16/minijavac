@@ -3,8 +3,6 @@ package minijava.semantic;
 import static org.jooq.lambda.tuple.Tuple.tuple;
 
 import com.google.common.primitives.Ints;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 import minijava.ast.*;
 import minijava.ast.Class;
@@ -28,12 +26,12 @@ import org.jooq.lambda.tuple.Tuple2;
  * lock-step by returning a Pair.
  */
 public class NameAnalyzer
-    implements Program.Visitor<Program>,
-        Class.Visitor<Class>,
-        Field.Visitor<Field>,
-        Type.Visitor<Type>,
-        Method.Visitor<Method>,
-        BlockStatement.Visitor<BlockStatement>,
+    implements Program.Visitor<Void>,
+        Class.Visitor<Void>,
+        Field.Visitor<Void>,
+        Type.Visitor<Void>,
+        Method.Visitor<Void>,
+        BlockStatement.Visitor<Void>,
         Expression.Visitor<Tuple2<Expression, Type>> {
   /**
    * A dummy THIS_EXPR to be used when a Expression.Variable is determined to be really a
@@ -78,19 +76,17 @@ public class NameAnalyzer
    * we found a main method.
    */
   @Override
-  public Program visitProgram(Program that) {
+  public Void visitProgram(Program that) {
     mainMethod = null;
     // collect all types first (throws if duplicates exist)
     this.types = that.acceptVisitor(new TypeCollector());
-    List<Class> refClasses = new ArrayList<>(that.declarations.size());
     for (Class c : that.declarations) {
-      Class refClass = c.acceptVisitor(this);
-      refClasses.add(refClass);
+      c.acceptVisitor(this);
     }
     if (mainMethod == null) {
       throw new SemanticError(that.range(), "No main method defined");
     }
-    return new Program(refClasses, that.range());
+    return null;
   }
 
   /**
@@ -98,20 +94,18 @@ public class NameAnalyzer
    * references, including bodies, checking for duplicates.
    */
   @Override
-  public Class visitClassDeclaration(Class that) {
+  public Void visitClassDeclaration(Class that) {
     currentClass = that;
     // fields in current class
     fields = new SymbolTable<>();
     fields.enterScope();
-    List<Field> newFields = new ArrayList<>(that.fields.size());
     for (Field f : that.fields) {
       if (fields.inCurrentScope(f.name())) {
         throw new SemanticError(
             f.range(), "Field '" + f.name() + "' is already defined in this scope");
       }
       fields.insert(f.name(), f);
-      Field field = f.acceptVisitor(this);
-      newFields.add(field);
+      f.acceptVisitor(this);
     }
 
     // We only need the symbol table for methods for checking for duplicates.
@@ -119,7 +113,6 @@ public class NameAnalyzer
     // body of the class type left to the dot.
     SymbolTable<Method> methods = new SymbolTable<>();
     methods.enterScope();
-    List<Method> newMethods = new ArrayList<>(that.methods.size());
     for (Method m : that.methods) {
       if (methods.inCurrentScope(m.name())) {
         throw new SemanticError(
@@ -127,19 +120,19 @@ public class NameAnalyzer
       }
       methods.insert(m.name(), m);
       currentMethod = m;
-      Method method = m.acceptVisitor(this);
-      newMethods.add(method);
+      m.acceptVisitor(this);
     }
 
-    return new Class(that.name(), newFields, newMethods, that.range());
+    return null;
   }
 
   /** Fields need to have their type resolved. Also that type musn't be void. */
   @Override
-  public Field visitField(Field that) {
-    Type type = that.type.acceptVisitor(this);
-    checkElementTypeIsNotVoid(type, type.range());
-    return new Field(type, that.name(), that.range(), new Ref<>(currentClass));
+  public Void visitField(Field that) {
+    that.type.acceptVisitor(this);
+    checkElementTypeIsNotVoid(that.type, that.type.range());
+    that.definingClass.def = currentClass;
+    return null;
   }
 
   /**
@@ -147,13 +140,18 @@ public class NameAnalyzer
    * pre-collected types SymbolTable.
    */
   @Override
-  public Type visitType(Type that) {
+  public Void visitType(Type that) {
+    if (that.basicType.def != null) {
+      // We already analyzed this type
+      return null;
+    }
     String typeName = that.basicType.name();
     Optional<BasicType> optDef = types.lookup(typeName);
     if (!optDef.isPresent()) {
       throw new SemanticError(that.range(), "Type '" + typeName + "' is not defined");
     }
-    return new Type(new Ref<>(optDef.get()), that.dimension, that.range());
+    that.basicType.def = optDef.get();
+    return null;
   }
 
   /**
@@ -167,12 +165,11 @@ public class NameAnalyzer
    * type must be void. Otherwise we didn't return on all paths.
    */
   @Override
-  public Method visitMethod(Method that) {
+  public Void visitMethod(Method that) {
     // 1.
-    Type returnType = that.returnType.acceptVisitor(this);
+    that.returnType.acceptVisitor(this);
 
     // 2. Check types and transform parameters
-    List<Parameter> newParams = new ArrayList<>(that.parameters.size());
     // main gets special treatment. We replace its parameter type by void, to make it unusable.
     if (that.isStatic) {
       // We begin with some sanity checks that the parser should already have verified.
@@ -189,7 +186,7 @@ public class NameAnalyzer
         throw new SemanticError(
             that.range(), "The main method's parameter must have type String[].");
       }
-      checkType(Type.VOID, returnType, returnType.range());
+      checkType(Type.VOID, that.returnType, that.returnType.range());
 
       // Here begins the actual interesting part where things can go wrong.
       if (mainMethod != null) {
@@ -200,12 +197,11 @@ public class NameAnalyzer
       // Here we save the String[] parameter as type void instead.
       // This is a hack so that we can't access it in the body, but it leads to confusing error messages.
       // An alternative would be to define another special type like void for better error messages.
-      newParams.add(new Parameter(Type.VOID, p.name, p.range()));
+      that.parameters.set(0, new Parameter(Type.VOID, p.name(), p.range()));
     } else { // !isStatic
       for (Parameter p : that.parameters) {
-        Type type = p.type.acceptVisitor(this);
-        checkElementTypeIsNotVoid(type, p.range());
-        newParams.add(new Parameter(type, p.name(), p.range()));
+        p.type.acceptVisitor(this);
+        checkElementTypeIsNotVoid(p.type, p.range());
       }
     }
 
@@ -215,7 +211,7 @@ public class NameAnalyzer
     locals.enterScope();
 
     // check for parameters with same name
-    for (Parameter p : newParams) {
+    for (Parameter p : that.parameters) {
       if (locals.lookup(p.name()).isPresent()) {
         throw new SemanticError(
             p.range(), "There is already a parameter defined with name '" + p.name() + "'");
@@ -224,39 +220,29 @@ public class NameAnalyzer
     }
 
     hasReturned = false;
-    Block block = (Block) that.body.acceptVisitor(this);
+    that.body.acceptVisitor(this);
     locals.leaveScope();
     // Check if we returned on each possible path and if not, that the return type was void.
     if (!hasReturned) {
       // Check if we implicitly returned
-      checkType(Type.VOID, returnType, returnType.range());
+      checkType(Type.VOID, that.returnType, that.returnType.range());
     }
-    return new Method(
-        that.isStatic,
-        returnType,
-        that.name(),
-        newParams,
-        block,
-        that.range(),
-        new Ref<>(currentClass));
+    return null;
   }
 
   /** Straightforward. Remember to open a new scope for the block. */
   @Override
-  public Block visitBlock(Block that) {
+  public Void visitBlock(Block that) {
     locals.enterScope();
-    List<BlockStatement> newStatements = new ArrayList<>(that.statements.size());
-    for (BlockStatement s : that.statements) {
-      // This also picks up local var decls into @locals@ on the go
-      newStatements.add(s.acceptVisitor(this));
-    }
+    // This also picks up local var decls into @locals@ on the go
+    that.statements.forEach(s -> s.acceptVisitor(this));
     locals.leaveScope();
-    return new Block(newStatements, that.range());
+    return null;
   }
 
   @Override
-  public Statement visitEmpty(Statement.Empty that) {
-    return new Statement.Empty(that.range());
+  public Void visitEmpty(Statement.Empty that) {
+    return null;
   }
 
   /**
@@ -267,10 +253,10 @@ public class NameAnalyzer
    * mention.
    */
   @Override
-  public Statement visitIf(Statement.If that) {
+  public Void visitIf(Statement.If that) {
     Tuple2<Expression, Type> cond = that.condition.acceptVisitor(this);
-    Expression newCondition = cond.v1;
     checkType(Type.BOOLEAN, cond.v2, cond.v1.range());
+    that.condition = cond.v1;
 
     // Save the old returned flag. If this was true, hasReturned will be true afterwards,
     // no matter what the results of the two branches are.
@@ -279,17 +265,16 @@ public class NameAnalyzer
 
     locals.enterScope();
     // then might be a block and therefore enters and leaves another subscope, but that's ok
-    Statement newThen = (Statement) that.then.acceptVisitor(this);
+    that.then.acceptVisitor(this);
     locals.leaveScope();
 
     // Save the result from then
     boolean thenHasReturned = hasReturned;
     hasReturned = false;
 
-    Statement newElse = null;
     if (that.else_.isPresent()) {
       locals.enterScope();
-      newElse = (Statement) that.else_.get().acceptVisitor(this);
+      that.else_.get().acceptVisitor(this);
       locals.leaveScope();
     } // else hasReturned would also be false (we could always fall through the if statement)
 
@@ -297,22 +282,23 @@ public class NameAnalyzer
 
     // Either we returned before this is even executed or we returned in both branches. Otherwise we didn't return.
     hasReturned = oldHasReturned || thenHasReturned && elseHasReturned;
-    return new Statement.If(newCondition, newThen, newElse, that.range());
+    return null;
   }
 
   @Override
-  public Statement visitExpressionStatement(ExpressionStatement that) {
+  public Void visitExpressionStatement(ExpressionStatement that) {
     // We don't care for the expressions type, as long as there is one
     // ... although we probably want to safe types in (Typed-)Ref later on
-    Expression expr = that.expression.acceptVisitor(this).v1;
-    return new ExpressionStatement(expr, that.range());
+    that.expression = that.expression.acceptVisitor(this).v1;
+    return null;
   }
 
   /** Analogous to If. */
   @Override
-  public Statement visitWhile(Statement.While that) {
+  public Void visitWhile(Statement.While that) {
     Tuple2<Expression, Type> cond = that.condition.acceptVisitor(this);
     checkType(Type.BOOLEAN, cond.v2, cond.v1.range());
+    that.condition = cond.v1;
 
     // In contrast to if, where we actually have two branches of control flow, there's no elaborate
     // hasReturned handling necessary here.
@@ -326,12 +312,12 @@ public class NameAnalyzer
 
     locals.enterScope();
     // if body is a block it might enter another subscope (see visitBlock) but that doesn't really matter)
-    Statement body = (Statement) that.body.acceptVisitor(this);
+    that.body.acceptVisitor(this);
     locals.leaveScope();
 
     hasReturned = oldHasReturned;
 
-    return new Statement.While(cond.v1, body, that.range());
+    return null;
   }
 
   /**
@@ -339,15 +325,17 @@ public class NameAnalyzer
    * current methods return type. Otherwise, the current methods return type must be void.
    */
   @Override
-  public Statement visitReturn(Statement.Return that) {
-    Type returnType = currentMethod.returnType.acceptVisitor(this);
+  public Void visitReturn(Statement.Return that) {
+    currentMethod.returnType.acceptVisitor(this);
+    Type returnType = currentMethod.returnType;
     if (that.expression.isPresent()) {
       if (!currentMethod.equals(mainMethod)) {
         checkElementTypeIsNotVoid(returnType, returnType.range());
         Tuple2<Expression, Type> expr = that.expression.get().acceptVisitor(this);
         checkType(returnType, expr.v2, expr.v1.range());
+        that.expression = Optional.of(expr.v1);
         hasReturned = true;
-        return new Statement.Return(expr.v1, that.range());
+        return null;
       } else {
         throw new SemanticError(
             that.expression.get().range(), "Returning a value is not valid in main method");
@@ -355,7 +343,7 @@ public class NameAnalyzer
     } else {
       checkType(Type.VOID, returnType, returnType.range());
       hasReturned = true;
-      return new Statement.Return(null, that.range());
+      return null;
     }
   }
 
@@ -409,25 +397,21 @@ public class NameAnalyzer
    * The only notable thing here is that if the RHS is present, its type must match the type of the
    * variable declaration.
    */
-  public BlockStatement visitVariable(BlockStatement.Variable that) {
-    Type variableType = that.type.acceptVisitor(this);
-    checkElementTypeIsNotVoid(variableType, variableType.range());
+  public Void visitVariable(BlockStatement.Variable that) {
+    that.type.acceptVisitor(this);
+    checkElementTypeIsNotVoid(that.type, that.type.range());
     if (locals.lookup(that.name()).isPresent()) {
       throw new SemanticError(that.range(), "Cannot redefine '" + that.name() + "'");
     }
 
-    Expression rhs = null;
-
     if (that.rhs.isPresent()) {
       Tuple2<Expression, Type> ret = that.rhs.get().acceptVisitor(this);
-      checkType(variableType, ret.v2, ret.v1.range());
-      rhs = ret.v1;
+      checkType(that.type, ret.v2, ret.v1.range());
+      that.rhs = Optional.of(ret.v1);
     }
 
-    BlockStatement.Variable var =
-        new BlockStatement.Variable(variableType, that.name(), rhs, that.range());
-    locals.insert(that.name(), var);
-    return var;
+    locals.insert(that.name(), that);
+    return null;
   }
 
   /**
@@ -494,8 +478,10 @@ public class NameAnalyzer
         break;
     }
 
-    return tuple(
-        new Expression.BinaryOperator(that.op, left.v1, right.v1, that.range()), resultType);
+    that.left = left.v1;
+    that.right = right.v1;
+
+    return tuple(that, resultType);
   }
 
   @Override
@@ -520,8 +506,9 @@ public class NameAnalyzer
 
     Tuple2<Expression, Type> expr = that.expression.acceptVisitor(this);
     checkType(expected, expr.v2, expr.v1.range());
+    that.expression = expr.v1;
 
-    return tuple(new Expression.UnaryOperator(that.op, expr.v1, that.range()), expr.v2);
+    return tuple(that, expr.v2);
   }
 
   @NotNull
@@ -559,7 +546,7 @@ public class NameAnalyzer
           lit.range(), "The literal '" + lit.literal + "' is not a valid 32-bit number");
     }
     // Otherwise just return what we know
-    return tuple(new Expression.UnaryOperator(that.op, lit, that.range()), Type.INT);
+    return tuple(that, Type.INT);
   }
 
   @Override
@@ -571,8 +558,9 @@ public class NameAnalyzer
       // That was not a call matching System.out.println(). So we procede regularly
       self = that.self.acceptVisitor(this);
     }
+    that.self = self.v1;
 
-    Optional<Class> definingClass = isClass(self.v2);
+    Optional<Class> definingClass = asClass(self.v2);
 
     if (!definingClass.isPresent()) {
       throw new SemanticError(that.range(), "Only classes have methods");
@@ -613,19 +601,16 @@ public class NameAnalyzer
 
     // We have to resolve argument expressions and match their type against the called
     // method's parameter types.
-    List<Expression> resolvedArguments = new ArrayList<>(that.arguments.size());
     for (int i = 0; i < m.parameters.size(); ++i) {
-      Type paramType = m.parameters.get(i).type.acceptVisitor(this);
+      Parameter p = m.parameters.get(i);
+      p.type.acceptVisitor(this);
       Tuple2<Expression, Type> arg = that.arguments.get(i).acceptVisitor(this);
-      checkType(paramType, arg.v2, arg.v1.range());
-      resolvedArguments.add(arg.v1);
+      checkType(p.type, arg.v2, arg.v1.range());
     }
 
-    Type returnType = m.returnType.acceptVisitor(this);
+    m.returnType.acceptVisitor(this);
 
-    return tuple(
-        new Expression.MethodCall(self.v1, new Ref<>(m), resolvedArguments, that.range),
-        returnType);
+    return tuple(that, m.returnType);
   }
 
   /** Returns null if we don't resolve this to System.out.println. */
@@ -653,7 +638,7 @@ public class NameAnalyzer
   }
 
   @NotNull
-  private static Optional<Class> isClass(Type type) {
+  private static Optional<Class> asClass(Type type) {
     if (type.dimension > 0 || !(type.basicType.def instanceof Class)) {
       return Optional.empty();
     }
@@ -665,7 +650,7 @@ public class NameAnalyzer
   public Tuple2<Expression, Type> visitFieldAccess(Expression.FieldAccess that) {
     Tuple2<Expression, Type> self = that.self.acceptVisitor(this);
 
-    Optional<Class> definingClass = isClass(self.v2);
+    Optional<Class> definingClass = asClass(self.v2);
 
     if (!definingClass.isPresent()) {
       throw new SemanticError(that.range(), "Only classes have fields");
@@ -686,9 +671,11 @@ public class NameAnalyzer
     }
 
     Field field = fieldOpt.get();
-    field.definingClass = new Ref<>(definingClass.get());
-    Type returnType = field.type.acceptVisitor(this);
-    return tuple(new Expression.FieldAccess(self.v1, new Ref<>(field), that.range), returnType);
+    field.definingClass.def = definingClass.get();
+    field.type.acceptVisitor(this);
+    that.self = self.v1;
+    that.field.def = field;
+    return tuple(that, field.type);
   }
 
   @Override
@@ -700,8 +687,11 @@ public class NameAnalyzer
     checkElementTypeIsNotVoid(arr.v2, arr.v1.range());
     checkIsArrayType(arr.v2, arr.v1.range());
 
+    that.array = arr.v1;
+    that.index = idx.v1;
+
     Type returnType = new Type(arr.v2.basicType, arr.v2.dimension - 1, arr.v2.range());
-    return tuple(new Expression.ArrayAccess(arr.v1, idx.v1, that.range()), returnType);
+    return tuple(that, returnType);
   }
 
   @Override
@@ -715,26 +705,29 @@ public class NameAnalyzer
     if (!(optDef.get() instanceof Class)) {
       throw new SemanticError(that.range(), "Only reference types can be allocated with new.");
     }
+    Class class_ = (Class) optDef.get();
 
     // Ref is invariant in its first type parameter, for good reason.
     // Unfortunately that means we have to duplicate refs here.
-    Ref<BasicType> asBasicType = new Ref<>(optDef.get());
-    Ref<Class> asClass = new Ref<>((Class) optDef.get());
+    Ref<BasicType> asBasicType = new Ref<>(class_);
     Type returnType = new Type(asBasicType, 0, optDef.get().range());
-    return tuple(new NewObject(asClass, that.range()), returnType);
+    that.class_.def = class_;
+    return tuple(that, returnType);
   }
 
   @Override
   public Tuple2<Expression, Type> visitNewArray(NewArray that) {
-    Type type = that.type.acceptVisitor(this);
+    that.type.acceptVisitor(this);
     Tuple2<Expression, Type> size = that.size.acceptVisitor(this);
 
     checkType(Type.INT, size.v2, size.v1.range());
-    checkElementTypeIsNotVoid(type, that.range());
+    checkElementTypeIsNotVoid(that.type, that.range());
+
+    that.size = size.v1;
 
     // here than in the parser, e.g. NewArray.type should denote the type of the elements of the new array
-    Type returnType = new Type(type.basicType, type.dimension + 1, type.range());
-    return tuple(new NewArray(type, size.v1, that.range()), returnType);
+    Type returnType = new Type(that.type.basicType, that.type.dimension + 1, that.type.range());
+    return tuple(that, returnType);
   }
 
   /**
@@ -758,13 +751,15 @@ public class NameAnalyzer
       // is it a local var decl or a parameter?
       if (varOpt.get() instanceof BlockStatement.Variable) {
         Statement.Variable decl = (Statement.Variable) varOpt.get();
-        return tuple(new Expression.Variable(new Ref<>(decl), that.range), decl.type);
+        that.var.def = decl;
+        return tuple(that, decl.type);
       } else if (varOpt.get() instanceof Parameter) {
         Parameter p = (Parameter) varOpt.get();
         // Because of a hack where we represent main's parameter with type void, we have to check
         // if the expression is a variable of type void.
         checkElementTypeIsNotVoid(p.type, p.range());
-        return tuple(new Expression.Variable(new Ref<>(p), that.range), p.type);
+        that.var.def = p;
+        return tuple(that, p.type);
       } else {
         // We must have put something else into locals, this mustn't happen.
         assert false;
