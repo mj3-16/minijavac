@@ -129,9 +129,9 @@ public class SemanticAnalyzer
   /** Fields need to have their type resolved. Also that type musn't be void. */
   @Override
   public Void visitField(Field that) {
+    that.definingClass = new Ref<>(currentClass);
     that.type.acceptVisitor(this);
     checkElementTypeIsNotVoid(that.type, that.type.range());
-    that.definingClass = new Ref<>(currentClass);
     return null;
   }
 
@@ -166,6 +166,8 @@ public class SemanticAnalyzer
    */
   @Override
   public Void visitMethod(Method that) {
+    that.definingClass = new Ref<>(currentClass);
+
     // 1.
     that.returnType.acceptVisitor(this);
 
@@ -560,29 +562,25 @@ public class SemanticAnalyzer
     }
     that.self = self.v1;
 
-    Optional<Class> definingClass = asClass(self.v2);
+    Optional<Class> definingClassOpt = asClass(self.v2);
 
-    if (!definingClass.isPresent()) {
+    if (!definingClassOpt.isPresent()) {
       throw new SemanticError(that.range(), "Only classes have methods");
     }
+    Class definingClass = definingClassOpt.get();
 
     // This will find the method in the class body of the self object
     Optional<Method> methodOpt =
-        definingClass
-            .get()
-            .methods
-            .stream()
-            .filter(m -> m.name().equals(that.method.name()))
-            .findFirst();
+        definingClass.methods.stream().filter(m -> m.name().equals(that.method.name())).findFirst();
 
     if (!methodOpt.isPresent()) {
       throw new SemanticError(
           that.range(),
-          "Class '" + definingClass.get().name() + "' has no method '" + that.method.name() + "'");
+          "Class '" + definingClass.name() + "' has no method '" + that.method.name() + "'");
     }
 
     Method m = methodOpt.get();
-    m.definingClass = new Ref<>(definingClass.get());
+    m.definingClass = new Ref<>(definingClass);
 
     if (m.isStatic) {
       throw new SemanticError(that.range(), "Static methods cannot be called.");
@@ -650,28 +648,23 @@ public class SemanticAnalyzer
   public Tuple2<Expression, Type> visitFieldAccess(Expression.FieldAccess that) {
     Tuple2<Expression, Type> self = that.self.acceptVisitor(this);
 
-    Optional<Class> definingClass = asClass(self.v2);
+    Optional<Class> definingClassOpt = asClass(self.v2);
 
-    if (!definingClass.isPresent()) {
+    if (!definingClassOpt.isPresent()) {
       throw new SemanticError(that.range(), "Only classes have fields");
     }
+    Class definingClass = definingClassOpt.get();
 
     Optional<Field> fieldOpt =
-        definingClass
-            .get()
-            .fields
-            .stream()
-            .filter(f -> f.name().equals(that.field.name()))
-            .findFirst();
+        definingClass.fields.stream().filter(f -> f.name().equals(that.field.name())).findFirst();
 
     if (!fieldOpt.isPresent()) {
       throw new SemanticError(
-          that.range(),
-          "Class '" + definingClass.get().name() + "' has no field " + that.field.name());
+          that.range(), "Class '" + definingClass.name() + "' has no field " + that.field.name());
     }
 
     Field field = fieldOpt.get();
-    field.definingClass = new Ref<>(definingClass.get());
+    field.definingClass = new Ref<>(definingClass);
     field.type.acceptVisitor(this);
     that.self = self.v1;
     that.field.def = field;

@@ -1,5 +1,6 @@
 package minijava.semantic;
 
+import java.util.IdentityHashMap;
 import minijava.ast.*;
 import minijava.ast.Class;
 
@@ -17,8 +18,11 @@ public class SemanticLinter
         BlockStatement.Visitor<Void>,
         Expression.Visitor<Void>,
         Definition.Visitor<Void> {
+  private final IdentityHashMap<Class, Class> alreadyVisited = new IdentityHashMap<>();
+
   @Override
   public Void visitProgram(Program that) {
+    alreadyVisited.clear();
     that.declarations.forEach(d -> d.acceptVisitor((Class.Visitor<Void>) this));
     return null;
   }
@@ -39,6 +43,10 @@ public class SemanticLinter
 
   @Override
   public Void visitClass(Class that) {
+    if (alreadyVisited.containsKey(that)) {
+      return null;
+    }
+    alreadyVisited.put(that, that);
     that.fields.forEach(f -> f.acceptVisitor((Field.Visitor<Void>) this));
     that.methods.forEach(m -> m.acceptVisitor((Method.Visitor<Void>) this));
     return null;
