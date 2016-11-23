@@ -1,7 +1,5 @@
 package minijava.semantic;
 
-import static org.jooq.lambda.tuple.Tuple.tuple;
-
 import com.google.common.primitives.Ints;
 import java.util.Optional;
 import minijava.ast.*;
@@ -14,7 +12,6 @@ import minijava.ast.LocalVariable;
 import minijava.ast.Statement.ExpressionStatement;
 import minijava.util.SourceRange;
 import org.jetbrains.annotations.NotNull;
-import org.jooq.lambda.tuple.Tuple2;
 
 /**
  * Performs name analysis for a Program.
@@ -32,7 +29,7 @@ public class SemanticAnalyzer
         Type.Visitor<Void>,
         Method.Visitor<Void>,
         BlockStatement.Visitor<Void>,
-        Expression.Visitor<Tuple2<Expression, Type>> {
+        Expression.Visitor<Expression> {
   /**
    * A dummy THIS_EXPR to be used when a Expression.Variable is determined to be really a
    * Expression.FieldAccess to this. Example:
@@ -56,7 +53,7 @@ public class SemanticAnalyzer
   /** The method whose body is under analysis. */
   private Method currentMethod;
   /** Tracks all local variables in the current method body. */
-  private SymbolTable<Definition> locals = new SymbolTable<>();
+  private SymbolTable<LocalVariable> locals = new SymbolTable<>();
   /**
    * Tracks the possibly defined main method for the Program under analysis. There must be exactly
    * one static main method.
@@ -256,9 +253,8 @@ public class SemanticAnalyzer
    */
   @Override
   public Void visitIf(Statement.If that) {
-    Tuple2<Expression, Type> cond = that.condition.acceptVisitor(this);
-    checkType(Type.BOOLEAN, cond.v2, cond.v1.range());
-    that.condition = cond.v1;
+    that.condition = that.condition.acceptVisitor(this);
+    checkType(Type.BOOLEAN, that.condition.type(), that.condition.range());
 
     // Save the old returned flag. If this was true, hasReturned will be true afterwards,
     // no matter what the results of the two branches are.
@@ -291,16 +287,15 @@ public class SemanticAnalyzer
   public Void visitExpressionStatement(ExpressionStatement that) {
     // We don't care for the expressions type, as long as there is one
     // ... although we probably want to safe types in (Typed-)Ref later on
-    that.expression = that.expression.acceptVisitor(this).v1;
+    that.expression = that.expression.acceptVisitor(this);
     return null;
   }
 
   /** Analogous to If. */
   @Override
   public Void visitWhile(Statement.While that) {
-    Tuple2<Expression, Type> cond = that.condition.acceptVisitor(this);
-    checkType(Type.BOOLEAN, cond.v2, cond.v1.range());
-    that.condition = cond.v1;
+    that.condition = that.condition.acceptVisitor(this);
+    checkType(Type.BOOLEAN, that.condition.type(), that.condition.range());
 
     // In contrast to if, where we actually have two branches of control flow, there's no elaborate
     // hasReturned handling necessary here.
@@ -333,9 +328,9 @@ public class SemanticAnalyzer
     if (that.expression.isPresent()) {
       if (!currentMethod.equals(mainMethod)) {
         checkElementTypeIsNotVoid(returnType, returnType.range());
-        Tuple2<Expression, Type> expr = that.expression.get().acceptVisitor(this);
-        checkType(returnType, expr.v2, expr.v1.range());
-        that.expression = Optional.of(expr.v1);
+        Expression expr = that.expression.get().acceptVisitor(this);
+        checkType(returnType, expr.type(), expr.range());
+        that.expression = Optional.of(expr);
         hasReturned = true;
         return null;
       } else {
@@ -407,9 +402,9 @@ public class SemanticAnalyzer
     }
 
     if (that.rhs.isPresent()) {
-      Tuple2<Expression, Type> ret = that.rhs.get().acceptVisitor(this);
-      checkType(that.type, ret.v2, ret.v1.range());
-      that.rhs = Optional.of(ret.v1);
+      Expression ret = that.rhs.get().acceptVisitor(this);
+      checkType(that.type, ret.type(), ret.range());
+      that.rhs = Optional.of(ret);
     }
 
     locals.insert(that.name(), that);
@@ -421,27 +416,27 @@ public class SemanticAnalyzer
    * cases.
    */
   @Override
-  public Tuple2<Expression, Type> visitBinaryOperator(Expression.BinaryOperator that) {
-    Tuple2<Expression, Type> left = that.left.acceptVisitor(this);
-    Tuple2<Expression, Type> right = that.right.acceptVisitor(this);
+  public Expression visitBinaryOperator(Expression.BinaryOperator that) {
+    Expression left = that.left.acceptVisitor(this);
+    Expression right = that.right.acceptVisitor(this);
 
     Type resultType = null; // The result of that switch statement
     switch (that.op) {
       case ASSIGN:
-        // make sure that we can actually assign something to left.v1, e.g.
+        // make sure that we can actually assign something to left, e.g.
         // it should be a fieldaccess or variableexpression.
-        if (!(left.v1 instanceof Expression.FieldAccess)
-            && !(left.v1 instanceof Expression.Variable)
-            && !(left.v1 instanceof Expression.ArrayAccess)) {
-          throw new SemanticError(left.v1.range(), "Expression is not assignable");
+        if (!(left instanceof Expression.FieldAccess)
+            && !(left instanceof Expression.Variable)
+            && !(left instanceof Expression.ArrayAccess)) {
+          throw new SemanticError(left.range(), "Expression is not assignable");
         }
-        // Also left.v2 must match right.v2
+        // Also left.type() must match right.type()
         checkType(
-            left.v2,
-            right.v2,
-            right.v1.range()); // This would be broken for type Any, but null can't be assigned to
-        // The result type of the assignment expression is just left.v2
-        resultType = left.v2;
+            left.type(),
+            right.type(),
+            right.range()); // This would be broken for type Any, but null can't be assigned to
+        // The result type of the assignment expression is just left.type()
+        resultType = left.type();
         break;
       case PLUS:
       case MINUS:
@@ -449,24 +444,24 @@ public class SemanticAnalyzer
       case DIVIDE:
       case MODULO:
         // int -> int -> int
-        // so, check that left.v1 and left.v2 is int
-        checkType(Type.INT, left.v2, left.v1.range());
-        checkType(Type.INT, right.v2, right.v1.range());
+        // so, check that left and left.type() is int
+        checkType(Type.INT, left.type(), left.range());
+        checkType(Type.INT, right.type(), right.range());
         // Then we can just reuse left's type
-        resultType = left.v2;
+        resultType = left.type();
         break;
       case OR:
       case AND:
         // bool -> bool -> bool
-        checkType(Type.BOOLEAN, left.v2, left.v1.range());
-        checkType(Type.BOOLEAN, right.v2, right.v1.range());
-        resultType = left.v2;
+        checkType(Type.BOOLEAN, left.type(), left.range());
+        checkType(Type.BOOLEAN, right.type(), right.range());
+        resultType = left.type();
         break;
       case EQ:
       case NEQ:
         // T -> T -> bool
         // The Ts have to match
-        checkType(left.v2, right.v2, right.v1.range());
+        checkType(left.type(), right.type(), right.range());
         resultType = Type.BOOLEAN;
         break;
       case LT:
@@ -474,20 +469,21 @@ public class SemanticAnalyzer
       case GT:
       case GEQ:
         // int -> int -> bool
-        checkType(Type.INT, left.v2, left.v1.range());
-        checkType(Type.INT, right.v2, right.v1.range());
+        checkType(Type.INT, left.type(), left.range());
+        checkType(Type.INT, right.type(), right.range());
         resultType = Type.BOOLEAN;
         break;
     }
 
-    that.left = left.v1;
-    that.right = right.v1;
+    that.left = left;
+    that.right = right;
+    that.type = resultType;
 
-    return tuple(that, resultType);
+    return that;
   }
 
   @Override
-  public Tuple2<Expression, Type> visitUnaryOperator(Expression.UnaryOperator that) {
+  public Expression visitUnaryOperator(Expression.UnaryOperator that) {
 
     Type expected = null;
     switch (that.op) {
@@ -506,15 +502,16 @@ public class SemanticAnalyzer
         break;
     }
 
-    Tuple2<Expression, Type> expr = that.expression.acceptVisitor(this);
-    checkType(expected, expr.v2, expr.v1.range());
-    that.expression = expr.v1;
+    Expression expr = that.expression.acceptVisitor(this);
+    checkType(expected, expr.type(), expr.range());
+    that.expression = expr;
+    that.type = expected;
 
-    return tuple(that, expr.v2);
+    return that;
   }
 
   @NotNull
-  private Tuple2<Expression, Type> handleNegativeIntegerLiterals(
+  private Expression handleNegativeIntegerLiterals(
       Expression.UnaryOperator that, IntegerLiteral lit) {
     // handle the case of negative literals
     // This is non-compositional, because 0x80000000 is a negative number,
@@ -548,21 +545,23 @@ public class SemanticAnalyzer
           lit.range(), "The literal '" + lit.literal + "' is not a valid 32-bit number");
     }
     // Otherwise just return what we know
-    return tuple(that, Type.INT);
+    lit.type = Type.INT;
+    that.type = Type.INT;
+    return that;
   }
 
   @Override
-  public Tuple2<Expression, Type> visitMethodCall(Expression.MethodCall that) {
+  public Expression visitMethodCall(Expression.MethodCall that) {
 
     // This will be null if this wasn't a call to System.out.println
-    Tuple2<Expression, Type> self = systemOutPrintlnHackForSelf(that);
+    Expression self = systemOutPrintlnHackForSelf(that);
     if (self == null) {
       // That was not a call matching System.out.println(). So we procede regularly
       self = that.self.acceptVisitor(this);
     }
-    that.self = self.v1;
+    that.self = self;
 
-    Optional<Class> definingClassOpt = asClass(self.v2);
+    Optional<Class> definingClassOpt = asClass(self.type());
 
     if (!definingClassOpt.isPresent()) {
       throw new SemanticError(that.range(), "Only classes have methods");
@@ -602,17 +601,18 @@ public class SemanticAnalyzer
     for (int i = 0; i < m.parameters.size(); ++i) {
       LocalVariable p = m.parameters.get(i);
       p.type.acceptVisitor(this);
-      Tuple2<Expression, Type> arg = that.arguments.get(i).acceptVisitor(this);
-      checkType(p.type, arg.v2, arg.v1.range());
+      Expression arg = that.arguments.get(i).acceptVisitor(this);
+      checkType(p.type, arg.type(), arg.range());
     }
 
     m.returnType.acceptVisitor(this);
+    that.type = m.returnType;
 
-    return tuple(that, m.returnType);
+    return that;
   }
 
   /** Returns null if we don't resolve this to System.out.println. */
-  private Tuple2<Expression, Type> systemOutPrintlnHackForSelf(Expression.MethodCall that) {
+  private Expression systemOutPrintlnHackForSelf(Expression.MethodCall that) {
     if (!(that.self instanceof Expression.FieldAccess)) {
       return null;
     }
@@ -632,7 +632,7 @@ public class SemanticAnalyzer
       return null;
     }
 
-    return tuple(Expression.ReferenceTypeLiteral.systemOut(fieldAccess.range()), Type.SYSTEM_OUT);
+    return Expression.ReferenceTypeLiteral.systemOut(fieldAccess.range());
   }
 
   @NotNull
@@ -645,10 +645,10 @@ public class SemanticAnalyzer
   }
 
   @Override
-  public Tuple2<Expression, Type> visitFieldAccess(Expression.FieldAccess that) {
-    Tuple2<Expression, Type> self = that.self.acceptVisitor(this);
+  public Expression visitFieldAccess(Expression.FieldAccess that) {
+    Expression self = that.self.acceptVisitor(this);
 
-    Optional<Class> definingClassOpt = asClass(self.v2);
+    Optional<Class> definingClassOpt = asClass(self.type());
 
     if (!definingClassOpt.isPresent()) {
       throw new SemanticError(that.range(), "Only classes have fields");
@@ -666,29 +666,30 @@ public class SemanticAnalyzer
     Field field = fieldOpt.get();
     field.definingClass = new Ref<>(definingClass);
     field.type.acceptVisitor(this);
-    that.self = self.v1;
+    that.self = self;
     that.field.def = field;
-    return tuple(that, field.type);
+    that.type = field.type;
+    return that;
   }
 
   @Override
-  public Tuple2<Expression, Type> visitArrayAccess(Expression.ArrayAccess that) {
-    Tuple2<Expression, Type> arr = that.array.acceptVisitor(this);
-    Tuple2<Expression, Type> idx = that.index.acceptVisitor(this);
+  public Expression visitArrayAccess(Expression.ArrayAccess that) {
+    Expression arr = that.array.acceptVisitor(this);
+    Expression idx = that.index.acceptVisitor(this);
 
-    checkType(Type.INT, idx.v2, idx.v1.range());
-    checkElementTypeIsNotVoid(arr.v2, arr.v1.range());
-    checkIsArrayType(arr.v2, arr.v1.range());
+    checkType(Type.INT, idx.type(), idx.range());
+    checkElementTypeIsNotVoid(arr.type(), arr.range());
+    checkIsArrayType(arr.type(), arr.range());
 
-    that.array = arr.v1;
-    that.index = idx.v1;
+    that.array = arr;
+    that.index = idx;
 
-    Type returnType = new Type(arr.v2.basicType, arr.v2.dimension - 1, arr.v2.range());
-    return tuple(that, returnType);
+    that.type = new Type(arr.type().basicType, arr.type().dimension - 1, arr.type().range());
+    return that;
   }
 
   @Override
-  public Tuple2<Expression, Type> visitNewObject(NewObject that) {
+  public Expression visitNewObject(NewObject that) {
     Optional<BasicType> optDef = types.lookup(that.class_.name());
     if (!optDef.isPresent()) {
       throw new SemanticError(that.range(), "Type is not present");
@@ -703,24 +704,26 @@ public class SemanticAnalyzer
     // Ref is invariant in its first type parameter, for good reason.
     // Unfortunately that means we have to duplicate refs here.
     Ref<BasicType> asBasicType = new Ref<>(class_);
-    Type returnType = new Type(asBasicType, 0, optDef.get().range());
+    that.type = new Type(asBasicType, 0, optDef.get().range());
     that.class_.def = class_;
-    return tuple(that, returnType);
+    return that;
   }
 
   @Override
-  public Tuple2<Expression, Type> visitNewArray(NewArray that) {
-    that.type.acceptVisitor(this);
-    Tuple2<Expression, Type> size = that.size.acceptVisitor(this);
+  public Expression visitNewArray(NewArray that) {
+    that.elementType.acceptVisitor(this);
+    Expression size = that.size.acceptVisitor(this);
 
-    checkType(Type.INT, size.v2, size.v1.range());
-    checkElementTypeIsNotVoid(that.type, that.range());
+    checkType(Type.INT, size.type(), size.range());
+    checkElementTypeIsNotVoid(that.elementType, that.range());
 
-    that.size = size.v1;
+    that.size = size;
 
     // here than in the parser, e.g. NewArray.type should denote the type of the elements of the new array
-    Type returnType = new Type(that.type.basicType, that.type.dimension + 1, that.type.range());
-    return tuple(that, returnType);
+    that.type =
+        new Type(
+            that.elementType.basicType, that.elementType.dimension + 1, that.elementType.range());
+    return that;
   }
 
   /**
@@ -738,25 +741,17 @@ public class SemanticAnalyzer
    * <p>This is the only place in the analyzer where we rewrite AST nodes to different types!
    */
   @Override
-  public Tuple2<Expression, Type> visitVariable(Expression.Variable that) {
-    Optional<Definition> varOpt = locals.lookup(that.var.name());
+  public Expression visitVariable(Expression.Variable that) {
+    Optional<LocalVariable> varOpt = locals.lookup(that.var.name());
     if (varOpt.isPresent()) {
       // is it a local var decl or a parameter?
-      if (varOpt.get() instanceof BlockStatement.Variable) {
-        Statement.Variable decl = (Statement.Variable) varOpt.get();
-        that.var.def = decl;
-        return tuple(that, decl.type);
-      } else if (varOpt.get() instanceof LocalVariable) {
-        LocalVariable p = (LocalVariable) varOpt.get();
-        // Because of a hack where we represent main's parameter with type void, we have to check
-        // if the expression is a variable of type void.
-        checkElementTypeIsNotVoid(p.type, p.range());
-        that.var.def = p;
-        return tuple(that, p.type);
-      } else {
-        // We must have put something else into locals, this mustn't happen.
-        assert false;
-      }
+      LocalVariable p = varOpt.get();
+      // Because of a hack where we represent main's parameter with type void, we have to check
+      // if the expression is a variable of type void.
+      checkElementTypeIsNotVoid(p.type, p.range());
+      that.var.def = p;
+      that.type = p.type;
+      return that;
     }
 
     // So it wasn't a local var... Maybe it was a field of the enclosing class
@@ -773,26 +768,28 @@ public class SemanticAnalyzer
   }
 
   @Override
-  public Tuple2<Expression, Type> visitBooleanLiteral(BooleanLiteral that) {
-    return tuple(that, Type.BOOLEAN);
+  public Expression visitBooleanLiteral(BooleanLiteral that) {
+    that.type = Type.BOOLEAN;
+    return that;
   }
 
   @Override
-  public Tuple2<Expression, Type> visitIntegerLiteral(IntegerLiteral that) {
+  public Expression visitIntegerLiteral(IntegerLiteral that) {
 
     if (Ints.tryParse(that.literal, 10) == null) {
       // insert range
       throw new SemanticError(
           that.range(), "The literal '" + that.literal + "' is not a valid 32-bit number");
     }
-
-    return tuple(that, Type.INT);
+    that.type = Type.INT;
+    return that;
   }
 
   @Override
-  public Tuple2<Expression, Type> visitReferenceTypeLiteral(Expression.ReferenceTypeLiteral that) {
+  public Expression visitReferenceTypeLiteral(Expression.ReferenceTypeLiteral that) {
     if (that.name().equals("null")) {
-      return tuple(that, Type.ANY_REF);
+      that.type = Type.ANY_REF;
+      return that;
     }
     assert that.name().equals("this");
 
@@ -801,6 +798,7 @@ public class SemanticAnalyzer
           that.range(), "Cannot access 'this' in a static method " + that.name());
     }
 
-    return tuple(that, new Type(new Ref<>(currentClass), 0, currentClass.range()));
+    that.type = new Type(new Ref<>(currentClass), 0, currentClass.range());
+    return that;
   }
 }
