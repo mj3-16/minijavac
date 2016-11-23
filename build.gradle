@@ -23,7 +23,14 @@ googleJavaFormat {
     exclude 'libfirm'
 }
 
+project(':jFirm') {
+    ant.importBuild 'build.xml'
+}
+
+tasks.compileJava.dependsOn project(':jFirm').jar
+
 dependencies {
+    compile files('jFirm/lib/jna.jar', 'jFirm/classes/jfirm.jar')
     compile 'com.beust:jcommander:1.58'
     compile 'com.google.guava:guava:19.0'
     compile 'commons-io:commons-io:2.4'
