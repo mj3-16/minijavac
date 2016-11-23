@@ -1,0 +1,16 @@
+#!/usr/bin/env sh
+
+case "$(uname -s)" in
+   Darwin)
+     SCRIPT_PATH=$(greadlink -f "$0")
+     ;;
+
+   *)
+     SCRIPT_PATH=$(readlink -f "$0")
+     ;;
+esac
+
+PROJECT_DIR=$(dirname "$SCRIPT_PATH")
+(cd "$PROJECT_DIR/libfirm" && make)
+(cd "$PROJECT_DIR/jFirm" && gradle -b "$PROJECT_DIR/jFirm_build.gradle" jar)
+exit $?

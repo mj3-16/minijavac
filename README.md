@@ -8,6 +8,7 @@
   automatically)
 - bash (`build` and `run` scripts are written for `sh`, but they in
   turn call automatically generated bash scripts)
+- gradle for building this project and jFirm
 
 ## Build and run
 
