@@ -5,11 +5,14 @@ import minijava.util.SourceRange;
 import minijava.util.SyntaxElement;
 
 public interface Expression extends SyntaxElement {
+  Type type();
+
   <T> T acceptVisitor(Visitor<T> visitor);
 
   /** We can't reuse SyntaxElement.DefaultImpl, so this bull shit is necessary */
   abstract class Base implements Expression {
     public final SourceRange range;
+    public Type type;
 
     Base(SourceRange range) {
       this.range = range;
@@ -18,6 +21,11 @@ public interface Expression extends SyntaxElement {
     @Override
     public SourceRange range() {
       return range;
+    }
+
+    @Override
+    public Type type() {
+      return type;
     }
   }
 
@@ -62,6 +70,7 @@ public interface Expression extends SyntaxElement {
 
     public BooleanLiteral(boolean literal, SourceRange range) {
       super(range);
+      this.type = Type.BOOLEAN;
       this.literal = literal;
     }
 
@@ -94,6 +103,7 @@ public interface Expression extends SyntaxElement {
 
     public IntegerLiteral(String literal, SourceRange range) {
       super(range);
+      this.type = Type.INT;
       this.literal = literal;
     }
 
@@ -125,12 +135,12 @@ public interface Expression extends SyntaxElement {
 
   class NewArray extends Base {
 
-    public final Type type;
+    public final Type elementType;
     public Expression size;
 
-    public NewArray(Type type, Expression size, SourceRange range) {
+    public NewArray(Type elementType, Expression size, SourceRange range) {
       super(range);
-      this.type = type;
+      this.elementType = elementType;
       this.size = size;
     }
 
@@ -205,7 +215,9 @@ public interface Expression extends SyntaxElement {
     }
 
     public static ReferenceTypeLiteral systemOut(SourceRange range) {
-      return new ReferenceTypeLiteral("System.out", range);
+      ReferenceTypeLiteral ret = new ReferenceTypeLiteral("System.out", range);
+      ret.type = Type.SYSTEM_OUT;
+      return ret;
     }
 
     @Override

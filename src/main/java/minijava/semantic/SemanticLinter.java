@@ -156,7 +156,7 @@ public class SemanticLinter
 
   @Override
   public Void visitNewArray(Expression.NewArray that) {
-    that.type.acceptVisitor(this);
+    that.elementType.acceptVisitor(this);
     that.size.acceptVisitor(this);
     return null;
   }
