@@ -18,7 +18,9 @@ import firm.nodes.Cond;
 import firm.nodes.Node;
 
 /**
- * Simple example. Creating a firm equivalent to:
+ * Copied from the jFirm sources.
+ *
+ * <p>Simple example. Creating a firm equivalent to:
  *
  * <p>public class A { public int calc(int x, int y) { int sum;
  *

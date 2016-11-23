@@ -12,5 +12,5 @@ esac
 
 PROJECT_DIR=$(dirname "$SCRIPT_PATH")
 (cd "$PROJECT_DIR/libfirm" && make)
-(cd "$PROJECT_DIR/jFirm" && ant create_dirs libfirm.so build jar)
+(cd "$PROJECT_DIR/jFirm" && gradle -b "$PROJECT_DIR/jFirm_build.gradle" jar)
 exit $?
