@@ -19,6 +19,7 @@ repositories {
 googleJavaFormat {
     toolVersion '1.1'
     exclude 'mjtest/*'
+    exclude 'jFirm/*'
 }
 
 dependencies {
@@ -35,6 +36,8 @@ dependencies {
     testCompile 'org.hamcrest:hamcrest-library:1.3'
     testCompile 'com.google.jimfs:jimfs:1.1'
     testCompile 'com.googlecode.java-diff-utils:diffutils:1.3.0'
+    compile files('jFirm/classes/jfirm.jar', 'jFirm/lib/JNA.jar')
+    compile 'net.java.dev.jna:jna:3.2.7'
 }
 
 task mjtest(type: Exec) {
@@ -50,4 +53,8 @@ tasks.mjtest.dependsOn installDist
 task installGitHooks(type: Copy) {
     from file('git-hooks/pre-commit')
     into { file('.git/hooks') }
+}
+
+run {
+	environment 'LD_LIBRARY_PATH', 'jFirm/lib'
 }
