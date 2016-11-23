@@ -16,5 +16,7 @@ case "$(uname -s)" in
 esac
 
 PROJECT_DIR=$(dirname "$SCRIPT_PATH")
+export LD_LIBRARY_PATH="$PROJECT_DIR/jFirm/lib" 
+(cd "$PROJECT_DIR" && exec "$PROJECT_DIR/build_firm")
 (cd "$PROJECT_DIR" && exec "$PROJECT_DIR/gradlew" installDist)
 exit $?
