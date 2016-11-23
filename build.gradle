@@ -18,10 +18,21 @@ repositories {
 
 googleJavaFormat {
     toolVersion '1.1'
-    exclude 'mjtest/*'
+    exclude 'mjtest'
+    exclude 'jFirm'
+    exclude 'libfirm'
 }
 
+project(':jFirm').ant.importBuild 'build.xml'
+// the task jFirm:jar makes sure that libfirm.so exists
+tasks.compileJava.dependsOn project(':jFirm').jar
+// added to the run task and the generated start scripts
+applicationDefaultJvmArgs = ["-Djna.library.path=${projectDir}/jFirm/lib"]
+// set library path in the jvm that executes the tests
+tasks.withType(Test) { systemProperty 'jna.library.path', 'jFirm/lib' }
+
 dependencies {
+    compile files('jFirm/lib/jna.jar', 'jFirm/classes/jfirm.jar')
     compile 'com.beust:jcommander:1.58'
     compile 'com.google.guava:guava:19.0'
     compile 'commons-io:commons-io:2.4'
