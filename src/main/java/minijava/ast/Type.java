@@ -3,10 +3,9 @@ package minijava.ast;
 import com.google.common.collect.ImmutableList;
 import minijava.util.PrettyPrinter;
 import minijava.util.SourceRange;
-import minijava.util.SyntaxElement;
 
 /** A compound type, like int[][]. */
-public class Type extends SyntaxElement.DefaultImpl {
+public class Type extends Node {
 
   public static final Type INT = new Type(new Ref<>(BuiltinType.INT), 0, SourceRange.FIRST_CHAR);
   public static final Type BOOLEAN =

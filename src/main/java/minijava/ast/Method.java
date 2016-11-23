@@ -2,9 +2,8 @@ package minijava.ast;
 
 import java.util.List;
 import minijava.util.SourceRange;
-import minijava.util.SyntaxElement;
 
-public class Method extends SyntaxElement.DefaultImpl implements Definition {
+public class Method extends Node implements Definition {
   public final boolean isStatic;
   public final Type returnType;
   private final String name;

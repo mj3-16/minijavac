@@ -1,10 +1,10 @@
 package minijava.ast;
 
 import java.util.Optional;
+import minijava.util.SourceCodeReferable;
 import minijava.util.SourceRange;
-import minijava.util.SyntaxElement;
 
-public interface BlockStatement extends SyntaxElement {
+public interface BlockStatement extends SourceCodeReferable {
   <T> T acceptVisitor(Visitor<T> visitor);
 
   class Variable extends LocalVariable implements BlockStatement {
