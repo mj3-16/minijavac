@@ -47,7 +47,11 @@ public class NumberOfLocalVariablesVisitor
 
   @Override
   public Integer visitBinaryOperator(Expression.BinaryOperator that) {
-    return Math.max(that.left.acceptVisitor(this), that.right.acceptVisitor(this));
+    int app = 0;
+    if (that.op == Expression.BinOp.ASSIGN){
+      app += 1;
+    }
+    return Math.max(that.left.acceptVisitor(this), that.right.acceptVisitor(this)) + app;
   }
 
   @Override
@@ -68,12 +72,12 @@ public class NumberOfLocalVariablesVisitor
 
   @Override
   public Integer visitFieldAccess(Expression.FieldAccess that) {
-    return Math.max(1, that.self.acceptVisitor(this));
+    return Math.max(1, that.self.acceptVisitor(this)) + 1;
   }
 
   @Override
   public Integer visitArrayAccess(Expression.ArrayAccess that) {
-    return Math.max(1, Math.max(that.index.acceptVisitor(this), that.array.acceptVisitor(this)));
+    return Math.max(1, Math.max(that.index.acceptVisitor(this), that.array.acceptVisitor(this))) + 1;
   }
 
   @Override

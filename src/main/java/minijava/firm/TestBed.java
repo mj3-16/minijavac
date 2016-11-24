@@ -3,17 +3,23 @@ package minijava.firm;
 import firm.*;
 import firm.Program;
 import firm.Type;
+import firm.bindings.binding_ircons;
 import firm.nodes.Block;
 import firm.nodes.Node;
 import java.lang.reflect.*;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
+
+import firm.nodes.Tuple;
 import minijava.ast.*;
 import minijava.ast.Class;
 import minijava.ast.Field;
 import minijava.ast.Method;
 import minijava.util.SourceRange;
+import org.jooq.lambda.tuple.Tuple2;
 
 /** Draft of a firm graph generating visitor */
 public class TestBed
@@ -98,6 +104,7 @@ public class TestBed
   private Entity methodEnt;
   private Method currentMethod;
   private int returnVariableId = -1;
+  private ClassType definingClass;
   private Block returnBlock;
   private int expressionResultVariableId;
 
@@ -109,6 +116,7 @@ public class TestBed
     Type[] parameterTypes = new Type[0];
     Type[] returnTypes = new Type[0];
     if (!that.isStatic) {
+      definingClass = classTypes.get(that.definingClass.name());
       Type thisType = ptrToClass(that.definingClass.name());
       parameterTypes = new Type[that.parameters.size() + 2];
       parameterTypes[0] = thisType;
@@ -284,16 +292,87 @@ public class TestBed
     int lastLvn = currentNumberOfLocalVariables;
     int lastRet = returnVariableId;
 
-    // TODO: implement if the sub expressions type is known
+    if (that.op == Expression.BinOp.ASSIGN){
+      processAssignment(that);
+      return null;
+    }
 
-    /*    Node var = methodCons.getVariable(, modeInt);
-        Node yVal2 = cons.getVariable(varNumY, modeInt);
-        Node add = cons.newAdd(xVal2, yVal2);
-        // Set value to local var sum
-        cons.setVariable(varNumSum, add);
-    */
+    returnVariableId = currentNumberOfLocalVariables;
+    currentNumberOfLocalVariables += 1;
+    Node var = methodCons.getVariable(returnVariableId, modeType(that.left.type()));
+
+    that.left.acceptVisitor(this);
+    returnVariableId = lastRet;
+    that.right.acceptVisitor(this);
+
+    Node var2 = methodCons.getVariable(returnVariableId, modeType(that.right.type()));
+
+    Node op = null;
+    switch (that.op){
+      case PLUS:
+        op = methodCons.newAdd(var, var2);
+        break;
+      case MINUS:
+        op = methodCons.newSub(var, var2);
+        break;
+      case MULTIPLY:
+        op = methodCons.newMul(var, var2);
+        break;
+      case DIVIDE:
+        op = methodCons.newDiv(methodCons.getCurrentMem(), var, var2, binding_ircons.op_pin_state.op_pin_state_exc_pinned);
+        break;
+      case MODULO:
+        op = methodCons.newMod(methodCons.getCurrentMem(), var, var2, binding_ircons.op_pin_state.op_pin_state_exc_pinned);
+        break;
+      case OR:
+        op = methodCons.newOr(var, var2);
+        break;
+      case AND:
+        op = methodCons.newAnd(var, var2);
+        break;
+      case EQ:
+        throw new UnsupportedOperationException();
+      case NEQ:
+        throw new UnsupportedOperationException();
+      case LT:
+        throw new UnsupportedOperationException();
+      case LEQ:
+        throw new UnsupportedOperationException();
+      case GT:
+        throw new UnsupportedOperationException();
+      case GEQ:
+        throw new UnsupportedOperationException();
+    }
+    methodCons.setVariable(returnVariableId, op);
     currentNumberOfLocalVariables = lastLvn;
     return null;
+  }
+
+  private void processAssignment(Expression.BinaryOperator that) {
+    int lastLVN = currentNumberOfLocalVariables;
+    int lastRet = returnVariableId;
+    if (that.left instanceof LocalVariable){
+      int locId = localVariableIDs.get((LocalVariable) that.left);
+      returnVariableId = locId;
+      that.right.acceptVisitor(this);
+      methodCons.setVariable(lastRet, methodCons.getVariable(locId, modeType(that.left.type())));
+    } else if (that.left instanceof Expression.FieldAccess){
+      Expression.FieldAccess field = (Expression.FieldAccess)that.left;
+      int rightId = returnVariableId;
+      that.right.acceptVisitor(this); // the result should be at returnVariableId
+
+      int leftId = currentNumberOfLocalVariables;
+      currentNumberOfLocalVariables++;
+      field.self.acceptVisitor(this);
+      ClassType leftSelfType = classTypes.get(field.self.type().basicType.name()); // assumption: only class types have fields
+      int offset = leftSelfType.getMemberByName(field.field.name()).getOffset();
+      Node offsetConst = methodCons.newConst(offset, Mode.getP());
+      Node selfVar = methodCons.getVariable(leftId, Mode.getP());
+      methodCons.newAdd(selfVar, offsetConst);
+      //ja
+      // methodCons.newStore(methodCons.getCurrentMem(), )
+    }
+    currentNumberOfLocalVariables = lastLVN;
   }
 
   @Override
