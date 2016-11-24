@@ -255,10 +255,10 @@ public class TestBed
   @Override
   public Node visitBinaryOperator(Expression.BinaryOperator that) {
     Node left =
-        methodCons.newConv(that.left.acceptVisitor(this), accessModeForType(that.left.type()));
+        methodCons.newConv(that.left.acceptVisitor(this), accessModeForType(that.left.type));
     // TODO: save the address of the left expression (if there's one, e.g. iff it's an lval)
     Node right =
-        methodCons.newConv(that.right.acceptVisitor(this), accessModeForType(that.right.type()));
+        methodCons.newConv(that.right.acceptVisitor(this), accessModeForType(that.right.type));
 
     switch (that.op) {
       case ASSIGN:
@@ -338,7 +338,7 @@ public class TestBed
   public Node visitArrayAccess(Expression.ArrayAccess that) {
     Node array = that.array.acceptVisitor(this);
     Node index = that.index.acceptVisitor(this);
-    minijava.ast.Type arrayType = that.array.type();
+    minijava.ast.Type arrayType = that.array.type;
     minijava.ast.Type elementType =
         new minijava.ast.Type(arrayType.basicType, arrayType.dimension - 1, arrayType.range());
     int elementSize = sizeOf(elementType.acceptVisitor(this));
