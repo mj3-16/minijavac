@@ -6,20 +6,14 @@ import firm.Type;
 import firm.bindings.binding_ircons;
 import firm.nodes.Block;
 import firm.nodes.Node;
-import java.lang.reflect.*;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
-
-import firm.nodes.Tuple;
 import minijava.ast.*;
 import minijava.ast.Class;
 import minijava.ast.Field;
 import minijava.ast.Method;
-import minijava.util.SourceRange;
-import org.jooq.lambda.tuple.Tuple2;
 
 /** Draft of a firm graph generating visitor */
 public class TestBed
@@ -29,20 +23,20 @@ public class TestBed
         Method.Visitor,
         minijava.ast.Type.Visitor<Type>,
         minijava.ast.Block.Visitor<Integer>,
-        Expression.Visitor,
+        Expression.Visitor<Node>,
         BlockStatement.Visitor<Integer> {
 
   private Logger log = Logger.getLogger("TestBed");
   private minijava.ast.Program program;
   private HashMap<String, ClassType> classTypes = new HashMap<>();
-  private HashMap<String, PointerType> ptrsToClasses = new HashMap<>();
-  /** Mangled method name → method type */
-  private HashMap<String, MethodType> methodTypes;
+  private Map<LocalVariable, Integer> localVarIndexes = new HashMap<>();
+  private Graph methodGraph;
+  private Construction methodCons;
 
   private final Type INT_TYPE;
   private final Type BOOLEAN_TYPE;
 
-  public TestBed(minijava.ast.Program program) {
+  public TestBed(minijava.ast.Program program, Entity methodEnt) {
     this.program = program;
     Firm.init();
     System.out.printf("Firm Version: %1s.%2s\n", Firm.getMajorVersion(), Firm.getMinorVersion());
@@ -65,18 +59,9 @@ public class TestBed
   @Override
   public Object visitProgram(minijava.ast.Program that) {
     for (Class klass : that.declarations) {
-      addClassType(klass.name());
-    }
-    for (Class klass : that.declarations) {
       klass.acceptVisitor(this);
     }
     return null;
-  }
-
-  private void addClassType(String className) {
-    ClassType type = new ClassType(NameMangler.mangleClassName(className));
-    classTypes.put(className, type);
-    ptrsToClasses.put(className, new PointerType(type));
   }
 
   @Override
@@ -97,61 +82,42 @@ public class TestBed
     return null;
   }
 
-  private int currentNumberOfLocalVariables = 0;
-  private Map<LocalVariable, Integer> localVariableIDs = new HashMap<>();
-  private Graph methodGraph;
-  private Construction methodCons;
-  private Entity methodEnt;
-  private Method currentMethod;
-  private int returnVariableId = -1;
-  private ClassType definingClass;
-  private Block returnBlock;
-  private int expressionResultVariableId;
-
   @Override
   public Object visitMethod(Method that) {
-    currentMethod = that;
-    String name = "main";
-    Type classType = Program.getGlobalType();
-    Type[] parameterTypes = new Type[0];
-    Type[] returnTypes = new Type[0];
-    if (!that.isStatic) {
-      definingClass = classTypes.get(that.definingClass.name());
-      Type thisType = ptrToClass(that.definingClass.name());
-      parameterTypes = new Type[that.parameters.size() + 2];
-      parameterTypes[0] = thisType;
-      localVariableIDs.put(
-          new LocalVariable(
-              new minijava.ast.Type(
-                  new Ref<BasicType>(that.definingClass.def), 0, SourceRange.FIRST_CHAR),
-              "this",
-              SourceRange.FIRST_CHAR),
-          0);
-      Type returnType =
-          that.returnType.basicType.name().equals("void")
-              ? null
-              : that.returnType.acceptVisitor(this);
-      parameterTypes[1] = returnType;
-      for (int i = 2; i < parameterTypes.length; i++) {
-        parameterTypes[i] = that.parameters.get(i - 2).type.acceptVisitor(this);
-        localVariableIDs.put(that.parameters.get(i - 2), i);
-      }
-      currentNumberOfLocalVariables = parameterTypes.length;
-      name = NameMangler.mangleMethodName(that.definingClass.name(), that.name());
-      classType = thisType;
-      if (returnType != null) {
-        returnTypes = new Type[] {returnType};
+    ClassType definingClass = klass(that.definingClass.name());
+    ArrayList<Type> parameters = new ArrayList<>();
+
+    if (that.isStatic) {
+      // main has this annoying void parameter hack. Let's compensate
+      // for that.
+      Type arrayOfString = ptrTo(ptrTo(new PrimitiveType(Mode.getBu())));
+      parameters.add(arrayOfString);
+    } else {
+      // Add the this pointer. It's always parameter 0, so access will be trivial.
+      parameters.add(ptrTo(definingClass));
+      for (LocalVariable p : that.parameters) {
+        // In the body, we need to refer to local variables by index, so we save that mapping.
+        localVarIndexes.put(p, parameters.size());
+        parameters.add(p.type.acceptVisitor(this));
       }
     }
 
+    // The visitor returns null if that.returnType was void.
+    Type returnType = that.returnType.acceptVisitor(this);
+    Type[] returnTypes = returnType == null ? new Type[0] : new Type[] {returnType};
+
+    Type methodType = new MethodType(parameters.toArray(new Type[0]), returnTypes);
+
+    // TODO: We probably don't need to include the class name in the mangled name (yet).
+    // We will when we desugar ClassType to structs and global functions, though.
+    // We probably won't need to mangle names before lowering anyway.
+    String mangledName = NameMangler.mangleMethodName(that.definingClass.name(), that.name());
+    Entity methodEnt = new Entity(definingClass, mangledName, methodType);
+
+    // So we got our method prototype. Now for the body
+
     int maxLocals =
-        currentNumberOfLocalVariables
-            + that.body.acceptVisitor(new NumberOfLocalVariablesVisitor());
-
-    Type methodType = new MethodType(parameterTypes, returnTypes);
-
-    assert classType instanceof CompoundType;
-    methodEnt = new Entity((CompoundType) classType, name, methodType);
+        parameters.size() + that.body.acceptVisitor(new NumberOfLocalVariablesVisitor());
 
     // Start actual code creation
     methodGraph = new Graph(methodEnt, maxLocals);
@@ -160,34 +126,35 @@ public class TestBed
     that.body.acceptVisitor(this);
 
     methodCons.setCurrentBlock(methodGraph.getEndBlock());
-    // Add a return statement to the return block
-    Node curMem = methodCons.getCurrentMem();
-    Node retn;
-    if (returnTypes.length == 1) {
-      retn =
-          methodCons.newReturn(
-              curMem,
-              new Node[] {methodCons.getVariable(returnVariableId, modeType(that.returnType))});
-    } else {
-      retn = methodCons.newReturn(curMem, new Node[0]);
+
+    if (!methodCons.isUnreachable()) {
+      // Add an implicit return statement at the end of the block,
+      // iff we have return type void. In which case returnTypes has length 0.
+      if (returnTypes.length == 0) {
+        Node ret = methodCons.newReturn(methodCons.getCurrentMem(), new Node[0]);
+        methodCons.setCurrentMem(ret);
+        methodGraph.getEndBlock().addPred(ret);
+      } else {
+        // We can't just conjure a return value of arbitrary type.
+        // This must be caught by the semantic pass.
+        assert false;
+      }
     }
-    returnBlock.addPred(retn);
 
-    methodCons.isUnreachable();
-
+    methodCons.setUnreachable();
     methodCons.finish();
 
     // Clean up
-    localVariableIDs.clear();
-    currentNumberOfLocalVariables = 0;
-    returnVariableId = -1;
+    localVarIndexes.clear();
     return null;
   }
 
   @Override
   public Type visitType(minijava.ast.Type that) {
-    assert !that.basicType.name().equals("void");
-    Type type = null;
+    if (that.basicType.name().equals("void")) {
+      return null;
+    }
+    Type type;
     switch (that.basicType.name) {
       case "int":
         type = INT_TYPE;
@@ -201,10 +168,10 @@ public class TestBed
     for (int i = 0; i < that.dimension; i++) {
       type = new PointerType(type);
     }
-    return null;
+    return type;
   }
 
-  private Mode modeType(minijava.ast.Type type) {
+  private Mode accessModeForType(minijava.ast.Type type) {
     switch (type.basicType.name()) {
       case "int":
         return Mode.getIs();
@@ -216,22 +183,28 @@ public class TestBed
   }
 
   private ClassType klass(String name) {
-    return classTypes.get(name);
+    if (classTypes.containsKey(name)) {
+      return classTypes.get(name);
+    } else {
+      // we haven't accessed this class type yet,
+      // so we assemble a new ClassType from its mangled name
+      // TODO: I don't think we need to mangle names before the lowering step.
+      ClassType classType = new ClassType(NameMangler.mangleClassName(name));
+      classTypes.put(name, classType);
+      return classType;
+    }
   }
 
-  private PointerType ptrToClass(String name) {
-    return ptrsToClasses.get(name);
+  private PointerType ptrTo(Type type) {
+    return new PointerType(type);
   }
 
   @Override
   public Integer visitBlock(minijava.ast.Block that) {
-    int lastLVN = currentNumberOfLocalVariables;
-
     for (BlockStatement statement : that.statements) {
       statement.acceptVisitor(this);
 
       // reset the local variables
-      currentNumberOfLocalVariables = lastLVN;
     }
     return null;
   }
@@ -243,25 +216,18 @@ public class TestBed
 
   @Override
   public Integer visitIf(Statement.If that) {
-    int lastLVN = currentNumberOfLocalVariables;
-
     // Evaluate condition and set the place for the condition result
-    returnVariableId = currentNumberOfLocalVariables;
     //that.condition.acceptVisitor(this);
 
     // next week...
 
     // Conditional Jump Node with the True+False Proj
-    currentNumberOfLocalVariables = lastLVN;
     return null;
   }
 
   @Override
   public Integer visitExpressionStatement(Statement.ExpressionStatement that) {
-    int lastLVN = currentNumberOfLocalVariables;
-    returnVariableId = -1;
     that.expression.acceptVisitor(this);
-    currentNumberOfLocalVariables = lastLVN;
     return null;
   }
 
@@ -275,7 +241,6 @@ public class TestBed
   public Integer visitReturn(Statement.Return that) {
     Block block = methodCons.newBlock();
     if (that.expression.isPresent()) {
-      expressionResultVariableId = returnVariableId;
       that.expression.get().acceptVisitor(this);
     }
     methodCons.setCurrentBlock(block);
@@ -288,48 +253,47 @@ public class TestBed
   }
 
   @Override
-  public Object visitBinaryOperator(Expression.BinaryOperator that) {
-    int lastLvn = currentNumberOfLocalVariables;
-    int lastRet = returnVariableId;
+  public Node visitBinaryOperator(Expression.BinaryOperator that) {
+    Node left =
+        methodCons.newConv(that.left.acceptVisitor(this), accessModeForType(that.left.type()));
+    // TODO: save the address of the left expression (if there's one, e.g. iff it's an lval)
+    Node right =
+        methodCons.newConv(that.right.acceptVisitor(this), accessModeForType(that.right.type()));
 
-    if (that.op == Expression.BinOp.ASSIGN){
-      processAssignment(that);
-      return null;
-    }
+    switch (that.op) {
+      case ASSIGN:
+        // TODO: this is defunct. We need to compute the address of left here.
+        // We need to return the address of an expression if we want to make this work (that's an lval).
+        // We could set an instance var to the lval of an expression everytime we visit FieldAccess, Variable,
+        // ArrayAccess, etc... but let's leave this open for now.
 
-    returnVariableId = currentNumberOfLocalVariables;
-    currentNumberOfLocalVariables += 1;
-    Node var = methodCons.getVariable(returnVariableId, modeType(that.left.type()));
-
-    that.left.acceptVisitor(this);
-    returnVariableId = lastRet;
-    that.right.acceptVisitor(this);
-
-    Node var2 = methodCons.getVariable(returnVariableId, modeType(that.right.type()));
-
-    Node op = null;
-    switch (that.op){
+        // we procede as if left was that lval, e.g. computes the address at which to store the
+        // calue of the right hand side expression.
+        Node store = methodCons.newStore(methodCons.getCurrentMem(), left, right);
+        methodCons.setCurrentMem(store);
+        return store;
       case PLUS:
-        op = methodCons.newAdd(var, var2);
-        break;
+        return methodCons.newAdd(left, right);
       case MINUS:
-        op = methodCons.newSub(var, var2);
-        break;
+        return methodCons.newSub(left, right);
       case MULTIPLY:
-        op = methodCons.newMul(var, var2);
-        break;
+        return methodCons.newMul(left, right);
       case DIVIDE:
-        op = methodCons.newDiv(methodCons.getCurrentMem(), var, var2, binding_ircons.op_pin_state.op_pin_state_exc_pinned);
-        break;
+        return methodCons.newDiv(
+            methodCons.getCurrentMem(),
+            left,
+            right,
+            binding_ircons.op_pin_state.op_pin_state_exc_pinned);
       case MODULO:
-        op = methodCons.newMod(methodCons.getCurrentMem(), var, var2, binding_ircons.op_pin_state.op_pin_state_exc_pinned);
-        break;
+        return methodCons.newMod(
+            methodCons.getCurrentMem(),
+            left,
+            right,
+            binding_ircons.op_pin_state.op_pin_state_exc_pinned);
       case OR:
-        op = methodCons.newOr(var, var2);
-        break;
+        return methodCons.newOr(left, right);
       case AND:
-        op = methodCons.newAnd(var, var2);
-        break;
+        return methodCons.newAnd(left, right);
       case EQ:
         throw new UnsupportedOperationException();
       case NEQ:
@@ -342,107 +306,129 @@ public class TestBed
         throw new UnsupportedOperationException();
       case GEQ:
         throw new UnsupportedOperationException();
+      default:
+        throw new UnsupportedOperationException();
     }
-    methodCons.setVariable(returnVariableId, op);
-    currentNumberOfLocalVariables = lastLvn;
-    return null;
   }
 
-  private void processAssignment(Expression.BinaryOperator that) {
-    int lastLVN = currentNumberOfLocalVariables;
-    int lastRet = returnVariableId;
-    if (that.left instanceof LocalVariable){
-      int locId = localVariableIDs.get((LocalVariable) that.left);
-      returnVariableId = locId;
-      that.right.acceptVisitor(this);
-      methodCons.setVariable(lastRet, methodCons.getVariable(locId, modeType(that.left.type())));
-    } else if (that.left instanceof Expression.FieldAccess){
-      Expression.FieldAccess field = (Expression.FieldAccess)that.left;
-      int rightId = returnVariableId;
-      that.right.acceptVisitor(this); // the result should be at returnVariableId
-
-      int leftId = currentNumberOfLocalVariables;
-      currentNumberOfLocalVariables++;
-      field.self.acceptVisitor(this);
-      ClassType leftSelfType = classTypes.get(field.self.type().basicType.name()); // assumption: only class types have fields
-      int offset = leftSelfType.getMemberByName(field.field.name()).getOffset();
-      Node offsetConst = methodCons.newConst(offset, Mode.getP());
-      Node selfVar = methodCons.getVariable(leftId, Mode.getP());
-      methodCons.newAdd(selfVar, offsetConst);
-      //ja
-      // methodCons.newStore(methodCons.getCurrentMem(), )
+  @Override
+  public Node visitUnaryOperator(Expression.UnaryOperator that) {
+    Node expression = that.expression.acceptVisitor(this);
+    switch (that.op) {
+      case NEGATE:
+        return methodCons.newMinus(expression);
+      case NOT:
+        return methodCons.newNot(expression);
+      default:
+        throw new UnsupportedOperationException();
     }
-    currentNumberOfLocalVariables = lastLVN;
   }
 
   @Override
-  public Object visitUnaryOperator(Expression.UnaryOperator that) {
-    int lastLvn = currentNumberOfLocalVariables;
-    that.expression.acceptVisitor(this);
-    if (returnVariableId != -1) { // if the value isn't used, don't bother to calculate it
-      Node var, op = null;
-      switch (that.op) {
-        case NEGATE:
-          var = methodCons.getVariable(returnVariableId, Mode.getIs());
-          op = methodCons.newMinus(var);
-          break;
-        case NOT:
-          var = methodCons.getVariable(returnVariableId, Mode.getBu());
-          op = methodCons.newMinus(var);
-      }
-      methodCons.setVariable(returnVariableId, op);
+  public Node visitMethodCall(Expression.MethodCall that) {
+    return null;
+  }
+
+  @Override
+  public Node visitFieldAccess(Expression.FieldAccess that) {
+    return null;
+  }
+
+  @Override
+  public Node visitArrayAccess(Expression.ArrayAccess that) {
+    Node array = that.array.acceptVisitor(this);
+    Node index = that.index.acceptVisitor(this);
+    minijava.ast.Type arrayType = that.array.type();
+    minijava.ast.Type elementType =
+        new minijava.ast.Type(arrayType.basicType, arrayType.dimension - 1, arrayType.range());
+    int elementSize = sizeOf(elementType.acceptVisitor(this));
+    // TODO: do the rest here. running out of time for today. Reminaing:
+    // 1. offset = elementSize * index (express this as a Node)
+    // 2. cast array to a pointer
+    // 3. dereference *(array + offset), remember to set currentMem accordingly
+    return null;
+  }
+
+  @Override
+  public Node visitNewObject(Expression.NewObject that) {
+    Type type = that.type.acceptVisitor(this);
+    // See callocOfType for the rationale behind Mode.getP()
+    return callocOfType(methodCons.newConst(1, Mode.getP()), type);
+  }
+
+  @Override
+  public Node visitNewArray(Expression.NewArray that) {
+    Type elementType = that.elementType.acceptVisitor(this);
+    Node size = that.size.acceptVisitor(this);
+    return callocOfType(size, elementType);
+  }
+
+  private Node callocOfType(Node num, Type elementType) {
+    // calloc takes two parameters, for the number of elements and the size of each element.
+    // both are of type size_t, which is mostly a machine word. So the modes used are just
+    // an educated guess.
+    // The fact that we called the array length size (which is parameter num to calloc) and
+    // that here the element size is called size may be confusing, but whatever, I warned you.
+    Node numNode = methodCons.newConv(num, Mode.getP());
+    Node sizeNode = methodCons.newConst(sizeOf(elementType), Mode.getP());
+    Node nodeOfCalloc = null;
+    return methodCons.newCall(
+        methodCons.getCurrentMem(),
+        nodeOfCalloc,
+        new Node[] {numNode, sizeNode},
+        ptrTo(elementType));
+  }
+
+  private int sizeOf(Type elementType) {
+    // TODO
+    return 0;
+  }
+
+  @Override
+  public Node visitVariable(Expression.Variable that) {
+    return methodCons.getVariable(localVarIndexes.get(that.var.def), accessModeForType(that.type));
+  }
+
+  @Override
+  public Node visitBooleanLiteral(Expression.BooleanLiteral that) {
+    return methodCons.newConst(that.literal ? 1 : 0, accessModeForType(minijava.ast.Type.BOOLEAN));
+  }
+
+  @Override
+  public Node visitIntegerLiteral(Expression.IntegerLiteral that) {
+    // TODO: the 0x80000000 case
+    int lit = Integer.parseInt(that.literal);
+    return methodCons.newConst(lit, accessModeForType(minijava.ast.Type.INT));
+  }
+
+  @Override
+  public Node visitReferenceTypeLiteral(Expression.ReferenceTypeLiteral that) {
+    switch (that.name()) {
+      case "this":
+        // access parameter 0 as a pointer, that's where this is to be found
+        return methodCons.getVariable(0, Mode.getP());
+      case "null":
+        return methodCons.newConst(0, Mode.getP());
+      case "System.out":
+        // TODO: Don't know how to handle this. We should probably
+        // catch this case before we can reference System.out, like we did in
+        // SemanticAnalyzer
+        return null;
+      default:
+        throw new UnsupportedOperationException(); // This should be exhaustive.
     }
-    currentNumberOfLocalVariables = lastLvn;
-    return null;
-  }
-
-  @Override
-  public Object visitMethodCall(Expression.MethodCall that) {
-    return null;
-  }
-
-  @Override
-  public Object visitFieldAccess(Expression.FieldAccess that) {
-    return null;
-  }
-
-  @Override
-  public Object visitArrayAccess(Expression.ArrayAccess that) {
-    return null;
-  }
-
-  @Override
-  public Object visitNewObject(Expression.NewObject that) {
-    return null;
-  }
-
-  @Override
-  public Object visitNewArray(Expression.NewArray that) {
-    return null;
-  }
-
-  @Override
-  public Object visitVariable(Expression.Variable that) {
-    return null;
-  }
-
-  @Override
-  public Object visitBooleanLiteral(Expression.BooleanLiteral that) {
-    return null;
-  }
-
-  @Override
-  public Object visitIntegerLiteral(Expression.IntegerLiteral that) {
-    return null;
-  }
-
-  @Override
-  public Object visitReferenceTypeLiteral(Expression.ReferenceTypeLiteral that) {
-    return null;
   }
 
   @Override
   public Integer visitVariable(BlockStatement.Variable that) {
+    Node rhs;
+    if (that.rhs.isPresent()) {
+      rhs = that.rhs.get().acceptVisitor(this);
+    } else {
+      // This is the sanest default we can get: just 0 initialize.
+      rhs = methodCons.newConst(0, accessModeForType(that.type));
+    }
+    methodCons.setVariable(localVarIndexes.get(that), rhs);
     return null;
   }
 }

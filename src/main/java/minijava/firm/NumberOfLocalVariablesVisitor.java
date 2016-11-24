@@ -5,12 +5,11 @@ import minijava.ast.BlockStatement;
 import minijava.ast.Expression;
 import minijava.ast.Statement;
 
-import javax.swing.text.StyledEditorKit;
-import java.util.stream.Collectors;
-
 /** Created by parttimenerd on 23.11.16. */
 public class NumberOfLocalVariablesVisitor
-    implements Block.Visitor<Integer>, Expression.Visitor<Integer>, BlockStatement.Visitor<Integer> {
+    implements Block.Visitor<Integer>,
+        Expression.Visitor<Integer>,
+        BlockStatement.Visitor<Integer> {
   @Override
   public Integer visitBlock(Block that) {
     int c = 0;
