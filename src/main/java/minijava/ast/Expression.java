@@ -2,34 +2,19 @@ package minijava.ast;
 
 import java.util.List;
 import minijava.util.SourceRange;
-import minijava.util.SyntaxElement;
 
-public interface Expression extends SyntaxElement {
-  Type type();
+public abstract class Expression extends Node {
 
-  <T> T acceptVisitor(Visitor<T> visitor);
+  /** Type attribute; set in type analysis phase */
+  public Type type;
 
-  /** We can't reuse SyntaxElement.DefaultImpl, so this bull shit is necessary */
-  abstract class Base implements Expression {
-    public final SourceRange range;
-    public Type type;
-
-    Base(SourceRange range) {
-      this.range = range;
-    }
-
-    @Override
-    public SourceRange range() {
-      return range;
-    }
-
-    @Override
-    public Type type() {
-      return type;
-    }
+  Expression(SourceRange range) {
+    super(range);
   }
 
-  class ArrayAccess extends Base {
+  public abstract <T> T acceptVisitor(Visitor<T> visitor);
+
+  public static class ArrayAccess extends Expression {
 
     public Expression array;
     public Expression index;
@@ -46,7 +31,7 @@ public interface Expression extends SyntaxElement {
     }
   }
 
-  class BinaryOperator extends Base {
+  public static class BinaryOperator extends Expression {
     public final BinOp op;
     public Expression left;
     public Expression right;
@@ -64,7 +49,7 @@ public interface Expression extends SyntaxElement {
     }
   }
 
-  class BooleanLiteral extends Base {
+  public static class BooleanLiteral extends Expression {
 
     public final boolean literal;
 
@@ -80,7 +65,7 @@ public interface Expression extends SyntaxElement {
     }
   }
 
-  class FieldAccess extends Base {
+  public static class FieldAccess extends Expression {
 
     public Expression self;
     public final Ref<Field> field;
@@ -97,7 +82,7 @@ public interface Expression extends SyntaxElement {
     }
   }
 
-  class IntegerLiteral extends Base {
+  public static class IntegerLiteral extends Expression {
 
     public final String literal;
 
@@ -113,7 +98,7 @@ public interface Expression extends SyntaxElement {
     }
   }
 
-  class MethodCall extends Base {
+  public static class MethodCall extends Expression {
 
     public Expression self;
     public final Ref<Method> method;
@@ -133,7 +118,7 @@ public interface Expression extends SyntaxElement {
     }
   }
 
-  class NewArray extends Base {
+  public static class NewArray extends Expression {
 
     public final Type elementType;
     public Expression size;
@@ -150,7 +135,7 @@ public interface Expression extends SyntaxElement {
     }
   }
 
-  class NewObject extends Base {
+  public static class NewObject extends Expression {
 
     public final Ref<Class> class_;
 
@@ -165,7 +150,7 @@ public interface Expression extends SyntaxElement {
     }
   }
 
-  class UnaryOperator extends Base {
+  public static class UnaryOperator extends Expression {
 
     public final UnOp op;
     public Expression expression;
@@ -183,7 +168,7 @@ public interface Expression extends SyntaxElement {
   }
 
   /** Subsumes @null@, @this@ and regular variables. */
-  class Variable extends Base {
+  public static class Variable extends Expression {
 
     public final Ref<Definition> var;
 
@@ -198,7 +183,7 @@ public interface Expression extends SyntaxElement {
     }
   }
 
-  class ReferenceTypeLiteral extends Base implements Nameable {
+  public static class ReferenceTypeLiteral extends Expression implements Nameable {
     private final String name;
 
     private ReferenceTypeLiteral(String name, SourceRange range) {
@@ -231,7 +216,7 @@ public interface Expression extends SyntaxElement {
     }
   }
 
-  enum UnOp {
+  public enum UnOp {
     NOT("!"),
     NEGATE("-");
 
@@ -242,7 +227,7 @@ public interface Expression extends SyntaxElement {
     }
   }
 
-  enum BinOp {
+  public enum BinOp {
     ASSIGN("="),
     PLUS("+"),
     MINUS("-"),
@@ -265,7 +250,7 @@ public interface Expression extends SyntaxElement {
     }
   }
 
-  interface Visitor<T> {
+  public interface Visitor<T> {
 
     T visitBinaryOperator(BinaryOperator that);
 

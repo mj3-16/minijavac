@@ -1,8 +1,8 @@
 package minijava.ast;
 
-import minijava.util.SyntaxElement;
+import minijava.util.SourceCodeReferable;
 
-public interface Definition extends Nameable, SyntaxElement {
+public interface Definition extends Nameable, SourceCodeReferable {
   <T> T acceptVisitor(Visitor<T> visitor);
 
   interface Visitor<T> extends BasicType.Visitor<T> {

@@ -2,9 +2,8 @@ package minijava.ast;
 
 import java.util.List;
 import minijava.util.SourceRange;
-import minijava.util.SyntaxElement;
 
-public class Program extends SyntaxElement.DefaultImpl {
+public class Program extends Node {
   public final List<Class> declarations;
 
   public Program(List<Class> declarations, SourceRange range) {

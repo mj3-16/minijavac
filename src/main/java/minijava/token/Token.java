@@ -4,18 +4,19 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static minijava.token.Terminal.*;
 
 import java.util.Arrays;
+import minijava.util.SourceCodeReferable;
 import minijava.util.SourceRange;
-import minijava.util.SyntaxElement;
 import org.jetbrains.annotations.Nullable;
 
 /** Instances of this class are immutable. */
-public class Token extends SyntaxElement.DefaultImpl {
+public class Token implements SourceCodeReferable {
 
   public final Terminal terminal;
+  private final SourceRange range;
   @Nullable public final String lexval;
 
   public Token(Terminal terminal, SourceRange range, @Nullable String lexval) {
-    super(range);
+    this.range = range;
     this.terminal = checkNotNull(terminal);
     if (!isOneOf(IDENT, INTEGER_LITERAL, RESERVED) && lexval != null) {
       throw new IllegalArgumentException(
@@ -60,5 +61,10 @@ public class Token extends SyntaxElement.DefaultImpl {
       default:
         return terminal.string;
     }
+  }
+
+  @Override
+  public SourceRange range() {
+    return range;
   }
 }
