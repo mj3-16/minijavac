@@ -5,6 +5,8 @@ import firm.Program;
 import firm.Type;
 import firm.bindings.binding_ircons;
 import firm.nodes.Block;
+import firm.nodes.Call;
+import firm.nodes.Load;
 import firm.nodes.Node;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -32,11 +34,16 @@ public class TestBed
   private Map<LocalVariable, Integer> localVarIndexes = new HashMap<>();
   private Graph methodGraph;
   private Construction methodCons;
+  /**
+   * The lval (e.g. address) of the last expression evaluated. We could also model this as an
+   * additional return type to the Expression.Visitor.
+   */
+  private Node currentLval;
 
   private final Type INT_TYPE;
   private final Type BOOLEAN_TYPE;
 
-  public TestBed(minijava.ast.Program program, Entity methodEnt) {
+  public TestBed(minijava.ast.Program program) {
     this.program = program;
     Firm.init();
     System.out.printf("Firm Version: %1s.%2s\n", Firm.getMajorVersion(), Firm.getMinorVersion());
@@ -257,19 +264,19 @@ public class TestBed
     Node left =
         methodCons.newConv(that.left.acceptVisitor(this), accessModeForType(that.left.type));
     // TODO: save the address of the left expression (if there's one, e.g. iff it's an lval)
+    Node lval = currentLval;
+    assert lval != null;
     Node right =
         methodCons.newConv(that.right.acceptVisitor(this), accessModeForType(that.right.type));
 
+    // This can never produce an lval (an assignable expression)
+    currentLval = null;
+
     switch (that.op) {
       case ASSIGN:
-        // TODO: this is defunct. We need to compute the address of left here.
-        // We need to return the address of an expression if we want to make this work (that's an lval).
-        // We could set an instance var to the lval of an expression everytime we visit FieldAccess, Variable,
-        // ArrayAccess, etc... but let's leave this open for now.
-
-        // we procede as if left was that lval, e.g. computes the address at which to store the
-        // calue of the right hand side expression.
-        Node store = methodCons.newStore(methodCons.getCurrentMem(), left, right);
+        // we have computed the address at which to store the
+        // value of the right hand side expression in lval, so just perform the store.
+        Node store = methodCons.newStore(methodCons.getCurrentMem(), lval, right);
         methodCons.setCurrentMem(store);
         return store;
       case PLUS:
@@ -314,6 +321,10 @@ public class TestBed
   @Override
   public Node visitUnaryOperator(Expression.UnaryOperator that) {
     Node expression = that.expression.acceptVisitor(this);
+
+    // This can never produce an lval (an assignable expression)
+    currentLval = null;
+
     switch (that.op) {
       case NEGATE:
         return methodCons.newMinus(expression);
@@ -326,11 +337,15 @@ public class TestBed
 
   @Override
   public Node visitMethodCall(Expression.MethodCall that) {
+
+    currentLval = null;
     return null;
   }
 
   @Override
   public Node visitFieldAccess(Expression.FieldAccess that) {
+    // This produces an lval
+    // currentLval = ...
     return null;
   }
 
@@ -342,16 +357,23 @@ public class TestBed
     minijava.ast.Type elementType =
         new minijava.ast.Type(arrayType.basicType, arrayType.dimension - 1, arrayType.range());
     int elementSize = sizeOf(elementType.acceptVisitor(this));
-    // TODO: do the rest here. running out of time for today. Reminaing:
-    // 1. offset = elementSize * index (express this as a Node)
-    // 2. cast array to a pointer
-    // 3. dereference *(array + offset), remember to set currentMem accordingly
-    return null;
+
+    Node sizeNode = methodCons.newConst(elementSize, accessModeForType(minijava.ast.Type.INT));
+    Node relOffset = methodCons.newMul(sizeNode, index);
+    Node absOffset = methodCons.newAdd(array, relOffset);
+    currentLval = absOffset; // The address of the array element
+
+    // Now just dereference the computed offset
+    Mode mode = accessModeForType(elementType);
+    Node load = methodCons.newLoad(methodCons.getCurrentMem(), absOffset, mode);
+    methodCons.setCurrentMem(methodCons.newProj(load, Mode.getM(), Load.pnM));
+    return methodCons.newProj(load, mode, Load.pnRes);
   }
 
   @Override
   public Node visitNewObject(Expression.NewObject that) {
     Type type = that.type.acceptVisitor(this);
+    currentLval = null;
     // See callocOfType for the rationale behind Mode.getP()
     return callocOfType(methodCons.newConst(1, Mode.getP()), type);
   }
@@ -360,6 +382,7 @@ public class TestBed
   public Node visitNewArray(Expression.NewArray that) {
     Type elementType = that.elementType.acceptVisitor(this);
     Node size = that.size.acceptVisitor(this);
+    currentLval = null;
     return callocOfType(size, elementType);
   }
 
@@ -372,11 +395,14 @@ public class TestBed
     Node numNode = methodCons.newConv(num, Mode.getP());
     Node sizeNode = methodCons.newConst(sizeOf(elementType), Mode.getP());
     Node nodeOfCalloc = null;
-    return methodCons.newCall(
-        methodCons.getCurrentMem(),
-        nodeOfCalloc,
-        new Node[] {numNode, sizeNode},
-        ptrTo(elementType));
+    Node call =
+        methodCons.newCall(
+            methodCons.getCurrentMem(),
+            nodeOfCalloc,
+            new Node[] {numNode, sizeNode},
+            ptrTo(elementType));
+    methodCons.setCurrentMem(methodCons.newProj(call, Mode.getM(), Call.pnM));
+    return methodCons.newProj(call, Mode.getP(), Call.pnTResult);
   }
 
   private int sizeOf(Type elementType) {
@@ -386,11 +412,14 @@ public class TestBed
 
   @Override
   public Node visitVariable(Expression.Variable that) {
+    // TODO: AHHHHH
+    // currentLval = ????
     return methodCons.getVariable(localVarIndexes.get(that.var.def), accessModeForType(that.type));
   }
 
   @Override
   public Node visitBooleanLiteral(Expression.BooleanLiteral that) {
+    currentLval = null;
     return methodCons.newConst(that.literal ? 1 : 0, accessModeForType(minijava.ast.Type.BOOLEAN));
   }
 
@@ -398,11 +427,13 @@ public class TestBed
   public Node visitIntegerLiteral(Expression.IntegerLiteral that) {
     // TODO: the 0x80000000 case
     int lit = Integer.parseInt(that.literal);
+    currentLval = null;
     return methodCons.newConst(lit, accessModeForType(minijava.ast.Type.INT));
   }
 
   @Override
   public Node visitReferenceTypeLiteral(Expression.ReferenceTypeLiteral that) {
+    currentLval = null;
     switch (that.name()) {
       case "this":
         // access parameter 0 as a pointer, that's where this is to be found
