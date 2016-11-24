@@ -23,16 +23,44 @@ googleJavaFormat {
     exclude 'libfirm'
 }
 
-project(':jFirm').ant.importBuild 'build.xml'
-// the task jFirm:jar makes sure that libfirm.so exists
-tasks.compileJava.dependsOn project(':jFirm').jar
-// added to the run task and the generated start scripts
-applicationDefaultJvmArgs = ["-Djna.library.path=${projectDir}/jFirm/lib"]
-// set library path in the jvm that executes the tests
-tasks.withType(Test) { systemProperty 'jna.library.path', 'jFirm/lib' }
+project(':jFirm') {
+    apply plugin: 'java'
+    ant.importBuild('build.xml') { antTargetName ->
+        'ant-' + antTargetName // ant tasks are available as gradle task with prefix 'ant-'
+    }
+    sourceSets.main.java.srcDirs = [ant.properties.src]
+    repositories { jcenter() }
+    dependencies { compile 'net.java.dev.jna:jna:3.2.7' }
+}
+
+project(':libfirm') {
+    task make(type: Exec) {
+        commandLine 'make'
+    }
+    task clean(type: Exec) {
+        commandLine 'make', 'clean'
+    }
+    rootProject.ext.nativeLibDir = "$projectDir/build/debug"
+}
+tasks.assemble.dependsOn 'libfirm:make'
+applicationDefaultJvmArgs = ["-Djna.library.path=$nativeLibDir"]
+tasks.withType(Test) {
+    it.dependsOn 'libfirm:make'
+    systemProperty 'jna.library.path', nativeLibDir
+}
+
+project(':mjtest') {
+    task all(type: Exec, dependsOn: installDist) {
+        commandLine 'python3', './mjt.py', 'all', '../run', '--ci_testing', '--parallel'
+    }
+    task failing(type: Exec, dependsOn: installDist) {
+        commandLine 'python3', './mjt.py', 'all', '../run', '--ci_testing', '--parallel', '--only_incorrect_tests'
+    }
+}
+tasks.check.dependsOn 'mjtest:all'
 
 dependencies {
-    compile files('jFirm/lib/jna.jar', 'jFirm/classes/jfirm.jar')
+    compile project(':jFirm')
     compile 'com.beust:jcommander:1.58'
     compile 'com.google.guava:guava:19.0'
     compile 'commons-io:commons-io:2.4'
@@ -47,16 +75,6 @@ dependencies {
     testCompile 'com.google.jimfs:jimfs:1.1'
     testCompile 'com.googlecode.java-diff-utils:diffutils:1.3.0'
 }
-
-task mjtest(type: Exec) {
-    workingDir './mjtest'
-    commandLine 'python3', './mjt.py', 'all', '../run', '--ci_testing', '--parallel'
-}
-
-tasks.check.dependsOn mjtest
-
-tasks.test.dependsOn installDist
-tasks.mjtest.dependsOn installDist
 
 task installGitHooks(type: Copy) {
     from file('git-hooks/pre-commit')

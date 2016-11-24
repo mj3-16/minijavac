@@ -254,7 +254,7 @@ public class SemanticAnalyzer
   @Override
   public Void visitIf(Statement.If that) {
     that.condition = that.condition.acceptVisitor(this);
-    checkType(Type.BOOLEAN, that.condition.type(), that.condition.range());
+    checkType(Type.BOOLEAN, that.condition.type, that.condition.range());
 
     // Save the old returned flag. If this was true, hasReturned will be true afterwards,
     // no matter what the results of the two branches are.
@@ -295,7 +295,7 @@ public class SemanticAnalyzer
   @Override
   public Void visitWhile(Statement.While that) {
     that.condition = that.condition.acceptVisitor(this);
-    checkType(Type.BOOLEAN, that.condition.type(), that.condition.range());
+    checkType(Type.BOOLEAN, that.condition.type, that.condition.range());
 
     // In contrast to if, where we actually have two branches of control flow, there's no elaborate
     // hasReturned handling necessary here.
@@ -329,7 +329,7 @@ public class SemanticAnalyzer
       if (!currentMethod.equals(mainMethod)) {
         checkElementTypeIsNotVoid(returnType, returnType.range());
         Expression expr = that.expression.get().acceptVisitor(this);
-        checkType(returnType, expr.type(), expr.range());
+        checkType(returnType, expr.type, expr.range());
         that.expression = Optional.of(expr);
         hasReturned = true;
         return null;
@@ -403,7 +403,7 @@ public class SemanticAnalyzer
 
     if (that.rhs.isPresent()) {
       Expression ret = that.rhs.get().acceptVisitor(this);
-      checkType(that.type, ret.type(), ret.range());
+      checkType(that.type, ret.type, ret.range());
       that.rhs = Optional.of(ret);
     }
 
@@ -430,13 +430,13 @@ public class SemanticAnalyzer
             && !(left instanceof Expression.ArrayAccess)) {
           throw new SemanticError(left.range(), "Expression is not assignable");
         }
-        // Also left.type() must match right.type()
+        // Also left.type must match right.type
         checkType(
-            left.type(),
-            right.type(),
+            left.type,
+            right.type,
             right.range()); // This would be broken for type Any, but null can't be assigned to
-        // The result type of the assignment expression is just left.type()
-        resultType = left.type();
+        // The result type of the assignment expression is just left.type
+        resultType = left.type;
         break;
       case PLUS:
       case MINUS:
@@ -444,24 +444,24 @@ public class SemanticAnalyzer
       case DIVIDE:
       case MODULO:
         // int -> int -> int
-        // so, check that left and left.type() is int
-        checkType(Type.INT, left.type(), left.range());
-        checkType(Type.INT, right.type(), right.range());
+        // so, check that left and left.type is int
+        checkType(Type.INT, left.type, left.range());
+        checkType(Type.INT, right.type, right.range());
         // Then we can just reuse left's type
-        resultType = left.type();
+        resultType = left.type;
         break;
       case OR:
       case AND:
         // bool -> bool -> bool
-        checkType(Type.BOOLEAN, left.type(), left.range());
-        checkType(Type.BOOLEAN, right.type(), right.range());
-        resultType = left.type();
+        checkType(Type.BOOLEAN, left.type, left.range());
+        checkType(Type.BOOLEAN, right.type, right.range());
+        resultType = left.type;
         break;
       case EQ:
       case NEQ:
         // T -> T -> bool
         // The Ts have to match
-        checkType(left.type(), right.type(), right.range());
+        checkType(left.type, right.type, right.range());
         resultType = Type.BOOLEAN;
         break;
       case LT:
@@ -469,8 +469,8 @@ public class SemanticAnalyzer
       case GT:
       case GEQ:
         // int -> int -> bool
-        checkType(Type.INT, left.type(), left.range());
-        checkType(Type.INT, right.type(), right.range());
+        checkType(Type.INT, left.type, left.range());
+        checkType(Type.INT, right.type, right.range());
         resultType = Type.BOOLEAN;
         break;
     }
@@ -503,7 +503,7 @@ public class SemanticAnalyzer
     }
 
     Expression expr = that.expression.acceptVisitor(this);
-    checkType(expected, expr.type(), expr.range());
+    checkType(expected, expr.type, expr.range());
     that.expression = expr;
     that.type = expected;
 
@@ -561,7 +561,7 @@ public class SemanticAnalyzer
     }
     that.self = self;
 
-    Optional<Class> definingClassOpt = asClass(self.type());
+    Optional<Class> definingClassOpt = asClass(self.type);
 
     if (!definingClassOpt.isPresent()) {
       throw new SemanticError(that.range(), "Only classes have methods");
@@ -602,7 +602,7 @@ public class SemanticAnalyzer
       LocalVariable p = m.parameters.get(i);
       p.type.acceptVisitor(this);
       Expression arg = that.arguments.get(i).acceptVisitor(this);
-      checkType(p.type, arg.type(), arg.range());
+      checkType(p.type, arg.type, arg.range());
     }
 
     m.returnType.acceptVisitor(this);
@@ -648,7 +648,7 @@ public class SemanticAnalyzer
   public Expression visitFieldAccess(Expression.FieldAccess that) {
     Expression self = that.self.acceptVisitor(this);
 
-    Optional<Class> definingClassOpt = asClass(self.type());
+    Optional<Class> definingClassOpt = asClass(self.type);
 
     if (!definingClassOpt.isPresent()) {
       throw new SemanticError(that.range(), "Only classes have fields");
@@ -677,14 +677,14 @@ public class SemanticAnalyzer
     Expression arr = that.array.acceptVisitor(this);
     Expression idx = that.index.acceptVisitor(this);
 
-    checkType(Type.INT, idx.type(), idx.range());
-    checkElementTypeIsNotVoid(arr.type(), arr.range());
-    checkIsArrayType(arr.type(), arr.range());
+    checkType(Type.INT, idx.type, idx.range());
+    checkElementTypeIsNotVoid(arr.type, arr.range());
+    checkIsArrayType(arr.type, arr.range());
 
     that.array = arr;
     that.index = idx;
 
-    that.type = new Type(arr.type().basicType, arr.type().dimension - 1, arr.type().range());
+    that.type = new Type(arr.type.basicType, arr.type.dimension - 1, arr.type.range());
     return that;
   }
 
@@ -714,7 +714,7 @@ public class SemanticAnalyzer
     that.elementType.acceptVisitor(this);
     Expression size = that.size.acceptVisitor(this);
 
-    checkType(Type.INT, size.type(), size.range());
+    checkType(Type.INT, size.type, size.range());
     checkElementTypeIsNotVoid(that.elementType, that.range());
 
     that.size = size;
@@ -760,7 +760,7 @@ public class SemanticAnalyzer
     if (fieldOpt.isPresent() && !currentMethod.isStatic) {
       // Analyze as if there was a preceding 'this.' in front of the variable
       // The field is there, so we can let errors pass through without causing confusion
-      return new Expression.FieldAccess(THIS_EXPR, new Ref<>(fieldOpt.get()), that.range)
+      return new Expression.FieldAccess(THIS_EXPR, new Ref<>(fieldOpt.get()), that.range())
           .acceptVisitor(this);
     }
 

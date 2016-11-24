@@ -3,9 +3,8 @@ package minijava.ast;
 import java.util.Collections;
 import java.util.List;
 import minijava.util.SourceRange;
-import minijava.util.SyntaxElement;
 
-public class Class extends SyntaxElement.DefaultImpl implements BasicType {
+public class Class extends Node implements BasicType {
   private final String name;
   public final List<Field> fields;
   public final List<Method> methods;

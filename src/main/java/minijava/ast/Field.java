@@ -1,9 +1,8 @@
 package minijava.ast;
 
 import minijava.util.SourceRange;
-import minijava.util.SyntaxElement;
 
-public class Field extends SyntaxElement.DefaultImpl implements Definition {
+public class Field extends Node implements Definition {
   public final Type type;
   private final String name;
   public Ref<Class> definingClass;

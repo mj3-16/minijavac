@@ -1,2 +1,4 @@
 rootProject.name = 'minijavac'
 include ':jFirm'
+include ':libfirm'
+include ':mjtest'
