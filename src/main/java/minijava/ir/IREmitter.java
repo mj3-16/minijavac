@@ -6,18 +6,17 @@ import firm.Program;
 import firm.Type;
 import firm.bindings.binding_ircons;
 import firm.nodes.*;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.logging.Logger;
-
 import minijava.ast.*;
 import minijava.ast.Class;
 import minijava.ast.Field;
 import minijava.ast.Method;
+import minijava.util.SourceRange;
 
 /** Emits an intermediate representation for a given minijava Program. */
 public class IREmitter
@@ -31,39 +30,35 @@ public class IREmitter
         BlockStatement.Visitor<Integer> {
 
   private Logger log = Logger.getLogger("IREmitter");
-  /**
-   * TODO: delete this, irrelevant to the visiting logic
-   */
+  /** TODO: delete this, irrelevant to the visiting logic */
   private minijava.ast.Program program;
+
   private HashMap<String, ClassType> classTypes = new HashMap<>();
   /**
-   * Maps local variable definitions such as parameters and ... local variable definitions
-   * to their assigned index. Which is a firm thing.
+   * Maps local variable definitions such as parameters and ... local variable definitions to their
+   * assigned index. Which is a firm thing.
    */
   private Map<LocalVariable, Integer> localVarIndexes = new HashMap<>();
-  /**
-   * The Basic Block graph of the current function.
-   */
+  /** The Basic Block graph of the current function. */
   private Graph graph;
   /**
-   * Construction is a firm Node factory that makes sure that we don't duplicate
-   * expressions, thus making common sub expressions irrepresentable.
+   * Construction is a firm Node factory that makes sure that we don't duplicate expressions, thus
+   * making common sub expressions irrepresentable.
    */
   private Construction construction;
   /**
    * Stores the node's value in the current lvar (if there is any). This is crucial for assignment
    * to work. E.g. in the expression x = 5, we analyze the variable expression x and get back its
-   * value, which is irrelevant for assignment, since we need the *address of* x. This is where
-   * we need storeInCurrentLval, which would store the expression node of the RHS (evaluating to 5)
-   * in the address of x.
+   * value, which is irrelevant for assignment, since we need the *address of* x. This is where we
+   * need storeInCurrentLval, which would store the expression node of the RHS (evaluating to 5) in
+   * the address of x.
    *
-   * Now, in an ideal world, this variable would be 'Node currentLval', but firm doesn't offer
-   * a function for getting the address of a local variable as a Node. So in order to not duplicate
-   * a lot of work (e.g. computing array offsets, etc.) in a mechanism without this variable, we
+   * <p>Now, in an ideal world, this variable would be 'Node currentLval', but firm doesn't offer a
+   * function for getting the address of a local variable as a Node. So in order to not duplicate a
+   * lot of work (e.g. computing array offsets, etc.) in a mechanism without this variable, we
    * abstract actual assignment out into a function.
    */
-  @Nullable
-  private Function<Node, Node> storeInCurrentLval;
+  @Nullable private Function<Node, Node> storeInCurrentLval;
 
   private final Type INT_TYPE;
   private final Type BOOLEAN_TYPE;
@@ -117,20 +112,19 @@ public class IREmitter
   @Override
   public Object visitMethod(Method that) {
     ClassType definingClass = klass(that.definingClass.name());
-    ArrayList<Type> parameters = new ArrayList<>();
+    ArrayList<Type> parameterTypes = new ArrayList<>();
 
     if (that.isStatic) {
       // main has this annoying void parameter hack. Let's compensate
       // for that.
       Type arrayOfString = ptrTo(ptrTo(new PrimitiveType(Mode.getBu())));
-      parameters.add(arrayOfString);
+      parameterTypes.add(arrayOfString);
     } else {
       // Add the this pointer. It's always parameter 0, so access will be trivial.
-      parameters.add(ptrTo(definingClass));
+      parameterTypes.add(ptrTo(definingClass));
       for (LocalVariable p : that.parameters) {
         // In the body, we need to refer to local variables by index, so we save that mapping.
-        localVarIndexes.put(p, parameters.size());
-        parameters.add(p.type.acceptVisitor(this));
+        parameterTypes.add(p.type.acceptVisitor(this));
       }
     }
 
@@ -138,7 +132,7 @@ public class IREmitter
     Type returnType = that.returnType.acceptVisitor(this);
     Type[] returnTypes = returnType == null ? new Type[0] : new Type[] {returnType};
 
-    Type methodType = new MethodType(parameters.toArray(new Type[0]), returnTypes);
+    Type methodType = new MethodType(parameterTypes.toArray(new Type[0]), returnTypes);
 
     // TODO: We probably don't need to include the class name in the mangled name (yet).
     // We will when we desugar ClassType to structs and global functions, though.
@@ -149,27 +143,52 @@ public class IREmitter
     // So we got our method prototype. Now for the body
 
     int maxLocals =
-        parameters.size() + that.body.acceptVisitor(new NumberOfLocalVariablesVisitor());
+        parameterTypes.size() + that.body.acceptVisitor(new NumberOfLocalVariablesVisitor());
 
     // Start actual code creation
     graph = new Graph(methodEnt, maxLocals);
     construction = new Construction(graph);
 
-    // We now need to make the connection between function parameters and local firm variables.
-    // firm handles this variable stuff so that it can build up the SSA form later on.
+    connectParametersToIRVariables(that);
+
+    that.body.acceptVisitor(this);
+
+    finishGraphAndHandleFallThrough(returnTypes);
+
+    return null;
+  }
+
+  /**
+   * Make the connection between function parameters and local firm variables. firm handles this
+   * variable stuff so that it can build up the SSA form later on.
+   */
+  private void connectParametersToIRVariables(Method that) {
+    localVarIndexes.clear();
+    if (!that.isStatic) {
+      // First a hack for the this parameter. We want it to get allocated index 0, which will be the
+      // case if we force its LocalVarIndex first. We do so by allocating an index for a dummy LocalVariable.
+      minijava.ast.Type fakeThisType =
+          new minijava.ast.Type(new Ref<>(that.definingClass.def), 0, SourceRange.FIRST_CHAR);
+      // ... do this just for the allocation effect.
+      int thisIdx = getLocalVarIndex(new LocalVariable(fakeThisType, null, SourceRange.FIRST_CHAR));
+      // We rely on this when accessing this.
+      assert thisIdx == 0;
+    }
+
     Node args = graph.getArgs();
     for (LocalVariable p : that.parameters) {
       // we just made this connection in the loop above
-      // Also effectively this should just count up. But we are explicit
-      // here that we want to make the connection between a parameter's
-      // localVarIndex and actual local variable slots.
-      int idx = localVarIndexes.get(p);
+      // Also effectively this should just count up.
+      // Also note that we are never trying to access this or the
+      int idx = getLocalVarIndex(p);
       // Where is this documented anyway? SimpleIf seems to be the only reference...
       Node param = construction.newProj(args, accessModeForType(p.type), idx);
       construction.setVariable(idx, param);
     }
-    that.body.acceptVisitor(this);
+  }
 
+  /** Finish the graph by adding possible return statements in the case of void */
+  private void finishGraphAndHandleFallThrough(Type[] returnTypes) {
     construction.setCurrentBlock(graph.getEndBlock());
 
     if (!construction.isUnreachable()) {
@@ -188,10 +207,6 @@ public class IREmitter
 
     construction.setUnreachable();
     construction.finish();
-
-    // Clean up
-    localVarIndexes.clear();
-    return null;
   }
 
   @Override
@@ -303,14 +318,18 @@ public class IREmitter
 
   @Override
   public Node visitBinaryOperator(Expression.BinaryOperator that) {
+    // Evaluation order demands that we visit the right node first
+    // Consider side-effects like assignment: x = (x = 3) + 1; should assign 4 to x,
+    // so we have evaluate left after right.
+    Node right =
+        construction.newConv(that.right.acceptVisitor(this), accessModeForType(that.right.type));
     Node left =
         construction.newConv(that.left.acceptVisitor(this), accessModeForType(that.left.type));
+
     // Save the store emitter of the left expression (if there's one, e.g. iff it's an lval).
     // See the comments on storeInCurrentLval.
     Function<Node, Node> storeInLeft = storeInCurrentLval;
     assert storeInLeft != null; // This should be true after semantic analysis.
-    Node right =
-        construction.newConv(that.right.acceptVisitor(this), accessModeForType(that.right.type));
 
     // This can never produce an lval (an assignable expression)
     storeInCurrentLval = null;
@@ -344,8 +363,7 @@ public class IREmitter
         return construction.newAnd(left, right);
       case EQ:
         Node cmp = construction.newCmp(left, right, Relation.Equal);
-        construction.new
-        Cmp.
+        // TODO: How to project out a byte flag?
         throw new UnsupportedOperationException();
       case NEQ:
         throw new UnsupportedOperationException();
@@ -406,12 +424,13 @@ public class IREmitter
     Node relOffset = construction.newMul(sizeNode, index);
     Node absOffset = construction.newAdd(array, relOffset);
     Mode mode = accessModeForType(elementType);
-    storeInCurrentLval = (Node val) -> {
-      // We store val at the absOffset
-      Node store = construction.newStore(construction.getCurrentMem(), absOffset, val);
-      construction.setCurrentMem(construction.newProj(store, Mode.getM(), Store.pnM));
-      return store;
-    };
+    storeInCurrentLval =
+        (Node val) -> {
+          // We store val at the absOffset
+          Node store = construction.newStore(construction.getCurrentMem(), absOffset, val);
+          construction.setCurrentMem(construction.newProj(store, Mode.getM(), Store.pnM));
+          return store;
+        };
 
     // Now just dereference the computed offset
     Node load = construction.newLoad(construction.getCurrentMem(), absOffset, mode);
@@ -462,19 +481,22 @@ public class IREmitter
   @Override
   public Node visitVariable(Expression.Variable that) {
     Mode mode = accessModeForType(that.type);
-    int idx = localVarIndexes.get(that.var.def);
-    storeInCurrentLval = (Node val) -> {
-      construction.setVariable(idx, val);
-      // This is soooo weird...
-      return construction.getVariable(idx, mode);
-    };
+    // This will allocate a new index if necessary.
+    int idx = getLocalVarIndex(that.var.def);
+    storeInCurrentLval =
+        (Node val) -> {
+          construction.setVariable(idx, val);
+          // This is soooo weird...
+          return construction.getVariable(idx, mode);
+        };
     return construction.getVariable(idx, mode);
   }
 
   @Override
   public Node visitBooleanLiteral(Expression.BooleanLiteral that) {
     storeInCurrentLval = null;
-    return construction.newConst(that.literal ? 1 : 0, accessModeForType(minijava.ast.Type.BOOLEAN));
+    return construction.newConst(
+        that.literal ? 1 : 0, accessModeForType(minijava.ast.Type.BOOLEAN));
   }
 
   @Override
@@ -506,14 +528,32 @@ public class IREmitter
 
   @Override
   public Integer visitVariable(BlockStatement.Variable that) {
-    Node rhs;
+    int idx = getLocalVarIndex(that);
     if (that.rhs.isPresent()) {
-      rhs = that.rhs.get().acceptVisitor(this);
-    } else {
-      // This is the sanest default we can get: just 0 initialize.
-      rhs = construction.newConst(0, accessModeForType(that.type));
+      Node rhs = that.rhs.get().acceptVisitor(this);
+      construction.setVariable(getLocalVarIndex(that), rhs);
     }
-    construction.setVariable(localVarIndexes.get(that), rhs);
+
     return null;
+  }
+
+  /**
+   * This will do the mapping from local variables to their firm variable indices. It will compute
+   * new indices as needed, so we need to process new variables in the exact order they should be
+   * allocated. Although the exact mapping is rather an implementation detail. E.g. mapping the
+   * first parameter to index 5 instead of index 1 isn't bad if we always use 5 when we refer to the
+   * first parameter.
+   *
+   * <p>So, whenever computing variable indices, use this function.
+   */
+  private int getLocalVarIndex(LocalVariable var) {
+    if (localVarIndexes.containsKey(var)) {
+      return localVarIndexes.get(var);
+    } else {
+      // allocate a new index
+      int free = localVarIndexes.size();
+      localVarIndexes.put(var, free);
+      return free;
+    }
   }
 }

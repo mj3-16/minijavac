@@ -417,8 +417,12 @@ public class SemanticAnalyzer
    */
   @Override
   public Expression visitBinaryOperator(Expression.BinaryOperator that) {
-    Expression left = that.left.acceptVisitor(this);
+    // Evaluation order demands that we visit the right node first
+    // Consider side-effects like assignment: x = (x = 3) + 1; should assign 4 to x,
+    // so we have evaluate left after right.
+    // Not sure if this is also relevant for semantic analysis, though.
     Expression right = that.right.acceptVisitor(this);
+    Expression left = that.left.acceptVisitor(this);
 
     Type resultType = null; // The result of that switch statement
     switch (that.op) {
