@@ -87,20 +87,21 @@ public class IREmitter
       ClassType classType = new ClassType(decl.name());
       // TODO: Set mangled names with Entity.setLdIdent()
       classTypes.put(decl, classType);
-
+    }
+    for (Class decl : that.declarations) {
       for (Field f : decl.fields) {
         fields.put(f, addFieldDecl(f));
       }
-
       for (Method m : decl.methods) {
         methods.put(m, addMethodDecl(m));
       }
+    }
+    for (ClassType classType : classTypes.values()) {
       // TODO: Not sure what else needs to be done for layout. Look up the docs
       // Does this even belong here?
       classType.layoutFields();
       classType.finishLayout();
     }
-
     for (Class klass : that.declarations) {
       klass.methods.forEach(this::emitBody);
     }
@@ -109,7 +110,7 @@ public class IREmitter
 
   private Entity addFieldDecl(Field f) {
     Type type = f.type.acceptVisitor(this);
-    ClassType definingClass = classType(f.definingClass.def);
+    ClassType definingClass = classTypes.get(f.definingClass.def);
     return new Entity(definingClass, f.name(), type);
   }
 
@@ -118,7 +119,7 @@ public class IREmitter
    * constructing an entity.
    */
   private Entity addMethodDecl(Method m) {
-    ClassType definingClass = classType(m.definingClass.def);
+    ClassType definingClass = classTypes.get(m.definingClass.def);
     ArrayList<Type> parameterTypes = new ArrayList<>();
 
     if (m.isStatic) {
@@ -253,7 +254,7 @@ public class IREmitter
 
   @Override
   public Type visitClass(Class that) {
-    return classType(that);
+    return classTypes.get(that);
   }
 
   private Mode accessModeForType(minijava.ast.Type type) {
@@ -268,19 +269,6 @@ public class IREmitter
         return Mode.getBu();
       default:
         return Mode.getP();
-    }
-  }
-
-  private ClassType classType(Class klass) {
-    if (classTypes.containsKey(klass)) {
-      return classTypes.get(klass);
-    } else {
-      // we haven't accessed this class type yet,
-      // so we assemble a new ClassType from its mangled name
-      // TODO: I don't think we need to mangle names before the lowering step.
-      ClassType classType = new ClassType(klass.name());
-      classTypes.put(klass, classType);
-      return classType;
     }
   }
 
