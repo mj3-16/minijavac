@@ -6,12 +6,8 @@ import firm.Program;
 import firm.Type;
 import firm.bindings.binding_ircons;
 import firm.nodes.*;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
-import java.util.logging.Logger;
 import minijava.ast.*;
 import minijava.ast.Class;
 import minijava.ast.Field;
@@ -20,25 +16,24 @@ import minijava.util.SourceRange;
 
 /** Emits an intermediate representation for a given minijava Program. */
 public class IREmitter
-    implements minijava.ast.Program.Visitor,
-        Class.Visitor,
-        Field.Visitor,
-        Method.Visitor,
+    implements minijava.ast.Program.Visitor<Void>,
         minijava.ast.Type.Visitor<Type>,
+        minijava.ast.BasicType.Visitor<Type>,
         minijava.ast.Block.Visitor<Integer>,
         Expression.Visitor<Node>,
         BlockStatement.Visitor<Integer> {
 
-  private Logger log = Logger.getLogger("IREmitter");
   /** TODO: delete this, irrelevant to the visiting logic */
   private minijava.ast.Program program;
 
-  private HashMap<String, ClassType> classTypes = new HashMap<>();
+  private Map<Class, ClassType> classTypes = new IdentityHashMap<>();
+  private Map<Method, Entity> methods = new IdentityHashMap<>();
+  private Map<Field, Entity> fields = new IdentityHashMap<>();
   /**
    * Maps local variable definitions such as parameters and ... local variable definitions to their
    * assigned index. Which is a firm thing.
    */
-  private Map<LocalVariable, Integer> localVarIndexes = new HashMap<>();
+  private Map<LocalVariable, Integer> localVarIndexes = new IdentityHashMap<>();
   /** The Basic Block graph of the current function. */
   private Graph graph;
   /**
@@ -84,37 +79,47 @@ public class IREmitter
   public static void main(String[] main_args) {}
 
   @Override
-  public Object visitProgram(minijava.ast.Program that) {
+  public Void visitProgram(minijava.ast.Program that) {
+    classTypes.clear();
+    methods.clear();
+    fields.clear();
+    for (Class decl : that.declarations) {
+      ClassType classType = new ClassType(decl.name());
+      classTypes.put(decl, classType);
+
+      classType.layoutFields();
+      // TODO: Not sure what else needs to be done for layout. Look up the docs
+      for (Field f : decl.fields) {
+        fields.put(f, addFieldDecl(f));
+      }
+
+      for (Method m : decl.methods) {
+        methods.put(m, addMethodDecl(m));
+      }
+      classType.finishLayout();
+    }
+
     for (Class klass : that.declarations) {
-      klass.acceptVisitor(this);
+      klass.methods.forEach(this::emitBody);
     }
     return null;
   }
 
-  @Override
-  public Object visitClass(Class that) {
-    for (Field field : that.fields) {
-      field.acceptVisitor(this);
-    }
-    for (Method method : that.methods) {
-      method.acceptVisitor(this);
-    }
-    return null;
+  private Entity addFieldDecl(Field f) {
+    Type type = f.type.acceptVisitor(this);
+    ClassType definingClass = classType(f.definingClass.def);
+    return new Entity(definingClass, f.name(), type);
   }
 
-  @Override
-  public Object visitField(Field that) {
-    Type type = that.type.acceptVisitor(this);
-    new Entity(klass(that.name()), that.name(), type);
-    return null;
-  }
-
-  @Override
-  public Object visitMethod(Method that) {
-    ClassType definingClass = klass(that.definingClass.name());
+  /**
+   * This will *not* go through the body of the method, just analyze stuff that is needed for
+   * constructing an entity.
+   */
+  private Entity addMethodDecl(Method m) {
+    ClassType definingClass = classType(m.definingClass.def);
     ArrayList<Type> parameterTypes = new ArrayList<>();
 
-    if (that.isStatic) {
+    if (m.isStatic) {
       // main has this annoying void parameter hack. Let's compensate
       // for that.
       Type arrayOfString = ptrTo(ptrTo(new PrimitiveType(Mode.getBu())));
@@ -122,40 +127,40 @@ public class IREmitter
     } else {
       // Add the this pointer. It's always parameter 0, so access will be trivial.
       parameterTypes.add(ptrTo(definingClass));
-      for (LocalVariable p : that.parameters) {
+      for (LocalVariable p : m.parameters) {
         // In the body, we need to refer to local variables by index, so we save that mapping.
         parameterTypes.add(p.type.acceptVisitor(this));
       }
     }
 
     // The visitor returns null if that.returnType was void.
-    Type returnType = that.returnType.acceptVisitor(this);
+    Type returnType = m.returnType.acceptVisitor(this);
     Type[] returnTypes = returnType == null ? new Type[0] : new Type[] {returnType};
 
     Type methodType = new MethodType(parameterTypes.toArray(new Type[0]), returnTypes);
 
-    // TODO: We probably don't need to include the class name in the mangled name (yet).
-    // We will when we desugar ClassType to structs and global functions, though.
-    // We probably won't need to mangle names before lowering anyway.
-    String mangledName = NameMangler.mangleMethodName(that.definingClass.name(), that.name());
-    Entity methodEnt = new Entity(definingClass, mangledName, methodType);
+    // We probably won't need to mangle names before lowering.
+    return new Entity(definingClass, m.name(), methodType);
+  }
 
-    // So we got our method prototype. Now for the body
+  private void emitBody(Method m) {
+    // graph and construction are irrelevant to anything before or after.
+    // It's more like 2 additional parameters to the visitor.
 
-    int maxLocals =
-        parameterTypes.size() + that.body.acceptVisitor(new NumberOfLocalVariablesVisitor());
-
-    // Start actual code creation
-    graph = new Graph(methodEnt, maxLocals);
+    graph = constructEmptyGraphFromPrototype(m);
     construction = new Construction(graph);
 
-    connectParametersToIRVariables(that);
+    connectParametersToIRVariables(m);
 
-    that.body.acceptVisitor(this);
+    m.body.acceptVisitor(this);
 
-    finishGraphAndHandleFallThrough(returnTypes);
+    finishGraphAndHandleFallThrough(m);
+  }
 
-    return null;
+  private Graph constructEmptyGraphFromPrototype(Method that) {
+    // So we got our method prototype from the previous pass. Now for the body
+    int locals = that.body.acceptVisitor(new NumberOfLocalVariablesVisitor());
+    return new Graph(methods.get(that), that.parameters.size() + locals);
   }
 
   /**
@@ -188,13 +193,13 @@ public class IREmitter
   }
 
   /** Finish the graph by adding possible return statements in the case of void */
-  private void finishGraphAndHandleFallThrough(Type[] returnTypes) {
+  private void finishGraphAndHandleFallThrough(Method that) {
     construction.setCurrentBlock(graph.getEndBlock());
 
     if (!construction.isUnreachable()) {
       // Add an implicit return statement at the end of the block,
       // iff we have return type void. In which case returnTypes has length 0.
-      if (returnTypes.length == 0) {
+      if (that.returnType == minijava.ast.Type.VOID) {
         Node ret = construction.newReturn(construction.getCurrentMem(), new Node[0]);
         construction.setCurrentMem(ret);
         graph.getEndBlock().addPred(ret);
@@ -211,24 +216,42 @@ public class IREmitter
 
   @Override
   public Type visitType(minijava.ast.Type that) {
-    if (that.basicType.name().equals("void")) {
+    Type type = that.basicType.def.acceptVisitor(this);
+    if (type == null) {
+      // e.g. void
       return null;
-    }
-    Type type;
-    switch (that.basicType.name) {
-      case "int":
-        type = INT_TYPE;
-        break;
-      case "boolean":
-        type = BOOLEAN_TYPE;
-        break;
-      default:
-        type = klass(that.basicType.name());
     }
     for (int i = 0; i < that.dimension; i++) {
       type = new PointerType(type);
     }
     return type;
+  }
+
+  @Override
+  public Type visitVoid(BuiltinType that) {
+    return null;
+  }
+
+  @Override
+  public Type visitInt(BuiltinType that) {
+    return INT_TYPE;
+  }
+
+  @Override
+  public Type visitBoolean(BuiltinType that) {
+    return BOOLEAN_TYPE;
+  }
+
+  @Override
+  public Type visitAny(BuiltinType that) {
+    // TODO... not sure how to handle this
+    assert false;
+    return null;
+  }
+
+  @Override
+  public Type visitClass(Class that) {
+    return classType(that);
   }
 
   private Mode accessModeForType(minijava.ast.Type type) {
@@ -246,15 +269,15 @@ public class IREmitter
     }
   }
 
-  private ClassType klass(String name) {
-    if (classTypes.containsKey(name)) {
-      return classTypes.get(name);
+  private ClassType classType(Class klass) {
+    if (classTypes.containsKey(klass)) {
+      return classTypes.get(klass);
     } else {
       // we haven't accessed this class type yet,
       // so we assemble a new ClassType from its mangled name
       // TODO: I don't think we need to mangle names before the lowering step.
-      ClassType classType = new ClassType(NameMangler.mangleClassName(name));
-      classTypes.put(name, classType);
+      ClassType classType = new ClassType(klass.name());
+      classTypes.put(klass, classType);
       return classType;
     }
   }
@@ -399,16 +422,37 @@ public class IREmitter
 
   @Override
   public Node visitMethodCall(Expression.MethodCall that) {
+    Entity method = methods.get(that.method.def);
 
+    List<Node> args = new ArrayList<>(that.arguments.size() + 1);
+    // first argument is always this (static calls are disallowed)
+    Node thisVar = construction.getVariable(0, Mode.getP());
+    args.add(thisVar);
+    for (Expression a : that.arguments) {
+      args.add(a.acceptVisitor(this));
+    }
+
+    Type returnType = that.method.def.returnType.acceptVisitor(this);
     storeInCurrentLval = null;
-    return null;
+    Node f = construction.newMember(thisVar, method);
+    // TODO: What about void return values?
+    return callFunction(f, args.toArray(new Node[0]), returnType);
   }
 
   @Override
   public Node visitFieldAccess(Expression.FieldAccess that) {
     // This produces an lval
-    // storeInCurrentLval = ...
-    return null;
+    Entity field = fields.get(that.field.def);
+    Node thisVar = construction.getVariable(0, Mode.getP());
+    Node f = construction.newMember(thisVar, field);
+
+    storeInCurrentLval =
+        (Node val) -> {
+          Node store = construction.newStore(construction.getCurrentMem(), f, val);
+          construction.setCurrentMem(construction.newProj(store, Mode.getM(), Store.pnM));
+          return val;
+        };
+    return construction.newMember(thisVar, field);
   }
 
   @Override
@@ -418,8 +462,9 @@ public class IREmitter
     minijava.ast.Type arrayType = that.array.type;
     minijava.ast.Type elementType =
         new minijava.ast.Type(arrayType.basicType, arrayType.dimension - 1, arrayType.range());
-    int elementSize = sizeOf(elementType.acceptVisitor(this));
+    int elementSize = elementType.acceptVisitor(this).getSize();
 
+    // TODO: Use Sel instead
     Node sizeNode = construction.newConst(elementSize, accessModeForType(minijava.ast.Type.INT));
     Node relOffset = construction.newMul(sizeNode, index);
     Node absOffset = construction.newAdd(array, relOffset);
@@ -429,7 +474,7 @@ public class IREmitter
           // We store val at the absOffset
           Node store = construction.newStore(construction.getCurrentMem(), absOffset, val);
           construction.setCurrentMem(construction.newProj(store, Mode.getM(), Store.pnM));
-          return store;
+          return val;
         };
 
     // Now just dereference the computed offset
@@ -461,21 +506,16 @@ public class IREmitter
     // The fact that we called the array length size (which is parameter num to calloc) and
     // that here the element size is called size may be confusing, but whatever, I warned you.
     Node numNode = construction.newConv(num, Mode.getP());
-    Node sizeNode = construction.newConst(sizeOf(elementType), Mode.getP());
+    Node sizeNode = construction.newConst(elementType.getSize(), Mode.getP());
     Node nodeOfCalloc = null;
-    Node call =
-        construction.newCall(
-            construction.getCurrentMem(),
-            nodeOfCalloc,
-            new Node[] {numNode, sizeNode},
-            ptrTo(elementType));
-    construction.setCurrentMem(construction.newProj(call, Mode.getM(), Call.pnM));
-    return construction.newProj(call, Mode.getP(), Call.pnTResult);
+    return callFunction(nodeOfCalloc, new Node[] {numNode, sizeNode}, elementType);
   }
 
-  private int sizeOf(Type elementType) {
-    // TODO
-    return 0;
+  private Node callFunction(Node func, Node[] args, Type elementType) {
+    Node call = construction.newCall(construction.getCurrentMem(), func, args, ptrTo(elementType));
+    construction.setCurrentMem(construction.newProj(call, Mode.getM(), Call.pnM));
+    Node result = construction.newProj(call, Mode.getT(), Call.pnTResult);
+    return construction.newProj(result, Mode.getP(), 0);
   }
 
   @Override
@@ -486,8 +526,7 @@ public class IREmitter
     storeInCurrentLval =
         (Node val) -> {
           construction.setVariable(idx, val);
-          // This is soooo weird...
-          return construction.getVariable(idx, mode);
+          return val;
         };
     return construction.getVariable(idx, mode);
   }

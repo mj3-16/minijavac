@@ -128,6 +128,7 @@ public class SemanticLinter
 
   @Override
   public Void visitMethodCall(Expression.MethodCall that) {
+    assert !that.method.def.isStatic;
     that.self.acceptVisitor(this);
     that.method.def.acceptVisitor((Method.Visitor<Void>) this);
     that.arguments.forEach(a -> a.acceptVisitor(this));
