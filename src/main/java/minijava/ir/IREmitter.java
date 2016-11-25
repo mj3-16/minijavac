@@ -85,10 +85,9 @@ public class IREmitter
     fields.clear();
     for (Class decl : that.declarations) {
       ClassType classType = new ClassType(decl.name());
+      // TODO: Set mangled names with Entity.setLdIdent()
       classTypes.put(decl, classType);
 
-      classType.layoutFields();
-      // TODO: Not sure what else needs to be done for layout. Look up the docs
       for (Field f : decl.fields) {
         fields.put(f, addFieldDecl(f));
       }
@@ -96,6 +95,9 @@ public class IREmitter
       for (Method m : decl.methods) {
         methods.put(m, addMethodDecl(m));
       }
+      // TODO: Not sure what else needs to be done for layout. Look up the docs
+      // Does this even belong here?
+      classType.layoutFields();
       classType.finishLayout();
     }
 
@@ -139,7 +141,7 @@ public class IREmitter
 
     Type methodType = new MethodType(parameterTypes.toArray(new Type[0]), returnTypes);
 
-    // We probably won't need to mangle names before lowering.
+    // TODO: Set mangled names with Entity.setLdIdent()
     return new Entity(definingClass, m.name(), methodType);
   }
 
@@ -422,6 +424,11 @@ public class IREmitter
 
   @Override
   public Node visitMethodCall(Expression.MethodCall that) {
+    if (that.self.type == minijava.ast.Type.SYSTEM_OUT) {
+      // TODO: handle a special call to print_int, like
+      // it's also done for calloc
+    }
+
     Entity method = methods.get(that.method.def);
 
     List<Node> args = new ArrayList<>(that.arguments.size() + 1);
@@ -487,8 +494,8 @@ public class IREmitter
   public Node visitNewObject(Expression.NewObject that) {
     Type type = that.type.acceptVisitor(this);
     storeInCurrentLval = null;
-    // See callocOfType for the rationale behind Mode.getP()
-    return callocOfType(construction.newConst(1, Mode.getP()), type);
+    // See calloc for the rationale behind Mode.getP()
+    return calloc(construction.newConst(1, Mode.getP()), type);
   }
 
   @Override
@@ -496,19 +503,23 @@ public class IREmitter
     Type elementType = that.elementType.acceptVisitor(this);
     Node size = that.size.acceptVisitor(this);
     storeInCurrentLval = null;
-    return callocOfType(size, elementType);
+    return calloc(size, elementType);
   }
 
-  private Node callocOfType(Node num, Type elementType) {
+  private Node calloc(Node num, Type elementType) {
     // calloc takes two parameters, for the number of elements and the size of each element.
     // both are of type size_t, which is mostly a machine word. So the modes used are just
     // an educated guess.
     // The fact that we called the array length size (which is parameter num to calloc) and
     // that here the element size is called size may be confusing, but whatever, I warned you.
+    Type size_t = new PrimitiveType(Mode.getP());
     Node numNode = construction.newConv(num, Mode.getP());
     Node sizeNode = construction.newConst(elementType.getSize(), Mode.getP());
-    Node nodeOfCalloc = null;
-    return callFunction(nodeOfCalloc, new Node[] {numNode, sizeNode}, elementType);
+    MethodType callocType =
+        new MethodType(new Type[] {size_t, size_t}, new Type[] {ptrTo(elementType)});
+    Entity calloc = new Entity(Program.getGlobalType(), "calloc", callocType);
+    Node f = construction.newAddress(calloc);
+    return callFunction(f, new Node[] {numNode, sizeNode}, elementType);
   }
 
   private Node callFunction(Node func, Node[] args, Type elementType) {
