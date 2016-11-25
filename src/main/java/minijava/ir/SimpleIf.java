@@ -1,4 +1,4 @@
-package minijava.firm;
+package minijava.ir;
 
 import firm.ClassType;
 import firm.Construction;

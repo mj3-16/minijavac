@@ -1,4 +1,4 @@
-package minijava.firm;
+package minijava.ir;
 
 import minijava.ast.Block;
 import minijava.ast.BlockStatement;

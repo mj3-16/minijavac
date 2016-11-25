@@ -1,4 +1,4 @@
-package minijava.firm;
+package minijava.ir;
 
 import java.util.Arrays;
 import java.util.stream.Collectors;

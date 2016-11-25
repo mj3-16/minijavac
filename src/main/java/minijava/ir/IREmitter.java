@@ -1,24 +1,26 @@
-package minijava.firm;
+package minijava.ir;
 
+import com.beust.jcommander.internal.Nullable;
 import firm.*;
 import firm.Program;
 import firm.Type;
 import firm.bindings.binding_ircons;
-import firm.nodes.Block;
-import firm.nodes.Call;
-import firm.nodes.Load;
-import firm.nodes.Node;
+import firm.nodes.*;
+
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.logging.Logger;
+
 import minijava.ast.*;
 import minijava.ast.Class;
 import minijava.ast.Field;
 import minijava.ast.Method;
 
-/** Draft of a firm graph generating visitor */
-public class TestBed
+/** Emits an intermediate representation for a given minijava Program. */
+public class IREmitter
     implements minijava.ast.Program.Visitor,
         Class.Visitor,
         Field.Visitor,
@@ -28,22 +30,45 @@ public class TestBed
         Expression.Visitor<Node>,
         BlockStatement.Visitor<Integer> {
 
-  private Logger log = Logger.getLogger("TestBed");
+  private Logger log = Logger.getLogger("IREmitter");
+  /**
+   * TODO: delete this, irrelevant to the visiting logic
+   */
   private minijava.ast.Program program;
   private HashMap<String, ClassType> classTypes = new HashMap<>();
-  private Map<LocalVariable, Integer> localVarIndexes = new HashMap<>();
-  private Graph methodGraph;
-  private Construction methodCons;
   /**
-   * The lval (e.g. address) of the last expression evaluated. We could also model this as an
-   * additional return type to the Expression.Visitor.
+   * Maps local variable definitions such as parameters and ... local variable definitions
+   * to their assigned index. Which is a firm thing.
    */
-  private Node currentLval;
+  private Map<LocalVariable, Integer> localVarIndexes = new HashMap<>();
+  /**
+   * The Basic Block graph of the current function.
+   */
+  private Graph graph;
+  /**
+   * Construction is a firm Node factory that makes sure that we don't duplicate
+   * expressions, thus making common sub expressions irrepresentable.
+   */
+  private Construction construction;
+  /**
+   * Stores the node's value in the current lvar (if there is any). This is crucial for assignment
+   * to work. E.g. in the expression x = 5, we analyze the variable expression x and get back its
+   * value, which is irrelevant for assignment, since we need the *address of* x. This is where
+   * we need storeInCurrentLval, which would store the expression node of the RHS (evaluating to 5)
+   * in the address of x.
+   *
+   * Now, in an ideal world, this variable would be 'Node currentLval', but firm doesn't offer
+   * a function for getting the address of a local variable as a Node. So in order to not duplicate
+   * a lot of work (e.g. computing array offsets, etc.) in a mechanism without this variable, we
+   * abstract actual assignment out into a function.
+   */
+  @Nullable
+  private Function<Node, Node> storeInCurrentLval;
 
   private final Type INT_TYPE;
   private final Type BOOLEAN_TYPE;
 
-  public TestBed(minijava.ast.Program program) {
+  public IREmitter(minijava.ast.Program program) {
     this.program = program;
     Firm.init();
     System.out.printf("Firm Version: %1s.%2s\n", Firm.getMajorVersion(), Firm.getMinorVersion());
@@ -127,20 +152,33 @@ public class TestBed
         parameters.size() + that.body.acceptVisitor(new NumberOfLocalVariablesVisitor());
 
     // Start actual code creation
-    methodGraph = new Graph(methodEnt, maxLocals);
-    methodCons = new Construction(methodGraph);
+    graph = new Graph(methodEnt, maxLocals);
+    construction = new Construction(graph);
 
+    // We now need to make the connection between function parameters and local firm variables.
+    // firm handles this variable stuff so that it can build up the SSA form later on.
+    Node args = graph.getArgs();
+    for (LocalVariable p : that.parameters) {
+      // we just made this connection in the loop above
+      // Also effectively this should just count up. But we are explicit
+      // here that we want to make the connection between a parameter's
+      // localVarIndex and actual local variable slots.
+      int idx = localVarIndexes.get(p);
+      // Where is this documented anyway? SimpleIf seems to be the only reference...
+      Node param = construction.newProj(args, accessModeForType(p.type), idx);
+      construction.setVariable(idx, param);
+    }
     that.body.acceptVisitor(this);
 
-    methodCons.setCurrentBlock(methodGraph.getEndBlock());
+    construction.setCurrentBlock(graph.getEndBlock());
 
-    if (!methodCons.isUnreachable()) {
+    if (!construction.isUnreachable()) {
       // Add an implicit return statement at the end of the block,
       // iff we have return type void. In which case returnTypes has length 0.
       if (returnTypes.length == 0) {
-        Node ret = methodCons.newReturn(methodCons.getCurrentMem(), new Node[0]);
-        methodCons.setCurrentMem(ret);
-        methodGraph.getEndBlock().addPred(ret);
+        Node ret = construction.newReturn(construction.getCurrentMem(), new Node[0]);
+        construction.setCurrentMem(ret);
+        graph.getEndBlock().addPred(ret);
       } else {
         // We can't just conjure a return value of arbitrary type.
         // This must be caught by the semantic pass.
@@ -148,8 +186,8 @@ public class TestBed
       }
     }
 
-    methodCons.setUnreachable();
-    methodCons.finish();
+    construction.setUnreachable();
+    construction.finish();
 
     // Clean up
     localVarIndexes.clear();
@@ -179,6 +217,10 @@ public class TestBed
   }
 
   private Mode accessModeForType(minijava.ast.Type type) {
+    if (type.dimension > 0) {
+      return Mode.getP();
+    }
+
     switch (type.basicType.name()) {
       case "int":
         return Mode.getIs();
@@ -210,8 +252,6 @@ public class TestBed
   public Integer visitBlock(minijava.ast.Block that) {
     for (BlockStatement statement : that.statements) {
       statement.acceptVisitor(this);
-
-      // reset the local variables
     }
     return null;
   }
@@ -234,6 +274,7 @@ public class TestBed
 
   @Override
   public Integer visitExpressionStatement(Statement.ExpressionStatement that) {
+    // We evaluate this just for the side effects, e.g. the memory edges this adds.
     that.expression.acceptVisitor(this);
     return null;
   }
@@ -246,15 +287,16 @@ public class TestBed
 
   @Override
   public Integer visitReturn(Statement.Return that) {
-    Block block = methodCons.newBlock();
+    List<Node> retVals = new ArrayList<>(1);
     if (that.expression.isPresent()) {
-      that.expression.get().acceptVisitor(this);
+      retVals.add(that.expression.get().acceptVisitor(this));
     }
-    methodCons.setCurrentBlock(block);
-    methodCons.newIJmp(methodGraph.getEndBlock());
+    Node ret = construction.newReturn(construction.getCurrentMem(), retVals.toArray(new Node[0]));
+    // TODO: do we need to setCurrentMem? If so, what if the return type is void?
+    graph.getEndBlock().addPred(ret);
 
     // No code should follow a return statement.
-    methodCons.setUnreachable();
+    construction.setUnreachable();
 
     return null;
   }
@@ -262,46 +304,48 @@ public class TestBed
   @Override
   public Node visitBinaryOperator(Expression.BinaryOperator that) {
     Node left =
-        methodCons.newConv(that.left.acceptVisitor(this), accessModeForType(that.left.type));
-    // TODO: save the address of the left expression (if there's one, e.g. iff it's an lval)
-    Node lval = currentLval;
-    assert lval != null;
+        construction.newConv(that.left.acceptVisitor(this), accessModeForType(that.left.type));
+    // Save the store emitter of the left expression (if there's one, e.g. iff it's an lval).
+    // See the comments on storeInCurrentLval.
+    Function<Node, Node> storeInLeft = storeInCurrentLval;
+    assert storeInLeft != null; // This should be true after semantic analysis.
     Node right =
-        methodCons.newConv(that.right.acceptVisitor(this), accessModeForType(that.right.type));
+        construction.newConv(that.right.acceptVisitor(this), accessModeForType(that.right.type));
 
     // This can never produce an lval (an assignable expression)
-    currentLval = null;
+    storeInCurrentLval = null;
 
     switch (that.op) {
       case ASSIGN:
-        // we have computed the address at which to store the
-        // value of the right hand side expression in lval, so just perform the store.
-        Node store = methodCons.newStore(methodCons.getCurrentMem(), lval, right);
-        methodCons.setCurrentMem(store);
-        return store;
+        // See the comment on storeInCurrentLval. Assignment is basically outsourced to the
+        // resp. expression visitor
+        return storeInLeft.apply(right);
       case PLUS:
-        return methodCons.newAdd(left, right);
+        return construction.newAdd(left, right);
       case MINUS:
-        return methodCons.newSub(left, right);
+        return construction.newSub(left, right);
       case MULTIPLY:
-        return methodCons.newMul(left, right);
+        return construction.newMul(left, right);
       case DIVIDE:
-        return methodCons.newDiv(
-            methodCons.getCurrentMem(),
+        return construction.newDiv(
+            construction.getCurrentMem(),
             left,
             right,
             binding_ircons.op_pin_state.op_pin_state_exc_pinned);
       case MODULO:
-        return methodCons.newMod(
-            methodCons.getCurrentMem(),
+        return construction.newMod(
+            construction.getCurrentMem(),
             left,
             right,
             binding_ircons.op_pin_state.op_pin_state_exc_pinned);
       case OR:
-        return methodCons.newOr(left, right);
+        return construction.newOr(left, right);
       case AND:
-        return methodCons.newAnd(left, right);
+        return construction.newAnd(left, right);
       case EQ:
+        Node cmp = construction.newCmp(left, right, Relation.Equal);
+        construction.new
+        Cmp.
         throw new UnsupportedOperationException();
       case NEQ:
         throw new UnsupportedOperationException();
@@ -323,13 +367,13 @@ public class TestBed
     Node expression = that.expression.acceptVisitor(this);
 
     // This can never produce an lval (an assignable expression)
-    currentLval = null;
+    storeInCurrentLval = null;
 
     switch (that.op) {
       case NEGATE:
-        return methodCons.newMinus(expression);
+        return construction.newMinus(expression);
       case NOT:
-        return methodCons.newNot(expression);
+        return construction.newNot(expression);
       default:
         throw new UnsupportedOperationException();
     }
@@ -338,14 +382,14 @@ public class TestBed
   @Override
   public Node visitMethodCall(Expression.MethodCall that) {
 
-    currentLval = null;
+    storeInCurrentLval = null;
     return null;
   }
 
   @Override
   public Node visitFieldAccess(Expression.FieldAccess that) {
     // This produces an lval
-    // currentLval = ...
+    // storeInCurrentLval = ...
     return null;
   }
 
@@ -358,31 +402,36 @@ public class TestBed
         new minijava.ast.Type(arrayType.basicType, arrayType.dimension - 1, arrayType.range());
     int elementSize = sizeOf(elementType.acceptVisitor(this));
 
-    Node sizeNode = methodCons.newConst(elementSize, accessModeForType(minijava.ast.Type.INT));
-    Node relOffset = methodCons.newMul(sizeNode, index);
-    Node absOffset = methodCons.newAdd(array, relOffset);
-    currentLval = absOffset; // The address of the array element
+    Node sizeNode = construction.newConst(elementSize, accessModeForType(minijava.ast.Type.INT));
+    Node relOffset = construction.newMul(sizeNode, index);
+    Node absOffset = construction.newAdd(array, relOffset);
+    Mode mode = accessModeForType(elementType);
+    storeInCurrentLval = (Node val) -> {
+      // We store val at the absOffset
+      Node store = construction.newStore(construction.getCurrentMem(), absOffset, val);
+      construction.setCurrentMem(construction.newProj(store, Mode.getM(), Store.pnM));
+      return store;
+    };
 
     // Now just dereference the computed offset
-    Mode mode = accessModeForType(elementType);
-    Node load = methodCons.newLoad(methodCons.getCurrentMem(), absOffset, mode);
-    methodCons.setCurrentMem(methodCons.newProj(load, Mode.getM(), Load.pnM));
-    return methodCons.newProj(load, mode, Load.pnRes);
+    Node load = construction.newLoad(construction.getCurrentMem(), absOffset, mode);
+    construction.setCurrentMem(construction.newProj(load, Mode.getM(), Load.pnM));
+    return construction.newProj(load, mode, Load.pnRes);
   }
 
   @Override
   public Node visitNewObject(Expression.NewObject that) {
     Type type = that.type.acceptVisitor(this);
-    currentLval = null;
+    storeInCurrentLval = null;
     // See callocOfType for the rationale behind Mode.getP()
-    return callocOfType(methodCons.newConst(1, Mode.getP()), type);
+    return callocOfType(construction.newConst(1, Mode.getP()), type);
   }
 
   @Override
   public Node visitNewArray(Expression.NewArray that) {
     Type elementType = that.elementType.acceptVisitor(this);
     Node size = that.size.acceptVisitor(this);
-    currentLval = null;
+    storeInCurrentLval = null;
     return callocOfType(size, elementType);
   }
 
@@ -392,17 +441,17 @@ public class TestBed
     // an educated guess.
     // The fact that we called the array length size (which is parameter num to calloc) and
     // that here the element size is called size may be confusing, but whatever, I warned you.
-    Node numNode = methodCons.newConv(num, Mode.getP());
-    Node sizeNode = methodCons.newConst(sizeOf(elementType), Mode.getP());
+    Node numNode = construction.newConv(num, Mode.getP());
+    Node sizeNode = construction.newConst(sizeOf(elementType), Mode.getP());
     Node nodeOfCalloc = null;
     Node call =
-        methodCons.newCall(
-            methodCons.getCurrentMem(),
+        construction.newCall(
+            construction.getCurrentMem(),
             nodeOfCalloc,
             new Node[] {numNode, sizeNode},
             ptrTo(elementType));
-    methodCons.setCurrentMem(methodCons.newProj(call, Mode.getM(), Call.pnM));
-    return methodCons.newProj(call, Mode.getP(), Call.pnTResult);
+    construction.setCurrentMem(construction.newProj(call, Mode.getM(), Call.pnM));
+    return construction.newProj(call, Mode.getP(), Call.pnTResult);
   }
 
   private int sizeOf(Type elementType) {
@@ -412,34 +461,39 @@ public class TestBed
 
   @Override
   public Node visitVariable(Expression.Variable that) {
-    // TODO: AHHHHH
-    // currentLval = ????
-    return methodCons.getVariable(localVarIndexes.get(that.var.def), accessModeForType(that.type));
+    Mode mode = accessModeForType(that.type);
+    int idx = localVarIndexes.get(that.var.def);
+    storeInCurrentLval = (Node val) -> {
+      construction.setVariable(idx, val);
+      // This is soooo weird...
+      return construction.getVariable(idx, mode);
+    };
+    return construction.getVariable(idx, mode);
   }
 
   @Override
   public Node visitBooleanLiteral(Expression.BooleanLiteral that) {
-    currentLval = null;
-    return methodCons.newConst(that.literal ? 1 : 0, accessModeForType(minijava.ast.Type.BOOLEAN));
+    storeInCurrentLval = null;
+    return construction.newConst(that.literal ? 1 : 0, accessModeForType(minijava.ast.Type.BOOLEAN));
   }
 
   @Override
   public Node visitIntegerLiteral(Expression.IntegerLiteral that) {
     // TODO: the 0x80000000 case
     int lit = Integer.parseInt(that.literal);
-    currentLval = null;
-    return methodCons.newConst(lit, accessModeForType(minijava.ast.Type.INT));
+    storeInCurrentLval = null;
+    return construction.newConst(lit, accessModeForType(minijava.ast.Type.INT));
   }
 
   @Override
   public Node visitReferenceTypeLiteral(Expression.ReferenceTypeLiteral that) {
-    currentLval = null;
+    storeInCurrentLval = null;
     switch (that.name()) {
       case "this":
         // access parameter 0 as a pointer, that's where this is to be found
-        return methodCons.getVariable(0, Mode.getP());
+        return construction.getVariable(0, Mode.getP());
       case "null":
-        return methodCons.newConst(0, Mode.getP());
+        return construction.newConst(0, Mode.getP());
       case "System.out":
         // TODO: Don't know how to handle this. We should probably
         // catch this case before we can reference System.out, like we did in
@@ -457,9 +511,9 @@ public class TestBed
       rhs = that.rhs.get().acceptVisitor(this);
     } else {
       // This is the sanest default we can get: just 0 initialize.
-      rhs = methodCons.newConst(0, accessModeForType(that.type));
+      rhs = construction.newConst(0, accessModeForType(that.type));
     }
-    methodCons.setVariable(localVarIndexes.get(that), rhs);
+    construction.setVariable(localVarIndexes.get(that), rhs);
     return null;
   }
 }
