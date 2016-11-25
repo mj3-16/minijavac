@@ -400,14 +400,12 @@ public class SemanticAnalyzer
     if (locals.lookup(that.name()).isPresent()) {
       throw new SemanticError(that.range(), "Cannot redefine '" + that.name() + "'");
     }
-
+    locals.insert(that.name(), that);
     if (that.rhs.isPresent()) {
       Expression ret = that.rhs.get().acceptVisitor(this);
       checkType(that.type, ret.type, ret.range());
       that.rhs = Optional.of(ret);
     }
-
-    locals.insert(that.name(), that);
     return null;
   }
 
