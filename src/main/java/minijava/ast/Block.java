@@ -3,7 +3,7 @@ package minijava.ast;
 import java.util.List;
 import minijava.util.SourceRange;
 
-public class Block extends Statement.Base {
+public class Block extends Node implements Statement {
 
   public final List<BlockStatement> statements;
 

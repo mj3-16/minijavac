@@ -8,7 +8,6 @@ public class Class extends Node implements BasicType {
   private final String name;
   public final List<Field> fields;
   public final List<Method> methods;
-  private final SourceRange range;
 
   /**
    * Constructs a new class node.
@@ -22,7 +21,6 @@ public class Class extends Node implements BasicType {
     this.name = name;
     this.fields = Collections.unmodifiableList(fields);
     this.methods = Collections.unmodifiableList(methods);
-    this.range = range;
   }
 
   public <T> T acceptVisitor(Visitor<T> visitor) {
@@ -32,11 +30,6 @@ public class Class extends Node implements BasicType {
   @Override
   public String name() {
     return this.name;
-  }
-
-  @Override
-  public SourceRange range() {
-    return range;
   }
 
   @Override
