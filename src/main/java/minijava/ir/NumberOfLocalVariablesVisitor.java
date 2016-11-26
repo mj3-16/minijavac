@@ -5,7 +5,9 @@ import minijava.ast.BlockStatement;
 import minijava.ast.Expression;
 import minijava.ast.Statement;
 
-/** Created by parttimenerd on 23.11.16. */
+import java.util.ArrayList;
+import java.util.List;
+
 public class NumberOfLocalVariablesVisitor
     implements Block.Visitor<Integer>,
         Expression.Visitor<Integer>,
@@ -13,10 +15,19 @@ public class NumberOfLocalVariablesVisitor
   @Override
   public Integer visitBlock(Block that) {
     int c = 0;
+    List<Integer> localVarNums = new ArrayList<>();
     for (BlockStatement statement : that.statements) {
-      c += statement.acceptVisitor(this); // TODO: improve algorithm
+      if (statement instanceof Block
+              || statement instanceof Statement.While
+              || statement instanceof Statement.If){
+        /* Statements that open a new scope */
+        localVarNums.add(c + statement.acceptVisitor(this));
+      } else {
+        c += statement.acceptVisitor(this);
+      }
     }
-    return c;
+    localVarNums.add(c);
+    return localVarNums.stream().max(Integer::compare).get();
   }
 
   @Override
@@ -52,7 +63,6 @@ public class NumberOfLocalVariablesVisitor
   public Integer visitBinaryOperator(Expression.BinaryOperator that) {
     return 0;
   }
-
   @Override
   public Integer visitUnaryOperator(Expression.UnaryOperator that) {
     return 0;
