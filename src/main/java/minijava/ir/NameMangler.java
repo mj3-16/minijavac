@@ -15,8 +15,8 @@ public class NameMangler {
     return combineWithSep(mangleClassName(className), "M", replaceSep(methodName));
   }
 
-  public static String mangleInstanceFieldName(String className, String methodName) {
-    return combineWithSep(mangleClassName(className), "I", replaceSep(methodName));
+  public static String mangleInstanceFieldName(String className, String fieldName) {
+    return combineWithSep(mangleClassName(className), "I", replaceSep(fieldName));
   }
 
   private static String replaceSep(String name) {

@@ -111,7 +111,9 @@ public class IREmitter
   private Entity addFieldDecl(Field f) {
     Type type = f.type.acceptVisitor(this);
     ClassType definingClass = classTypes.get(f.definingClass.def);
-    return new Entity(definingClass, f.name(), type);
+    Entity fieldEnt = new Entity(definingClass, f.name(), type);
+    fieldEnt.setLdIdent(NameMangler.mangleInstanceFieldName(definingClass.getName(), f.name()));
+    return fieldEnt;
   }
 
   /**
@@ -142,8 +144,10 @@ public class IREmitter
 
     Type methodType = new MethodType(parameterTypes.toArray(new Type[0]), returnTypes);
 
-    // TODO: Set mangled names with Entity.setLdIdent()
-    return new Entity(definingClass, m.name(), methodType);
+    // Set the mangled name
+    Entity methodEnt = new Entity(definingClass, m.name(), methodType);
+    methodEnt.setLdIdent(NameMangler.mangleMethodName(definingClass.getName(), m.name()));
+    return methodEnt;
   }
 
   private void emitBody(Method m) {
@@ -225,7 +229,7 @@ public class IREmitter
       return null;
     }
     for (int i = 0; i < that.dimension; i++) {
-      type = new PointerType(type);
+      type = new ArrayType(type, -1);
     }
     return type;
   }
@@ -320,7 +324,11 @@ public class IREmitter
       retVals.add(that.expression.get().acceptVisitor(this));
     }
     Node ret = construction.newReturn(construction.getCurrentMem(), retVals.toArray(new Node[0]));
+    Node memNode =
+        construction.newProj(
+            construction.getCurrentMem(), Mode.getX(), that.expression.isPresent() ? 1 : 0);
     // TODO: do we need to setCurrentMem? If so, what if the return type is void?
+    construction.setCurrentMem(memNode);
     graph.getEndBlock().addPred(ret);
 
     // No code should follow a return statement.
