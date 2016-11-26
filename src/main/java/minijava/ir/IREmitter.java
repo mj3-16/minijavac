@@ -6,6 +6,7 @@ import firm.Program;
 import firm.Type;
 import firm.bindings.binding_ircons;
 import firm.nodes.*;
+import java.io.IOException;
 import java.util.*;
 import java.util.function.Function;
 import minijava.ast.*;
@@ -23,12 +24,14 @@ public class IREmitter
         Expression.Visitor<Node>,
         BlockStatement.Visitor<Integer> {
 
-  /** TODO: delete this, irrelevant to the visiting logic */
   private minijava.ast.Program program;
 
   private Map<Class, ClassType> classTypes = new IdentityHashMap<>();
   private Map<Method, Entity> methods = new IdentityHashMap<>();
   private Map<Field, Entity> fields = new IdentityHashMap<>();
+  private Node printlnSymConst;
+  private Entity printlnEnt;
+
   /**
    * Maps local variable definitions such as parameters and ... local variable definitions to their
    * assigned index. Which is a firm thing.
@@ -85,7 +88,6 @@ public class IREmitter
     fields.clear();
     for (Class decl : that.declarations) {
       ClassType classType = new ClassType(decl.name());
-      // TODO: Set mangled names with Entity.setLdIdent()
       classTypes.put(decl, classType);
     }
     for (Class decl : that.declarations) {
@@ -99,8 +101,9 @@ public class IREmitter
     for (ClassType classType : classTypes.values()) {
       // TODO: Not sure what else needs to be done for layout. Look up the docs
       // Does this even belong here?
-      classType.layoutFields();
-      classType.finishLayout();
+      // I don't think so, it belongs into the lower method
+      //classType.layoutFields();
+      //classType.finishLayout();
     }
     for (Class klass : that.declarations) {
       klass.methods.forEach(this::emitBody);
@@ -121,21 +124,17 @@ public class IREmitter
    * constructing an entity.
    */
   private Entity addMethodDecl(Method m) {
+    if (m.isStatic) {
+      return addMainMethodDecl(m);
+    }
     ClassType definingClass = classTypes.get(m.definingClass.def);
     ArrayList<Type> parameterTypes = new ArrayList<>();
 
-    if (m.isStatic) {
-      // main has this annoying void parameter hack. Let's compensate
-      // for that.
-      Type arrayOfString = ptrTo(ptrTo(new PrimitiveType(Mode.getBu())));
-      parameterTypes.add(arrayOfString);
-    } else {
-      // Add the this pointer. It's always parameter 0, so access will be trivial.
-      parameterTypes.add(ptrTo(definingClass));
-      for (LocalVariable p : m.parameters) {
-        // In the body, we need to refer to local variables by index, so we save that mapping.
-        parameterTypes.add(p.type.acceptVisitor(this));
-      }
+    // Add the this pointer. It's always parameter 0, so access will be trivial.
+    parameterTypes.add(ptrTo(definingClass));
+    for (LocalVariable p : m.parameters) {
+      // In the body, we need to refer to local variables by index, so we save that mapping.
+      parameterTypes.add(p.type.acceptVisitor(this));
     }
 
     // The visitor returns null if that.returnType was void.
@@ -150,6 +149,14 @@ public class IREmitter
     return methodEnt;
   }
 
+  private Entity addMainMethodDecl(Method m) {
+    MethodType type = new MethodType(0, 0);
+    SegmentType global = Program.getGlobalType();
+    Entity mainEnt = new Entity(global, "main", type);
+    mainEnt.setLdIdent("main");
+    return mainEnt;
+  }
+
   private void emitBody(Method m) {
     // graph and construction are irrelevant to anything before or after.
     // It's more like 2 additional parameters to the visitor.
@@ -157,9 +164,20 @@ public class IREmitter
     graph = constructEmptyGraphFromPrototype(m);
     construction = new Construction(graph);
 
-    connectParametersToIRVariables(m);
+    if (!m.isStatic) {
+      connectParametersToIRVariables(m);
+    } else {
+      MethodType printlnType = new MethodType(new Type[] {INT_TYPE}, new Type[] {});
+      printlnEnt = new Entity(Program.getGlobalType(), "print_int", printlnType);
+      printlnSymConst = construction.newAddress(printlnEnt);
+    }
 
     m.body.acceptVisitor(this);
+
+    if (m.returnType.basicType.name().equals("void")) {
+      // TODO handle case in which no return method exists in a method
+      visitReturn(new Statement.Return(null, SourceRange.FIRST_CHAR));
+    }
 
     finishGraphAndHandleFallThrough(m);
   }
@@ -324,11 +342,13 @@ public class IREmitter
       retVals.add(that.expression.get().acceptVisitor(this));
     }
     Node ret = construction.newReturn(construction.getCurrentMem(), retVals.toArray(new Node[0]));
-    Node memNode =
-        construction.newProj(
-            construction.getCurrentMem(), Mode.getX(), that.expression.isPresent() ? 1 : 0);
-    // TODO: do we need to setCurrentMem? If so, what if the return type is void?
-    construction.setCurrentMem(memNode);
+    if (that.expression.isPresent()) {
+      Node memNode =
+          construction.newProj(
+              construction.getCurrentMem(), Mode.getX(), that.expression.isPresent() ? 1 : 0);
+      // TODO: do we need to setCurrentMem? If so, what if the return type is void?
+      construction.setCurrentMem(memNode);
+    }
     graph.getEndBlock().addPred(ret);
 
     // No code should follow a return statement.
@@ -410,6 +430,11 @@ public class IREmitter
 
     switch (that.op) {
       case NEGATE:
+        if (that.expression instanceof Expression.IntegerLiteral) {
+          int lit = Integer.parseInt("-" + ((Expression.IntegerLiteral) that.expression).literal);
+          storeInCurrentLval = null;
+          return construction.newConst(lit, accessModeForType(minijava.ast.Type.INT));
+        }
         return construction.newMinus(expression);
       case NOT:
         return construction.newNot(expression);
@@ -420,9 +445,8 @@ public class IREmitter
 
   @Override
   public Node visitMethodCall(Expression.MethodCall that) {
-    if (that.self.type == minijava.ast.Type.SYSTEM_OUT) {
-      // TODO: handle a special call to print_int, like
-      // it's also done for calloc
+    if (that.self.type == minijava.ast.Type.SYSTEM_OUT && that.method.name().equals("println")) {
+      return visitSystemOutPrintln(that.arguments.get(0));
     }
 
     Entity method = methods.get(that.method.def);
@@ -440,6 +464,19 @@ public class IREmitter
     Node f = construction.newMember(thisVar, method);
     // TODO: What about void return values?
     return callFunction(f, args.toArray(new Node[0]), returnType);
+  }
+
+  private Node visitSystemOutPrintln(Expression argument) {
+    Node call =
+        construction.newCall(
+            construction.getCurrentMem(),
+            printlnSymConst,
+            new Node[] {argument.acceptVisitor(this)},
+            printlnEnt.getType());
+
+    Node callMem = construction.newProj(call, Mode.getM(), Call.pnM);
+    construction.setCurrentMem(callMem);
+    return call;
   }
 
   @Override
@@ -520,8 +557,8 @@ public class IREmitter
 
   private Node callFunction(Node func, Node[] args, Type elementType) {
     Node call = construction.newCall(construction.getCurrentMem(), func, args, ptrTo(elementType));
-    construction.setCurrentMem(construction.newProj(call, Mode.getM(), Call.pnM));
-    Node result = construction.newProj(call, Mode.getT(), Call.pnTResult);
+    construction.setCurrentMem(construction.newProj(call, Mode.getM(), Call.pnTResult));
+    Node result = construction.newProj(call, Mode.getT(), 1);
     return construction.newProj(result, Mode.getP(), 0);
   }
 
@@ -547,7 +584,7 @@ public class IREmitter
 
   @Override
   public Node visitIntegerLiteral(Expression.IntegerLiteral that) {
-    // TODO: the 0x80000000 case
+    // We handled the 0x80000000 case while visiting the unary minus
     int lit = Integer.parseInt(that.literal);
     storeInCurrentLval = null;
     return construction.newConst(lit, accessModeForType(minijava.ast.Type.INT));
@@ -601,5 +638,69 @@ public class IREmitter
       localVarIndexes.put(var, free);
       return free;
     }
+  }
+
+  public void lower() {
+    layoutTypes();
+  }
+
+  /** Copied from the jFirm repo's Lower class */
+  private void layoutClass(ClassType cls) {
+    if (cls.equals(Program.getGlobalType())) return;
+
+    for (int m = 0; m < cls.getNMembers(); /* nothing */ ) {
+      Entity member = cls.getMember(m);
+      Type type = member.getType();
+      if (!(type instanceof MethodType)) {
+        ++m;
+        continue;
+      }
+
+      /* methods get implemented outside the class, move the entity */
+      member.setOwner(Program.getGlobalType());
+    }
+
+    cls.layoutFields();
+  }
+
+  /** Copied from the jFirm repo's Lower class */
+  private void layoutTypes() {
+    for (Type type : Program.getTypes()) {
+      System.out.println("# " + type);
+    }
+    for (Type type : Program.getTypes()) {
+      if (type instanceof ClassType) {
+        layoutClass((ClassType) type);
+      }
+      System.out.println(type);
+      type.finishLayout();
+    }
+  }
+
+  public void assemble(String outFile) throws IOException {
+    /* based on BrainFuck.main */
+    /* dump all firm graphs to disk */
+    for (Graph g : Program.getGraphs()) {
+      Dump.dumpGraph(g, "-finished");
+    }
+
+    /* transform to x86 assembler */
+    Backend.createAssembler("test.s", "<builtin>");
+    /* assembler */
+    Process p =
+        Runtime.getRuntime().exec(String.format("gcc -m32 mj_runtime.c %s.s -o %s", outFile));
+    int res = -1;
+    try {
+      res = p.waitFor();
+    } catch (Throwable t) {
+    }
+    if (res != 0) System.err.println("Warning: Linking step failed");
+  }
+
+  public static void compile(minijava.ast.Program program, String outFile) throws IOException {
+    IREmitter emitter = new IREmitter(program);
+    emitter.run(true);
+    emitter.lower();
+    emitter.assemble(outFile);
   }
 }
