@@ -339,18 +339,12 @@ public class IREmitter
 
   @Override
   public Void visitReturn(Statement.Return that) {
-    List<Node> retVals = new ArrayList<>(1);
+    Node[] retVals = {};
     if (that.expression.isPresent()) {
-      retVals.add(that.expression.get().acceptVisitor(this));
+      retVals = new Node[] {that.expression.get().acceptVisitor(this)};
     }
-    Node ret = construction.newReturn(construction.getCurrentMem(), retVals.toArray(new Node[0]));
-    if (that.expression.isPresent()) {
-      Node memNode =
-          construction.newProj(
-              construction.getCurrentMem(), Mode.getX(), that.expression.isPresent() ? 1 : 0);
-      // TODO: do we need to setCurrentMem? If so, what if the return type is void?
-      construction.setCurrentMem(memNode);
-    }
+    Node ret = construction.newReturn(construction.getCurrentMem(), retVals);
+    // Judging from other examples, we don't need to set currentmem here.
     graph.getEndBlock().addPred(ret);
 
     // No code should follow a return statement.
