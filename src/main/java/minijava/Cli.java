@@ -76,7 +76,7 @@ class Cli {
       } else if (params.check) {
         check(in);
       } else if (params.compile) {
-        compile(in, path.getFileName().toString());
+        compile(in, path.toString());
       }
     } catch (AccessDeniedException e) {
       err.println("error: access to file '" + path + "' was denied");
