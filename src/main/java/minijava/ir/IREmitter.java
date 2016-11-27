@@ -1,18 +1,26 @@
 package minijava.ir;
 
+import com.google.common.io.Files;
 import firm.*;
 import firm.Program;
 import firm.Type;
 import firm.bindings.binding_ircons;
 import firm.nodes.*;
+
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.*;
 import java.util.function.Function;
+import java.util.stream.Stream;
+
 import minijava.ast.*;
 import minijava.ast.Class;
 import minijava.ast.Field;
 import minijava.ast.Method;
 import minijava.util.SourceRange;
+import org.apache.commons.io.FileUtils;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /** Emits an intermediate representation for a given minijava Program. */
@@ -677,8 +685,11 @@ public class IREmitter
     /* transform to x86 assembler */
     Backend.createAssembler(String.format("%s.s", outFile), "<builtin>");
     /* assembler */
+
+    File runtime = getRuntimeFile();
+
     Process p =
-        Runtime.getRuntime().exec(String.format("gcc mj_runtime.c %s.s -o %s", outFile, outFile));
+        Runtime.getRuntime().exec(String.format("gcc %s %s.s -o %s", runtime.getAbsolutePath(), outFile, outFile));
     int c;
     while ((c = p.getErrorStream().read()) != -1) {
       System.out.print(Character.toString((char) c));
@@ -689,6 +700,18 @@ public class IREmitter
     } catch (Throwable t) {
     }
     if (res != 0) System.err.println("Warning: Linking step failed");
+  }
+
+  @NotNull
+  private static File getRuntimeFile() throws IOException {
+    File runtime = new File(Files.createTempDir(), "mj_runtime.c");
+    runtime.deleteOnExit();
+    InputStream s = ClassLoader.getSystemResourceAsStream("mj_runtime.c");
+    if (s == null) {
+      throw new RuntimeException("");
+    }
+    FileUtils.copyInputStreamToFile(s, runtime);
+    return runtime;
   }
 
   public static void compile(minijava.ast.Program program, String outFile) throws IOException {
