@@ -169,7 +169,12 @@ public class IREmitter
   private Graph constructEmptyGraphFromPrototype(Method that) {
     // So we got our method prototype from the previous pass. Now for the body
     int locals = that.body.acceptVisitor(new NumberOfLocalVariablesVisitor());
-    return new Graph(methods.get(that), that.parameters.size() + locals);
+    if (!that.isStatic) {
+      // We have parameters only when the method is not main.
+      // Since that.parameters doesn't contain an entry for this, we take its size +1.
+      locals += that.parameters.size() + 1;
+    }
+    return new Graph(methods.get(that), locals);
   }
 
   /**
@@ -182,6 +187,8 @@ public class IREmitter
 
     localVarIndexes.clear();
 
+    Node args = graph.getArgs();
+
     // First a hack for the this parameter. We want it to get allocated index 0, which will be the
     // case if we force its LocalVarIndex first. We do so by allocating an index for a dummy LocalVariable.
     minijava.ast.Type fakeThisType =
@@ -190,8 +197,9 @@ public class IREmitter
     int thisIdx = getLocalVarIndex(new LocalVariable(fakeThisType, null, SourceRange.FIRST_CHAR));
     // We rely on this when accessing this.
     assert thisIdx == 0;
+    construction.setVariable(
+        thisIdx, construction.newProj(args, accessModeForType(fakeThisType), thisIdx));
 
-    Node args = graph.getArgs();
     for (LocalVariable p : that.parameters) {
       // we just made this connection in the loop above
       // Also effectively this should just count up.
