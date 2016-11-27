@@ -201,7 +201,7 @@ public class IREmitter
     if (!construction.isUnreachable()) {
       // Add an implicit return statement at the end of the block,
       // iff we have return type void. In which case returnTypes has length 0.
-      if (that.returnType.basicType.name.equals("void")) {
+      if (that.returnType.equals(minijava.ast.Type.VOID)) {
         Node ret = construction.newReturn(construction.getCurrentMem(), new Node[0]);
         construction.setUnreachable();
         graph.getEndBlock().addPred(ret);
@@ -647,7 +647,8 @@ public class IREmitter
     Backend.createAssembler("test.s", "<builtin>");
     /* assembler */
     Process p =
-        Runtime.getRuntime().exec(String.format("gcc -m32 mj_runtime.c %s.s -o %s", outFile, outFile));
+        Runtime.getRuntime()
+            .exec(String.format("gcc -m32 mj_runtime.c %s.s -o %s", outFile, outFile));
     int res = -1;
     try {
       res = p.waitFor();

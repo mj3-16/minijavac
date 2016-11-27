@@ -46,6 +46,24 @@ public class Type extends Node {
   }
 
   @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+
+    Type type = (Type) o;
+
+    if (dimension != type.dimension) return false;
+    return basicType != null ? basicType.equals(type.basicType) : type.basicType == null;
+  }
+
+  @Override
+  public int hashCode() {
+    int result = basicType != null ? basicType.hashCode() : 0;
+    result = 31 * result + dimension;
+    return result;
+  }
+
+  @Override
   public String toString() {
     return this.acceptVisitor(new PrettyPrinter()).toString();
   }
