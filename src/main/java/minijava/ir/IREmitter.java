@@ -34,6 +34,8 @@ public class IREmitter
     InitFirm.init();
     INT_TYPE = new PrimitiveType(Mode.getIs());
     BOOLEAN_TYPE = new PrimitiveType(Mode.getBu());
+    // Use 64bit pointers by default
+    Mode.setDefaultModeP(Mode.createReferenceMode("_64bit", Mode.Arithmetic.TwosComplement, 64, 1));
   }
 
   private final IdentityHashMap<Class, ClassType> classTypes = new IdentityHashMap<>();
@@ -64,8 +66,7 @@ public class IREmitter
    * lot of work (e.g. computing array offsets, etc.) in a mechanism without this variable, we
    * abstract actual assignment out into a function.
    */
-  @Nullable
-  private Function<Node, Node> storeInCurrentLval;
+  @Nullable private Function<Node, Node> storeInCurrentLval;
 
   public static void main(String[] main_args) {}
 
@@ -343,10 +344,8 @@ public class IREmitter
     // Evaluation order demands that we visit the right node first
     // Consider side-effects like assignment: x = (x = 3) + 1; should assign 4 to x,
     // so we have evaluate left after right.
-    Node right =
-        construction.newConv(that.right.acceptVisitor(this), accessModeForType(that.right.type));
-    Node left =
-        construction.newConv(that.left.acceptVisitor(this), accessModeForType(that.left.type));
+    Node right = that.right.acceptVisitor(this);
+    Node left = that.left.acceptVisitor(this);
 
     // Save the store emitter of the left expression (if there's one, e.g. iff it's an lval).
     // See the comments on storeInCurrentLval.
@@ -368,17 +367,25 @@ public class IREmitter
       case MULTIPLY:
         return construction.newMul(left, right);
       case DIVIDE:
-        return construction.newDiv(
-            construction.getCurrentMem(),
-            left,
-            right,
-            binding_ircons.op_pin_state.op_pin_state_exc_pinned);
+        // A `div` operation results in an element of the divmod tuple in memory
+        Node divNode =
+            construction.newDiv(
+                construction.getCurrentMem(),
+                left,
+                right,
+                binding_ircons.op_pin_state.op_pin_state_pinned);
+        // Fetch the result from memory
+        return construction.newProj(divNode, INT_TYPE.getMode(), Div.pnRes);
       case MODULO:
-        return construction.newMod(
-            construction.getCurrentMem(),
-            left,
-            right,
-            binding_ircons.op_pin_state.op_pin_state_exc_pinned);
+        // A `mod` operation results in an element of the divmod tuple in memory
+        Node modNode =
+            construction.newMod(
+                construction.getCurrentMem(),
+                left,
+                right,
+                binding_ircons.op_pin_state.op_pin_state_pinned);
+        // Fetch the result from memory
+        return construction.newProj(modNode, INT_TYPE.getMode(), Mod.pnRes);
       case OR:
         return construction.newOr(left, right);
       case AND:
@@ -651,8 +658,8 @@ public class IREmitter
     Process p =
         Runtime.getRuntime().exec(String.format("gcc mj_runtime.c %s.s -o %s", outFile, outFile));
     int c;
-    while ((c = p.getErrorStream().read()) != -1){
-      System.out.print(Character.toString((char)c));
+    while ((c = p.getErrorStream().read()) != -1) {
+      System.out.print(Character.toString((char) c));
     }
     int res = -1;
     try {
