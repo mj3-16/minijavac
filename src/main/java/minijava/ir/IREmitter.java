@@ -446,9 +446,6 @@ public class IREmitter
       args.add(a.acceptVisitor(this));
     }
 
-    System.out.println(that.method.name);
-    System.out.println(that.method.def);
-    System.out.println(that.method.def.returnType);
     Type returnType = that.method.def.returnType.acceptVisitor(this);
     storeInCurrentLval = null;
     return callFunction(method, args.toArray(new Node[0]), returnType);
@@ -486,12 +483,10 @@ public class IREmitter
     Node self = that.self.acceptVisitor(this);
     Entity field = fields.get(that.field.def);
     Node absOffset = construction.newMember(self, field);
-    storeInCurrentLval =
-        (Node val) -> {
-          Node store = construction.newStore(construction.getCurrentMem(), absOffset, val);
-          construction.setCurrentMem(construction.newProj(store, Mode.getM(), Store.pnM));
-          return val;
-        };
+
+    // We store val at the absOffset
+    storeInCurrentLval = (Node val) -> store(absOffset, val);
+
     return load(absOffset, field.getType().getMode());
   }
 
@@ -509,16 +504,18 @@ public class IREmitter
     Node relOffset = construction.newMul(sizeNode, index);
     Node absOffset = construction.newAdd(array, relOffset);
     Mode mode = accessModeForType(elementType);
-    storeInCurrentLval =
-        (Node val) -> {
-          // We store val at the absOffset
-          Node store = construction.newStore(construction.getCurrentMem(), absOffset, val);
-          construction.setCurrentMem(construction.newProj(store, Mode.getM(), Store.pnM));
-          return val;
-        };
+
+    // We store val at the absOffset
+    storeInCurrentLval = (Node val) -> store(absOffset, val);
 
     // Now just dereference the computed offset
     return load(absOffset, mode);
+  }
+
+  private Node store(Node address, Node value) {
+    Node store = construction.newStore(construction.getCurrentMem(), address, value);
+    construction.setCurrentMem(construction.newProj(store, Mode.getM(), Store.pnM));
+    return value;
   }
 
   private Node load(Node address, Mode mode) {

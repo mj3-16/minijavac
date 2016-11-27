@@ -763,7 +763,6 @@ public class SemanticAnalyzer
     if (fieldOpt.isPresent() && !currentMethod.isStatic) {
       // Analyze as if there was a preceding 'this.' in front of the variable
       // The field is there, so we can let errors pass through without causing confusion
-      System.out.println(that.var.name);
       return new Expression.FieldAccess(THIS_EXPR, new Ref<>(fieldOpt.get()), that.range())
           .acceptVisitor(this);
     }
