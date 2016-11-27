@@ -32,13 +32,6 @@ public class IREmitter
   private static final Type INT_TYPE;
   private static final Type BOOLEAN_TYPE;
 
-  /** The calloc function, so we don't have to create the entity myriad times */
-  private static final Entity calloc = null;
-
-  private static final Entity callocType = null;
-  private static final Entity println = null;
-  private static final Entity printlnType = null;
-
   static {
     // If we consistently call InitFirm.init() throughout our code, we guarantee that
     // Firm.init() will be called exactly once, even if e.g. the test suite also needs to
@@ -48,11 +41,6 @@ public class IREmitter
     BOOLEAN_TYPE = new PrimitiveType(Mode.getBu());
     // Use 64bit pointers by default
     Mode.setDefaultModeP(Mode.createReferenceMode("_64bit", Mode.Arithmetic.TwosComplement, 64, 1));
-
-    //MethodType callocType =
-    //        new MethodType(new Type[] {size_t, size_t}, new Type[] {ptrTo(elementType)});
-    //Entity calloc = new Entity(Program.getGlobalType(), "calloc", callocType);
-
   }
 
   private final IdentityHashMap<Class, ClassType> classTypes = new IdentityHashMap<>();
