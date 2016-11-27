@@ -524,10 +524,7 @@ public class IREmitter
   public Node visitNewObject(Expression.NewObject that) {
     Type type = that.type.acceptVisitor(this);
     storeInCurrentLval = null;
-    // See calloc for the rationale behind Mode.getP()
-    Node calloced = calloc(construction.newConst(1, Mode.getP()), type);
-    System.out.println("calloced Mode: " + calloced.getMode());
-    return calloced;
+    return calloc(construction.newConst(1, Mode.getIs()), type);
   }
 
   @Override
@@ -547,11 +544,11 @@ public class IREmitter
     Node numNode = construction.newConv(num, Mode.getP());
     // `getSize` returns the size in bytes
     Node sizeNode = construction.newConst(elementType.getSize(), Mode.getP());
-    Type size_t = new PrimitiveType(Mode.getP());
+    Type ptr_type = new PrimitiveType(Mode.getP());
     MethodType callocType =
-        new MethodType(new Type[] {size_t, size_t}, new Type[] {ptrTo(elementType)});
+        new MethodType(new Type[] {ptr_type, ptr_type}, new Type[] {ptrTo(elementType)});
     Entity calloc = new Entity(Program.getGlobalType(), "calloc", callocType);
-    return callFunction(calloc, new Node[] {numNode, sizeNode}, callocType);
+    return callFunction(calloc, new Node[] {numNode, sizeNode}, ptr_type);
   }
 
   @Override
