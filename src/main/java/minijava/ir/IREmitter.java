@@ -31,16 +31,23 @@ public class IREmitter
 
   private static final Type INT_TYPE;
   private static final Type BOOLEAN_TYPE;
+  private static final Type PTR_TYPE;
+  private static final MethodType CALLOC_TYPE;
+  private static final Entity CALLOC;
 
   static {
     // If we consistently call InitFirm.init() throughout our code, we guarantee that
     // Firm.init() will be called exactly once, even if e.g. the test suite also needs to
     // call Firm.init().
     InitFirm.init();
+    // Use 64bit pointers by default
+    // I don't see a reason we should, though.
+    //Mode.setDefaultModeP(Mode.createReferenceMode("_64bit", Mode.Arithmetic.TwosComplement, 64, 1));
     INT_TYPE = new PrimitiveType(Mode.getIs());
     BOOLEAN_TYPE = new PrimitiveType(Mode.getBu());
-    // Use 64bit pointers by default
-    Mode.setDefaultModeP(Mode.createReferenceMode("_64bit", Mode.Arithmetic.TwosComplement, 64, 1));
+    PTR_TYPE = new PrimitiveType(Mode.getP());
+    CALLOC_TYPE = new MethodType(new Type[] {PTR_TYPE, PTR_TYPE}, new Type[] {PTR_TYPE});
+    CALLOC = new Entity(Program.getGlobalType(), "calloc", CALLOC_TYPE);
   }
 
   private final IdentityHashMap<Class, ClassType> classTypes = new IdentityHashMap<>();
@@ -85,6 +92,12 @@ public class IREmitter
       classTypes.put(decl, classType);
       for (Field f : decl.fields) {
         fields.put(f, addFieldDecl(f));
+      }
+      if (decl.fields.size() == 0) {
+        // We have to prevent class types of length 0, so we insert an unreachable field.
+        String unusableFieldName = "0padding"; // unusable because of digit prefix
+        Entity fieldEnt = new Entity(classType, unusableFieldName, BOOLEAN_TYPE);
+        fieldEnt.setLdIdent(NameMangler.mangleInstanceFieldName(decl.name(), unusableFieldName));
       }
       for (Method m : decl.methods) {
         methods.put(m, addMethodDecl(m));
@@ -515,10 +528,6 @@ public class IREmitter
     return load(address, accessModeForType(elementType));
   }
 
-  private static int getSafeSizeOfType(Type type) {
-    return Math.max(1, type.getSize());
-  }
-
   private Node store(Node address, Node value) {
     Node store = construction.newStore(construction.getCurrentMem(), address, value);
     construction.setCurrentMem(construction.newProj(store, Mode.getM(), Store.pnM));
@@ -535,31 +544,34 @@ public class IREmitter
   public Node visitNewObject(Expression.NewObject that) {
     Type type = that.type.acceptVisitor(this);
     storeInCurrentLval = null;
-    return calloc(construction.newConst(1, Mode.getIs()), type);
+    Node num = construction.newConst(1, Mode.getP());
+    Node size = construction.newSize(Mode.getIs(), type);
+    return calloc(num, size);
   }
 
   @Override
   public Node visitNewArray(Expression.NewArray that) {
-    Type elementType = that.elementType.acceptVisitor(this);
-    Node size = that.size.acceptVisitor(this);
+    // The number of array elements (the name clash is real)
+    Node num = that.size.acceptVisitor(this);
+    // The size of each array element. We can't just visit NewArray.elementType
+    // because this will do the wrong thing for classes, namely returning the size of the
+    // class. But in the class case we rather want to allocate an array of references.
+    // The access mode is really what we want to query here.
+    Type elementType = new PrimitiveType(accessModeForType(that.elementType));
+    Node size = construction.newSize(Mode.getIs(), elementType);
     storeInCurrentLval = null;
-    return calloc(size, elementType);
+    return calloc(num, size);
   }
 
-  private Node calloc(Node num, Type elementType) {
+  private Node calloc(Node num, Node size) {
     // calloc takes two parameters, for the number of elements and the size of each element.
     // both are of type size_t, so calloc expects them to be word sized. The best approximation
     // is to use the pointer (P) mode.
     // The fact that we called the array length size (which is parameter num to calloc) and
     // that here the element size is called size may be confusing, but whatever, I warned you.
     Node numNode = construction.newConv(num, Mode.getP());
-    // `getSize` returns the size in bytes
-    Node sizeNode = construction.newConst(getSafeSizeOfType(elementType), Mode.getP());
-    Type ptr_type = new PrimitiveType(Mode.getP());
-    MethodType callocType =
-        new MethodType(new Type[] {ptr_type, ptr_type}, new Type[] {ptrTo(elementType)});
-    Entity calloc = new Entity(Program.getGlobalType(), "calloc", callocType);
-    return callFunction(calloc, new Node[] {numNode, sizeNode}, ptr_type);
+    Node sizeNode = construction.newConv(size, Mode.getP());
+    return callFunction(CALLOC, new Node[] {numNode, sizeNode}, PTR_TYPE);
   }
 
   @Override
