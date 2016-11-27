@@ -505,19 +505,18 @@ public class IREmitter
     minijava.ast.Type arrayType = that.array.type;
     minijava.ast.Type elementType =
         new minijava.ast.Type(arrayType.basicType, arrayType.dimension - 1, arrayType.range());
-    int elementSize = elementType.acceptVisitor(this).getSize();
 
-    // TODO: Use Sel instead
-    Node sizeNode = construction.newConst(elementSize, accessModeForType(minijava.ast.Type.INT));
-    Node relOffset = construction.newMul(sizeNode, index);
-    Node absOffset = construction.newAdd(array, relOffset);
-    Mode mode = accessModeForType(elementType);
+    Node address = construction.newSel(array, index, arrayType.acceptVisitor(this));
 
     // We store val at the absOffset
-    storeInCurrentLval = (Node val) -> store(absOffset, val);
+    storeInCurrentLval = (Node val) -> store(address, val);
 
     // Now just dereference the computed offset
-    return load(absOffset, mode);
+    return load(address, accessModeForType(elementType));
+  }
+
+  private static int getSafeSizeOfType(Type type) {
+    return Math.max(1, type.getSize());
   }
 
   private Node store(Node address, Node value) {
@@ -555,7 +554,7 @@ public class IREmitter
     // that here the element size is called size may be confusing, but whatever, I warned you.
     Node numNode = construction.newConv(num, Mode.getP());
     // `getSize` returns the size in bytes
-    Node sizeNode = construction.newConst(elementType.getSize(), Mode.getP());
+    Node sizeNode = construction.newConst(getSafeSizeOfType(elementType), Mode.getP());
     Type ptr_type = new PrimitiveType(Mode.getP());
     MethodType callocType =
         new MethodType(new Type[] {ptr_type, ptr_type}, new Type[] {ptrTo(elementType)});
