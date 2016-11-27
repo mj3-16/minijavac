@@ -120,11 +120,23 @@ public class IREmitter
   }
 
   private Entity addFieldDecl(Field f) {
-    Type type = new PrimitiveType(accessModeForType(f.type));
+    Type type = getStorageType(f.type);
     ClassType definingClass = classTypes.get(f.definingClass.def);
     Entity fieldEnt = new Entity(definingClass, f.name(), type);
     fieldEnt.setLdIdent(NameMangler.mangleInstanceFieldName(definingClass.getName(), f.name()));
     return fieldEnt;
+  }
+
+  /**
+   * Returns the primitive type in which to store type @type@. Consider a @boolean b;@ declaration,
+   * that should have PrimitiveType(Mode.getBu());, wheras @A a;@ for a reference type @A@ should
+   * return the type of the reference, e.g. a pointer @new PrimitiveType(Mode.getP());@
+   *
+   * <p>So, for value types just return their value, for reference types return a pointer.
+   */
+  @NotNull
+  private PrimitiveType getStorageType(minijava.ast.Type type) {
+    return new PrimitiveType(storageModeForType(type));
   }
 
   /**
@@ -142,12 +154,14 @@ public class IREmitter
     parameterTypes.add(ptrTo(definingClass));
     for (LocalVariable p : m.parameters) {
       // In the body, we need to refer to local variables by index, so we save that mapping.
-      parameterTypes.add(p.type.acceptVisitor(this));
+      parameterTypes.add(getStorageType(p.type));
     }
 
     // The visitor returns null if that.returnType was void.
-    Type returnType = m.returnType.acceptVisitor(this);
-    Type[] returnTypes = returnType == null ? new Type[0] : new Type[] {returnType};
+    Type[] returnTypes = {};
+    if (!m.returnType.equals(minijava.ast.Type.VOID)) {
+      returnTypes = new Type[] {getStorageType(m.returnType)};
+    }
 
     Type methodType = new MethodType(parameterTypes.toArray(new Type[0]), returnTypes);
 
@@ -216,7 +230,7 @@ public class IREmitter
     // We rely on this when accessing this.
     assert thisIdx == 0;
     construction.setVariable(
-        thisIdx, construction.newProj(args, accessModeForType(fakeThisType), thisIdx));
+        thisIdx, construction.newProj(args, storageModeForType(fakeThisType), thisIdx));
 
     for (LocalVariable p : that.parameters) {
       // we just made this connection in the loop above
@@ -224,7 +238,7 @@ public class IREmitter
       // Also note that we are never trying to access this or the
       int idx = getLocalVarIndex(p);
       // Where is this documented anyway? SimpleIf seems to be the only reference...
-      Node param = construction.newProj(args, accessModeForType(p.type), idx);
+      Node param = construction.newProj(args, storageModeForType(p.type), idx);
       construction.setVariable(idx, param);
     }
   }
@@ -292,7 +306,7 @@ public class IREmitter
     return classTypes.get(that);
   }
 
-  private Mode accessModeForType(minijava.ast.Type type) {
+  private Mode storageModeForType(minijava.ast.Type type) {
     if (type.dimension > 0) {
       return Mode.getP();
     }
@@ -445,7 +459,7 @@ public class IREmitter
       case NEGATE:
         if (that.expression instanceof Expression.IntegerLiteral) {
           int lit = Integer.parseInt("-" + ((Expression.IntegerLiteral) that.expression).literal);
-          return construction.newConst(lit, accessModeForType(minijava.ast.Type.INT));
+          return construction.newConst(lit, storageModeForType(minijava.ast.Type.INT));
         }
         return construction.newMinus(expression);
       case NOT:
@@ -472,13 +486,17 @@ public class IREmitter
       args.add(a.acceptVisitor(this));
     }
 
-    Type returnType = that.method.def.returnType.acceptVisitor(this);
     storeInCurrentLval = null;
-    return callFunction(method, args.toArray(new Node[0]), returnType);
+    Node call = callFunction(method, args.toArray(new Node[0]));
+    minijava.ast.Type returnType = that.method.def.returnType;
+    if (!returnType.equals(minijava.ast.Type.VOID)) {
+      return unpackCallResult(call, storageModeForType(returnType));
+    }
+    return call;
   }
 
   @Nullable
-  private Node callFunction(Entity func, Node[] args, @Nullable Type returnType) {
+  private Node callFunction(Entity func, Node[] args) {
     // A call node expects an address that it can call
     Node funcAddress = construction.newAddress(func);
     // the last argument is (according to the documentation) the type of the called procedure
@@ -487,17 +505,19 @@ public class IREmitter
     // Set a new memory dependency for the result
     construction.setCurrentMem(construction.newProj(call, Mode.getM(), Call.pnM));
 
-    if (returnType != null) { // handle non void return case
-      // a method returns a tuple
-      Node resultTuple = construction.newProj(call, Mode.getT(), Call.pnTResult);
-      // at index 0 this tuple contains the result
-      return construction.newProj(resultTuple, returnType.getMode(), 0);
-    }
-    return null; // the result shouldn't be used anywhere, therefore returning `null` is okay
+    // unpacking the result needs to be done separately with `unpackCallResult`
+    return call;
+  }
+
+  private Node unpackCallResult(Node call, Mode mode) {
+    // a method returns a tuple
+    Node resultTuple = construction.newProj(call, Mode.getT(), Call.pnTResult);
+    // at index 0 this tuple contains the result
+    return construction.newProj(resultTuple, mode, 0);
   }
 
   private Node visitSystemOutPrintln(Expression argument) {
-    return callFunction(PRINT_INT, new Node[] {argument.acceptVisitor(this)}, null);
+    return callFunction(PRINT_INT, new Node[] {argument.acceptVisitor(this)});
   }
 
   @Override
@@ -527,7 +547,7 @@ public class IREmitter
     storeInCurrentLval = (Node val) -> store(address, val);
 
     // Now just dereference the computed offset
-    return load(address, accessModeForType(elementType));
+    return load(address, storageModeForType(elementType));
   }
 
   private Node store(Node address, Node value) {
@@ -559,7 +579,7 @@ public class IREmitter
     // because this will do the wrong thing for classes, namely returning the size of the
     // class. But in the class case we rather want to allocate an array of references.
     // The access mode is really what we want to query here.
-    Type elementType = new PrimitiveType(accessModeForType(that.elementType));
+    Type elementType = getStorageType(that.elementType);
     Node size = construction.newSize(Mode.getIs(), elementType);
     storeInCurrentLval = null;
     return calloc(num, size);
@@ -573,12 +593,13 @@ public class IREmitter
     // that here the element size is called size may be confusing, but whatever, I warned you.
     Node numNode = construction.newConv(num, Mode.getP());
     Node sizeNode = construction.newConv(size, Mode.getP());
-    return callFunction(CALLOC, new Node[] {numNode, sizeNode}, PTR_TYPE);
+    Node call = callFunction(CALLOC, new Node[] {numNode, sizeNode});
+    return unpackCallResult(call, Mode.getP());
   }
 
   @Override
   public Node visitVariable(Expression.Variable that) {
-    Mode mode = accessModeForType(that.type);
+    Mode mode = storageModeForType(that.type);
     // This will allocate a new index if necessary.
     int idx = getLocalVarIndex(that.var.def);
     storeInCurrentLval =
@@ -593,7 +614,7 @@ public class IREmitter
   public Node visitBooleanLiteral(Expression.BooleanLiteral that) {
     storeInCurrentLval = null;
     return construction.newConst(
-        that.literal ? 1 : 0, accessModeForType(minijava.ast.Type.BOOLEAN));
+        that.literal ? 1 : 0, storageModeForType(minijava.ast.Type.BOOLEAN));
   }
 
   @Override
@@ -601,7 +622,7 @@ public class IREmitter
     // We handled the 0x80000000 case while visiting the unary minus
     int lit = Integer.parseInt(that.literal);
     storeInCurrentLval = null;
-    return construction.newConst(lit, accessModeForType(minijava.ast.Type.INT));
+    return construction.newConst(lit, storageModeForType(minijava.ast.Type.INT));
   }
 
   @Override
