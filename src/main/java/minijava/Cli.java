@@ -38,6 +38,7 @@ class Cli {
                 "  --print-ast  pretty-print abstract syntax tree to stdout",
                 "  --check      parse the given file and perform semantic checks",
                 "  --compile    compile the given file",
+                "  --run        compile and run the given file",
                 "  --help       display this help and exit",
                 "",
                 "  One (and only one) of --echo, --lextest, --parsetest or --print-ast is required."
@@ -77,6 +78,8 @@ class Cli {
         check(in);
       } else if (params.compile) {
         compile(in, path.toString());
+      } else if (params.run) {
+        run(in, path.toString());
       }
     } catch (AccessDeniedException e) {
       err.println("error: access to file '" + path + "' was denied");
@@ -132,6 +135,12 @@ class Cli {
     IREmitter.compile(ast, filename.split("\\.")[0]);
   }
 
+  private void run(InputStream in, String filename) throws IOException {
+    Program ast = new Parser(new Lexer(in)).parse();
+    ast.acceptVisitor(new SemanticAnalyzer());
+    IREmitter.compileAndRun(ast, filename.split("\\.")[0]);
+  }
+
   private static class Parameters {
     private Parameters() {}
 
@@ -155,9 +164,13 @@ class Cli {
     @Parameter(names = "--check")
     boolean check;
 
-    /** True if the --check option was set */
+    /** True if the --compile option was set */
     @Parameter(names = "--compile")
     boolean compile;
+
+    /** True if the --run option was set */
+    @Parameter(names = "--run")
+    boolean run;
 
     /** True if the --help option was set */
     @Parameter(names = "--help")
@@ -177,7 +190,7 @@ class Cli {
     boolean valid() {
       return !invalid
           && (help
-              || ((Booleans.countTrue(echo, lextest, parsetest, printAst, check, compile) == 1)
+              || ((Booleans.countTrue(echo, lextest, parsetest, printAst, check, compile, run) == 1)
                   && (file != null)));
     }
 
