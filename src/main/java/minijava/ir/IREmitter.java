@@ -34,6 +34,8 @@ public class IREmitter
   private static final Type PTR_TYPE;
   private static final MethodType CALLOC_TYPE;
   private static final Entity CALLOC;
+  private static final MethodType PRINT_INT_TYPE;
+  private static final Entity PRINT_INT;
 
   static {
     // If we consistently call InitFirm.init() throughout our code, we guarantee that
@@ -46,8 +48,11 @@ public class IREmitter
     INT_TYPE = new PrimitiveType(Mode.getIs());
     BOOLEAN_TYPE = new PrimitiveType(Mode.getBu());
     PTR_TYPE = new PrimitiveType(Mode.getP());
+    // We have to initialize these exactly once because of name clashes.
     CALLOC_TYPE = new MethodType(new Type[] {PTR_TYPE, PTR_TYPE}, new Type[] {PTR_TYPE});
     CALLOC = new Entity(Program.getGlobalType(), "calloc", CALLOC_TYPE);
+    PRINT_INT_TYPE = new MethodType(new Type[] {INT_TYPE}, new Type[] {});
+    PRINT_INT = new Entity(Program.getGlobalType(), "print_int", PRINT_INT_TYPE);
   }
 
   private final IdentityHashMap<Class, ClassType> classTypes = new IdentityHashMap<>();
@@ -492,10 +497,7 @@ public class IREmitter
   }
 
   private Node visitSystemOutPrintln(Expression argument) {
-    MethodType printlnType = new MethodType(new Type[] {INT_TYPE}, new Type[] {});
-    Entity println = new Entity(Program.getGlobalType(), "print_int", printlnType);
-    Node f = construction.newAddress(println);
-    return callFunction(println, new Node[] {argument.acceptVisitor(this)}, null);
+    return callFunction(PRINT_INT, new Node[] {argument.acceptVisitor(this)}, null);
   }
 
   @Override
