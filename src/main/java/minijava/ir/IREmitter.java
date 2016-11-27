@@ -76,14 +76,17 @@ public class IREmitter
     for (Class decl : that.declarations) {
       ClassType classType = new ClassType(decl.name());
       classTypes.put(decl, classType);
-    }
-    for (Class decl : that.declarations) {
       for (Field f : decl.fields) {
         fields.put(f, addFieldDecl(f));
       }
       for (Method m : decl.methods) {
         methods.put(m, addMethodDecl(m));
       }
+      //System.out.println("# " + classType);
+      //System.out.println(classType.getSize());
+      classType.layoutFields();
+      classType.finishLayout();
+      //System.out.println(classType.getSize());
     }
     for (Class klass : that.declarations) {
       klass.methods.forEach(this::emitBody);
@@ -151,6 +154,9 @@ public class IREmitter
     m.body.acceptVisitor(this);
 
     finishGraphAndHandleFallThrough(m);
+
+    Dump.dumpGraph(graph, "--after-construction");
+    graph.check();
   }
 
   private Graph constructEmptyGraphFromPrototype(Method that) {
@@ -192,14 +198,12 @@ public class IREmitter
 
   /** Finish the graph by adding possible return statements in the case of void */
   private void finishGraphAndHandleFallThrough(Method that) {
-    construction.setCurrentBlock(graph.getEndBlock());
-
     if (!construction.isUnreachable()) {
       // Add an implicit return statement at the end of the block,
       // iff we have return type void. In which case returnTypes has length 0.
-      if (that.returnType == minijava.ast.Type.VOID) {
+      if (that.returnType.basicType.name.equals("void")) {
         Node ret = construction.newReturn(construction.getCurrentMem(), new Node[0]);
-        construction.setCurrentMem(ret);
+        construction.setUnreachable();
         graph.getEndBlock().addPred(ret);
       } else {
         // We can't just conjure a return value of arbitrary type.
@@ -208,7 +212,7 @@ public class IREmitter
       }
     }
 
-    construction.setUnreachable();
+    construction.setCurrentBlock(graph.getEndBlock());
     construction.finish();
   }
 
@@ -610,13 +614,15 @@ public class IREmitter
   }
 
   private static void lower() {
-    layoutTypes();
+    for (Type type : Program.getTypes()) {
+      if (type instanceof ClassType) {
+        lowerClass((ClassType) type);
+      }
+    }
   }
 
   /** Copied from the jFirm repo's Lower class */
-  private static void layoutClass(ClassType cls) {
-    if (cls.equals(Program.getGlobalType())) return;
-
+  private static void lowerClass(ClassType cls) {
     for (int m = 0; m < cls.getNMembers(); /* nothing */ ) {
       Entity member = cls.getMember(m);
       Type type = member.getType();
@@ -628,36 +634,20 @@ public class IREmitter
       /* methods get implemented outside the class, move the entity */
       member.setOwner(Program.getGlobalType());
     }
-
-    cls.layoutFields();
-  }
-
-  /** Copied from the jFirm repo's Lower class */
-  private static void layoutTypes() {
-    for (Type type : Program.getTypes()) {
-      System.out.println("# " + type);
-    }
-    for (Type type : Program.getTypes()) {
-      if (type instanceof ClassType) {
-        layoutClass((ClassType) type);
-      }
-      System.out.println(type);
-      type.finishLayout();
-    }
   }
 
   private static void assemble(String outFile) throws IOException {
     /* based on BrainFuck.main */
     /* dump all firm graphs to disk */
     for (Graph g : Program.getGraphs()) {
-      Dump.dumpGraph(g, "-finished");
+      Dump.dumpGraph(g, "--finished");
     }
 
     /* transform to x86 assembler */
     Backend.createAssembler("test.s", "<builtin>");
     /* assembler */
     Process p =
-        Runtime.getRuntime().exec(String.format("gcc -m32 mj_runtime.c %s.s -o %s", outFile));
+        Runtime.getRuntime().exec(String.format("gcc -m32 mj_runtime.c %s.s -o %s", outFile, outFile));
     int res = -1;
     try {
       res = p.waitFor();
@@ -670,9 +660,11 @@ public class IREmitter
     IREmitter emitter = new IREmitter();
     emitter.visitProgram(program);
     for (Graph g : Program.getGraphs()) {
-      g.check();
-      Dump.dumpGraph(g, "");
+      //g.check();
+      //binding_irgopt.remove_unreachable_code(g.ptr);
+      //binding_irgopt.remove_bads(g.ptr);
     }
+
     lower();
     assemble(outFile);
   }
