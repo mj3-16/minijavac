@@ -27,6 +27,13 @@ public class IREmitter
   private static final Type INT_TYPE;
   private static final Type BOOLEAN_TYPE;
 
+  /** The calloc function, so we don't have to create the entity myriad times */
+  private static final Entity calloc = null;
+
+  private static final Entity callocType = null;
+  private static final Entity println = null;
+  private static final Entity printlnType = null;
+
   static {
     // If we consistently call InitFirm.init() throughout our code, we guarantee that
     // Firm.init() will be called exactly once, even if e.g. the test suite also needs to
@@ -36,6 +43,11 @@ public class IREmitter
     BOOLEAN_TYPE = new PrimitiveType(Mode.getBu());
     // Use 64bit pointers by default
     Mode.setDefaultModeP(Mode.createReferenceMode("_64bit", Mode.Arithmetic.TwosComplement, 64, 1));
+
+    //MethodType callocType =
+    //        new MethodType(new Type[] {size_t, size_t}, new Type[] {ptrTo(elementType)});
+    //Entity calloc = new Entity(Program.getGlobalType(), "calloc", callocType);
+
   }
 
   private final IdentityHashMap<Class, ClassType> classTypes = new IdentityHashMap<>();
@@ -440,7 +452,8 @@ public class IREmitter
 
     List<Node> args = new ArrayList<>(that.arguments.size() + 1);
     // first argument is always this (static calls are disallowed)
-    Node thisVar = construction.getVariable(0, Mode.getP());
+    // this == that.self (X at `X.METHOD()`)
+    Node thisVar = that.self.acceptVisitor(this);
     args.add(thisVar);
     for (Expression a : that.arguments) {
       args.add(a.acceptVisitor(this));
@@ -448,16 +461,33 @@ public class IREmitter
 
     Type returnType = that.method.def.returnType.acceptVisitor(this);
     storeInCurrentLval = null;
-    Node f = construction.newMember(thisVar, method);
-    // TODO: What about void return values?
-    return callFunction(f, args.toArray(new Node[0]), returnType);
+    return callFunction(method, args.toArray(new Node[0]), returnType);
+  }
+
+  @Nullable
+  private Node callFunction(Entity func, Node[] args, @Nullable Type returnType) {
+    // A call node expects an address that it can call
+    Node funcAddress = construction.newAddress(func);
+    // the last argument is (according to the documentation) the type of the called procedure
+    Node call =
+        construction.newCall(construction.getCurrentMem(), funcAddress, args, func.getType());
+    // Set a new memory dependency for the result
+    construction.setCurrentMem(construction.newProj(call, Mode.getM(), Call.pnM));
+
+    if (returnType != null) { // handle non void return case
+      // a method returns a tuple
+      Node resultTuple = construction.newProj(call, Mode.getT(), Call.pnTResult);
+      // at index 0 this tuple contains the result
+      return construction.newProj(resultTuple, returnType.getMode(), 0);
+    }
+    return null; // the result shouldn't be used anywhere, therefore returning `null` is okay
   }
 
   private Node visitSystemOutPrintln(Expression argument) {
     MethodType printlnType = new MethodType(new Type[] {INT_TYPE}, new Type[] {});
     Entity println = new Entity(Program.getGlobalType(), "print_int", printlnType);
     Node f = construction.newAddress(println);
-    return callFunction(f, new Node[] {argument.acceptVisitor(this)}, println.getType());
+    return callFunction(println, new Node[] {argument.acceptVisitor(this)}, println.getType());
   }
 
   @Override
@@ -532,15 +562,7 @@ public class IREmitter
     MethodType callocType =
         new MethodType(new Type[] {size_t, size_t}, new Type[] {ptrTo(elementType)});
     Entity calloc = new Entity(Program.getGlobalType(), "calloc", callocType);
-    Node f = construction.newAddress(calloc);
-    return callFunction(f, new Node[] {numNode, sizeNode}, callocType);
-  }
-
-  private Node callFunction(Node func, Node[] args, Type functionType) {
-    Node call = construction.newCall(construction.getCurrentMem(), func, args, functionType);
-    construction.setCurrentMem(construction.newProj(call, Mode.getM(), Call.pnM));
-    Node result = construction.newProj(call, Mode.getT(), Call.pnTResult);
-    return construction.newProj(result, Mode.getP(), 0);
+    return callFunction(calloc, new Node[] {numNode, sizeNode}, callocType);
   }
 
   @Override
