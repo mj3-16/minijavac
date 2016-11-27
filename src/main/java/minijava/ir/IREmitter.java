@@ -32,7 +32,6 @@ public class IREmitter
     // Firm.init() will be called exactly once, even if e.g. the test suite also needs to
     // call Firm.init().
     InitFirm.init();
-    // System.out.printf("Firm Version: %1s.%2s\n", Firm.getMajorVersion(), Firm.getMinorVersion());
     INT_TYPE = new PrimitiveType(Mode.getIs());
     BOOLEAN_TYPE = new PrimitiveType(Mode.getBu());
   }
@@ -40,8 +39,6 @@ public class IREmitter
   private final IdentityHashMap<Class, ClassType> classTypes = new IdentityHashMap<>();
   private final IdentityHashMap<Method, Entity> methods = new IdentityHashMap<>();
   private final IdentityHashMap<Field, Entity> fields = new IdentityHashMap<>();
-  private Node f;
-  private Entity println;
 
   /**
    * Maps local variable definitions such as parameters and ... local variable definitions to their
@@ -87,13 +84,6 @@ public class IREmitter
       for (Method m : decl.methods) {
         methods.put(m, addMethodDecl(m));
       }
-    }
-    for (ClassType classType : classTypes.values()) {
-      // TODO: Not sure what else needs to be done for layout. Look up the docs
-      // Does this even belong here?
-      // I don't think so, it belongs into the lower method
-      //classType.layoutFields();
-      //classType.finishLayout();
     }
     for (Class klass : that.declarations) {
       klass.methods.forEach(this::emitBody);
@@ -156,16 +146,9 @@ public class IREmitter
 
     if (!m.isStatic) {
       connectParametersToIRVariables(m);
-    } else {
-
     }
 
     m.body.acceptVisitor(this);
-
-    if (m.returnType.basicType.name().equals("void")) {
-      // TODO handle case in which no return method exists in a method
-      visitReturn(new Statement.Return(null, SourceRange.FIRST_CHAR));
-    }
 
     finishGraphAndHandleFallThrough(m);
   }
@@ -181,17 +164,19 @@ public class IREmitter
    * variable stuff so that it can build up the SSA form later on.
    */
   private void connectParametersToIRVariables(Method that) {
+    // Never call this on main.
+    assert !that.isStatic;
+
     localVarIndexes.clear();
-    if (!that.isStatic) {
-      // First a hack for the this parameter. We want it to get allocated index 0, which will be the
-      // case if we force its LocalVarIndex first. We do so by allocating an index for a dummy LocalVariable.
-      minijava.ast.Type fakeThisType =
-          new minijava.ast.Type(new Ref<>(that.definingClass.def), 0, SourceRange.FIRST_CHAR);
-      // ... do this just for the allocation effect.
-      int thisIdx = getLocalVarIndex(new LocalVariable(fakeThisType, null, SourceRange.FIRST_CHAR));
-      // We rely on this when accessing this.
-      assert thisIdx == 0;
-    }
+
+    // First a hack for the this parameter. We want it to get allocated index 0, which will be the
+    // case if we force its LocalVarIndex first. We do so by allocating an index for a dummy LocalVariable.
+    minijava.ast.Type fakeThisType =
+        new minijava.ast.Type(new Ref<>(that.definingClass.def), 0, SourceRange.FIRST_CHAR);
+    // ... do this just for the allocation effect.
+    int thisIdx = getLocalVarIndex(new LocalVariable(fakeThisType, null, SourceRange.FIRST_CHAR));
+    // We rely on this when accessing this.
+    assert thisIdx == 0;
 
     Node args = graph.getArgs();
     for (LocalVariable p : that.parameters) {
@@ -235,7 +220,10 @@ public class IREmitter
       return null;
     }
     for (int i = 0; i < that.dimension; i++) {
-      type = new ArrayType(type, -1);
+      // We don't know the array statically, so just pass 0
+      // of the number of elements (which is allowed according
+      // to the docs)
+      type = new ArrayType(type, 0);
     }
     return type;
   }
@@ -455,8 +443,8 @@ public class IREmitter
 
   private Node visitSystemOutPrintln(Expression argument) {
     MethodType printlnType = new MethodType(new Type[] {INT_TYPE}, new Type[] {});
-    println = new Entity(Program.getGlobalType(), "print_int", printlnType);
-    f = construction.newAddress(println);
+    Entity println = new Entity(Program.getGlobalType(), "print_int", printlnType);
+    Node f = construction.newAddress(println);
     return callFunction(f, new Node[] {argument.acceptVisitor(this)}, println.getType());
   }
 
@@ -685,7 +673,7 @@ public class IREmitter
       g.check();
       Dump.dumpGraph(g, "");
     }
-    emitter.lower();
+    lower();
     assemble(outFile);
   }
 }
