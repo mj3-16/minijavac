@@ -1,5 +1,6 @@
 package minijava.ir;
 
+import com.sun.jna.Platform;
 import firm.*;
 import firm.Program;
 import firm.Type;
@@ -64,8 +65,7 @@ public class IREmitter
    * lot of work (e.g. computing array offsets, etc.) in a mechanism without this variable, we
    * abstract actual assignment out into a function.
    */
-  @Nullable
-  private Function<Node, Node> storeInCurrentLval;
+  @Nullable private Function<Node, Node> storeInCurrentLval;
 
   public static void main(String[] main_args) {}
 
@@ -99,7 +99,8 @@ public class IREmitter
     Type type = f.type.acceptVisitor(this);
     ClassType definingClass = classTypes.get(f.definingClass.def);
     Entity fieldEnt = new Entity(definingClass, f.name(), type);
-    fieldEnt.setLdIdent(NameMangler.mangleInstanceFieldName(definingClass.getName(), f.name()));
+    fieldEnt.setLdIdent(
+        makeLdIdent(NameMangler.mangleInstanceFieldName(definingClass.getName(), f.name())));
     return fieldEnt;
   }
 
@@ -129,15 +130,23 @@ public class IREmitter
 
     // Set the mangled name
     Entity methodEnt = new Entity(definingClass, m.name(), methodType);
-    methodEnt.setLdIdent(NameMangler.mangleMethodName(definingClass.getName(), m.name()));
+    methodEnt.setLdIdent(
+        makeLdIdent(NameMangler.mangleMethodName(definingClass.getName(), m.name())));
     return methodEnt;
+  }
+
+  private static String makeLdIdent(String str) {
+    if (Platform.isMac() || Platform.isWindows()) {
+      str = "_" + str;
+    }
+    return str;
   }
 
   private Entity addMainMethodDecl(Method m) {
     MethodType type = new MethodType(0, 0);
     SegmentType global = Program.getGlobalType();
     Entity mainEnt = new Entity(global, "main", type);
-    mainEnt.setLdIdent("main");
+    mainEnt.setLdIdent(makeLdIdent("main"));
     return mainEnt;
   }
 
@@ -651,8 +660,8 @@ public class IREmitter
     Process p =
         Runtime.getRuntime().exec(String.format("gcc mj_runtime.c %s.s -o %s", outFile, outFile));
     int c;
-    while ((c = p.getErrorStream().read()) != -1){
-      System.out.print(Character.toString((char)c));
+    while ((c = p.getErrorStream().read()) != -1) {
+      System.out.print(Character.toString((char) c));
     }
     int res = -1;
     try {
