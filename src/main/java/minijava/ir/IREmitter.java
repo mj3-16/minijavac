@@ -1,6 +1,5 @@
 package minijava.ir;
 
-import com.sun.jna.Platform;
 import firm.*;
 import firm.Program;
 import firm.Type;
@@ -101,8 +100,7 @@ public class IREmitter
     Type type = f.type.acceptVisitor(this);
     ClassType definingClass = classTypes.get(f.definingClass.def);
     Entity fieldEnt = new Entity(definingClass, f.name(), type);
-    fieldEnt.setLdIdent(
-        makeLdIdent(NameMangler.mangleInstanceFieldName(definingClass.getName(), f.name())));
+    fieldEnt.setLdIdent(NameMangler.mangleInstanceFieldName(definingClass.getName(), f.name()));
     return fieldEnt;
   }
 
@@ -132,23 +130,15 @@ public class IREmitter
 
     // Set the mangled name
     Entity methodEnt = new Entity(definingClass, m.name(), methodType);
-    methodEnt.setLdIdent(
-        makeLdIdent(NameMangler.mangleMethodName(definingClass.getName(), m.name())));
+    methodEnt.setLdIdent(NameMangler.mangleMethodName(definingClass.getName(), m.name()));
     return methodEnt;
-  }
-
-  private static String makeLdIdent(String str) {
-    if (Platform.isMac() || Platform.isWindows()) {
-      str = "_" + str;
-    }
-    return str;
   }
 
   private Entity addMainMethodDecl(Method m) {
     MethodType type = new MethodType(0, 0);
     SegmentType global = Program.getGlobalType();
     Entity mainEnt = new Entity(global, "main", type);
-    mainEnt.setLdIdent(makeLdIdent("main"));
+    mainEnt.setLdIdent(NameMangler.mangledMainMethodName());
     return mainEnt;
   }
 

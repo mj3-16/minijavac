@@ -1,5 +1,6 @@
 package minijava.ir;
 
+import com.sun.jna.Platform;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
@@ -8,7 +9,7 @@ public class NameMangler {
   private static final String SEP = "_";
 
   public static String mangleClassName(String className) {
-    return SEP + replaceSep(className);
+    return SEP + SEP + replaceSep(className);
   }
 
   public static String mangleMethodName(String className, String methodName) {
@@ -17,6 +18,13 @@ public class NameMangler {
 
   public static String mangleInstanceFieldName(String className, String fieldName) {
     return combineWithSep(mangleClassName(className), "I", replaceSep(fieldName));
+  }
+
+  public static String mangledMainMethodName() {
+    if (Platform.isMac() || Platform.isWindows()) {
+      return "_main";
+    }
+    return "main";
   }
 
   private static String replaceSep(String name) {
