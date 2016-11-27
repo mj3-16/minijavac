@@ -1,6 +1,5 @@
 package minijava.ir;
 
-import com.beust.jcommander.internal.Nullable;
 import firm.*;
 import firm.Program;
 import firm.Type;
@@ -14,6 +13,7 @@ import minijava.ast.Class;
 import minijava.ast.Field;
 import minijava.ast.Method;
 import minijava.util.SourceRange;
+import org.jetbrains.annotations.Nullable;
 
 /** Emits an intermediate representation for a given minijava Program. */
 public class IREmitter
@@ -64,7 +64,8 @@ public class IREmitter
    * lot of work (e.g. computing array offsets, etc.) in a mechanism without this variable, we
    * abstract actual assignment out into a function.
    */
-  @Nullable private Function<Node, Node> storeInCurrentLval;
+  @Nullable
+  private Function<Node, Node> storeInCurrentLval;
 
   public static void main(String[] main_args) {}
 
@@ -642,13 +643,17 @@ public class IREmitter
     for (Graph g : Program.getGraphs()) {
       Dump.dumpGraph(g, "--finished");
     }
-
+    /* use the amd64 backend */
+    Backend.option("isa=amd64");
     /* transform to x86 assembler */
-    Backend.createAssembler("test.s", "<builtin>");
+    Backend.createAssembler(String.format("%s.s", outFile), "<builtin>");
     /* assembler */
     Process p =
-        Runtime.getRuntime()
-            .exec(String.format("gcc -m32 mj_runtime.c %s.s -o %s", outFile, outFile));
+        Runtime.getRuntime().exec(String.format("gcc mj_runtime.c %s.s -o %s", outFile, outFile));
+    int c;
+    while ((c = p.getErrorStream().read()) != -1){
+      System.out.print(Character.toString((char)c));
+    }
     int res = -1;
     try {
       res = p.waitFor();
