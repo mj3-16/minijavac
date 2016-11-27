@@ -32,14 +32,14 @@ class Cli {
               new String[] {
                 "Usage: minijavac [--echo|--lextest|--parsetest|--check|--compile] [--help] file",
                 "",
-                "  --echo       write file's content to stdout",
-                "  --lextest    run lexical analysis on file's content and print tokens to stdout",
-                "  --parsetest  run syntactical analysis on file's content",
-                "  --print-ast  pretty-print abstract syntax tree to stdout",
-                "  --check      parse the given file and perform semantic checks",
-                "  --compile    compile the given file",
-                "  --run        compile and run the given file",
-                "  --help       display this help and exit",
+                "  --echo          write file's content to stdout",
+                "  --lextest       run lexical analysis on file's content and print tokens to stdout",
+                "  --parsetest     run syntactical analysis on file's content",
+                "  --print-ast     pretty-print abstract syntax tree to stdout",
+                "  --check         parse the given file and perform semantic checks",
+                "  --compile-firm  compile the given file with the libfirm amd64 backend",
+                "  --run-firm      compile and run the given file with libfirm amd64 backend",
+                "  --help          display this help and exit",
                 "",
                 "  One (and only one) of --echo, --lextest, --parsetest or --print-ast is required."
               });
@@ -76,10 +76,10 @@ class Cli {
         printAst(in);
       } else if (params.check) {
         check(in);
-      } else if (params.compile) {
-        compile(in, path.toString());
-      } else if (params.run) {
-        run(in, path.toString());
+      } else if (params.compile_firm) {
+        compile_firm(in, path.toString());
+      } else if (params.run_firm) {
+        run_firm(in, path.toString());
       }
     } catch (AccessDeniedException e) {
       err.println("error: access to file '" + path + "' was denied");
@@ -129,14 +129,14 @@ class Cli {
     ast.acceptVisitor(new SemanticLinter());
   }
 
-  private void compile(InputStream in, String filename) throws IOException {
+  private void compile_firm(InputStream in, String filename) throws IOException {
     Program ast = new Parser(new Lexer(in)).parse();
     ast.acceptVisitor(new SemanticAnalyzer());
     ast.acceptVisitor(new SemanticLinter());
     IREmitter.compile(ast, filename.split("\\.")[0]);
   }
 
-  private void run(InputStream in, String filename) throws IOException {
+  private void run_firm(InputStream in, String filename) throws IOException {
     Program ast = new Parser(new Lexer(in)).parse();
     ast.acceptVisitor(new SemanticAnalyzer());
     IREmitter.compileAndRun(ast, filename.split("\\.")[0]);
@@ -166,12 +166,12 @@ class Cli {
     boolean check;
 
     /** True if the --compile option was set */
-    @Parameter(names = "--compile")
-    boolean compile;
+    @Parameter(names = "--compile-firm")
+    boolean compile_firm;
 
     /** True if the --run option was set */
-    @Parameter(names = "--run")
-    boolean run;
+    @Parameter(names = "--run-firm")
+    boolean run_firm;
 
     /** True if the --help option was set */
     @Parameter(names = "--help")
@@ -191,7 +191,9 @@ class Cli {
     boolean valid() {
       return !invalid
           && (help
-              || ((Booleans.countTrue(echo, lextest, parsetest, printAst, check, compile, run) == 1)
+              || ((Booleans.countTrue(
+                          echo, lextest, parsetest, printAst, check, compile_firm, run_firm)
+                      == 1)
                   && (file != null)));
     }
 
