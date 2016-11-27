@@ -706,4 +706,19 @@ public class IREmitter
     lower();
     assemble(outFile);
   }
+
+  public static void compileAndRun(minijava.ast.Program program, String outFile)
+      throws IOException {
+    compile(program, outFile);
+    Process p = Runtime.getRuntime().exec("./" + outFile);
+    int c;
+    while ((c = p.getInputStream().read()) != -1) {
+      System.out.print(Character.toString((char) c));
+    }
+    int res = -1;
+    try {
+      res = p.waitFor();
+    } catch (Throwable t) {
+    }
+  }
 }
