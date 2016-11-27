@@ -492,17 +492,16 @@ public class IREmitter
   @Override
   public Node visitFieldAccess(Expression.FieldAccess that) {
     // This produces an lval
+    Node self = that.self.acceptVisitor(this);
     Entity field = fields.get(that.field.def);
-    Node thisVar = construction.getVariable(0, Mode.getP());
-    Node f = construction.newMember(thisVar, field);
-
+    Node f = construction.newMember(self, field);
     storeInCurrentLval =
         (Node val) -> {
           Node store = construction.newStore(construction.getCurrentMem(), f, val);
           construction.setCurrentMem(construction.newProj(store, Mode.getM(), Store.pnM));
           return val;
         };
-    return construction.newMember(thisVar, field);
+    return construction.newMember(self, field);
   }
 
   @Override
@@ -538,7 +537,9 @@ public class IREmitter
     Type type = that.type.acceptVisitor(this);
     storeInCurrentLval = null;
     // See calloc for the rationale behind Mode.getP()
-    return calloc(construction.newConst(1, Mode.getP()), type);
+    Node calloced = calloc(construction.newConst(1, Mode.getP()), type);
+    System.out.println("calloced Mode: " + calloced.getMode());
+    return calloced;
   }
 
   @Override
@@ -551,15 +552,16 @@ public class IREmitter
 
   private Node calloc(Node num, Type elementType) {
     // calloc takes two parameters, for the number of elements and the size of each element.
-    // both are of type size_t, we pass it a normal integer which shouldn't be a problem
-    // as we probably won't be allocating giga bytes.
+    // both are of type size_t, so calloc expects them to be word sized. The best approximation
+    // is to use the pointer (P) mode.
     // The fact that we called the array length size (which is parameter num to calloc) and
     // that here the element size is called size may be confusing, but whatever, I warned you.
     Node numNode = construction.newConv(num, Mode.getP());
     // `getSize` returns the size in bytes
     Node sizeNode = construction.newConst(elementType.getSize(), Mode.getP());
+    Type size_t = new PrimitiveType(Mode.getP());
     MethodType callocType =
-        new MethodType(new Type[] {INT_TYPE, INT_TYPE}, new Type[] {ptrTo(elementType)});
+        new MethodType(new Type[] {size_t, size_t}, new Type[] {ptrTo(elementType)});
     Entity calloc = new Entity(Program.getGlobalType(), "calloc", callocType);
     return callFunction(calloc, new Node[] {numNode, sizeNode}, callocType);
   }
