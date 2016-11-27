@@ -6,14 +6,11 @@ import firm.Program;
 import firm.Type;
 import firm.bindings.binding_ircons;
 import firm.nodes.*;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
 import java.util.function.Function;
-import java.util.stream.Stream;
-
 import minijava.ast.*;
 import minijava.ast.Class;
 import minijava.ast.Field;
@@ -495,7 +492,7 @@ public class IREmitter
     MethodType printlnType = new MethodType(new Type[] {INT_TYPE}, new Type[] {});
     Entity println = new Entity(Program.getGlobalType(), "print_int", printlnType);
     Node f = construction.newAddress(println);
-    return callFunction(println, new Node[] {argument.acceptVisitor(this)}, println.getType());
+    return callFunction(println, new Node[] {argument.acceptVisitor(this)}, null);
   }
 
   @Override
@@ -560,15 +557,15 @@ public class IREmitter
 
   private Node calloc(Node num, Type elementType) {
     // calloc takes two parameters, for the number of elements and the size of each element.
-    // both are of type size_t, which is mostly a machine word. So the modes used are just
-    // an educated guess.
+    // both are of type size_t, we pass it a normal integer which shouldn't be a problem
+    // as we probably won't be allocating giga bytes.
     // The fact that we called the array length size (which is parameter num to calloc) and
     // that here the element size is called size may be confusing, but whatever, I warned you.
-    Type size_t = new PrimitiveType(Mode.getP());
     Node numNode = construction.newConv(num, Mode.getP());
+    // `getSize` returns the size in bytes
     Node sizeNode = construction.newConst(elementType.getSize(), Mode.getP());
     MethodType callocType =
-        new MethodType(new Type[] {size_t, size_t}, new Type[] {ptrTo(elementType)});
+        new MethodType(new Type[] {INT_TYPE, INT_TYPE}, new Type[] {ptrTo(elementType)});
     Entity calloc = new Entity(Program.getGlobalType(), "calloc", callocType);
     return callFunction(calloc, new Node[] {numNode, sizeNode}, callocType);
   }
@@ -689,7 +686,8 @@ public class IREmitter
     File runtime = getRuntimeFile();
 
     Process p =
-        Runtime.getRuntime().exec(String.format("gcc %s %s.s -o %s", runtime.getAbsolutePath(), outFile, outFile));
+        Runtime.getRuntime()
+            .exec(String.format("gcc %s %s.s -o %s", runtime.getAbsolutePath(), outFile, outFile));
     int c;
     while ((c = p.getErrorStream().read()) != -1) {
       System.out.print(Character.toString((char) c));
