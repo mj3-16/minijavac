@@ -132,6 +132,7 @@ class Cli {
   private void compile(InputStream in, String filename) throws IOException {
     Program ast = new Parser(new Lexer(in)).parse();
     ast.acceptVisitor(new SemanticAnalyzer());
+    ast.acceptVisitor(new SemanticLinter());
     IREmitter.compile(ast, filename.split("\\.")[0]);
   }
 

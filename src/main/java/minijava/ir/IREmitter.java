@@ -446,6 +446,9 @@ public class IREmitter
       args.add(a.acceptVisitor(this));
     }
 
+    System.out.println(that.method.name);
+    System.out.println(that.method.def);
+    System.out.println(that.method.def.returnType);
     Type returnType = that.method.def.returnType.acceptVisitor(this);
     storeInCurrentLval = null;
     return callFunction(method, args.toArray(new Node[0]), returnType);
@@ -482,14 +485,14 @@ public class IREmitter
     // This produces an lval
     Node self = that.self.acceptVisitor(this);
     Entity field = fields.get(that.field.def);
-    Node f = construction.newMember(self, field);
+    Node absOffset = construction.newMember(self, field);
     storeInCurrentLval =
         (Node val) -> {
-          Node store = construction.newStore(construction.getCurrentMem(), f, val);
+          Node store = construction.newStore(construction.getCurrentMem(), absOffset, val);
           construction.setCurrentMem(construction.newProj(store, Mode.getM(), Store.pnM));
           return val;
         };
-    return construction.newMember(self, field);
+    return load(absOffset, field.getType().getMode());
   }
 
   @Override
@@ -515,7 +518,11 @@ public class IREmitter
         };
 
     // Now just dereference the computed offset
-    Node load = construction.newLoad(construction.getCurrentMem(), absOffset, mode);
+    return load(absOffset, mode);
+  }
+
+  private Node load(Node address, Mode mode) {
+    Node load = construction.newLoad(construction.getCurrentMem(), address, mode);
     construction.setCurrentMem(construction.newProj(load, Mode.getM(), Load.pnM));
     return construction.newProj(load, mode, Load.pnRes);
   }
