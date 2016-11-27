@@ -120,7 +120,7 @@ public class IREmitter
   }
 
   private Entity addFieldDecl(Field f) {
-    Type type = f.type.acceptVisitor(this);
+    Type type = new PrimitiveType(accessModeForType(f.type));
     ClassType definingClass = classTypes.get(f.definingClass.def);
     Entity fieldEnt = new Entity(definingClass, f.name(), type);
     fieldEnt.setLdIdent(NameMangler.mangleInstanceFieldName(definingClass.getName(), f.name()));
@@ -614,9 +614,8 @@ public class IREmitter
       case "null":
         return construction.newConst(0, Mode.getP());
       case "System.out":
-        // TODO: Don't know how to handle this. We should probably
-        // catch this case before we can reference System.out, like we did in
-        // SemanticAnalyzer
+        // we should have catched this earlier, in the resepective MethodCall.
+        assert false;
         return null;
       default:
         throw new UnsupportedOperationException(); // This should be exhaustive.
