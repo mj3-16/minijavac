@@ -20,23 +20,34 @@ public class IREmitter
     implements minijava.ast.Program.Visitor<Void>,
         minijava.ast.Type.Visitor<Type>,
         minijava.ast.BasicType.Visitor<Type>,
-        minijava.ast.Block.Visitor<Integer>,
+        minijava.ast.Block.Visitor<Void>,
         Expression.Visitor<Node>,
-        BlockStatement.Visitor<Integer> {
+        BlockStatement.Visitor<Void> {
 
-  private minijava.ast.Program program;
+  private static final Type INT_TYPE;
+  private static final Type BOOLEAN_TYPE;
 
-  private Map<Class, ClassType> classTypes = new IdentityHashMap<>();
-  private Map<Method, Entity> methods = new IdentityHashMap<>();
-  private Map<Field, Entity> fields = new IdentityHashMap<>();
-  private Node printlnSymConst;
-  private Entity printlnEnt;
+  static {
+    // If we consistently call InitFirm.init() throughout our code, we guarantee that
+    // Firm.init() will be called exactly once, even if e.g. the test suite also needs to
+    // call Firm.init().
+    InitFirm.init();
+    // System.out.printf("Firm Version: %1s.%2s\n", Firm.getMajorVersion(), Firm.getMinorVersion());
+    INT_TYPE = new PrimitiveType(Mode.getIs());
+    BOOLEAN_TYPE = new PrimitiveType(Mode.getBu());
+  }
+
+  private final IdentityHashMap<Class, ClassType> classTypes = new IdentityHashMap<>();
+  private final IdentityHashMap<Method, Entity> methods = new IdentityHashMap<>();
+  private final IdentityHashMap<Field, Entity> fields = new IdentityHashMap<>();
+  private Node f;
+  private Entity println;
 
   /**
    * Maps local variable definitions such as parameters and ... local variable definitions to their
    * assigned index. Which is a firm thing.
    */
-  private Map<LocalVariable, Integer> localVarIndexes = new IdentityHashMap<>();
+  private final IdentityHashMap<LocalVariable, Integer> localVarIndexes = new IdentityHashMap<>();
   /** The Basic Block graph of the current function. */
   private Graph graph;
   /**
@@ -57,27 +68,6 @@ public class IREmitter
    * abstract actual assignment out into a function.
    */
   @Nullable private Function<Node, Node> storeInCurrentLval;
-
-  private final Type INT_TYPE;
-  private final Type BOOLEAN_TYPE;
-
-  public IREmitter(minijava.ast.Program program) {
-    this.program = program;
-    Firm.init();
-    System.out.printf("Firm Version: %1s.%2s\n", Firm.getMajorVersion(), Firm.getMinorVersion());
-    INT_TYPE = new PrimitiveType(Mode.getIs());
-    BOOLEAN_TYPE = new PrimitiveType(Mode.getBu());
-  }
-
-  public void run(boolean outputGraphs) {
-    visitProgram(program);
-    if (outputGraphs) {
-      for (Graph g : Program.getGraphs()) {
-        g.check();
-        Dump.dumpGraph(g, "");
-      }
-    }
-  }
 
   public static void main(String[] main_args) {}
 
@@ -167,9 +157,7 @@ public class IREmitter
     if (!m.isStatic) {
       connectParametersToIRVariables(m);
     } else {
-      MethodType printlnType = new MethodType(new Type[] {INT_TYPE}, new Type[] {});
-      printlnEnt = new Entity(Program.getGlobalType(), "print_int", printlnType);
-      printlnSymConst = construction.newAddress(printlnEnt);
+
     }
 
     m.body.acceptVisitor(this);
@@ -299,7 +287,7 @@ public class IREmitter
   }
 
   @Override
-  public Integer visitBlock(minijava.ast.Block that) {
+  public Void visitBlock(minijava.ast.Block that) {
     for (BlockStatement statement : that.statements) {
       statement.acceptVisitor(this);
     }
@@ -307,12 +295,12 @@ public class IREmitter
   }
 
   @Override
-  public Integer visitEmpty(Statement.Empty that) {
+  public Void visitEmpty(Statement.Empty that) {
     return null;
   }
 
   @Override
-  public Integer visitIf(Statement.If that) {
+  public Void visitIf(Statement.If that) {
     // Evaluate condition and set the place for the condition result
     //that.condition.acceptVisitor(this);
 
@@ -323,20 +311,20 @@ public class IREmitter
   }
 
   @Override
-  public Integer visitExpressionStatement(Statement.ExpressionStatement that) {
+  public Void visitExpressionStatement(Statement.ExpressionStatement that) {
     // We evaluate this just for the side effects, e.g. the memory edges this adds.
     that.expression.acceptVisitor(this);
     return null;
   }
 
   @Override
-  public Integer visitWhile(Statement.While that) {
+  public Void visitWhile(Statement.While that) {
     // next week
     return null;
   }
 
   @Override
-  public Integer visitReturn(Statement.Return that) {
+  public Void visitReturn(Statement.Return that) {
     List<Node> retVals = new ArrayList<>(1);
     if (that.expression.isPresent()) {
       retVals.add(that.expression.get().acceptVisitor(this));
@@ -432,7 +420,6 @@ public class IREmitter
       case NEGATE:
         if (that.expression instanceof Expression.IntegerLiteral) {
           int lit = Integer.parseInt("-" + ((Expression.IntegerLiteral) that.expression).literal);
-          storeInCurrentLval = null;
           return construction.newConst(lit, accessModeForType(minijava.ast.Type.INT));
         }
         return construction.newMinus(expression);
@@ -467,16 +454,10 @@ public class IREmitter
   }
 
   private Node visitSystemOutPrintln(Expression argument) {
-    Node call =
-        construction.newCall(
-            construction.getCurrentMem(),
-            printlnSymConst,
-            new Node[] {argument.acceptVisitor(this)},
-            printlnEnt.getType());
-
-    Node callMem = construction.newProj(call, Mode.getM(), Call.pnM);
-    construction.setCurrentMem(callMem);
-    return call;
+    MethodType printlnType = new MethodType(new Type[] {INT_TYPE}, new Type[] {});
+    println = new Entity(Program.getGlobalType(), "print_int", printlnType);
+    f = construction.newAddress(println);
+    return callFunction(f, new Node[] {argument.acceptVisitor(this)}, println.getType());
   }
 
   @Override
@@ -552,13 +533,13 @@ public class IREmitter
         new MethodType(new Type[] {size_t, size_t}, new Type[] {ptrTo(elementType)});
     Entity calloc = new Entity(Program.getGlobalType(), "calloc", callocType);
     Node f = construction.newAddress(calloc);
-    return callFunction(f, new Node[] {numNode, sizeNode}, elementType);
+    return callFunction(f, new Node[] {numNode, sizeNode}, callocType);
   }
 
-  private Node callFunction(Node func, Node[] args, Type elementType) {
-    Node call = construction.newCall(construction.getCurrentMem(), func, args, ptrTo(elementType));
-    construction.setCurrentMem(construction.newProj(call, Mode.getM(), Call.pnTResult));
-    Node result = construction.newProj(call, Mode.getT(), 1);
+  private Node callFunction(Node func, Node[] args, Type functionType) {
+    Node call = construction.newCall(construction.getCurrentMem(), func, args, functionType);
+    construction.setCurrentMem(construction.newProj(call, Mode.getM(), Call.pnM));
+    Node result = construction.newProj(call, Mode.getT(), Call.pnTResult);
     return construction.newProj(result, Mode.getP(), 0);
   }
 
@@ -610,11 +591,11 @@ public class IREmitter
   }
 
   @Override
-  public Integer visitVariable(BlockStatement.Variable that) {
+  public Void visitVariable(BlockStatement.Variable that) {
     int idx = getLocalVarIndex(that);
     if (that.rhs.isPresent()) {
       Node rhs = that.rhs.get().acceptVisitor(this);
-      construction.setVariable(getLocalVarIndex(that), rhs);
+      construction.setVariable(idx, rhs);
     }
 
     return null;
@@ -640,12 +621,12 @@ public class IREmitter
     }
   }
 
-  public void lower() {
+  private static void lower() {
     layoutTypes();
   }
 
   /** Copied from the jFirm repo's Lower class */
-  private void layoutClass(ClassType cls) {
+  private static void layoutClass(ClassType cls) {
     if (cls.equals(Program.getGlobalType())) return;
 
     for (int m = 0; m < cls.getNMembers(); /* nothing */ ) {
@@ -664,7 +645,7 @@ public class IREmitter
   }
 
   /** Copied from the jFirm repo's Lower class */
-  private void layoutTypes() {
+  private static void layoutTypes() {
     for (Type type : Program.getTypes()) {
       System.out.println("# " + type);
     }
@@ -677,7 +658,7 @@ public class IREmitter
     }
   }
 
-  public void assemble(String outFile) throws IOException {
+  private static void assemble(String outFile) throws IOException {
     /* based on BrainFuck.main */
     /* dump all firm graphs to disk */
     for (Graph g : Program.getGraphs()) {
@@ -698,9 +679,13 @@ public class IREmitter
   }
 
   public static void compile(minijava.ast.Program program, String outFile) throws IOException {
-    IREmitter emitter = new IREmitter(program);
-    emitter.run(true);
+    IREmitter emitter = new IREmitter();
+    emitter.visitProgram(program);
+    for (Graph g : Program.getGraphs()) {
+      g.check();
+      Dump.dumpGraph(g, "");
+    }
     emitter.lower();
-    emitter.assemble(outFile);
+    assemble(outFile);
   }
 }
