@@ -639,6 +639,7 @@ public class IREmitter
         lowerClass((ClassType) type);
       }
     }
+    Util.lowerSels();
   }
 
   /** Copied from the jFirm repo's Lower class */
