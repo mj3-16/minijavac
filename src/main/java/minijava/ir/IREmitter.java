@@ -380,15 +380,13 @@ public class IREmitter
 
   @Override
   public Node visitBinaryOperator(Expression.BinaryOperator that) {
-    // Evaluation order demands that we visit the right node first
-    // Consider side-effects like assignment: x = (x = 3) + 1; should assign 4 to x,
-    // so we have evaluate left after right.
-    Node right = that.right.acceptVisitor(this);
     Node left = that.left.acceptVisitor(this);
-
     // Save the store emitter of the left expression (if there's one, e.g. iff it's an lval).
     // See the comments on storeInCurrentLval.
     Function<Node, Node> storeInLeft = storeInCurrentLval;
+
+    Node right = that.right.acceptVisitor(this);
+
     assert storeInLeft != null; // This should be true after semantic analysis.
 
     // This can never produce an lval (an assignable expression)
