@@ -341,12 +341,12 @@ public class IREmitter
   @Override
   public Void visitIf(Statement.If that) {
     // static cmp node for testing
-    Node falseConst = construction.newConst(0, Mode.getBu());
-    Node trueConst = construction.newConst(1, Mode.getBu());
-    Node cmp = construction.newCmp(falseConst, trueConst, Relation.Equal);
+    //    Node falseConst = construction.newConst(0, Mode.getBu());
+    //    Node trueConst = construction.newConst(1, Mode.getBu());
+    //    Node cmp = construction.newCmp(falseConst, trueConst, Relation.Equal);
 
     // condition.acceptVisitor should return a "Cmp" node
-    //    Node cmp = that.condition.acceptVisitor(this);
+    Node cmp = that.condition.acceptVisitor(new CompareNodeVisitor());
 
     // condition node with true and false projection nodes
     Node cond = construction.newCond(cmp);
@@ -384,6 +384,66 @@ public class IREmitter
       after.addPred(endElse);
     }
     return null;
+  }
+
+  private class CompareNodeVisitor implements Expression.Visitor<firm.nodes.Node> {
+    @Override
+    public Node visitBinaryOperator(Expression.BinaryOperator that) {
+      return null;
+    }
+
+    @Override
+    public Node visitUnaryOperator(Expression.UnaryOperator that) {
+      return null;
+    }
+
+    @Override
+    public Node visitMethodCall(Expression.MethodCall that) {
+      return null;
+    }
+
+    @Override
+    public Node visitFieldAccess(Expression.FieldAccess that) {
+      return null;
+    }
+
+    @Override
+    public Node visitArrayAccess(Expression.ArrayAccess that) {
+      return null;
+    }
+
+    @Override
+    public Node visitNewObject(Expression.NewObject that) {
+      return null;
+    }
+
+    @Override
+    public Node visitNewArray(Expression.NewArray that) {
+      return null;
+    }
+
+    @Override
+    public Node visitVariable(Expression.Variable that) {
+      return null;
+    }
+
+    @Override
+    public Node visitBooleanLiteral(Expression.BooleanLiteral that) {
+      // TODO: can we do this only once for every graph somehow?
+      Node literalTrue = construction.newConst(1, Mode.getBu());
+      Node actualLiteral = construction.newConst(that.literal ? 1 : 0, Mode.getBu());
+      return construction.newCmp(literalTrue, actualLiteral, Relation.Equal);
+    }
+
+    @Override
+    public Node visitIntegerLiteral(Expression.IntegerLiteral that) {
+      return null;
+    }
+
+    @Override
+    public Node visitReferenceTypeLiteral(Expression.ReferenceTypeLiteral that) {
+      return null;
+    }
   }
 
   @Override
