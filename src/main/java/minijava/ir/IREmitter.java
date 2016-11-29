@@ -354,7 +354,7 @@ public class IREmitter
     Node projFalse = construction.newProj(cond, Mode.getX(), Cond.pnFalse);
 
     // if body
-    Block trueBlock = construction.newBlock();
+    firm.nodes.Block trueBlock = construction.newBlock();
     trueBlock.addPred(projTrue);
     construction.setCurrentBlock(trueBlock);
     // code for if-part
@@ -365,7 +365,7 @@ public class IREmitter
     // else body (if it exists)
     Node endElse = null;
     if (that.else_.isPresent()) {
-      Block elseBlock = construction.newBlock();
+      firm.nodes.Block elseBlock = construction.newBlock();
       elseBlock.addPred(projFalse);
       construction.setCurrentBlock(elseBlock);
       // code for else-part
@@ -375,7 +375,7 @@ public class IREmitter
     }
 
     // follow-up code
-    Block after = construction.newBlock();
+    firm.nodes.Block after = construction.newBlock();
     construction.setCurrentBlock(after);
     after.addPred(endIf);
     if (endElse == null) {
