@@ -394,6 +394,13 @@ public class IREmitter
 
           construction.setCurrentBlock(rightBlock);
           that.right.acceptVisitor(new CompareNodeVisitor(trueBlock, falseBlock));
+          break;
+        case OR:
+          rightBlock = construction.newBlock();
+          that.left.acceptVisitor(new CompareNodeVisitor(trueBlock, rightBlock));
+
+          construction.setCurrentBlock(rightBlock);
+          that.right.acceptVisitor(new CompareNodeVisitor(trueBlock, falseBlock));
       }
       return null;
     }
