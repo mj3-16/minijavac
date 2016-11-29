@@ -465,11 +465,8 @@ public class IREmitter
 
     @Override
     public Node visitBooleanLiteral(Expression.BooleanLiteral that) {
-      // TODO: can we do this only once for every graph somehow?
-      Node literalTrue = construction.newConst(1, Mode.getBu());
-      Node actualLiteral = construction.newConst(that.literal ? 1 : 0, Mode.getBu());
-      Node cmp = construction.newCmp(literalTrue, actualLiteral, Relation.Equal);
-      Node cond = construction.newCond(cmp);
+      Node literal = construction.newConst(that.literal ? TargetValue.getBTrue() : TargetValue.getBFalse());
+      Node cond = construction.newCond(literal);
       Node trueProj = construction.newProj(cond, Mode.getX(), Cond.pnTrue);
       Node falseProj = construction.newProj(cond, Mode.getX(), Cond.pnFalse);
       trueBlock.addPred(trueProj);
