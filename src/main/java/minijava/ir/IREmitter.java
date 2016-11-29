@@ -446,8 +446,8 @@ public class IREmitter
     }
 
     private void compareWithRelation(Expression.BinaryOperator binOp, Relation relation) {
-      Node lhs = binOp.left.acceptVisitor(this);
-      Node rhs = binOp.right.acceptVisitor(this);
+      Node lhs = binOp.left.acceptVisitor(IREmitter.this);
+      Node rhs = binOp.right.acceptVisitor(IREmitter.this);
       Node cmp = construction.newCmp(lhs, rhs, relation);
       Node cond = construction.newCond(cmp);
       Node trueProj = construction.newProj(cond, Mode.getX(), Cond.pnTrue);
@@ -530,7 +530,28 @@ public class IREmitter
 
   @Override
   public Void visitWhile(Statement.While that) {
-    // next week
+    Node endStart = construction.newJmp();
+
+    firm.nodes.Block conditionBlock = construction.newBlock();
+    firm.nodes.Block bodyBlock = construction.newBlock();
+    firm.nodes.Block endBlock = construction.newBlock();
+
+    // code for the condition
+    conditionBlock.addPred(endStart);
+    construction.setCurrentBlock(conditionBlock);
+    construction.getCurrentMem(); // See the slides, we need those PhiM nodes
+    that.condition.acceptVisitor(new CompareNodeVisitor(bodyBlock, endBlock));
+
+    // code in body
+    construction.setCurrentBlock(bodyBlock);
+    that.body.acceptVisitor(this);
+    // jump back to the loop condition
+    Node endBody = construction.newJmp();
+    conditionBlock.addPred(endBody);
+
+    construction.setCurrentBlock(endBlock);
+
+    graph.keepAlive(conditionBlock); // Also in the slides
     return null;
   }
 
