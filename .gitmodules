@@ -4,7 +4,7 @@
 	branch = master
 [submodule "jFirm"]
 	path = jFirm
-	url = http://pp.info.uni-karlsruhe.de/git/jFirm.git
+	url = https://github.com/mj3-16/jFirm.git
 [submodule "libfirm"]
 	path = libfirm
-	url = http://pp.info.uni-karlsruhe.de/git/libfirm.git
+	url = https://github.com/mj3-16/libfirm.git
