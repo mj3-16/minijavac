@@ -446,8 +446,8 @@ public class IREmitter
     }
 
     private void compareWithRelation(Expression.BinaryOperator binOp, Relation relation) {
-      Node lhs = binOp.left.acceptVisitor(this);
-      Node rhs = binOp.right.acceptVisitor(this);
+      Node lhs = binOp.left.acceptVisitor(IREmitter.this);
+      Node rhs = binOp.right.acceptVisitor(IREmitter.this);
       Node cmp = construction.newCmp(lhs, rhs, relation);
       Node cond = construction.newCond(cmp);
       Node trueProj = construction.newProj(cond, Mode.getX(), Cond.pnTrue);
