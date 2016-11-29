@@ -401,12 +401,32 @@ public class IREmitter
 
           construction.setCurrentBlock(rightBlock);
           that.right.acceptVisitor(new CompareNodeVisitor(trueBlock, falseBlock));
+          break;
+        case LT:
+          Node lhs = that.left.acceptVisitor(this);
+          Node rhs = that.right.acceptVisitor(this);
+          Node cmp = construction.newCmp(lhs, rhs, Relation.Less);
+          Node cond = construction.newCond(cmp);
+          Node trueProj = construction.newProj(cond, Mode.getX(), Cond.pnTrue);
+          Node falseProj = construction.newProj(cond, Mode.getX(), Cond.pnFalse);
+          trueBlock.addPred(trueProj);
+          falseBlock.addPred(falseProj);
+          break;
+        default:
+          throw new AssertionError("not implemented yet");
       }
       return null;
     }
 
     @Override
     public Node visitUnaryOperator(Expression.UnaryOperator that) {
+      switch (that.op) {
+        case NOT:
+          that.expression.acceptVisitor(new CompareNodeVisitor(falseBlock, trueBlock));
+          break;
+        default:
+          throw new AssertionError("not implemented yet");
+      }
       return null;
     }
 
@@ -456,7 +476,7 @@ public class IREmitter
 
     @Override
     public Node visitIntegerLiteral(Expression.IntegerLiteral that) {
-      return null;
+      return that.acceptVisitor(IREmitter.this);
     }
 
     @Override
