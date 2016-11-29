@@ -470,32 +470,32 @@ public class IREmitter
 
     @Override
     public Node visitMethodCall(Expression.MethodCall that) {
-      return null;
+      return that.acceptVisitor(IREmitter.this);
     }
 
     @Override
     public Node visitFieldAccess(Expression.FieldAccess that) {
-      return null;
+      return that.acceptVisitor(IREmitter.this);
     }
 
     @Override
     public Node visitArrayAccess(Expression.ArrayAccess that) {
-      return null;
+      return that.acceptVisitor(IREmitter.this);
     }
 
     @Override
     public Node visitNewObject(Expression.NewObject that) {
-      return null;
+      return that.acceptVisitor(IREmitter.this);
     }
 
     @Override
     public Node visitNewArray(Expression.NewArray that) {
-      return null;
+      return that.acceptVisitor(IREmitter.this);
     }
 
     @Override
     public Node visitVariable(Expression.Variable that) {
-      return null;
+      return that.acceptVisitor(IREmitter.this);
     }
 
     @Override
@@ -517,7 +517,7 @@ public class IREmitter
 
     @Override
     public Node visitReferenceTypeLiteral(Expression.ReferenceTypeLiteral that) {
-      return null;
+      return that.acceptVisitor(IREmitter.this);
     }
   }
 
