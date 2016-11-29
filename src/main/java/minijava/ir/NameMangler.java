@@ -27,6 +27,13 @@ public class NameMangler {
     return "main";
   }
 
+  public static String mangledPrintIntMethodName() {
+    if (Platform.isMac() || Platform.isWindows()) {
+      return "_print_int";
+    }
+    return "print_int";
+  }
+
   private static String replaceSep(String name) {
     return name.replace(SEP, SEP + SEP);
   }
