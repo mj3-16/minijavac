@@ -406,19 +406,54 @@ public class IREmitter
           that.right.acceptVisitor(new CompareNodeVisitor(trueBlock, falseBlock));
           break;
         case LT:
+          compareWithRelation(that, Relation.Less);
+          break;
+        case LEQ:
+          compareWithRelation(that, Relation.LessEqual);
+          break;
+        case GT:
+          compareWithRelation(that, Relation.Greater);
+          break;
+        case GEQ:
+          compareWithRelation(that, Relation.GreaterEqual);
+          break;
+        case EQ:
+          compareWithRelation(that, Relation.Equal);
+          break;
+        case NEQ:
           Node lhs = that.left.acceptVisitor(this);
           Node rhs = that.right.acceptVisitor(this);
-          Node cmp = construction.newCmp(lhs, rhs, Relation.Less);
+          // we only have a "Equal" relation. Use that and switch true and false around instead.
+          Node cmp = construction.newCmp(lhs, rhs, Relation.Equal);
           Node cond = construction.newCond(cmp);
           Node trueProj = construction.newProj(cond, Mode.getX(), Cond.pnTrue);
           Node falseProj = construction.newProj(cond, Mode.getX(), Cond.pnFalse);
-          trueBlock.addPred(trueProj);
-          falseBlock.addPred(falseProj);
+          // switch true and false
+          trueBlock.addPred(falseProj);
+          falseBlock.addPred(trueProj);
           break;
+        case PLUS:
+        case MINUS:
+        case MULTIPLY:
+        case MODULO:
+        case DIVIDE:
+        case ASSIGN:
+          return that.acceptVisitor(IREmitter.this);
         default:
-          throw new AssertionError("not implemented yet");
+          throw new AssertionError("we missed a case in the switch statement!");
       }
       return null;
+    }
+
+    private void compareWithRelation(Expression.BinaryOperator binOp, Relation relation) {
+      Node lhs = binOp.left.acceptVisitor(this);
+      Node rhs = binOp.right.acceptVisitor(this);
+      Node cmp = construction.newCmp(lhs, rhs, relation);
+      Node cond = construction.newCond(cmp);
+      Node trueProj = construction.newProj(cond, Mode.getX(), Cond.pnTrue);
+      Node falseProj = construction.newProj(cond, Mode.getX(), Cond.pnFalse);
+      trueBlock.addPred(trueProj);
+      falseBlock.addPred(falseProj);
     }
 
     @Override
@@ -465,7 +500,8 @@ public class IREmitter
 
     @Override
     public Node visitBooleanLiteral(Expression.BooleanLiteral that) {
-      Node literal = construction.newConst(that.literal ? TargetValue.getBTrue() : TargetValue.getBFalse());
+      Node literal =
+          construction.newConst(that.literal ? TargetValue.getBTrue() : TargetValue.getBFalse());
       Node cond = construction.newCond(literal);
       Node trueProj = construction.newProj(cond, Mode.getX(), Cond.pnTrue);
       Node falseProj = construction.newProj(cond, Mode.getX(), Cond.pnFalse);
