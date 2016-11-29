@@ -42,7 +42,9 @@ project(':libfirm') {
     }
     rootProject.ext.nativeLibDir = "$projectDir/build/debug"
 }
-tasks.assemble.dependsOn 'libfirm:make'
+[tasks.run, tasks.installDist, tasks.assemble].each {
+    it.dependsOn 'libfirm:make'
+}
 applicationDefaultJvmArgs = ["-Djna.library.path=$nativeLibDir"]
 tasks.withType(Test) {
     it.dependsOn 'libfirm:make'
