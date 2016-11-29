@@ -340,12 +340,49 @@ public class IREmitter
 
   @Override
   public Void visitIf(Statement.If that) {
-    // Evaluate condition and set the place for the condition result
-    //that.condition.acceptVisitor(this);
+    // static cmp node for testing
+    Node falseConst = construction.newConst(0, Mode.getBu());
+    Node trueConst = construction.newConst(1, Mode.getBu());
+    Node cmp = construction.newCmp(falseConst, trueConst, Relation.Equal);
 
-    // next week...
+    // condition.acceptVisitor should return a "Cmp" node
+    //    Node cmp = that.condition.acceptVisitor(this);
 
-    // Conditional Jump Node with the True+False Proj
+    // condition node with true and false projection nodes
+    Node cond = construction.newCond(cmp);
+    Node projTrue = construction.newProj(cond, Mode.getX(), Cond.pnTrue);
+    Node projFalse = construction.newProj(cond, Mode.getX(), Cond.pnFalse);
+
+    // if body
+    Block trueBlock = construction.newBlock();
+    trueBlock.addPred(projTrue);
+    construction.setCurrentBlock(trueBlock);
+    // code for if-part
+    that.then.acceptVisitor(this);
+    // end of if body
+    Node endIf = construction.newJmp();
+
+    // else body (if it exists)
+    Node endElse = null;
+    if (that.else_.isPresent()) {
+      Block elseBlock = construction.newBlock();
+      elseBlock.addPred(projFalse);
+      construction.setCurrentBlock(elseBlock);
+      // code for else-part
+      that.else_.get().acceptVisitor(this);
+      // end of else body
+      endElse = construction.newJmp();
+    }
+
+    // follow-up code
+    Block after = construction.newBlock();
+    construction.setCurrentBlock(after);
+    after.addPred(endIf);
+    if (endElse == null) {
+      after.addPred(projFalse);
+    } else {
+      after.addPred(endElse);
+    }
     return null;
   }
 
@@ -502,7 +539,6 @@ public class IREmitter
         construction.newCall(construction.getCurrentMem(), funcAddress, args, func.getType());
     // Set a new memory dependency for the result
     construction.setCurrentMem(construction.newProj(call, Mode.getM(), Call.pnM));
-
     // unpacking the result needs to be done separately with `unpackCallResult`
     return call;
   }
