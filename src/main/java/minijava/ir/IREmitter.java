@@ -406,8 +406,8 @@ public class IREmitter
           that.right.acceptVisitor(new CompareNodeVisitor(trueBlock, falseBlock));
           break;
         case LT:
-          Node lhs = that.left.acceptVisitor(this);
-          Node rhs = that.right.acceptVisitor(this);
+          Node lhs = that.left.acceptVisitor(IREmitter.this);
+          Node rhs = that.right.acceptVisitor(IREmitter.this);
           Node cmp = construction.newCmp(lhs, rhs, Relation.Less);
           Node cond = construction.newCond(cmp);
           Node trueProj = construction.newProj(cond, Mode.getX(), Cond.pnTrue);
@@ -465,7 +465,8 @@ public class IREmitter
 
     @Override
     public Node visitBooleanLiteral(Expression.BooleanLiteral that) {
-      Node literal = construction.newConst(that.literal ? TargetValue.getBTrue() : TargetValue.getBFalse());
+      Node literal =
+          construction.newConst(that.literal ? TargetValue.getBTrue() : TargetValue.getBFalse());
       Node cond = construction.newCond(literal);
       Node trueProj = construction.newProj(cond, Mode.getX(), Cond.pnTrue);
       Node falseProj = construction.newProj(cond, Mode.getX(), Cond.pnFalse);
@@ -494,7 +495,28 @@ public class IREmitter
 
   @Override
   public Void visitWhile(Statement.While that) {
-    // next week
+    Node endStart = construction.newJmp();
+
+    firm.nodes.Block conditionBlock = construction.newBlock();
+    firm.nodes.Block bodyBlock = construction.newBlock();
+    firm.nodes.Block endBlock = construction.newBlock();
+
+    // code for the condition
+    conditionBlock.addPred(endStart);
+    construction.setCurrentBlock(conditionBlock);
+    construction.getCurrentMem(); // See the slides, we need those PhiM nodes
+    that.condition.acceptVisitor(new CompareNodeVisitor(bodyBlock, endBlock));
+
+    // code in body
+    construction.setCurrentBlock(bodyBlock);
+    that.body.acceptVisitor(this);
+    // jump back to the loop condition
+    Node endBody = construction.newJmp();
+    conditionBlock.addPred(endBody);
+
+    construction.setCurrentBlock(endBlock);
+
+    graph.keepAlive(conditionBlock); // Also in the slides
     return null;
   }
 
