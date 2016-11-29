@@ -51,9 +51,12 @@ public class IREmitter
     PTR_TYPE = new PrimitiveType(Mode.getP());
     // We have to initialize these exactly once because of name clashes.
     CALLOC_TYPE = new MethodType(new Type[] {PTR_TYPE, PTR_TYPE}, new Type[] {PTR_TYPE});
-    CALLOC = new Entity(Program.getGlobalType(), "calloc", CALLOC_TYPE);
+    CALLOC =
+        new Entity(Program.getGlobalType(), NameMangler.mangledCallocMethodName(), CALLOC_TYPE);
     PRINT_INT_TYPE = new MethodType(new Type[] {INT_TYPE}, new Type[] {});
-    PRINT_INT = new Entity(Program.getGlobalType(), NameMangler.mangledPrintIntMethodName(), PRINT_INT_TYPE);
+    PRINT_INT =
+        new Entity(
+            Program.getGlobalType(), NameMangler.mangledPrintIntMethodName(), PRINT_INT_TYPE);
   }
 
   private final IdentityHashMap<Class, ClassType> classTypes = new IdentityHashMap<>();

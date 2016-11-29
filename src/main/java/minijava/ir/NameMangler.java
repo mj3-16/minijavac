@@ -34,6 +34,13 @@ public class NameMangler {
     return "print_int";
   }
 
+  public static String mangledCallocMethodName() {
+    if (Platform.isMac() || Platform.isWindows()) {
+      return "_calloc";
+    }
+    return "calloc";
+  }
+
   private static String replaceSep(String name) {
     return name.replace(SEP, SEP + SEP);
   }
