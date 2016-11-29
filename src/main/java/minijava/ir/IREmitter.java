@@ -6,6 +6,7 @@ import firm.Program;
 import firm.Type;
 import firm.bindings.binding_ircons;
 import firm.nodes.*;
+import firm.nodes.Block;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -345,50 +346,55 @@ public class IREmitter
     //    Node trueConst = construction.newConst(1, Mode.getBu());
     //    Node cmp = construction.newCmp(falseConst, trueConst, Relation.Equal);
 
-    // condition.acceptVisitor should return a "Cmp" node
-    Node cmp = that.condition.acceptVisitor(new CompareNodeVisitor());
-
-    // condition node with true and false projection nodes
-    Node cond = construction.newCond(cmp);
-    Node projTrue = construction.newProj(cond, Mode.getX(), Cond.pnTrue);
-    Node projFalse = construction.newProj(cond, Mode.getX(), Cond.pnFalse);
-
-    // if body
     firm.nodes.Block trueBlock = construction.newBlock();
-    trueBlock.addPred(projTrue);
+    // block for else part or code after if (if no else part exists)
+    firm.nodes.Block falseBlock = construction.newBlock();
+    that.condition.acceptVisitor(new CompareNodeVisitor(trueBlock, falseBlock));
+
+    // code in true block
     construction.setCurrentBlock(trueBlock);
-    // code for if-part
     that.then.acceptVisitor(this);
-    // end of if body
     Node endIf = construction.newJmp();
 
-    // else body (if it exists)
-    Node endElse = null;
-    if (that.else_.isPresent()) {
-      firm.nodes.Block elseBlock = construction.newBlock();
-      elseBlock.addPred(projFalse);
-      construction.setCurrentBlock(elseBlock);
-      // code for else-part
-      that.else_.get().acceptVisitor(this);
-      // end of else body
-      endElse = construction.newJmp();
-    }
-
-    // follow-up code
-    firm.nodes.Block after = construction.newBlock();
-    construction.setCurrentBlock(after);
-    after.addPred(endIf);
-    if (endElse == null) {
-      after.addPred(projFalse);
+    // code in false block
+    construction.setCurrentBlock(falseBlock);
+    if (!that.else_.isPresent()) {
+      // if construct (without else)
+      falseBlock.addPred(endIf);
     } else {
-      after.addPred(endElse);
+      // if-else construct
+      that.else_.get().acceptVisitor(this);
+      Node endElse = construction.newJmp();
+
+      // add block for code after this if-else
+      firm.nodes.Block afterElse = construction.newBlock();
+      afterElse.addPred(endElse);
+      afterElse.addPred(endIf);
+      construction.setCurrentBlock(afterElse);
     }
     return null;
   }
 
   private class CompareNodeVisitor implements Expression.Visitor<firm.nodes.Node> {
+    private final Block trueBlock;
+    private final Block falseBlock;
+
+    CompareNodeVisitor(Block trueBlock, Block falseBlock) {
+      this.trueBlock = trueBlock;
+      this.falseBlock = falseBlock;
+    }
+
     @Override
     public Node visitBinaryOperator(Expression.BinaryOperator that) {
+      switch (that.op) {
+        case AND:
+          // expression = (left && right)
+          Block rightBlock = construction.newBlock();
+          that.left.acceptVisitor(new CompareNodeVisitor(rightBlock, falseBlock));
+
+          construction.setCurrentBlock(rightBlock);
+          that.right.acceptVisitor(new CompareNodeVisitor(trueBlock, falseBlock));
+      }
       return null;
     }
 
@@ -432,7 +438,13 @@ public class IREmitter
       // TODO: can we do this only once for every graph somehow?
       Node literalTrue = construction.newConst(1, Mode.getBu());
       Node actualLiteral = construction.newConst(that.literal ? 1 : 0, Mode.getBu());
-      return construction.newCmp(literalTrue, actualLiteral, Relation.Equal);
+      Node cmp = construction.newCmp(literalTrue, actualLiteral, Relation.Equal);
+      Node cond = construction.newCond(cmp);
+      Node trueProj = construction.newProj(cond, Mode.getX(), Cond.pnTrue);
+      Node falseProj = construction.newProj(cond, Mode.getX(), Cond.pnFalse);
+      trueBlock.addPred(trueProj);
+      falseBlock.addPred(falseProj);
+      return null;
     }
 
     @Override
