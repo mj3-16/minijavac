@@ -614,14 +614,20 @@ public class IREmitter
         return construction.newConv(retProj, Mode.getIs());
       case MODULO:
         // A `mod` operation results in an element of the divmod tuple in memory
+        // We convert the values from int to long, to prevent the INT_MIN / -1 exception
+        // This shouldn't make any difference performance wise on 64 bit systems
+        Node leftModConv = construction.newConv(left, Mode.getLs());
+        Node rightModConv = construction.newConv(right, Mode.getLs());
         Node modNode =
             construction.newMod(
                 construction.getCurrentMem(),
-                left,
-                right,
+                leftModConv,
+                rightModConv,
                 binding_ircons.op_pin_state.op_pin_state_pinned);
         // Fetch the result from memory
-        return construction.newProj(modNode, INT_TYPE.getMode(), Mod.pnRes);
+        Node retModProj = construction.newProj(modNode, Mode.getLs(), Mod.pnRes);
+        // Convert it back to int
+        return construction.newConv(retModProj, Mode.getIs());
       case OR:
         return construction.newOr(left, right);
       case AND:
