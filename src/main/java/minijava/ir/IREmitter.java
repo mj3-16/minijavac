@@ -1,5 +1,7 @@
 package minijava.ir;
 
+import static minijava.ir.Types.*;
+
 import com.google.common.io.Files;
 import firm.*;
 import firm.Program;
@@ -29,35 +31,6 @@ public class IREmitter
         minijava.ast.Block.Visitor<Void>,
         Expression.Visitor<Node>,
         BlockStatement.Visitor<Void> {
-
-  private static final Type INT_TYPE;
-  static final Type BOOLEAN_TYPE;
-  private static final Type PTR_TYPE;
-  private static final MethodType CALLOC_TYPE;
-  private static final Entity CALLOC;
-  private static final MethodType PRINT_INT_TYPE;
-  private static final Entity PRINT_INT;
-
-  static {
-    // If we consistently call InitFirm.init() throughout our code, we guarantee that
-    // Firm.init() will be called exactly once, even if e.g. the test suite also needs to
-    // call Firm.init().
-    InitFirm.init();
-    // Use 64bit pointers by default
-    // I don't see a reason we should, though.
-    //Mode.setDefaultModeP(Mode.createReferenceMode("_64bit", Mode.Arithmetic.TwosComplement, 64, 1));
-    INT_TYPE = new PrimitiveType(Mode.getIs());
-    BOOLEAN_TYPE = new PrimitiveType(Mode.getBu());
-    PTR_TYPE = new PrimitiveType(Mode.getP());
-    // We have to initialize these exactly once because of name clashes.
-    CALLOC_TYPE = new MethodType(new Type[] {PTR_TYPE, PTR_TYPE}, new Type[] {PTR_TYPE});
-    CALLOC =
-        new Entity(Program.getGlobalType(), NameMangler.mangledCallocMethodName(), CALLOC_TYPE);
-    PRINT_INT_TYPE = new MethodType(new Type[] {INT_TYPE}, new Type[] {});
-    PRINT_INT =
-        new Entity(
-            Program.getGlobalType(), NameMangler.mangledPrintIntMethodName(), PRINT_INT_TYPE);
-  }
 
   private final IdentityHashMap<Class, ClassType> classTypes = new IdentityHashMap<>();
   private final IdentityHashMap<Method, Entity> methods = new IdentityHashMap<>();
@@ -89,7 +62,9 @@ public class IREmitter
    */
   @Nullable private Function<Node, Node> storeInCurrentLval;
 
-  public static void main(String[] main_args) {}
+  public IREmitter() {
+    InitFirm.init();
+  }
 
   @Override
   public Void visitProgram(minijava.ast.Program that) {
@@ -101,19 +76,6 @@ public class IREmitter
       klass.methods.forEach(this::emitBody);
     }
     return null;
-  }
-
-  /**
-   * Returns the primitive type in which to store type @type@. Consider a @boolean b;@ declaration,
-   * that should have PrimitiveType(Mode.getBu());, wheras @A a;@ for a reference type @A@ should
-   * return the type of the reference, e.g. a pointer @new PrimitiveType(Mode.getP());@
-   *
-   * <p>So, for value types just return their value, for reference types return a pointer.
-   */
-  @NotNull
-  static PrimitiveType getStorageType(minijava.ast.Type type) {
-    // TODO shouldn't we reuse these types?
-    return new PrimitiveType(storageModeForType(type));
   }
 
   private void emitBody(Method m) {
@@ -242,21 +204,6 @@ public class IREmitter
   @Override
   public Type visitClass(Class that) {
     return classTypes.get(that);
-  }
-
-  static Mode storageModeForType(minijava.ast.Type type) {
-    if (type.dimension > 0) {
-      return Mode.getP();
-    }
-
-    switch (type.basicType.name()) {
-      case "int":
-        return Mode.getIs();
-      case "boolean":
-        return Mode.getBu();
-      default:
-        return Mode.getP();
-    }
   }
 
   @Override
