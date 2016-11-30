@@ -42,7 +42,9 @@ project(':libfirm') {
     }
     rootProject.ext.nativeLibDir = "$projectDir/build/debug"
 }
-tasks.assemble.dependsOn 'libfirm:make'
+[tasks.run, tasks.installDist, tasks.assemble].each {
+    it.dependsOn 'libfirm:make'
+}
 applicationDefaultJvmArgs = ["-Djna.library.path=$nativeLibDir"]
 tasks.withType(Test) {
     it.dependsOn 'libfirm:make'
@@ -52,6 +54,12 @@ tasks.withType(Test) {
 project(':mjtest') {
     task all(type: Exec, dependsOn: installDist) {
         commandLine 'python3', './mjt.py', 'all', '../run', '--ci_testing', '--parallel'
+    }
+    task compileFirm(type: Exec, dependsOn: installDist) {
+        commandLine 'python3', './mjt.py', 'compile-firm', '../run', '--ci_testing', '--parallel'
+    }
+    task exec(type: Exec, dependsOn: installDist) {
+        commandLine 'python3', './mjt.py', 'exec', '../run', '--ci_testing', '--parallel'
     }
     task failing(type: Exec, dependsOn: installDist) {
         commandLine 'python3', './mjt.py', 'all', '../run', '--ci_testing', '--parallel', '--only_incorrect_tests'

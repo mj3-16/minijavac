@@ -358,13 +358,13 @@ public class SemanticAnalyzer
         new SemanticError(range, "Expected type '" + expected + "', but got type '" + actual + "'");
 
     // 1.
-    if (expected.dimension == actual.dimension
-        && expected.basicType.name().equals(actual.basicType.name())) {
+    if (expected.equals(actual)) {
       return;
     }
 
     // 2. If any of the element types is now void, we should throw.
-    if (expected.basicType.name().equals("void") || actual.basicType.name().equals("void")) throw e;
+    if (expected.basicType.def == BuiltinType.VOID || actual.basicType.def == BuiltinType.VOID)
+      throw e;
 
     // 3. The only way this could ever work out is that either actual or expected is of type Any (type of null)
     // and the other is a reference type (every remaining type except non-array builtins).
@@ -379,7 +379,7 @@ public class SemanticAnalyzer
   }
 
   private void checkElementTypeIsNotVoid(Type actual, SourceRange range) {
-    if (actual.basicType.name().equals("void")) {
+    if (actual.basicType.def == BuiltinType.VOID) {
       throw new SemanticError(range, "Type void is not valid here");
     }
   }
@@ -577,6 +577,7 @@ public class SemanticAnalyzer
     }
 
     Method m = methodOpt.get();
+    that.method.def = m;
     m.definingClass = new Ref<>(definingClass);
 
     if (m.isStatic) {

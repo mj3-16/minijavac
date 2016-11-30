@@ -28,6 +28,26 @@ public class Class extends Node implements BasicType {
   }
 
   @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+
+    Class aClass = (Class) o;
+
+    if (!name.equals(aClass.name)) return false;
+    if (!fields.equals(aClass.fields)) return false;
+    return methods.equals(aClass.methods);
+  }
+
+  @Override
+  public int hashCode() {
+    int result = name.hashCode();
+    result = 31 * result + fields.hashCode();
+    result = 31 * result + methods.hashCode();
+    return result;
+  }
+
+  @Override
   public String name() {
     return this.name;
   }

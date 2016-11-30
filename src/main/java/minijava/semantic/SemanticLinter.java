@@ -1,5 +1,7 @@
 package minijava.semantic;
 
+import static minijava.ast.Type.SYSTEM_OUT;
+
 import java.util.IdentityHashMap;
 import minijava.ast.*;
 import minijava.ast.Class;
@@ -57,6 +59,7 @@ public class SemanticLinter
     that.returnType.acceptVisitor(this);
     that.definingClass.def.acceptVisitor((Class.Visitor<Void>) this);
     that.parameters.forEach(p -> p.acceptVisitor(this));
+    that.body.statements.forEach(s -> s.acceptVisitor(this));
     return null;
   }
 
@@ -128,8 +131,12 @@ public class SemanticLinter
 
   @Override
   public Void visitMethodCall(Expression.MethodCall that) {
+    if (that.self.type == SYSTEM_OUT) {
+      // println has no associated Method instance
+      return null;
+    }
+    assert !that.method.def.isStatic;
     that.self.acceptVisitor(this);
-    that.method.def.acceptVisitor((Method.Visitor<Void>) this);
     that.arguments.forEach(a -> a.acceptVisitor(this));
     return null;
   }
@@ -163,7 +170,7 @@ public class SemanticLinter
 
   @Override
   public Void visitVariable(Expression.Variable that) {
-    that.var.def.acceptVisitor(this);
+    assert that.var.def != null;
     return null;
   }
 

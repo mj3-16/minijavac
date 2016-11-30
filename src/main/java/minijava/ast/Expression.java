@@ -170,9 +170,9 @@ public abstract class Expression extends Node {
   /** Subsumes @null@, @this@ and regular variables. */
   public static class Variable extends Expression {
 
-    public final Ref<Definition> var;
+    public final Ref<LocalVariable> var;
 
-    public Variable(Ref<Definition> var, SourceRange range) {
+    public Variable(Ref<LocalVariable> var, SourceRange range) {
       super(range);
       this.var = var;
     }

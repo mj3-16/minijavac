@@ -1,4 +1,4 @@
-package minijava.firm;
+package minijava.ir;
 
 import firm.Mode;
 import org.junit.Test;
