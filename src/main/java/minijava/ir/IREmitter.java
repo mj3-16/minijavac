@@ -641,17 +641,16 @@ public class IREmitter
 
   @Override
   public Node visitUnaryOperator(Expression.UnaryOperator that) {
-    Node expression = that.expression.acceptVisitor(this);
-
+    if (that.op == Expression.UnOp.NEGATE && that.expression instanceof Expression.IntegerLiteral) {
+      // treat this case special in case the integer literal is 2147483648 (doesn't fit in int)
+      int lit = Integer.parseInt("-" + ((Expression.IntegerLiteral) that.expression).literal);
+      return construction.newConst(lit, storageModeForType(minijava.ast.Type.INT));
+    }
     // This can never produce an lval (an assignable expression)
     storeInCurrentLval = null;
-
+    Node expression = that.expression.acceptVisitor(this);
     switch (that.op) {
       case NEGATE:
-        if (that.expression instanceof Expression.IntegerLiteral) {
-          int lit = Integer.parseInt("-" + ((Expression.IntegerLiteral) that.expression).literal);
-          return construction.newConst(lit, storageModeForType(minijava.ast.Type.INT));
-        }
         return construction.newMinus(expression);
       case NOT:
         return construction.newNot(expression);
