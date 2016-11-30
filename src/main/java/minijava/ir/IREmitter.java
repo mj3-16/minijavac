@@ -598,24 +598,36 @@ public class IREmitter
         return construction.newMul(left, right);
       case DIVIDE:
         // A `div` operation results in an element of the divmod tuple in memory
+        // We convert the values from int to long, to prevent the INT_MIN / -1 exception
+        // This shouldn't make any difference performance wise on 64 bit systems
+        Node leftConv = construction.newConv(left, Mode.getLs());
+        Node rightConv = construction.newConv(right, Mode.getLs());
         Node divNode =
             construction.newDiv(
                 construction.getCurrentMem(),
-                left,
-                right,
+                leftConv,
+                rightConv,
                 binding_ircons.op_pin_state.op_pin_state_pinned);
         // Fetch the result from memory
-        return construction.newProj(divNode, INT_TYPE.getMode(), Div.pnRes);
+        Node retProj = construction.newProj(divNode, Mode.getLs(), Div.pnRes);
+        // Convert it back to int
+        return construction.newConv(retProj, Mode.getIs());
       case MODULO:
         // A `mod` operation results in an element of the divmod tuple in memory
+        // We convert the values from int to long, to prevent the INT_MIN / -1 exception
+        // This shouldn't make any difference performance wise on 64 bit systems
+        Node leftModConv = construction.newConv(left, Mode.getLs());
+        Node rightModConv = construction.newConv(right, Mode.getLs());
         Node modNode =
             construction.newMod(
                 construction.getCurrentMem(),
-                left,
-                right,
+                leftModConv,
+                rightModConv,
                 binding_ircons.op_pin_state.op_pin_state_pinned);
         // Fetch the result from memory
-        return construction.newProj(modNode, INT_TYPE.getMode(), Mod.pnRes);
+        Node retModProj = construction.newProj(modNode, Mode.getLs(), Mod.pnRes);
+        // Convert it back to int
+        return construction.newConv(retModProj, Mode.getIs());
       case OR:
         return construction.newOr(left, right);
       case AND:
@@ -641,17 +653,16 @@ public class IREmitter
 
   @Override
   public Node visitUnaryOperator(Expression.UnaryOperator that) {
-    Node expression = that.expression.acceptVisitor(this);
-
+    if (that.op == Expression.UnOp.NEGATE && that.expression instanceof Expression.IntegerLiteral) {
+      // treat this case special in case the integer literal is 2147483648 (doesn't fit in int)
+      int lit = Integer.parseInt("-" + ((Expression.IntegerLiteral) that.expression).literal);
+      return construction.newConst(lit, storageModeForType(minijava.ast.Type.INT));
+    }
     // This can never produce an lval (an assignable expression)
     storeInCurrentLval = null;
-
+    Node expression = that.expression.acceptVisitor(this);
     switch (that.op) {
       case NEGATE:
-        if (that.expression instanceof Expression.IntegerLiteral) {
-          int lit = Integer.parseInt("-" + ((Expression.IntegerLiteral) that.expression).literal);
-          return construction.newConst(lit, storageModeForType(minijava.ast.Type.INT));
-        }
         return construction.newMinus(expression);
       case NOT:
         return construction.newNot(expression);
