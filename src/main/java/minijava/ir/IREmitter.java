@@ -100,7 +100,7 @@ public class IREmitter
       ClassType classType = new ClassType(decl.name());
       classTypes.put(decl, classType);
       for (Field f : decl.fields) {
-        fields.put(f, addFieldDecl(f));
+        fields.put(f, createEntity(f));
       }
       if (decl.fields.size() == 0) {
         // We have to prevent class types of length 0, so we insert an unreachable field.
@@ -109,7 +109,7 @@ public class IREmitter
         fieldEnt.setLdIdent(NameMangler.mangleInstanceFieldName(decl.name(), unusableFieldName));
       }
       for (Method m : decl.methods) {
-        methods.put(m, addMethodDecl(m));
+        methods.put(m, createEntity(m));
       }
       //System.out.println("# " + classType);
       //System.out.println(classType.getSize());
@@ -123,7 +123,7 @@ public class IREmitter
     return null;
   }
 
-  private Entity addFieldDecl(Field f) {
+  private Entity createEntity(Field f) {
     Type type = getStorageType(f.type);
     ClassType definingClass = classTypes.get(f.definingClass.def);
     Entity fieldEnt = new Entity(definingClass, f.name(), type);
@@ -140,6 +140,7 @@ public class IREmitter
    */
   @NotNull
   private PrimitiveType getStorageType(minijava.ast.Type type) {
+    // TODO shouldn't we reuse these types?
     return new PrimitiveType(storageModeForType(type));
   }
 
@@ -147,7 +148,7 @@ public class IREmitter
    * This will *not* go through the body of the method, just analyze stuff that is needed for
    * constructing an entity.
    */
-  private Entity addMethodDecl(Method m) {
+  private Entity createEntity(Method m) {
     if (m.isStatic) {
       return addMainMethodDecl(m);
     }
@@ -278,6 +279,7 @@ public class IREmitter
       // We don't know the array statically, so just pass 0
       // of the number of elements (which is allowed according
       // to the docs)
+      // TODO shouldn't we reuse types for arrays as well?
       type = new ArrayType(type, 0);
     }
     return type;
