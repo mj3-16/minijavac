@@ -19,8 +19,7 @@ class Types {
     // call Firm.init().
     InitFirm.init();
     // Use 64bit pointers by default
-    // I don't see a reason we should, though.
-    //Mode.setDefaultModeP(Mode.createReferenceMode("_64bit", Mode.Arithmetic.TwosComplement, 64, 1));
+    //Mode.setDefaultModeP(Mode.createReferenceMode("p64", Mode.Arithmetic.TwosComplement, 64, 1));
     INT_TYPE = new PrimitiveType(Mode.getIs());
     BOOLEAN_TYPE = new PrimitiveType(Mode.getBu());
     PTR_TYPE = new PrimitiveType(Mode.getP());
