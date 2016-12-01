@@ -372,11 +372,13 @@ public class IREmitter
     // Fetch the result from memory
     assert Div.pnRes == Mod.pnRes;
     Node retProj = construction.newProj(divOrMod, Mode.getLs(), Div.pnRes);
+    storeInCurrentLval = null;
     // Convert it back to int
     return construction.newConv(retProj, Mode.getIs());
   }
 
   private Node arithmeticOperator(Expression.BinaryOperator that, BiFunction<Node, Node, Node> op) {
+    storeInCurrentLval = null;
     return op.apply(that.left.acceptVisitor(this), that.right.acceptVisitor(this));
   }
 
@@ -399,20 +401,24 @@ public class IREmitter
     }
 
     construction.setCurrentBlock(rightBlock);
+    Node leftMem = construction.getCurrentMem();
     Node right = that.right.acceptVisitor(this);
+    Node rightMem = construction.getCurrentMem();
 
     endBlock.addPred(construction.newJmp());
     construction.setCurrentBlock(endBlock);
 
+    storeInCurrentLval = null;
     // The return value is either the value of the left expression or
     // that of the right, depending on control flow.
-    storeInCurrentLval = null;
+    construction.setCurrentMem(construction.newPhi(new Node[] {leftMem, rightMem}, Mode.getM()));
     return construction.newPhi(new Node[] {left, right}, Mode.getb());
   }
 
   private Node compareWithRelation(Expression.BinaryOperator binOp, Relation relation) {
     Node lhs = binOp.left.acceptVisitor(this);
     Node rhs = binOp.right.acceptVisitor(this);
+    storeInCurrentLval = null;
     return construction.newCmp(lhs, rhs, relation);
   }
 
@@ -427,11 +433,12 @@ public class IREmitter
     if (that.op == Expression.UnOp.NEGATE && that.expression instanceof Expression.IntegerLiteral) {
       // treat this case special in case the integer literal is 2147483648 (doesn't fit in int)
       int lit = Integer.parseInt("-" + ((Expression.IntegerLiteral) that.expression).literal);
+      storeInCurrentLval = null;
       return construction.newConst(lit, storageModeForType(minijava.ast.Type.INT));
     }
+    Node expression = that.expression.acceptVisitor(this);
     // This can never produce an lval (an assignable expression)
     storeInCurrentLval = null;
-    Node expression = that.expression.acceptVisitor(this);
     switch (that.op) {
       case NEGATE:
         return construction.newMinus(expression);
