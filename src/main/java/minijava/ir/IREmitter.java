@@ -3,10 +3,12 @@ package minijava.ir;
 import static minijava.ir.Types.*;
 
 import com.google.common.io.Files;
+import com.sun.jna.Pointer;
 import firm.*;
 import firm.Program;
 import firm.Type;
 import firm.bindings.binding_ircons;
+import firm.bindings.binding_lowering;
 import firm.nodes.*;
 import firm.nodes.Block;
 import java.io.File;
@@ -300,7 +302,7 @@ public class IREmitter
   public Void visitReturn(Statement.Return that) {
     Node[] retVals = {};
     if (that.expression.isPresent()) {
-      retVals = new Node[] {that.expression.get().acceptVisitor(this)};
+      retVals = new Node[] {convbToBu(that.expression.get().acceptVisitor(this))};
     }
     Node ret = construction.newReturn(construction.getCurrentMem(), retVals);
     // Judging from other examples, we don't need to set currentmem here.
@@ -462,7 +464,7 @@ public class IREmitter
     Node thisVar = that.self.acceptVisitor(this);
     args.add(thisVar);
     for (Expression a : that.arguments) {
-      args.add(a.acceptVisitor(this));
+      args.add(convbToBu(a.acceptVisitor(this)));
     }
 
     storeInCurrentLval = null;
@@ -491,7 +493,7 @@ public class IREmitter
     // a method returns a tuple
     Node resultTuple = construction.newProj(call, Mode.getT(), Call.pnTResult);
     // at index 0 this tuple contains the result
-    return construction.newProj(resultTuple, mode, 0);
+    return convBuTob(construction.newProj(resultTuple, mode, 0));
   }
 
   private Node visitSystemOutPrintln(Expression argument) {
@@ -677,6 +679,11 @@ public class IREmitter
       if (type instanceof ClassType) {
         lowerClass((ClassType) type);
       }
+    }
+    for (Graph g : Program.getGraphs()) {
+      // Passing NULL as the callback will lower all Mux nodes
+      // TODO: Move this into jFirm
+      binding_lowering.lower_mux(g.ptr, Pointer.NULL);
     }
     Util.lowerSels();
   }
