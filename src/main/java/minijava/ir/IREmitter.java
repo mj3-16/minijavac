@@ -418,7 +418,11 @@ public class IREmitter
     Node lhs = binOp.left.acceptVisitor(this);
     Node rhs = binOp.right.acceptVisitor(this);
     storeInCurrentLval = null;
-    return construction.newCmp(lhs, rhs, relation);
+    Node left = convbToBu(lhs);
+    System.out.println(lhs.getMode());
+    System.out.println(lhs.getMode().equals(Mode.getb()));
+    System.out.println(left);
+    return construction.newCmp(left, convbToBu(rhs), relation);
   }
 
   private Node booleanNot(Node expression) {
@@ -593,7 +597,7 @@ public class IREmitter
    * case to 1.
    */
   private Node convbToBu(Node expression) {
-    if (expression.getMode() == Mode.getb()) {
+    if (expression.getMode().equals(Mode.getb())) {
       Node zero = construction.newConst(0, Mode.getBu());
       Node one = construction.newConst(1, Mode.getBu());
       return construction.newMux(expression, zero, one);
@@ -603,7 +607,7 @@ public class IREmitter
 
   /** Converts a node of mode Bu to one of mode b, by val > 0. */
   private Node convBuTob(Node expression) {
-    if (expression.getMode() == Mode.getb()) {
+    if (expression.getMode().equals(Mode.getBu())) {
       Node zero = construction.newConst(0, Mode.getBu());
       return construction.newCmp(expression, zero, Relation.Greater);
     }
