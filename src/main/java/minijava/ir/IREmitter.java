@@ -418,11 +418,7 @@ public class IREmitter
     Node lhs = binOp.left.acceptVisitor(this);
     Node rhs = binOp.right.acceptVisitor(this);
     storeInCurrentLval = null;
-    Node left = convbToBu(lhs);
-    System.out.println(lhs.getMode());
-    System.out.println(lhs.getMode().equals(Mode.getb()));
-    System.out.println(left);
-    return construction.newCmp(left, convbToBu(rhs), relation);
+    return construction.newCmp(convbToBu(lhs), convbToBu(rhs), relation);
   }
 
   private Node booleanNot(Node expression) {
