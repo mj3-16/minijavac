@@ -66,12 +66,6 @@ public class IREmitter
    * assigned index. Which is a firm thing.
    */
   private final IdentityHashMap<LocalVariable, Integer> localVarIndexes = new IdentityHashMap<>();
-  /**
-   * The next free local variable index for the localVarIndexes mapping. Is different from the
-   * localVarIndexes.size(), because we don't *really* forget mappings when leaving a block. So, at
-   * the end of a method there might be more than one mapping to the same index.
-   */
-  private int nextFreeLocalVarIndex;
   /** The Basic Block graph of the current function. */
   private Graph graph;
   /**
@@ -195,7 +189,6 @@ public class IREmitter
     construction = new Construction(graph);
 
     localVarIndexes.clear();
-    nextFreeLocalVarIndex = 0;
 
     if (!m.isStatic) {
       connectParametersToIRVariables(m);
@@ -336,12 +329,9 @@ public class IREmitter
 
   @Override
   public Void visitBlock(minijava.ast.Block that) {
-    int oldStackPointer = nextFreeLocalVarIndex;
     for (BlockStatement statement : that.statements) {
       statement.acceptVisitor(this);
     }
-    // implicitly forget about all local variables declared in the block
-    nextFreeLocalVarIndex = oldStackPointer;
     return null;
   }
 
@@ -877,7 +867,7 @@ public class IREmitter
       return localVarIndexes.get(var);
     } else {
       // allocate a new index
-      int free = nextFreeLocalVarIndex++;
+      int free = localVarIndexes.size();
       localVarIndexes.put(var, free);
       return free;
     }

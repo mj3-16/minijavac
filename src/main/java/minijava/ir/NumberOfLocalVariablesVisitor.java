@@ -1,7 +1,5 @@
 package minijava.ir;
 
-import java.util.ArrayList;
-import java.util.List;
 import minijava.ast.Block;
 import minijava.ast.BlockStatement;
 import minijava.ast.Expression;
@@ -13,20 +11,7 @@ public class NumberOfLocalVariablesVisitor
         BlockStatement.Visitor<Integer> {
   @Override
   public Integer visitBlock(Block that) {
-    int c = 0;
-    List<Integer> localVarNums = new ArrayList<>();
-    for (BlockStatement statement : that.statements) {
-      if (statement instanceof Block
-          || statement instanceof Statement.While
-          || statement instanceof Statement.If) {
-        /* Statements that open a new scope */
-        localVarNums.add(c + statement.acceptVisitor(this));
-      } else {
-        c += statement.acceptVisitor(this);
-      }
-    }
-    localVarNums.add(c);
-    return localVarNums.stream().max(Integer::compare).get();
+    return that.statements.stream().map(s -> s.acceptVisitor(this)).reduce(0, (a, b) -> a + b);
   }
 
   @Override
@@ -36,11 +21,7 @@ public class NumberOfLocalVariablesVisitor
 
   @Override
   public Integer visitIf(Statement.If that) {
-    int elseNum = 0;
-    if (that.else_.isPresent()) {
-      elseNum = that.else_.get().acceptVisitor(this);
-    }
-    return Math.max(that.then.acceptVisitor(this), elseNum);
+    return that.then.acceptVisitor(this) + that.else_.map(e -> e.acceptVisitor(this)).orElse(0);
   }
 
   @Override
