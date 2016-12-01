@@ -161,7 +161,6 @@ public class IREmitter
     }
 
     construction.setCurrentBlock(graph.getEndBlock());
-    Dump.dumpGraph(graph, "sdlfk");
     construction.finish();
   }
 
@@ -316,7 +315,7 @@ public class IREmitter
   public Node visitBinaryOperator(Expression.BinaryOperator that) {
     switch (that.op) {
       case ASSIGN:
-        that.left.acceptVisitor(this);
+        Node blub = that.left.acceptVisitor(this);
         // Save the store emitter of the left expression (if there's one, e.g. iff it's an lval).
         // See the comments on storeInCurrentLval.
         Function<Node, Node> storeInLeft = storeInCurrentLval;
@@ -325,11 +324,11 @@ public class IREmitter
         storeInCurrentLval = null;
         return storeInLeft.apply(right);
       case PLUS:
-        arithmeticOperator(that, construction::newAdd);
+        return arithmeticOperator(that, construction::newAdd);
       case MINUS:
-        arithmeticOperator(that, construction::newSub);
+        return arithmeticOperator(that, construction::newSub);
       case MULTIPLY:
-        arithmeticOperator(that, construction::newMul);
+        return arithmeticOperator(that, construction::newMul);
       case DIVIDE:
         return divOrMod(that, construction::newDiv);
       case MODULO:
