@@ -14,8 +14,6 @@ import java.util.*;
 import java.util.function.Function;
 import minijava.ast.*;
 import minijava.ast.Class;
-import minijava.ast.Field;
-import minijava.ast.Method;
 import minijava.util.SourceRange;
 import org.apache.commons.io.FileUtils;
 import org.jetbrains.annotations.NotNull;
@@ -64,10 +62,16 @@ public class IREmitter
   private final IdentityHashMap<Field, Entity> fields = new IdentityHashMap<>();
 
   /**
-   * Maps local variable definitions such as parameters and ... local variable definitions to their
+   * Maps local variable definitions such as parameters and local variable definitions to their
    * assigned index. Which is a firm thing.
    */
   private final IdentityHashMap<LocalVariable, Integer> localVarIndexes = new IdentityHashMap<>();
+  /**
+   * The next free local variable index for the localVarIndexes mapping. Is different from the
+   * localVarIndexes.size(), because we don't *really* forget mappings when leaving a block. So, at
+   * the end of a method there might be more than one mapping to the same index.
+   */
+  private int nextFreeLocalVarIndex;
   /** The Basic Block graph of the current function. */
   private Graph graph;
   /**
@@ -190,6 +194,9 @@ public class IREmitter
     graph = constructEmptyGraphFromPrototype(m);
     construction = new Construction(graph);
 
+    localVarIndexes.clear();
+    nextFreeLocalVarIndex = 0;
+
     if (!m.isStatic) {
       connectParametersToIRVariables(m);
     }
@@ -220,8 +227,6 @@ public class IREmitter
   private void connectParametersToIRVariables(Method that) {
     // Never call this on main.
     assert !that.isStatic;
-
-    localVarIndexes.clear();
 
     Node args = graph.getArgs();
 
@@ -331,9 +336,12 @@ public class IREmitter
 
   @Override
   public Void visitBlock(minijava.ast.Block that) {
+    int oldStackPointer = nextFreeLocalVarIndex;
     for (BlockStatement statement : that.statements) {
       statement.acceptVisitor(this);
     }
+    // implicitly forget about all local variables declared in the block
+    nextFreeLocalVarIndex = oldStackPointer;
     return null;
   }
 
@@ -869,7 +877,7 @@ public class IREmitter
       return localVarIndexes.get(var);
     } else {
       // allocate a new index
-      int free = localVarIndexes.size();
+      int free = nextFreeLocalVarIndex++;
       localVarIndexes.put(var, free);
       return free;
     }
