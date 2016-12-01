@@ -13,6 +13,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import minijava.ast.*;
 import minijava.ast.Class;
@@ -22,6 +23,7 @@ import minijava.util.SourceRange;
 import org.apache.commons.io.FileUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jooq.lambda.function.Function4;
 
 /** Emits an intermediate representation for a given minijava Program. */
 public class IREmitter
@@ -159,6 +161,7 @@ public class IREmitter
     }
 
     construction.setCurrentBlock(graph.getEndBlock());
+    Dump.dumpGraph(graph, "sdlfk");
     construction.finish();
   }
 
@@ -227,9 +230,12 @@ public class IREmitter
     //    Node cmp = construction.newCmp(falseConst, trueConst, Relation.Equal);
 
     firm.nodes.Block trueBlock = construction.newBlock();
-    // block for else part or code after if (if no else part exists)
     firm.nodes.Block falseBlock = construction.newBlock();
-    that.condition.acceptVisitor(new CompareNodeVisitor(trueBlock, falseBlock));
+    // block for else part or code after if (if no else part exists)
+    Node condition = that.condition.acceptVisitor(this);
+    Node cond = construction.newCond(condition);
+    trueBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnTrue));
+    falseBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnFalse));
 
     // code in true block
     construction.setCurrentBlock(trueBlock);
@@ -255,149 +261,6 @@ public class IREmitter
     return null;
   }
 
-  private class CompareNodeVisitor implements Expression.Visitor<firm.nodes.Node> {
-    private final Block trueBlock;
-    private final Block falseBlock;
-
-    CompareNodeVisitor(Block trueBlock, Block falseBlock) {
-      this.trueBlock = trueBlock;
-      this.falseBlock = falseBlock;
-    }
-
-    @Override
-    public Node visitBinaryOperator(Expression.BinaryOperator that) {
-      switch (that.op) {
-        case AND:
-          // expression = (left && right)
-          Block rightBlock = construction.newBlock();
-          that.left.acceptVisitor(new CompareNodeVisitor(rightBlock, falseBlock));
-
-          construction.setCurrentBlock(rightBlock);
-          that.right.acceptVisitor(new CompareNodeVisitor(trueBlock, falseBlock));
-          break;
-        case OR:
-          rightBlock = construction.newBlock();
-          that.left.acceptVisitor(new CompareNodeVisitor(trueBlock, rightBlock));
-
-          construction.setCurrentBlock(rightBlock);
-          that.right.acceptVisitor(new CompareNodeVisitor(trueBlock, falseBlock));
-          break;
-        case LT:
-          compareWithRelation(that, Relation.Less);
-          break;
-        case LEQ:
-          compareWithRelation(that, Relation.LessEqual);
-          break;
-        case GT:
-          compareWithRelation(that, Relation.Greater);
-          break;
-        case GEQ:
-          compareWithRelation(that, Relation.GreaterEqual);
-          break;
-        case EQ:
-          compareWithRelation(that, Relation.Equal);
-          break;
-        case NEQ:
-          Node lhs = that.left.acceptVisitor(this);
-          Node rhs = that.right.acceptVisitor(this);
-          // we only have a "Equal" relation. Use that and switch true and false around instead.
-          Node cmp = construction.newCmp(lhs, rhs, Relation.Equal);
-          Node cond = construction.newCond(cmp);
-          Node trueProj = construction.newProj(cond, Mode.getX(), Cond.pnTrue);
-          Node falseProj = construction.newProj(cond, Mode.getX(), Cond.pnFalse);
-          // switch true and false
-          trueBlock.addPred(falseProj);
-          falseBlock.addPred(trueProj);
-          break;
-        case PLUS:
-        case MINUS:
-        case MULTIPLY:
-        case MODULO:
-        case DIVIDE:
-        case ASSIGN:
-          return that.acceptVisitor(IREmitter.this);
-        default:
-          throw new AssertionError("we missed a case in the switch statement!");
-      }
-      return null;
-    }
-
-    private void compareWithRelation(Expression.BinaryOperator binOp, Relation relation) {
-      Node lhs = binOp.left.acceptVisitor(IREmitter.this);
-      Node rhs = binOp.right.acceptVisitor(IREmitter.this);
-      Node cmp = construction.newCmp(lhs, rhs, relation);
-      Node cond = construction.newCond(cmp);
-      Node trueProj = construction.newProj(cond, Mode.getX(), Cond.pnTrue);
-      Node falseProj = construction.newProj(cond, Mode.getX(), Cond.pnFalse);
-      trueBlock.addPred(trueProj);
-      falseBlock.addPred(falseProj);
-    }
-
-    @Override
-    public Node visitUnaryOperator(Expression.UnaryOperator that) {
-      switch (that.op) {
-        case NOT:
-          that.expression.acceptVisitor(new CompareNodeVisitor(falseBlock, trueBlock));
-          break;
-        default:
-          throw new AssertionError("not implemented yet");
-      }
-      return null;
-    }
-
-    @Override
-    public Node visitMethodCall(Expression.MethodCall that) {
-      return that.acceptVisitor(IREmitter.this);
-    }
-
-    @Override
-    public Node visitFieldAccess(Expression.FieldAccess that) {
-      return that.acceptVisitor(IREmitter.this);
-    }
-
-    @Override
-    public Node visitArrayAccess(Expression.ArrayAccess that) {
-      return that.acceptVisitor(IREmitter.this);
-    }
-
-    @Override
-    public Node visitNewObject(Expression.NewObject that) {
-      return that.acceptVisitor(IREmitter.this);
-    }
-
-    @Override
-    public Node visitNewArray(Expression.NewArray that) {
-      return that.acceptVisitor(IREmitter.this);
-    }
-
-    @Override
-    public Node visitVariable(Expression.Variable that) {
-      return that.acceptVisitor(IREmitter.this);
-    }
-
-    @Override
-    public Node visitBooleanLiteral(Expression.BooleanLiteral that) {
-      Node literal =
-          construction.newConst(that.literal ? TargetValue.getBTrue() : TargetValue.getBFalse());
-      Node cond = construction.newCond(literal);
-      Node trueProj = construction.newProj(cond, Mode.getX(), Cond.pnTrue);
-      Node falseProj = construction.newProj(cond, Mode.getX(), Cond.pnFalse);
-      trueBlock.addPred(trueProj);
-      falseBlock.addPred(falseProj);
-      return null;
-    }
-
-    @Override
-    public Node visitIntegerLiteral(Expression.IntegerLiteral that) {
-      return that.acceptVisitor(IREmitter.this);
-    }
-
-    @Override
-    public Node visitReferenceTypeLiteral(Expression.ReferenceTypeLiteral that) {
-      return that.acceptVisitor(IREmitter.this);
-    }
-  }
-
   @Override
   public Void visitExpressionStatement(Statement.ExpressionStatement that) {
     // We evaluate this just for the side effects, e.g. the memory edges this adds.
@@ -417,14 +280,16 @@ public class IREmitter
     conditionBlock.addPred(endStart);
     construction.setCurrentBlock(conditionBlock);
     construction.getCurrentMem(); // See the slides, we need those PhiM nodes
-    that.condition.acceptVisitor(new CompareNodeVisitor(bodyBlock, endBlock));
+    Node condition = that.condition.acceptVisitor(this);
+    Node cond = construction.newCond(condition);
+    bodyBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnTrue));
+    endBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnFalse));
 
     // code in body
     construction.setCurrentBlock(bodyBlock);
     that.body.acceptVisitor(this);
     // jump back to the loop condition
-    Node endBody = construction.newJmp();
-    conditionBlock.addPred(endBody);
+    conditionBlock.addPred(construction.newJmp());
 
     construction.setCurrentBlock(endBlock);
 
@@ -448,84 +313,113 @@ public class IREmitter
     return null;
   }
 
-  @Override
   public Node visitBinaryOperator(Expression.BinaryOperator that) {
-    Node left = that.left.acceptVisitor(this);
-    // Save the store emitter of the left expression (if there's one, e.g. iff it's an lval).
-    // See the comments on storeInCurrentLval.
-    Function<Node, Node> storeInLeft = storeInCurrentLval;
-
-    Node right = that.right.acceptVisitor(this);
-
-    assert storeInLeft != null; // This should be true after semantic analysis.
-
-    // This can never produce an lval (an assignable expression)
-    storeInCurrentLval = null;
-
     switch (that.op) {
       case ASSIGN:
-        // See the comment on storeInCurrentLval. Assignment is basically outsourced to the
-        // resp. expression visitor
+        that.left.acceptVisitor(this);
+        // Save the store emitter of the left expression (if there's one, e.g. iff it's an lval).
+        // See the comments on storeInCurrentLval.
+        Function<Node, Node> storeInLeft = storeInCurrentLval;
+        assert storeInLeft != null; // This should be true after semantic analysis.
+        Node right = that.right.acceptVisitor(this);
+        storeInCurrentLval = null;
         return storeInLeft.apply(right);
       case PLUS:
-        return construction.newAdd(left, right);
+        arithmeticOperator(that, construction::newAdd);
       case MINUS:
-        return construction.newSub(left, right);
+        arithmeticOperator(that, construction::newSub);
       case MULTIPLY:
-        return construction.newMul(left, right);
+        arithmeticOperator(that, construction::newMul);
       case DIVIDE:
-        // A `div` operation results in an element of the divmod tuple in memory
-        // We convert the values from int to long, to prevent the INT_MIN / -1 exception
-        // This shouldn't make any difference performance wise on 64 bit systems
-        Node leftConv = construction.newConv(left, Mode.getLs());
-        Node rightConv = construction.newConv(right, Mode.getLs());
-        Node divNode =
-            construction.newDiv(
-                construction.getCurrentMem(),
-                leftConv,
-                rightConv,
-                binding_ircons.op_pin_state.op_pin_state_pinned);
-        // Fetch the result from memory
-        Node retProj = construction.newProj(divNode, Mode.getLs(), Div.pnRes);
-        // Convert it back to int
-        return construction.newConv(retProj, Mode.getIs());
+        return divOrMod(that, construction::newDiv);
       case MODULO:
-        // A `mod` operation results in an element of the divmod tuple in memory
-        // We convert the values from int to long, to prevent the INT_MIN / -1 exception
-        // This shouldn't make any difference performance wise on 64 bit systems
-        Node leftModConv = construction.newConv(left, Mode.getLs());
-        Node rightModConv = construction.newConv(right, Mode.getLs());
-        Node modNode =
-            construction.newMod(
-                construction.getCurrentMem(),
-                leftModConv,
-                rightModConv,
-                binding_ircons.op_pin_state.op_pin_state_pinned);
-        // Fetch the result from memory
-        Node retModProj = construction.newProj(modNode, Mode.getLs(), Mod.pnRes);
-        // Convert it back to int
-        return construction.newConv(retModProj, Mode.getIs());
-      case OR:
-        return construction.newOr(left, right);
+        return divOrMod(that, construction::newMod);
       case AND:
-        return construction.newAnd(left, right);
-      case EQ:
-        Node cmp = construction.newCmp(left, right, Relation.Equal);
-        // TODO: How to project out a byte flag?
-        throw new UnsupportedOperationException();
-      case NEQ:
-        throw new UnsupportedOperationException();
+        return shortciruit(that);
+      case OR:
+        return shortciruit(that);
       case LT:
-        throw new UnsupportedOperationException();
+        return compareWithRelation(that, Relation.Less);
       case LEQ:
-        throw new UnsupportedOperationException();
+        return compareWithRelation(that, Relation.LessEqual);
       case GT:
-        throw new UnsupportedOperationException();
+        return compareWithRelation(that, Relation.Greater);
       case GEQ:
-        throw new UnsupportedOperationException();
+        return compareWithRelation(that, Relation.GreaterEqual);
+      case EQ:
+        return compareWithRelation(that, Relation.Equal);
+      case NEQ:
+        return booleanNot(compareWithRelation(that, Relation.Equal));
       default:
         throw new UnsupportedOperationException();
     }
+  }
+
+  private Node divOrMod(
+      Expression.BinaryOperator that,
+      Function4<Node, Node, Node, binding_ircons.op_pin_state, Node> newOp) {
+    // A `div` or `mod` operation results in an element of the divmod tuple in memory
+    // We convert the values from int to long, to prevent the INT_MIN / -1 exception
+    // This shouldn't make any difference performance wise on 64 bit systems
+    Node leftConv = construction.newConv(that.left.acceptVisitor(this), Mode.getLs());
+    Node rightConv = construction.newConv(that.right.acceptVisitor(this), Mode.getLs());
+    Node divOrMod =
+        newOp.apply(
+            construction.getCurrentMem(),
+            leftConv,
+            rightConv,
+            binding_ircons.op_pin_state.op_pin_state_pinned);
+    // Fetch the result from memory
+    assert Div.pnRes == Mod.pnRes;
+    Node retProj = construction.newProj(divOrMod, Mode.getLs(), Div.pnRes);
+    // Convert it back to int
+    return construction.newConv(retProj, Mode.getIs());
+  }
+
+  private Node arithmeticOperator(Expression.BinaryOperator that, BiFunction<Node, Node, Node> op) {
+    return op.apply(that.left.acceptVisitor(this), that.right.acceptVisitor(this));
+  }
+
+  private Node shortciruit(Expression.BinaryOperator that) {
+    Block endBlock = construction.newBlock();
+    Block rightBlock = construction.newBlock();
+
+    Node left = that.left.acceptVisitor(this);
+    Node cond = construction.newCond(left);
+
+    if (that.op == Expression.BinOp.AND) {
+      // We shortcircuit if the left expression is False
+      endBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnFalse));
+      rightBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnTrue));
+    } else {
+      assert that.op == Expression.BinOp.OR;
+      // We shortcircuit if the left expression is True
+      endBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnTrue));
+      rightBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnFalse));
+    }
+
+    construction.setCurrentBlock(rightBlock);
+    Node right = that.right.acceptVisitor(this);
+
+    endBlock.addPred(construction.newJmp());
+    construction.setCurrentBlock(endBlock);
+
+    // The return value is either the value of the left expression or
+    // that of the right, depending on control flow.
+    storeInCurrentLval = null;
+    return construction.newPhi(new Node[] {left, right}, Mode.getb());
+  }
+
+  private Node compareWithRelation(Expression.BinaryOperator binOp, Relation relation) {
+    Node lhs = binOp.left.acceptVisitor(this);
+    Node rhs = binOp.right.acceptVisitor(this);
+    return construction.newCmp(lhs, rhs, relation);
+  }
+
+  private Node booleanNot(Node expression) {
+    Node trueNode = construction.newConst(TargetValue.getBTrue());
+    Node falseNode = construction.newConst(TargetValue.getBFalse());
+    return construction.newMux(expression, trueNode, falseNode);
   }
 
   @Override
@@ -542,7 +436,7 @@ public class IREmitter
       case NEGATE:
         return construction.newMinus(expression);
       case NOT:
-        return construction.newNot(expression);
+        return booleanNot(expression);
       default:
         throw new UnsupportedOperationException();
     }
@@ -629,7 +523,7 @@ public class IREmitter
   }
 
   private Node store(Node address, Node value) {
-    Node store = construction.newStore(construction.getCurrentMem(), address, value);
+    Node store = construction.newStore(construction.getCurrentMem(), address, convbToBu(value));
     construction.setCurrentMem(construction.newProj(store, Mode.getM(), Store.pnM));
     return value;
   }
@@ -637,7 +531,7 @@ public class IREmitter
   private Node load(Node address, Mode mode) {
     Node load = construction.newLoad(construction.getCurrentMem(), address, mode);
     construction.setCurrentMem(construction.newProj(load, Mode.getM(), Load.pnM));
-    return construction.newProj(load, mode, Load.pnRes);
+    return convBuTob(construction.newProj(load, mode, Load.pnRes));
   }
 
   @Override
@@ -682,17 +576,37 @@ public class IREmitter
     int idx = getLocalVarIndex(that.var.def);
     storeInCurrentLval =
         (Node val) -> {
-          construction.setVariable(idx, val);
+          construction.setVariable(idx, convbToBu(val));
           return val;
         };
-    return construction.getVariable(idx, mode);
+    return convBuTob(construction.getVariable(idx, mode));
+  }
+
+  /**
+   * Converts a node of mode b to one of mode Bu, by converting the False case to 0 and the True
+   * case to 1.
+   */
+  private Node convbToBu(Node expression) {
+    if (expression.getMode() == Mode.getb()) {
+      Node zero = construction.newConst(0, Mode.getBu());
+      Node one = construction.newConst(1, Mode.getBu());
+      return construction.newMux(expression, zero, one);
+    }
+    return expression;
+  }
+
+  /** Converts a node of mode Bu to one of mode b, by val > 0. */
+  private Node convBuTob(Node expression) {
+    if (expression.getMode() == Mode.getb()) {
+      Node zero = construction.newConst(0, Mode.getBu());
+      return construction.newCmp(expression, zero, Relation.Greater);
+    }
+    return expression;
   }
 
   @Override
   public Node visitBooleanLiteral(Expression.BooleanLiteral that) {
-    storeInCurrentLval = null;
-    return construction.newConst(
-        that.literal ? 1 : 0, storageModeForType(minijava.ast.Type.BOOLEAN));
+    return construction.newConst(that.literal ? TargetValue.getBTrue() : TargetValue.getBFalse());
   }
 
   @Override
@@ -726,7 +640,7 @@ public class IREmitter
     int idx = getLocalVarIndex(that);
     if (that.rhs.isPresent()) {
       Node rhs = that.rhs.get().acceptVisitor(this);
-      construction.setVariable(idx, rhs);
+      construction.setVariable(idx, convbToBu(rhs));
     }
 
     return null;
