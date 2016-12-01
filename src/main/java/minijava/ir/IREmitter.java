@@ -1,5 +1,7 @@
 package minijava.ir;
 
+import static minijava.ir.Types.*;
+
 import com.google.common.io.Files;
 import firm.*;
 import firm.Program;
@@ -29,35 +31,6 @@ public class IREmitter
         minijava.ast.Block.Visitor<Void>,
         Expression.Visitor<Node>,
         BlockStatement.Visitor<Void> {
-
-  private static final Type INT_TYPE;
-  private static final Type BOOLEAN_TYPE;
-  private static final Type PTR_TYPE;
-  private static final MethodType CALLOC_TYPE;
-  private static final Entity CALLOC;
-  private static final MethodType PRINT_INT_TYPE;
-  private static final Entity PRINT_INT;
-
-  static {
-    // If we consistently call InitFirm.init() throughout our code, we guarantee that
-    // Firm.init() will be called exactly once, even if e.g. the test suite also needs to
-    // call Firm.init().
-    InitFirm.init();
-    // Use 64bit pointers by default
-    // I don't see a reason we should, though.
-    //Mode.setDefaultModeP(Mode.createReferenceMode("_64bit", Mode.Arithmetic.TwosComplement, 64, 1));
-    INT_TYPE = new PrimitiveType(Mode.getIs());
-    BOOLEAN_TYPE = new PrimitiveType(Mode.getBu());
-    PTR_TYPE = new PrimitiveType(Mode.getP());
-    // We have to initialize these exactly once because of name clashes.
-    CALLOC_TYPE = new MethodType(new Type[] {PTR_TYPE, PTR_TYPE}, new Type[] {PTR_TYPE});
-    CALLOC =
-        new Entity(Program.getGlobalType(), NameMangler.mangledCallocMethodName(), CALLOC_TYPE);
-    PRINT_INT_TYPE = new MethodType(new Type[] {INT_TYPE}, new Type[] {});
-    PRINT_INT =
-        new Entity(
-            Program.getGlobalType(), NameMangler.mangledPrintIntMethodName(), PRINT_INT_TYPE);
-  }
 
   private final IdentityHashMap<Class, ClassType> classTypes = new IdentityHashMap<>();
   private final IdentityHashMap<Method, Entity> methods = new IdentityHashMap<>();
@@ -89,98 +62,20 @@ public class IREmitter
    */
   @Nullable private Function<Node, Node> storeInCurrentLval;
 
-  public static void main(String[] main_args) {}
+  public IREmitter() {
+    InitFirm.init();
+  }
 
   @Override
   public Void visitProgram(minijava.ast.Program that) {
     classTypes.clear();
     methods.clear();
     fields.clear();
-    for (Class decl : that.declarations) {
-      ClassType classType = new ClassType(decl.name());
-      classTypes.put(decl, classType);
-      for (Field f : decl.fields) {
-        fields.put(f, addFieldDecl(f));
-      }
-      if (decl.fields.size() == 0) {
-        // We have to prevent class types of length 0, so we insert an unreachable field.
-        String unusableFieldName = "0padding"; // unusable because of digit prefix
-        Entity fieldEnt = new Entity(classType, unusableFieldName, BOOLEAN_TYPE);
-        fieldEnt.setLdIdent(NameMangler.mangleInstanceFieldName(decl.name(), unusableFieldName));
-      }
-      for (Method m : decl.methods) {
-        methods.put(m, addMethodDecl(m));
-      }
-      //System.out.println("# " + classType);
-      //System.out.println(classType.getSize());
-      classType.layoutFields();
-      classType.finishLayout();
-      //System.out.println(classType.getSize());
-    }
+    that.acceptVisitor(new Collector(classTypes, fields, methods));
     for (Class klass : that.declarations) {
       klass.methods.forEach(this::emitBody);
     }
     return null;
-  }
-
-  private Entity addFieldDecl(Field f) {
-    Type type = getStorageType(f.type);
-    ClassType definingClass = classTypes.get(f.definingClass.def);
-    Entity fieldEnt = new Entity(definingClass, f.name(), type);
-    fieldEnt.setLdIdent(NameMangler.mangleInstanceFieldName(definingClass.getName(), f.name()));
-    return fieldEnt;
-  }
-
-  /**
-   * Returns the primitive type in which to store type @type@. Consider a @boolean b;@ declaration,
-   * that should have PrimitiveType(Mode.getBu());, wheras @A a;@ for a reference type @A@ should
-   * return the type of the reference, e.g. a pointer @new PrimitiveType(Mode.getP());@
-   *
-   * <p>So, for value types just return their value, for reference types return a pointer.
-   */
-  @NotNull
-  private PrimitiveType getStorageType(minijava.ast.Type type) {
-    return new PrimitiveType(storageModeForType(type));
-  }
-
-  /**
-   * This will *not* go through the body of the method, just analyze stuff that is needed for
-   * constructing an entity.
-   */
-  private Entity addMethodDecl(Method m) {
-    if (m.isStatic) {
-      return addMainMethodDecl(m);
-    }
-    ClassType definingClass = classTypes.get(m.definingClass.def);
-    ArrayList<Type> parameterTypes = new ArrayList<>();
-
-    // Add the this pointer. It's always parameter 0, so access will be trivial.
-    parameterTypes.add(ptrTo(definingClass));
-    for (LocalVariable p : m.parameters) {
-      // In the body, we need to refer to local variables by index, so we save that mapping.
-      parameterTypes.add(getStorageType(p.type));
-    }
-
-    // The visitor returns null if that.returnType was void.
-    Type[] returnTypes = {};
-    if (!m.returnType.equals(minijava.ast.Type.VOID)) {
-      returnTypes = new Type[] {getStorageType(m.returnType)};
-    }
-
-    Type methodType = new MethodType(parameterTypes.toArray(new Type[0]), returnTypes);
-
-    // Set the mangled name
-    Entity methodEnt = new Entity(definingClass, m.name(), methodType);
-    methodEnt.setLdIdent(NameMangler.mangleMethodName(definingClass.getName(), m.name()));
-    return methodEnt;
-  }
-
-  private Entity addMainMethodDecl(Method m) {
-    MethodType type = new MethodType(0, 0);
-    SegmentType global = Program.getGlobalType();
-    Entity mainEnt = new Entity(global, "main", type);
-    mainEnt.setLdIdent(NameMangler.mangledMainMethodName());
-    return mainEnt;
   }
 
   private void emitBody(Method m) {
@@ -278,6 +173,7 @@ public class IREmitter
       // We don't know the array statically, so just pass 0
       // of the number of elements (which is allowed according
       // to the docs)
+      // TODO shouldn't we reuse types for arrays as well?
       type = new ArrayType(type, 0);
     }
     return type;
@@ -308,25 +204,6 @@ public class IREmitter
   @Override
   public Type visitClass(Class that) {
     return classTypes.get(that);
-  }
-
-  private Mode storageModeForType(minijava.ast.Type type) {
-    if (type.dimension > 0) {
-      return Mode.getP();
-    }
-
-    switch (type.basicType.name()) {
-      case "int":
-        return Mode.getIs();
-      case "boolean":
-        return Mode.getBu();
-      default:
-        return Mode.getP();
-    }
-  }
-
-  private PointerType ptrTo(Type type) {
-    return new PointerType(type);
   }
 
   @Override
