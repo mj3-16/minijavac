@@ -172,7 +172,7 @@ public class IREmitter
       // of the number of elements (which is allowed according
       // to the docs)
       // TODO shouldn't we reuse types for arrays as well?
-      type = new ArrayType(type, 0);
+      type = new PointerType(new ArrayType(type, 0));
     }
     return type;
   }
@@ -617,7 +617,7 @@ public class IREmitter
     minijava.ast.Type elementType =
         new minijava.ast.Type(arrayType.basicType, arrayType.dimension - 1, arrayType.range());
 
-    Node address = construction.newSel(array, index, arrayType.acceptVisitor(this));
+    Node address = construction.newSel(array, index, new ArrayType(visitType(elementType), 0));
 
     // We store val at the absOffset
     storeInCurrentLval = (Node val) -> store(address, val);
@@ -640,7 +640,7 @@ public class IREmitter
 
   @Override
   public Node visitNewObject(Expression.NewObject that) {
-    Type type = that.type.acceptVisitor(this);
+    Type type = visitType(that.type);
     storeInCurrentLval = null;
     Node num = construction.newConst(1, Mode.getP());
     Node size = construction.newSize(Mode.getIs(), type);
