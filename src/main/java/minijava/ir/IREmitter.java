@@ -244,6 +244,7 @@ public class IREmitter
     falseBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnFalse));
 
     // code in true block
+    trueBlock.mature();
     construction.setCurrentBlock(trueBlock);
     that.then.acceptVisitor(this);
 
@@ -255,6 +256,7 @@ public class IREmitter
 
     // code in false block
     if (that.else_.isPresent()) {
+      falseBlock.mature();
       construction.setCurrentBlock(falseBlock);
       that.else_.get().acceptVisitor(this);
       if (!construction.isUnreachable()) {
@@ -263,6 +265,7 @@ public class IREmitter
     }
 
     construction.setCurrentBlock(afterElse);
+    afterElse.mature(); // Should we really do this?
     return null;
   }
 
@@ -289,12 +292,17 @@ public class IREmitter
     Node cond = construction.newCond(condition);
     bodyBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnTrue));
     endBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnFalse));
+    bodyBlock.mature();
+    endBlock.mature();
 
     // code in body
     construction.setCurrentBlock(bodyBlock);
     that.body.acceptVisitor(this);
     // jump back to the loop condition
-    conditionBlock.addPred(construction.newJmp());
+    if (!construction.isUnreachable()) {
+      conditionBlock.addPred(construction.newJmp());
+    }
+    conditionBlock.mature();
 
     construction.setCurrentBlock(endBlock);
 
@@ -409,6 +417,7 @@ public class IREmitter
       endBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnTrue));
       rightBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnFalse));
     }
+    rightBlock.mature();
 
     construction.setCurrentBlock(rightBlock);
     Node leftMem = construction.getCurrentMem();
@@ -416,6 +425,7 @@ public class IREmitter
     Node rightMem = construction.getCurrentMem();
 
     endBlock.addPred(construction.newJmp());
+    endBlock.mature();
     construction.setCurrentBlock(endBlock);
 
     storeInCurrentLval = null;
