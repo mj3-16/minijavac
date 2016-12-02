@@ -16,8 +16,6 @@ import java.util.*;
 import java.util.function.Function;
 import minijava.ast.*;
 import minijava.ast.Class;
-import minijava.ast.Field;
-import minijava.ast.Method;
 import minijava.util.SourceRange;
 import org.apache.commons.io.FileUtils;
 import org.jetbrains.annotations.NotNull;
@@ -37,7 +35,7 @@ public class IREmitter
   private final IdentityHashMap<Field, Entity> fields = new IdentityHashMap<>();
 
   /**
-   * Maps local variable definitions such as parameters and ... local variable definitions to their
+   * Maps local variable definitions such as parameters and local variable definitions to their
    * assigned index. Which is a firm thing.
    */
   private final IdentityHashMap<LocalVariable, Integer> localVarIndexes = new IdentityHashMap<>();
@@ -85,6 +83,8 @@ public class IREmitter
     graph = constructEmptyGraphFromPrototype(m);
     construction = new Construction(graph);
 
+    localVarIndexes.clear();
+
     if (!m.isStatic) {
       connectParametersToIRVariables(m);
     }
@@ -115,8 +115,6 @@ public class IREmitter
   private void connectParametersToIRVariables(Method that) {
     // Never call this on main.
     assert !that.isStatic;
-
-    localVarIndexes.clear();
 
     Node args = graph.getArgs();
 
