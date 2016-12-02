@@ -207,6 +207,10 @@ public class IREmitter
   @Override
   public Void visitBlock(minijava.ast.Block that) {
     for (BlockStatement statement : that.statements) {
+      if (construction.isUnreachable()) {
+        // Why bother generating any more code?
+        break;
+      }
       statement.acceptVisitor(this);
     }
     return null;
@@ -219,37 +223,33 @@ public class IREmitter
 
   @Override
   public Void visitIf(Statement.If that) {
-    // static cmp node for testing
-    //    Node falseConst = construction.newConst(0, Mode.getBu());
-    //    Node trueConst = construction.newConst(1, Mode.getBu());
-    //    Node cmp = construction.newCmp(falseConst, trueConst, Relation.Equal);
-
     firm.nodes.Block trueBlock = construction.newBlock();
+    firm.nodes.Block afterElse = construction.newBlock();
+    firm.nodes.Block falseBlock = that.else_.isPresent() ? construction.newBlock() : afterElse;
+
     // block for else part or code after if (if no else part exists)
-    firm.nodes.Block falseBlock = construction.newBlock();
     that.condition.acceptVisitor(new CompareNodeVisitor(trueBlock, falseBlock));
 
     // code in true block
     construction.setCurrentBlock(trueBlock);
     that.then.acceptVisitor(this);
-    Node endIf = construction.newJmp();
+
+    // Only add a jump if this is reachable from control flow
+    // E.g., don't add a jump if the last statement was a return.
+    if (!construction.isUnreachable()) {
+      afterElse.addPred(construction.newJmp());
+    }
 
     // code in false block
-    construction.setCurrentBlock(falseBlock);
-    if (!that.else_.isPresent()) {
-      // if construct (without else)
-      falseBlock.addPred(endIf);
-    } else {
-      // if-else construct
+    if (that.else_.isPresent()) {
+      construction.setCurrentBlock(falseBlock);
       that.else_.get().acceptVisitor(this);
-      Node endElse = construction.newJmp();
-
-      // add block for code after this if-else
-      firm.nodes.Block afterElse = construction.newBlock();
-      afterElse.addPred(endElse);
-      afterElse.addPred(endIf);
-      construction.setCurrentBlock(afterElse);
+      if (!construction.isUnreachable()) {
+        afterElse.addPred(construction.newJmp());
+      }
     }
+
+    construction.setCurrentBlock(afterElse);
     return null;
   }
 
