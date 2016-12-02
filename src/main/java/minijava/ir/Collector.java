@@ -92,7 +92,7 @@ class Collector implements Program.Visitor<Void> {
   }
 
   private Entity createMainMethod(Method m) {
-    MethodType type = new MethodType(0, 0);
+    MethodType type = new MethodType(new Type[0], new Type[] {INT_TYPE});
     SegmentType global = firm.Program.getGlobalType();
     Entity mainEnt = new Entity(global, "main", type);
     mainEnt.setLdIdent(NameMangler.mangledMainMethodName());
