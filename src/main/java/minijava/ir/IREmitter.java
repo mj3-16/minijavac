@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import minijava.ast.*;
 import minijava.ast.Class;
 import minijava.util.SourceRange;
@@ -52,19 +51,6 @@ public class IREmitter
    * making common sub expressions irrepresentable.
    */
   private Construction construction;
-  /**
-   * Stores the node's value in the current lvar (if there is any). This is crucial for assignment
-   * to work. E.g. in the expression x = 5, we analyze the variable expression x and get back its
-   * value, which is irrelevant for assignment, since we need the *address of* x. This is where we
-   * need storeInCurrentLval, which would store the expression node of the RHS (evaluating to 5) in
-   * the address of x.
-   *
-   * <p>Now, in an ideal world, this variable would be 'Node currentLval', but firm doesn't offer a
-   * function for getting the address of a local variable as a Node. So in order to not duplicate a
-   * lot of work (e.g. computing array offsets, etc.) in a mechanism without this variable, we
-   * abstract actual assignment out into a function.
-   */
-  @Nullable private Function<Node, Node> storeInCurrentLval;
 
   public IREmitter() {
     InitFirm.init();
@@ -334,14 +320,7 @@ public class IREmitter
   public Node visitBinaryOperator(Expression.BinaryOperator that) {
     switch (that.op) {
       case ASSIGN:
-        Node blub = that.left.acceptVisitor(this);
-        // Save the store emitter of the left expression (if there's one, e.g. iff it's an lval).
-        // See the comments on storeInCurrentLval.
-        Function<Node, Node> storeInLeft = storeInCurrentLval;
-        assert storeInLeft != null; // This should be true after semantic analysis.
-        Node right = that.right.acceptVisitor(this);
-        storeInCurrentLval = null;
-        return storeInLeft.apply(right);
+        return assign(that.left, that.right);
       case PLUS:
         return arithmeticOperator(that, construction::newAdd);
       case MINUS:
@@ -373,6 +352,33 @@ public class IREmitter
     }
   }
 
+  /**
+   * Stores the value of `rhs` into the address of `lval`. `lval` must be an expression which has an
+   * address for that, e.g. be an lval.
+   */
+  private Node assign(Expression lval, Expression rhs) {
+    // This is ugly, as we have to calculate the address of the expression of lval.
+    if (lval instanceof Expression.Variable) {
+      Expression.Variable use = (Expression.Variable) lval;
+      int idx = getLocalVarIndex(use.var.def);
+      Node value = rhs.acceptVisitor(this);
+      construction.setVariable(idx, convbToBu(value));
+      return value;
+    } else if (lval instanceof Expression.FieldAccess) {
+      Expression.FieldAccess access = (Expression.FieldAccess) lval;
+      Node address = calculateOffsetForAccess(access);
+      Node value = rhs.acceptVisitor(this);
+      return store(address, value);
+    } else if (lval instanceof Expression.ArrayAccess) {
+      Expression.ArrayAccess access = (Expression.ArrayAccess) lval;
+      Node address = calculateOffsetOfAccess(access);
+      Node value = rhs.acceptVisitor(this);
+      return store(address, value);
+    }
+    assert false;
+    throw new UnsupportedOperationException("This should be caught in semantic analysis.");
+  }
+
   private Node divOrMod(
       Expression.BinaryOperator that,
       Function4<Node, Node, Node, binding_ircons.op_pin_state, Node> newOp) {
@@ -390,13 +396,11 @@ public class IREmitter
     // Fetch the result from memory
     assert Div.pnRes == Mod.pnRes;
     Node retProj = construction.newProj(divOrMod, Mode.getLs(), Div.pnRes);
-    storeInCurrentLval = null;
     // Convert it back to int
     return construction.newConv(retProj, Mode.getIs());
   }
 
   private Node arithmeticOperator(Expression.BinaryOperator that, BiFunction<Node, Node, Node> op) {
-    storeInCurrentLval = null;
     return op.apply(that.left.acceptVisitor(this), that.right.acceptVisitor(this));
   }
 
@@ -428,7 +432,6 @@ public class IREmitter
     endBlock.mature();
     construction.setCurrentBlock(endBlock);
 
-    storeInCurrentLval = null;
     // The return value is either the value of the left expression or
     // that of the right, depending on control flow.
     construction.setCurrentMem(construction.newPhi(new Node[] {leftMem, rightMem}, Mode.getM()));
@@ -438,7 +441,6 @@ public class IREmitter
   private Node compareWithRelation(Expression.BinaryOperator binOp, Relation relation) {
     Node lhs = binOp.left.acceptVisitor(this);
     Node rhs = binOp.right.acceptVisitor(this);
-    storeInCurrentLval = null;
     return construction.newCmp(convbToBu(lhs), convbToBu(rhs), relation);
   }
 
@@ -453,12 +455,10 @@ public class IREmitter
     if (that.op == Expression.UnOp.NEGATE && that.expression instanceof Expression.IntegerLiteral) {
       // treat this case special in case the integer literal is 2147483648 (doesn't fit in int)
       int lit = Integer.parseInt("-" + ((Expression.IntegerLiteral) that.expression).literal);
-      storeInCurrentLval = null;
       return construction.newConst(lit, storageModeForType(minijava.ast.Type.INT));
     }
     Node expression = that.expression.acceptVisitor(this);
     // This can never produce an lval (an assignable expression)
-    storeInCurrentLval = null;
     switch (that.op) {
       case NEGATE:
         return construction.newMinus(expression);
@@ -486,7 +486,6 @@ public class IREmitter
       args.add(convbToBu(a.acceptVisitor(this)));
     }
 
-    storeInCurrentLval = null;
     Node call = callFunction(method, args.toArray(new Node[0]));
     minijava.ast.Type returnType = that.method.def.returnType;
     if (!returnType.equals(minijava.ast.Type.VOID)) {
@@ -522,31 +521,33 @@ public class IREmitter
   @Override
   public Node visitFieldAccess(Expression.FieldAccess that) {
     // This produces an lval
-    Node self = that.self.acceptVisitor(this);
-    Entity field = fields.get(that.field.def);
-    Node absOffset = construction.newMember(self, field);
+    Node absOffset = calculateOffsetForAccess(that);
 
     // We store val at the absOffset
-    storeInCurrentLval = (Node val) -> store(absOffset, val);
 
-    return load(absOffset, field.getType().getMode());
+    return load(absOffset, storageModeForType(that.type));
+  }
+
+  private Node calculateOffsetForAccess(Expression.FieldAccess that) {
+    Node self = that.self.acceptVisitor(this);
+    Entity field = fields.get(that.field.def);
+    return construction.newMember(self, field);
   }
 
   @Override
   public Node visitArrayAccess(Expression.ArrayAccess that) {
-    Node array = that.array.acceptVisitor(this);
-    Node index = that.index.acceptVisitor(this);
-    minijava.ast.Type arrayType = that.array.type;
-    minijava.ast.Type elementType =
-        new minijava.ast.Type(arrayType.basicType, arrayType.dimension - 1, arrayType.range());
-
-    Node address = construction.newSel(array, index, new ArrayType(visitType(elementType), 0));
+    Node address = calculateOffsetOfAccess(that);
 
     // We store val at the absOffset
-    storeInCurrentLval = (Node val) -> store(address, val);
 
     // Now just dereference the computed offset
-    return load(address, storageModeForType(elementType));
+    return load(address, storageModeForType(that.type));
+  }
+
+  private Node calculateOffsetOfAccess(Expression.ArrayAccess that) {
+    Node array = that.array.acceptVisitor(this);
+    Node index = that.index.acceptVisitor(this);
+    return construction.newSel(array, index, new ArrayType(visitType(that.type), 0));
   }
 
   private Node store(Node address, Node value) {
@@ -564,7 +565,6 @@ public class IREmitter
   @Override
   public Node visitNewObject(Expression.NewObject that) {
     Type type = visitType(that.type);
-    storeInCurrentLval = null;
     Node num = construction.newConst(1, Mode.getP());
     Node size = construction.newSize(Mode.getIs(), type);
     return calloc(num, size);
@@ -580,7 +580,6 @@ public class IREmitter
     // The access mode is really what we want to query here.
     Type elementType = getStorageType(that.elementType);
     Node size = construction.newSize(Mode.getIs(), elementType);
-    storeInCurrentLval = null;
     return calloc(num, size);
   }
 
@@ -601,11 +600,6 @@ public class IREmitter
     Mode mode = storageModeForType(that.type);
     // This will allocate a new index if necessary.
     int idx = getLocalVarIndex(that.var.def);
-    storeInCurrentLval =
-        (Node val) -> {
-          construction.setVariable(idx, convbToBu(val));
-          return val;
-        };
     return convBuTob(construction.getVariable(idx, mode));
   }
 
@@ -640,13 +634,11 @@ public class IREmitter
   public Node visitIntegerLiteral(Expression.IntegerLiteral that) {
     // We handled the 0x80000000 case while visiting the unary minus
     int lit = Integer.parseInt(that.literal);
-    storeInCurrentLval = null;
     return construction.newConst(lit, storageModeForType(minijava.ast.Type.INT));
   }
 
   @Override
   public Node visitReferenceTypeLiteral(Expression.ReferenceTypeLiteral that) {
-    storeInCurrentLval = null;
     switch (that.name()) {
       case "this":
         // access parameter 0 as a pointer, that's where this is to be found
