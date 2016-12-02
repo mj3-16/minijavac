@@ -18,8 +18,6 @@ class Types {
     // Firm.init() will be called exactly once, even if e.g. the test suite also needs to
     // call Firm.init().
     InitFirm.init();
-    // Use 64bit pointers by default
-    //Mode.setDefaultModeP(Mode.createReferenceMode("p64", Mode.Arithmetic.TwosComplement, 64, 1));
     INT_TYPE = new PrimitiveType(Mode.getIs());
     BOOLEAN_TYPE = new PrimitiveType(Mode.getBu());
     PTR_TYPE = new PrimitiveType(Mode.getP());

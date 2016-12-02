@@ -1,6 +1,7 @@
 package minijava.ir;
 
 import firm.Firm;
+import firm.Mode;
 
 /**
  * Ugly workaround for static global state in {@link Firm}.
@@ -14,6 +15,8 @@ import firm.Firm;
 public class InitFirm {
   static {
     Firm.init();
+    // Use 64bit pointers by default
+    Mode.setDefaultModeP(Mode.createReferenceMode("p64", Mode.Arithmetic.TwosComplement, 64, 1));
   }
 
   private InitFirm() {}
