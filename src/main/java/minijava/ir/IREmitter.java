@@ -230,6 +230,7 @@ public class IREmitter
     that.condition.acceptVisitor(new CompareNodeVisitor(trueBlock, falseBlock));
 
     // code in true block
+    trueBlock.mature();
     construction.setCurrentBlock(trueBlock);
     that.then.acceptVisitor(this);
     Node endIf = construction.newJmp();
@@ -239,8 +240,10 @@ public class IREmitter
     if (!that.else_.isPresent()) {
       // if construct (without else)
       falseBlock.addPred(endIf);
+      falseBlock.mature();
     } else {
       // if-else construct
+      falseBlock.mature();
       that.else_.get().acceptVisitor(this);
       Node endElse = construction.newJmp();
 
@@ -248,6 +251,7 @@ public class IREmitter
       firm.nodes.Block afterElse = construction.newBlock();
       afterElse.addPred(endElse);
       afterElse.addPred(endIf);
+      afterElse.mature();
       construction.setCurrentBlock(afterElse);
     }
     return null;
@@ -269,6 +273,7 @@ public class IREmitter
           // expression = (left && right)
           Block rightBlock = construction.newBlock();
           that.left.acceptVisitor(new CompareNodeVisitor(rightBlock, falseBlock));
+          rightBlock.mature();
 
           construction.setCurrentBlock(rightBlock);
           that.right.acceptVisitor(new CompareNodeVisitor(trueBlock, falseBlock));
@@ -276,6 +281,7 @@ public class IREmitter
         case OR:
           rightBlock = construction.newBlock();
           that.left.acceptVisitor(new CompareNodeVisitor(trueBlock, rightBlock));
+          rightBlock.mature();
 
           construction.setCurrentBlock(rightBlock);
           that.right.acceptVisitor(new CompareNodeVisitor(trueBlock, falseBlock));
@@ -416,6 +422,8 @@ public class IREmitter
     construction.setCurrentBlock(conditionBlock);
     construction.getCurrentMem(); // See the slides, we need those PhiM nodes
     that.condition.acceptVisitor(new CompareNodeVisitor(bodyBlock, endBlock));
+    bodyBlock.mature();
+    endBlock.mature();
 
     // code in body
     construction.setCurrentBlock(bodyBlock);
@@ -423,6 +431,7 @@ public class IREmitter
     // jump back to the loop condition
     Node endBody = construction.newJmp();
     conditionBlock.addPred(endBody);
+    conditionBlock.mature();
 
     construction.setCurrentBlock(endBlock);
 
