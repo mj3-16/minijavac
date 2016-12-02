@@ -602,6 +602,7 @@ public class SemanticAnalyzer
       p.type.acceptVisitor(this);
       Expression arg = that.arguments.get(i).acceptVisitor(this);
       checkType(p.type, arg.type, arg.range());
+      that.arguments.set(i, arg);
     }
 
     m.returnType.acceptVisitor(this);
