@@ -34,6 +34,8 @@ public class IREmitter
   private final IdentityHashMap<Method, Entity> methods = new IdentityHashMap<>();
   private final IdentityHashMap<Field, Entity> fields = new IdentityHashMap<>();
 
+  /** Reference to the method currently under construction. Fields below are reset per method. */
+  private Method currentMethod;
   /**
    * Maps local variable definitions such as parameters and local variable definitions to their
    * assigned index. Which is a firm thing.
@@ -80,6 +82,7 @@ public class IREmitter
     // graph and construction are irrelevant to anything before or after.
     // It's more like 2 additional parameters to the visitor.
 
+    currentMethod = m;
     graph = constructEmptyGraphFromPrototype(m);
     construction = new Construction(graph);
 
@@ -146,7 +149,11 @@ public class IREmitter
       // Add an implicit return statement at the end of the block,
       // iff we have return type void. In which case returnTypes has length 0.
       if (that.returnType.equals(minijava.ast.Type.VOID)) {
-        Node ret = construction.newReturn(construction.getCurrentMem(), new Node[0]);
+        Node[] retVal = {};
+        if (that.isStatic) {
+          retVal = new Node[] {construction.newConst(0, Mode.getIs())};
+        }
+        Node ret = construction.newReturn(construction.getCurrentMem(), retVal);
         construction.setUnreachable();
         graph.getEndBlock().addPred(ret);
       } else {
@@ -436,6 +443,11 @@ public class IREmitter
     if (that.expression.isPresent()) {
       retVals = new Node[] {that.expression.get().acceptVisitor(this)};
     }
+
+    if (currentMethod.isStatic) {
+      retVals = new Node[] {construction.newConst(0, Mode.getIs())};
+    }
+
     Node ret = construction.newReturn(construction.getCurrentMem(), retVals);
     // Judging from other examples, we don't need to set currentmem here.
     graph.getEndBlock().addPred(ret);
