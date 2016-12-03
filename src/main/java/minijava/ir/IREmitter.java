@@ -3,23 +3,26 @@ package minijava.ir;
 import static minijava.ir.Types.*;
 
 import com.google.common.io.Files;
+import com.sun.jna.Pointer;
 import firm.*;
 import firm.Program;
 import firm.Type;
 import firm.bindings.binding_ircons;
+import firm.bindings.binding_lowering;
 import firm.nodes.*;
 import firm.nodes.Block;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import minijava.ast.*;
 import minijava.ast.Class;
 import minijava.util.SourceRange;
 import org.apache.commons.io.FileUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jooq.lambda.function.Function4;
 
 /** Emits an intermediate representation for a given minijava Program. */
 public class IREmitter
@@ -48,19 +51,6 @@ public class IREmitter
    * making common sub expressions irrepresentable.
    */
   private Construction construction;
-  /**
-   * Stores the node's value in the current lvar (if there is any). This is crucial for assignment
-   * to work. E.g. in the expression x = 5, we analyze the variable expression x and get back its
-   * value, which is irrelevant for assignment, since we need the *address of* x. This is where we
-   * need storeInCurrentLval, which would store the expression node of the RHS (evaluating to 5) in
-   * the address of x.
-   *
-   * <p>Now, in an ideal world, this variable would be 'Node currentLval', but firm doesn't offer a
-   * function for getting the address of a local variable as a Node. So in order to not duplicate a
-   * lot of work (e.g. computing array offsets, etc.) in a mechanism without this variable, we
-   * abstract actual assignment out into a function.
-   */
-  @Nullable private Function<Node, Node> storeInCurrentLval;
 
   public IREmitter() {
     InitFirm.init();
@@ -214,6 +204,10 @@ public class IREmitter
   @Override
   public Void visitBlock(minijava.ast.Block that) {
     for (BlockStatement statement : that.statements) {
+      if (construction.isUnreachable()) {
+        // Why bother generating any more code?
+        break;
+      }
       statement.acceptVisitor(this);
     }
     return null;
@@ -226,187 +220,39 @@ public class IREmitter
 
   @Override
   public Void visitIf(Statement.If that) {
-    // static cmp node for testing
-    //    Node falseConst = construction.newConst(0, Mode.getBu());
-    //    Node trueConst = construction.newConst(1, Mode.getBu());
-    //    Node cmp = construction.newCmp(falseConst, trueConst, Relation.Equal);
-
     firm.nodes.Block trueBlock = construction.newBlock();
-    // block for else part or code after if (if no else part exists)
-    firm.nodes.Block falseBlock = construction.newBlock();
-    that.condition.acceptVisitor(new CompareNodeVisitor(trueBlock, falseBlock));
+    firm.nodes.Block afterElse = construction.newBlock();
+    firm.nodes.Block falseBlock = that.else_.isPresent() ? construction.newBlock() : afterElse;
+
+    Node condition = that.condition.acceptVisitor(this);
+    Node cond = construction.newCond(condition);
+    trueBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnTrue));
+    falseBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnFalse));
 
     // code in true block
     trueBlock.mature();
     construction.setCurrentBlock(trueBlock);
     that.then.acceptVisitor(this);
-    Node endIf = construction.newJmp();
+
+    // Only add a jump if this is reachable from control flow
+    // E.g., don't add a jump if the last statement was a return.
+    if (!construction.isUnreachable()) {
+      afterElse.addPred(construction.newJmp());
+    }
 
     // code in false block
-    construction.setCurrentBlock(falseBlock);
-    if (!that.else_.isPresent()) {
-      // if construct (without else)
-      falseBlock.addPred(endIf);
+    if (that.else_.isPresent()) {
       falseBlock.mature();
-    } else {
-      // if-else construct
-      falseBlock.mature();
+      construction.setCurrentBlock(falseBlock);
       that.else_.get().acceptVisitor(this);
-      Node endElse = construction.newJmp();
-
-      // add block for code after this if-else
-      firm.nodes.Block afterElse = construction.newBlock();
-      afterElse.addPred(endElse);
-      afterElse.addPred(endIf);
-      afterElse.mature();
-      construction.setCurrentBlock(afterElse);
+      if (!construction.isUnreachable()) {
+        afterElse.addPred(construction.newJmp());
+      }
     }
+
+    construction.setCurrentBlock(afterElse);
+    afterElse.mature(); // Should we really do this?
     return null;
-  }
-
-  private class CompareNodeVisitor implements Expression.Visitor<firm.nodes.Node> {
-    private final Block trueBlock;
-    private final Block falseBlock;
-
-    CompareNodeVisitor(Block trueBlock, Block falseBlock) {
-      this.trueBlock = trueBlock;
-      this.falseBlock = falseBlock;
-    }
-
-    @Override
-    public Node visitBinaryOperator(Expression.BinaryOperator that) {
-      switch (that.op) {
-        case AND:
-          // expression = (left && right)
-          Block rightBlock = construction.newBlock();
-          that.left.acceptVisitor(new CompareNodeVisitor(rightBlock, falseBlock));
-          rightBlock.mature();
-
-          construction.setCurrentBlock(rightBlock);
-          that.right.acceptVisitor(new CompareNodeVisitor(trueBlock, falseBlock));
-          break;
-        case OR:
-          rightBlock = construction.newBlock();
-          that.left.acceptVisitor(new CompareNodeVisitor(trueBlock, rightBlock));
-          rightBlock.mature();
-
-          construction.setCurrentBlock(rightBlock);
-          that.right.acceptVisitor(new CompareNodeVisitor(trueBlock, falseBlock));
-          break;
-        case LT:
-          compareWithRelation(that, Relation.Less);
-          break;
-        case LEQ:
-          compareWithRelation(that, Relation.LessEqual);
-          break;
-        case GT:
-          compareWithRelation(that, Relation.Greater);
-          break;
-        case GEQ:
-          compareWithRelation(that, Relation.GreaterEqual);
-          break;
-        case EQ:
-          compareWithRelation(that, Relation.Equal);
-          break;
-        case NEQ:
-          Node lhs = that.left.acceptVisitor(this);
-          Node rhs = that.right.acceptVisitor(this);
-          // we only have a "Equal" relation. Use that and switch true and false around instead.
-          Node cmp = construction.newCmp(lhs, rhs, Relation.Equal);
-          Node cond = construction.newCond(cmp);
-          Node trueProj = construction.newProj(cond, Mode.getX(), Cond.pnTrue);
-          Node falseProj = construction.newProj(cond, Mode.getX(), Cond.pnFalse);
-          // switch true and false
-          trueBlock.addPred(falseProj);
-          falseBlock.addPred(trueProj);
-          break;
-        case PLUS:
-        case MINUS:
-        case MULTIPLY:
-        case MODULO:
-        case DIVIDE:
-        case ASSIGN:
-          return that.acceptVisitor(IREmitter.this);
-        default:
-          throw new AssertionError("we missed a case in the switch statement!");
-      }
-      return null;
-    }
-
-    private void compareWithRelation(Expression.BinaryOperator binOp, Relation relation) {
-      Node lhs = binOp.left.acceptVisitor(IREmitter.this);
-      Node rhs = binOp.right.acceptVisitor(IREmitter.this);
-      Node cmp = construction.newCmp(lhs, rhs, relation);
-      Node cond = construction.newCond(cmp);
-      Node trueProj = construction.newProj(cond, Mode.getX(), Cond.pnTrue);
-      Node falseProj = construction.newProj(cond, Mode.getX(), Cond.pnFalse);
-      trueBlock.addPred(trueProj);
-      falseBlock.addPred(falseProj);
-    }
-
-    @Override
-    public Node visitUnaryOperator(Expression.UnaryOperator that) {
-      switch (that.op) {
-        case NOT:
-          that.expression.acceptVisitor(new CompareNodeVisitor(falseBlock, trueBlock));
-          break;
-        default:
-          throw new AssertionError("not implemented yet");
-      }
-      return null;
-    }
-
-    @Override
-    public Node visitMethodCall(Expression.MethodCall that) {
-      return that.acceptVisitor(IREmitter.this);
-    }
-
-    @Override
-    public Node visitFieldAccess(Expression.FieldAccess that) {
-      return that.acceptVisitor(IREmitter.this);
-    }
-
-    @Override
-    public Node visitArrayAccess(Expression.ArrayAccess that) {
-      return that.acceptVisitor(IREmitter.this);
-    }
-
-    @Override
-    public Node visitNewObject(Expression.NewObject that) {
-      return that.acceptVisitor(IREmitter.this);
-    }
-
-    @Override
-    public Node visitNewArray(Expression.NewArray that) {
-      return that.acceptVisitor(IREmitter.this);
-    }
-
-    @Override
-    public Node visitVariable(Expression.Variable that) {
-      return that.acceptVisitor(IREmitter.this);
-    }
-
-    @Override
-    public Node visitBooleanLiteral(Expression.BooleanLiteral that) {
-      Node literal =
-          construction.newConst(that.literal ? TargetValue.getBTrue() : TargetValue.getBFalse());
-      Node cond = construction.newCond(literal);
-      Node trueProj = construction.newProj(cond, Mode.getX(), Cond.pnTrue);
-      Node falseProj = construction.newProj(cond, Mode.getX(), Cond.pnFalse);
-      trueBlock.addPred(trueProj);
-      falseBlock.addPred(falseProj);
-      return null;
-    }
-
-    @Override
-    public Node visitIntegerLiteral(Expression.IntegerLiteral that) {
-      return that.acceptVisitor(IREmitter.this);
-    }
-
-    @Override
-    public Node visitReferenceTypeLiteral(Expression.ReferenceTypeLiteral that) {
-      return that.acceptVisitor(IREmitter.this);
-    }
   }
 
   @Override
@@ -428,7 +274,10 @@ public class IREmitter
     conditionBlock.addPred(endStart);
     construction.setCurrentBlock(conditionBlock);
     construction.getCurrentMem(); // See the slides, we need those PhiM nodes
-    that.condition.acceptVisitor(new CompareNodeVisitor(bodyBlock, endBlock));
+    Node condition = that.condition.acceptVisitor(this);
+    Node cond = construction.newCond(condition);
+    bodyBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnTrue));
+    endBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnFalse));
     bodyBlock.mature();
     endBlock.mature();
 
@@ -436,8 +285,9 @@ public class IREmitter
     construction.setCurrentBlock(bodyBlock);
     that.body.acceptVisitor(this);
     // jump back to the loop condition
-    Node endBody = construction.newJmp();
-    conditionBlock.addPred(endBody);
+    if (!construction.isUnreachable()) {
+      conditionBlock.addPred(construction.newJmp());
+    }
     conditionBlock.mature();
 
     construction.setCurrentBlock(endBlock);
@@ -450,7 +300,7 @@ public class IREmitter
   public Void visitReturn(Statement.Return that) {
     Node[] retVals = {};
     if (that.expression.isPresent()) {
-      retVals = new Node[] {that.expression.get().acceptVisitor(this)};
+      retVals = new Node[] {convbToBu(that.expression.get().acceptVisitor(this))};
     }
 
     if (currentMethod.isStatic) {
@@ -467,84 +317,137 @@ public class IREmitter
     return null;
   }
 
-  @Override
   public Node visitBinaryOperator(Expression.BinaryOperator that) {
-    Node left = that.left.acceptVisitor(this);
-    // Save the store emitter of the left expression (if there's one, e.g. iff it's an lval).
-    // See the comments on storeInCurrentLval.
-    Function<Node, Node> storeInLeft = storeInCurrentLval;
-
-    Node right = that.right.acceptVisitor(this);
-
-    assert storeInLeft != null; // This should be true after semantic analysis.
-
-    // This can never produce an lval (an assignable expression)
-    storeInCurrentLval = null;
-
     switch (that.op) {
       case ASSIGN:
-        // See the comment on storeInCurrentLval. Assignment is basically outsourced to the
-        // resp. expression visitor
-        return storeInLeft.apply(right);
+        return assign(that.left, that.right);
       case PLUS:
-        return construction.newAdd(left, right);
+        return arithmeticOperator(that, construction::newAdd);
       case MINUS:
-        return construction.newSub(left, right);
+        return arithmeticOperator(that, construction::newSub);
       case MULTIPLY:
-        return construction.newMul(left, right);
+        return arithmeticOperator(that, construction::newMul);
       case DIVIDE:
-        // A `div` operation results in an element of the divmod tuple in memory
-        // We convert the values from int to long, to prevent the INT_MIN / -1 exception
-        // This shouldn't make any difference performance wise on 64 bit systems
-        Node leftConv = construction.newConv(left, Mode.getLs());
-        Node rightConv = construction.newConv(right, Mode.getLs());
-        Node divNode =
-            construction.newDiv(
-                construction.getCurrentMem(),
-                leftConv,
-                rightConv,
-                binding_ircons.op_pin_state.op_pin_state_pinned);
-        // Fetch the result from memory
-        Node retProj = construction.newProj(divNode, Mode.getLs(), Div.pnRes);
-        // Convert it back to int
-        return construction.newConv(retProj, Mode.getIs());
+        return divOrMod(that, construction::newDiv);
       case MODULO:
-        // A `mod` operation results in an element of the divmod tuple in memory
-        // We convert the values from int to long, to prevent the INT_MIN / -1 exception
-        // This shouldn't make any difference performance wise on 64 bit systems
-        Node leftModConv = construction.newConv(left, Mode.getLs());
-        Node rightModConv = construction.newConv(right, Mode.getLs());
-        Node modNode =
-            construction.newMod(
-                construction.getCurrentMem(),
-                leftModConv,
-                rightModConv,
-                binding_ircons.op_pin_state.op_pin_state_pinned);
-        // Fetch the result from memory
-        Node retModProj = construction.newProj(modNode, Mode.getLs(), Mod.pnRes);
-        // Convert it back to int
-        return construction.newConv(retModProj, Mode.getIs());
-      case OR:
-        return construction.newOr(left, right);
+        return divOrMod(that, construction::newMod);
       case AND:
-        return construction.newAnd(left, right);
-      case EQ:
-        Node cmp = construction.newCmp(left, right, Relation.Equal);
-        // TODO: How to project out a byte flag?
-        throw new UnsupportedOperationException();
-      case NEQ:
-        throw new UnsupportedOperationException();
+        return shortciruit(that);
+      case OR:
+        return shortciruit(that);
       case LT:
-        throw new UnsupportedOperationException();
+        return compareWithRelation(that, Relation.Less);
       case LEQ:
-        throw new UnsupportedOperationException();
+        return compareWithRelation(that, Relation.LessEqual);
       case GT:
-        throw new UnsupportedOperationException();
+        return compareWithRelation(that, Relation.Greater);
       case GEQ:
-        throw new UnsupportedOperationException();
+        return compareWithRelation(that, Relation.GreaterEqual);
+      case EQ:
+        return compareWithRelation(that, Relation.Equal);
+      case NEQ:
+        return booleanNot(compareWithRelation(that, Relation.Equal));
       default:
         throw new UnsupportedOperationException();
     }
+  }
+
+  /**
+   * Stores the value of `rhs` into the address of `lval`. `lval` must be an expression which has an
+   * address for that, e.g. be an lval.
+   */
+  private Node assign(Expression lval, Expression rhs) {
+    // This is ugly, as we have to calculate the address of the expression of lval.
+    if (lval instanceof Expression.Variable) {
+      Expression.Variable use = (Expression.Variable) lval;
+      int idx = getLocalVarIndex(use.var.def);
+      Node value = rhs.acceptVisitor(this);
+      construction.setVariable(idx, convbToBu(value));
+      return value;
+    } else if (lval instanceof Expression.FieldAccess) {
+      Expression.FieldAccess access = (Expression.FieldAccess) lval;
+      Node address = calculateOffsetForAccess(access);
+      Node value = rhs.acceptVisitor(this);
+      return store(address, value);
+    } else if (lval instanceof Expression.ArrayAccess) {
+      Expression.ArrayAccess access = (Expression.ArrayAccess) lval;
+      Node address = calculateOffsetOfAccess(access);
+      Node value = rhs.acceptVisitor(this);
+      return store(address, value);
+    }
+    assert false;
+    throw new UnsupportedOperationException("This should be caught in semantic analysis.");
+  }
+
+  private Node divOrMod(
+      Expression.BinaryOperator that,
+      Function4<Node, Node, Node, binding_ircons.op_pin_state, Node> newOp) {
+    // A `div` or `mod` operation results in an element of the divmod tuple in memory
+    // We convert the values from int to long, to prevent the INT_MIN / -1 exception
+    // This shouldn't make any difference performance wise on 64 bit systems
+    Node leftConv = construction.newConv(that.left.acceptVisitor(this), Mode.getLs());
+    Node rightConv = construction.newConv(that.right.acceptVisitor(this), Mode.getLs());
+    Node divOrMod =
+        newOp.apply(
+            construction.getCurrentMem(),
+            leftConv,
+            rightConv,
+            binding_ircons.op_pin_state.op_pin_state_pinned);
+    // Fetch the result from memory
+    assert Div.pnRes == Mod.pnRes;
+    Node retProj = construction.newProj(divOrMod, Mode.getLs(), Div.pnRes);
+    // Convert it back to int
+    return construction.newConv(retProj, Mode.getIs());
+  }
+
+  private Node arithmeticOperator(Expression.BinaryOperator that, BiFunction<Node, Node, Node> op) {
+    return op.apply(that.left.acceptVisitor(this), that.right.acceptVisitor(this));
+  }
+
+  private Node shortciruit(Expression.BinaryOperator that) {
+    Block endBlock = construction.newBlock();
+    Block rightBlock = construction.newBlock();
+
+    Node left = that.left.acceptVisitor(this);
+    Node cond = construction.newCond(left);
+
+    if (that.op == Expression.BinOp.AND) {
+      // We shortcircuit if the left expression is False
+      endBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnFalse));
+      rightBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnTrue));
+    } else {
+      assert that.op == Expression.BinOp.OR;
+      // We shortcircuit if the left expression is True
+      endBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnTrue));
+      rightBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnFalse));
+    }
+    rightBlock.mature();
+
+    construction.setCurrentBlock(rightBlock);
+    Node leftMem = construction.getCurrentMem();
+    Node right = that.right.acceptVisitor(this);
+    Node rightMem = construction.getCurrentMem();
+
+    endBlock.addPred(construction.newJmp());
+    endBlock.mature();
+    construction.setCurrentBlock(endBlock);
+
+    // The return value is either the value of the left expression or
+    // that of the right, depending on control flow.
+    construction.setCurrentMem(construction.newPhi(new Node[] {leftMem, rightMem}, Mode.getM()));
+    return construction.newPhi(new Node[] {left, right}, Mode.getb());
+  }
+
+  private Node compareWithRelation(Expression.BinaryOperator binOp, Relation relation) {
+    Node lhs = binOp.left.acceptVisitor(this);
+    Node rhs = binOp.right.acceptVisitor(this);
+    return construction.newCmp(convbToBu(lhs), convbToBu(rhs), relation);
+  }
+
+  private Node booleanNot(Node expression) {
+    Node trueNode = construction.newConst(TargetValue.getBTrue());
+    Node falseNode = construction.newConst(TargetValue.getBFalse());
+    return construction.newMux(expression, trueNode, falseNode);
   }
 
   @Override
@@ -554,14 +457,13 @@ public class IREmitter
       int lit = Integer.parseInt("-" + ((Expression.IntegerLiteral) that.expression).literal);
       return construction.newConst(lit, storageModeForType(minijava.ast.Type.INT));
     }
-    // This can never produce an lval (an assignable expression)
-    storeInCurrentLval = null;
     Node expression = that.expression.acceptVisitor(this);
+    // This can never produce an lval (an assignable expression)
     switch (that.op) {
       case NEGATE:
         return construction.newMinus(expression);
       case NOT:
-        return construction.newNot(expression);
+        return booleanNot(expression);
       default:
         throw new UnsupportedOperationException();
     }
@@ -581,10 +483,9 @@ public class IREmitter
     Node thisVar = that.self.acceptVisitor(this);
     args.add(thisVar);
     for (Expression a : that.arguments) {
-      args.add(a.acceptVisitor(this));
+      args.add(convbToBu(a.acceptVisitor(this)));
     }
 
-    storeInCurrentLval = null;
     Node call = callFunction(method, args.toArray(new Node[0]));
     minijava.ast.Type returnType = that.method.def.returnType;
     if (!returnType.equals(minijava.ast.Type.VOID)) {
@@ -610,7 +511,7 @@ public class IREmitter
     // a method returns a tuple
     Node resultTuple = construction.newProj(call, Mode.getT(), Call.pnTResult);
     // at index 0 this tuple contains the result
-    return construction.newProj(resultTuple, mode, 0);
+    return convBuTob(construction.newProj(resultTuple, mode, 0));
   }
 
   private Node visitSystemOutPrintln(Expression argument) {
@@ -620,35 +521,37 @@ public class IREmitter
   @Override
   public Node visitFieldAccess(Expression.FieldAccess that) {
     // This produces an lval
-    Node self = that.self.acceptVisitor(this);
-    Entity field = fields.get(that.field.def);
-    Node absOffset = construction.newMember(self, field);
+    Node absOffset = calculateOffsetForAccess(that);
 
     // We store val at the absOffset
-    storeInCurrentLval = (Node val) -> store(absOffset, val);
 
-    return load(absOffset, field.getType().getMode());
+    return load(absOffset, storageModeForType(that.type));
+  }
+
+  private Node calculateOffsetForAccess(Expression.FieldAccess that) {
+    Node self = that.self.acceptVisitor(this);
+    Entity field = fields.get(that.field.def);
+    return construction.newMember(self, field);
   }
 
   @Override
   public Node visitArrayAccess(Expression.ArrayAccess that) {
-    Node array = that.array.acceptVisitor(this);
-    Node index = that.index.acceptVisitor(this);
-    minijava.ast.Type arrayType = that.array.type;
-    minijava.ast.Type elementType =
-        new minijava.ast.Type(arrayType.basicType, arrayType.dimension - 1, arrayType.range());
-
-    Node address = construction.newSel(array, index, new ArrayType(visitType(elementType), 0));
+    Node address = calculateOffsetOfAccess(that);
 
     // We store val at the absOffset
-    storeInCurrentLval = (Node val) -> store(address, val);
 
     // Now just dereference the computed offset
-    return load(address, storageModeForType(elementType));
+    return load(address, storageModeForType(that.type));
+  }
+
+  private Node calculateOffsetOfAccess(Expression.ArrayAccess that) {
+    Node array = that.array.acceptVisitor(this);
+    Node index = that.index.acceptVisitor(this);
+    return construction.newSel(array, index, new ArrayType(visitType(that.type), 0));
   }
 
   private Node store(Node address, Node value) {
-    Node store = construction.newStore(construction.getCurrentMem(), address, value);
+    Node store = construction.newStore(construction.getCurrentMem(), address, convbToBu(value));
     construction.setCurrentMem(construction.newProj(store, Mode.getM(), Store.pnM));
     return value;
   }
@@ -656,13 +559,12 @@ public class IREmitter
   private Node load(Node address, Mode mode) {
     Node load = construction.newLoad(construction.getCurrentMem(), address, mode);
     construction.setCurrentMem(construction.newProj(load, Mode.getM(), Load.pnM));
-    return construction.newProj(load, mode, Load.pnRes);
+    return convBuTob(construction.newProj(load, mode, Load.pnRes));
   }
 
   @Override
   public Node visitNewObject(Expression.NewObject that) {
     Type type = visitType(that.type);
-    storeInCurrentLval = null;
     Node num = construction.newConst(1, Mode.getP());
     Node size = construction.newSize(Mode.getIs(), type);
     return calloc(num, size);
@@ -678,7 +580,6 @@ public class IREmitter
     // The access mode is really what we want to query here.
     Type elementType = getStorageType(that.elementType);
     Node size = construction.newSize(Mode.getIs(), elementType);
-    storeInCurrentLval = null;
     return calloc(num, size);
   }
 
@@ -699,32 +600,45 @@ public class IREmitter
     Mode mode = storageModeForType(that.type);
     // This will allocate a new index if necessary.
     int idx = getLocalVarIndex(that.var.def);
-    storeInCurrentLval =
-        (Node val) -> {
-          construction.setVariable(idx, val);
-          return val;
-        };
-    return construction.getVariable(idx, mode);
+    return convBuTob(construction.getVariable(idx, mode));
+  }
+
+  /**
+   * Converts a node of mode b to one of mode Bu, by converting the False case to 0 and the True
+   * case to 1.
+   */
+  private Node convbToBu(Node expression) {
+    if (expression.getMode().equals(Mode.getb())) {
+      Node zero = construction.newConst(0, Mode.getBu());
+      Node one = construction.newConst(1, Mode.getBu());
+      return construction.newMux(expression, zero, one);
+    }
+    return expression;
+  }
+
+  /** Converts a node of mode Bu to one of mode b, by val > 0. */
+  private Node convBuTob(Node expression) {
+    if (expression.getMode().equals(Mode.getBu())) {
+      Node zero = construction.newConst(0, Mode.getBu());
+      return construction.newCmp(expression, zero, Relation.Greater);
+    }
+    return expression;
   }
 
   @Override
   public Node visitBooleanLiteral(Expression.BooleanLiteral that) {
-    storeInCurrentLval = null;
-    return construction.newConst(
-        that.literal ? 1 : 0, storageModeForType(minijava.ast.Type.BOOLEAN));
+    return construction.newConst(that.literal ? TargetValue.getBTrue() : TargetValue.getBFalse());
   }
 
   @Override
   public Node visitIntegerLiteral(Expression.IntegerLiteral that) {
     // We handled the 0x80000000 case while visiting the unary minus
     int lit = Integer.parseInt(that.literal);
-    storeInCurrentLval = null;
     return construction.newConst(lit, storageModeForType(minijava.ast.Type.INT));
   }
 
   @Override
   public Node visitReferenceTypeLiteral(Expression.ReferenceTypeLiteral that) {
-    storeInCurrentLval = null;
     switch (that.name()) {
       case "this":
         // access parameter 0 as a pointer, that's where this is to be found
@@ -745,7 +659,7 @@ public class IREmitter
     int idx = getLocalVarIndex(that);
     if (that.rhs.isPresent()) {
       Node rhs = that.rhs.get().acceptVisitor(this);
-      construction.setVariable(idx, rhs);
+      construction.setVariable(idx, convbToBu(rhs));
     }
 
     return null;
@@ -776,6 +690,11 @@ public class IREmitter
       if (type instanceof ClassType) {
         lowerClass((ClassType) type);
       }
+    }
+    for (Graph g : Program.getGraphs()) {
+      // Passing NULL as the callback will lower all Mux nodes
+      // TODO: Move this into jFirm
+      binding_lowering.lower_mux(g.ptr, Pointer.NULL);
     }
     Util.lowerSels();
   }
