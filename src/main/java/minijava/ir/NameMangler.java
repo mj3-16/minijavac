@@ -22,9 +22,9 @@ public class NameMangler {
 
   public static String mangledMainMethodName() {
     if (Platform.isMac() || Platform.isWindows()) {
-      return "_main";
+      return "_mjMain";
     }
-    return "main";
+    return "mjMain";
   }
 
   public static String mangledPrintIntMethodName() {
@@ -36,9 +36,9 @@ public class NameMangler {
 
   public static String mangledCallocMethodName() {
     if (Platform.isMac() || Platform.isWindows()) {
-      return "_calloc";
+      return "_calloc_impl";
     }
-    return "calloc";
+    return "calloc_impl";
   }
 
   private static String replaceSep(String name) {

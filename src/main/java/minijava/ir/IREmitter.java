@@ -139,11 +139,7 @@ public class IREmitter
       // Add an implicit return statement at the end of the block,
       // iff we have return type void. In which case returnTypes has length 0.
       if (that.returnType.equals(minijava.ast.Type.VOID)) {
-        Node[] retVal = {};
-        if (that.isStatic) {
-          retVal = new Node[] {construction.newConst(0, Mode.getIs())};
-        }
-        Node ret = construction.newReturn(construction.getCurrentMem(), retVal);
+        Node ret = construction.newReturn(construction.getCurrentMem(), new Node[0]);
         construction.setUnreachable();
         graph.getEndBlock().addPred(ret);
       } else {
@@ -301,10 +297,6 @@ public class IREmitter
     Node[] retVals = {};
     if (that.expression.isPresent()) {
       retVals = new Node[] {convbToBu(that.expression.get().acceptVisitor(this))};
-    }
-
-    if (currentMethod.isStatic) {
-      retVals = new Node[] {construction.newConst(0, Mode.getIs())};
     }
 
     Node ret = construction.newReturn(construction.getCurrentMem(), retVals);
@@ -728,9 +720,16 @@ public class IREmitter
 
     File runtime = getRuntimeFile();
 
-    Process p =
-        Runtime.getRuntime()
-            .exec(String.format("gcc %s %s.s -o %s", runtime.getAbsolutePath(), outFile, outFile));
+    boolean useGC =
+        System.getenv().containsKey("MJ_USE_GC") && System.getenv("MJ_USE_GC").equals("1");
+
+    String gcApp = "";
+    if (useGC) {
+      gcApp = " -DUSE_GC -lgc ";
+    }
+    String cmd =
+        String.format("gcc %s %s.s -o %s %s", runtime.getAbsolutePath(), outFile, outFile, gcApp);
+    Process p = Runtime.getRuntime().exec(cmd);
     int c;
     while ((c = p.getErrorStream().read()) != -1) {
       System.out.print(Character.toString((char) c));
@@ -740,7 +739,10 @@ public class IREmitter
       res = p.waitFor();
     } catch (Throwable t) {
     }
-    if (res != 0) System.err.println("Warning: Linking step failed");
+    if (res != 0) {
+      System.err.println("Warning: Linking step failed");
+      System.exit(1);
+    }
   }
 
   @NotNull
