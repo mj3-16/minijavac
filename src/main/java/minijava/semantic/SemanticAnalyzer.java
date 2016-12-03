@@ -1,5 +1,7 @@
 package minijava.semantic;
 
+import static minijava.ast.Expression.BinOp.ASSIGN;
+
 import com.google.common.primitives.Ints;
 import java.util.Optional;
 import minijava.ast.*;
@@ -54,6 +56,11 @@ public class SemanticAnalyzer
   private Method currentMethod;
   /** Tracks all local variables in the current method body. */
   private SymbolTable<LocalVariable> locals = new SymbolTable<>();
+  /**
+   * `int x = (x = 1);` is valid Java, whereas `int x = x + 1` is not. This means we have to treat
+   * the case where x is used as an lvalue (e.g. as the left hand side of an assignment) specially.
+   */
+  private boolean asLvalue;
   /**
    * Tracks the possibly defined main method for the Program under analysis. There must be exactly
    * one static main method.
@@ -253,6 +260,7 @@ public class SemanticAnalyzer
    */
   @Override
   public Void visitIf(Statement.If that) {
+    asLvalue = false;
     that.condition = that.condition.acceptVisitor(this);
     checkType(Type.BOOLEAN, that.condition.type, that.condition.range());
 
@@ -287,6 +295,7 @@ public class SemanticAnalyzer
   public Void visitExpressionStatement(ExpressionStatement that) {
     // We don't care for the expressions type, as long as there is one
     // ... although we probably want to safe types in (Typed-)Ref later on
+    asLvalue = false;
     that.expression = that.expression.acceptVisitor(this);
     return null;
   }
@@ -294,6 +303,7 @@ public class SemanticAnalyzer
   /** Analogous to If. */
   @Override
   public Void visitWhile(Statement.While that) {
+    asLvalue = false;
     that.condition = that.condition.acceptVisitor(this);
     checkType(Type.BOOLEAN, that.condition.type, that.condition.range());
 
@@ -328,6 +338,7 @@ public class SemanticAnalyzer
     if (that.expression.isPresent()) {
       if (!currentMethod.equals(mainMethod)) {
         checkElementTypeIsNotVoid(returnType, returnType.range());
+        asLvalue = false;
         Expression expr = that.expression.get().acceptVisitor(this);
         checkType(returnType, expr.type, expr.range());
         that.expression = Optional.of(expr);
@@ -402,6 +413,7 @@ public class SemanticAnalyzer
     }
     locals.insert(that.name(), that);
     if (that.rhs.isPresent()) {
+      asLvalue = false;
       Expression ret = that.rhs.get().acceptVisitor(this);
       checkType(that.type, ret.type, ret.range());
       that.rhs = Optional.of(ret);
@@ -415,14 +427,16 @@ public class SemanticAnalyzer
    */
   @Override
   public Expression visitBinaryOperator(Expression.BinaryOperator that) {
+    asLvalue = that.op == ASSIGN;
     Expression left = that.left.acceptVisitor(this);
+    asLvalue = false;
     Expression right = that.right.acceptVisitor(this);
 
     Type resultType = null; // The result of that switch statement
     switch (that.op) {
       case ASSIGN:
         // make sure that we can actually assign something to left, e.g.
-        // it should be a fieldaccess or variableexpression.
+        // it should be a FieldAccess, ArrayAccess or Expression.Variable.
         if (!(left instanceof Expression.FieldAccess)
             && !(left instanceof Expression.Variable)
             && !(left instanceof Expression.ArrayAccess)) {
@@ -500,6 +514,7 @@ public class SemanticAnalyzer
         break;
     }
 
+    asLvalue = false;
     Expression expr = that.expression.acceptVisitor(this);
     checkType(expected, expr.type, expr.range());
     that.expression = expr;
@@ -555,6 +570,7 @@ public class SemanticAnalyzer
     Expression self = systemOutPrintlnHackForSelf(that);
     if (self == null) {
       // That was not a call matching System.out.println(). So we procede regularly
+      asLvalue = false;
       self = that.self.acceptVisitor(this);
     }
     that.self = self;
@@ -600,6 +616,7 @@ public class SemanticAnalyzer
     for (int i = 0; i < m.parameters.size(); ++i) {
       LocalVariable p = m.parameters.get(i);
       p.type.acceptVisitor(this);
+      asLvalue = false;
       Expression arg = that.arguments.get(i).acceptVisitor(this);
       checkType(p.type, arg.type, arg.range());
       that.arguments.set(i, arg);
@@ -646,6 +663,7 @@ public class SemanticAnalyzer
 
   @Override
   public Expression visitFieldAccess(Expression.FieldAccess that) {
+    asLvalue = false;
     Expression self = that.self.acceptVisitor(this);
 
     Optional<Class> definingClassOpt = asClass(self.type);
@@ -674,7 +692,9 @@ public class SemanticAnalyzer
 
   @Override
   public Expression visitArrayAccess(Expression.ArrayAccess that) {
+    asLvalue = false;
     Expression arr = that.array.acceptVisitor(this);
+    asLvalue = false;
     Expression idx = that.index.acceptVisitor(this);
 
     checkType(Type.INT, idx.type, idx.range());
@@ -712,6 +732,7 @@ public class SemanticAnalyzer
   @Override
   public Expression visitNewArray(NewArray that) {
     that.elementType.acceptVisitor(this);
+    asLvalue = false;
     Expression size = that.size.acceptVisitor(this);
 
     checkType(Type.INT, size.type, size.range());
@@ -746,6 +767,13 @@ public class SemanticAnalyzer
     if (varOpt.isPresent()) {
       // is it a local var decl or a parameter?
       LocalVariable p = varOpt.get();
+      // Check if the definition of p references itself.
+      if (p.range().contains(that.range()) && !asLvalue) {
+        // Indeed it does and also not in an assignment position (see asLvalue).
+        // This isn't valid Java.
+        throw new SemanticError(
+            that.range(), "Variable '" + that.var.name() + "' might not have been initialized.");
+      }
       // Because of a hack where we represent main's parameter with type void, we have to check
       // if the expression is a variable of type void.
       checkElementTypeIsNotVoid(p.type, p.range());
@@ -760,6 +788,7 @@ public class SemanticAnalyzer
     if (fieldOpt.isPresent() && !currentMethod.isStatic) {
       // Analyze as if there was a preceding 'this.' in front of the variable
       // The field is there, so we can let errors pass through without causing confusion
+      asLvalue = false;
       return new Expression.FieldAccess(THIS_EXPR, new Ref<>(fieldOpt.get()), that.range())
           .acceptVisitor(this);
     }
