@@ -77,6 +77,10 @@ public class SourceRange {
     return sb.toString();
   }
 
+  public boolean contains(SourceRange other) {
+    return other.begin.compareTo(this.begin) >= 0 && other.end.compareTo(this.end) <= 0;
+  }
+
   @Override
   public String toString() {
     return String.format("%s-%s", begin, end);
