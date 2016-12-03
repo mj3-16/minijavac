@@ -77,9 +77,9 @@ class Cli {
       } else if (params.check) {
         check(in);
       } else if (params.compile_firm) {
-        compile_firm(in, path.toString());
+        compileFirm(in, path.toString());
       } else if (params.run_firm) {
-        run_firm(in, path.toString());
+        runFirm(in, path.toString());
       }
     } catch (AccessDeniedException e) {
       err.println("error: access to file '" + path + "' was denied");
@@ -129,17 +129,17 @@ class Cli {
     ast.acceptVisitor(new SemanticLinter());
   }
 
-  private void compile_firm(InputStream in, String filename) throws IOException {
+  private void compileFirm(InputStream in, String filename) throws IOException {
     Program ast = new Parser(new Lexer(in)).parse();
     ast.acceptVisitor(new SemanticAnalyzer());
     ast.acceptVisitor(new SemanticLinter());
-    IREmitter.compile(ast, filename.split("\\.")[0]);
+    IREmitter.compile(ast, "a.out");
   }
 
-  private void run_firm(InputStream in, String filename) throws IOException {
+  private void runFirm(InputStream in, String filename) throws IOException {
     Program ast = new Parser(new Lexer(in)).parse();
     ast.acceptVisitor(new SemanticAnalyzer());
-    IREmitter.compileAndRun(ast, filename.split("\\.")[0]);
+    IREmitter.compileAndRun(ast, "a.out");
   }
 
   private static class Parameters {
