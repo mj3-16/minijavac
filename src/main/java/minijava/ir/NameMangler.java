@@ -22,9 +22,9 @@ public class NameMangler {
 
   public static String mangledMainMethodName() {
     if (Platform.isMac() || Platform.isWindows()) {
-      return "_main";
+      return "_mjMain";
     }
-    return "main";
+    return "mjMain";
   }
 
   public static String mangledPrintIntMethodName() {
