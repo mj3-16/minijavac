@@ -720,9 +720,16 @@ public class IREmitter
 
     File runtime = getRuntimeFile();
 
-    Process p =
-        Runtime.getRuntime()
-            .exec(String.format("gcc %s %s.s -o %s", runtime.getAbsolutePath(), outFile, outFile));
+    boolean useGC =
+        System.getenv().containsKey("MJ_USE_GC") && System.getenv("MJ_USE_GC").equals("1");
+
+    String gcApp = "";
+    if (useGC) {
+      gcApp = " -DUSE_GC -lgc ";
+    }
+    String cmd =
+        String.format("gcc %s %s.s -o %s %s", runtime.getAbsolutePath(), outFile, outFile, gcApp);
+    Process p = Runtime.getRuntime().exec(cmd);
     int c;
     while ((c = p.getErrorStream().read()) != -1) {
       System.out.print(Character.toString((char) c));
@@ -732,7 +739,10 @@ public class IREmitter
       res = p.waitFor();
     } catch (Throwable t) {
     }
-    if (res != 0) System.err.println("Warning: Linking step failed");
+    if (res != 0) {
+      System.err.println("Warning: Linking step failed");
+      System.exit(1);
+    }
   }
 
   @NotNull
