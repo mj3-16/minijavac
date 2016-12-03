@@ -139,11 +139,7 @@ public class IREmitter
       // Add an implicit return statement at the end of the block,
       // iff we have return type void. In which case returnTypes has length 0.
       if (that.returnType.equals(minijava.ast.Type.VOID)) {
-        Node[] retVal = {};
-        if (that.isStatic) {
-          retVal = new Node[] {construction.newConst(0, Mode.getIs())};
-        }
-        Node ret = construction.newReturn(construction.getCurrentMem(), retVal);
+        Node ret = construction.newReturn(construction.getCurrentMem(), new Node[0]);
         construction.setUnreachable();
         graph.getEndBlock().addPred(ret);
       } else {
@@ -301,10 +297,6 @@ public class IREmitter
     Node[] retVals = {};
     if (that.expression.isPresent()) {
       retVals = new Node[] {convbToBu(that.expression.get().acceptVisitor(this))};
-    }
-
-    if (currentMethod.isStatic) {
-      retVals = new Node[] {construction.newConst(0, Mode.getIs())};
     }
 
     Node ret = construction.newReturn(construction.getCurrentMem(), retVals);

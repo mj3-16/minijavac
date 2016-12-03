@@ -41,7 +41,8 @@ class Cli {
                 "  --run-firm      compile and run the given file with libfirm amd64 backend",
                 "  --help          display this help and exit",
                 "",
-                "  One (and only one) of --echo, --lextest, --parsetest or --print-ast is required."
+                "  One (and only one) of --echo, --lextest, --parsetest or --print-ast is required.",
+                " Set the environment variable MJ_USE_GC to \"1\" to use the bdwgc."
               });
 
   private final PrintStream out;
