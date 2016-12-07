@@ -2,12 +2,12 @@ package minijava.ir.optimize;
 
 import firm.Graph;
 import firm.nodes.Node;
+import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.LinkedList;
 import java.util.NoSuchElementException;
 
 class Worklist {
-  private final Deque<Node> queue = new LinkedList<>();
+  private final Deque<Node> queue = new ArrayDeque<>();
 
   private Worklist() {}
 
@@ -36,8 +36,8 @@ class Worklist {
    *
    * @throws NoSuchElementException if this work list is empty
    */
-  Node pop() {
-    return queue.pop();
+  Node removeFirst() {
+    return queue.removeFirst();
   }
 
   /** Returns true if this work list contains no elements. */
