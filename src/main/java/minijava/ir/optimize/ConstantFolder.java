@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 public class ConstantFolder extends DefaultNodeVisitor implements Optimizer {
 
@@ -126,13 +127,23 @@ public class ConstantFolder extends DefaultNodeVisitor implements Optimizer {
 
   @Override
   public void visit(Minus node) {
-    Node child = node.getOp();
+    visitUnaryOperation(TargetValue::neg, node, node.getOp());
+  }
+
+  /**
+   * @param operation Describes how to calculate the constant value of {@code node}, if {@code
+   *     child} is constant. The input to this function is the constant value of {@code child}.
+   * @param node {@link Minus}, {@link Not}, ...
+   * @param child the only child of {@code node}
+   */
+  private void visitUnaryOperation(
+      Function<TargetValue, TargetValue> operation, Node node, Node child) {
     TargetValue newValue;
     if (isUnknown(child)) {
       newValue = TargetValue.getUnknown();
     } else if (isConstant(child)) {
       TargetValue value = latticeMap.get(child);
-      newValue = value.neg();
+      newValue = operation.apply(value);
     } else {
       newValue = TargetValue.getBad();
     }
@@ -148,6 +159,16 @@ public class ConstantFolder extends DefaultNodeVisitor implements Optimizer {
   @Override
   public void visit(Mul node) {
     visitBinaryOperation((lhs, rhs) -> lhs.mul(rhs), node, node.getLeft(), node.getRight());
+  }
+
+  @Override
+  public void visit(Not node) {
+    visitUnaryOperation(TargetValue::not, node, node.getOp());
+  }
+
+  @Override
+  public void visit(Or node) {
+    visitBinaryOperation((lhs, rhs) -> lhs.or(rhs), node, node.getLeft(), node.getRight());
   }
 
   @Override
