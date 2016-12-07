@@ -7,6 +7,7 @@ import firm.nodes.*;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.function.BiFunction;
 
 public class ConstantFolder extends DefaultNodeVisitor implements Optimizer {
@@ -77,12 +78,12 @@ public class ConstantFolder extends DefaultNodeVisitor implements Optimizer {
       newValue = TargetValue.getBad();
     }
     TargetValue previousValue = latticeMap.put(node, newValue);
-    hasChanged = previousValue != newValue;
+    hasChanged = Objects.equals(previousValue, newValue);
   }
 
   boolean isUnknown(Node n) {
     TargetValue value = latticeMap.get(n);
-    return value == null || value == TargetValue.getUnknown();
+    return Objects.equals(value, TargetValue.getUnknown());
   }
 
   boolean isConstant(Node n) {
@@ -115,7 +116,7 @@ public class ConstantFolder extends DefaultNodeVisitor implements Optimizer {
   public void visit(Const node) {
     TargetValue newValue = node.getTarval();
     TargetValue previousValue = latticeMap.put(node, newValue);
-    hasChanged = previousValue != newValue;
+    hasChanged = Objects.equals(previousValue, newValue);
   }
 
   @Override
@@ -136,7 +137,7 @@ public class ConstantFolder extends DefaultNodeVisitor implements Optimizer {
       newValue = TargetValue.getBad();
     }
     TargetValue previousValue = latticeMap.put(node, newValue);
-    hasChanged = previousValue != newValue;
+    hasChanged = Objects.equals(previousValue, newValue);
   }
 
   @Override
