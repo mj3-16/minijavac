@@ -28,12 +28,12 @@ public class ConstantFolder extends DefaultNodeVisitor implements Optimizer {
   private void fixedPointIteration() {
     Worklist worklist = Worklist.fillTopological(graph);
     while (!worklist.isEmpty()) {
-      Node n = worklist.remove();
+      Node n = worklist.pop();
       hasChanged = false;
       n.accept(this);
       if (hasChanged) {
         for (BackEdges.Edge e : BackEdges.getOuts(n)) {
-          worklist.enqueue(e.node);
+          worklist.addFirst(e.node);
         }
       }
     }
