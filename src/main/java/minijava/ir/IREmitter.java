@@ -65,6 +65,7 @@ public class IREmitter
     for (Class klass : that.declarations) {
       klass.methods.forEach(this::emitBody);
     }
+    lower();
     return null;
   }
 
@@ -765,8 +766,6 @@ public class IREmitter
       //binding_irgopt.remove_unreachable_code(g.ptr);
       //binding_irgopt.remove_bads(g.ptr);
     }
-
-    lower();
     assemble(outFile);
   }
 
