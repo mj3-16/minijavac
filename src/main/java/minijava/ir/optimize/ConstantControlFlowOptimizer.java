@@ -5,8 +5,6 @@ import firm.Graph;
 import firm.Mode;
 import firm.TargetValue;
 import firm.nodes.*;
-import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 /**
@@ -46,13 +44,17 @@ public class ConstantControlFlowOptimizer extends DefaultNodeVisitor implements 
   }
 
   private void determineProjectionNodes(Cond node) {
-    List<Proj> projNodes =
+    Proj[] projs =
         StreamSupport.stream(BackEdges.getOuts(node).spliterator(), false)
             .map(e -> (Proj) e.node)
-            .collect(Collectors.toList());
-    assert projNodes.size() == 2;
-    // TODO: the order of the condition's projection nodes is not documented...
-    trueProj = projNodes.get(0);
-    falseProj = projNodes.get(1);
+            .toArray(size -> new Proj[size]);
+    assert projs.length == 2;
+    if (projs[0].getNum() == Cond.pnTrue) {
+      trueProj = projs[0];
+      falseProj = projs[1];
+    } else {
+      trueProj = projs[1];
+      falseProj = projs[0];
+    }
   }
 }
