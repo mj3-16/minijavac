@@ -758,9 +758,7 @@ public class IREmitter
     return runtime;
   }
 
-  public static void compile(minijava.ast.Program program, String outFile) throws IOException {
-    IREmitter emitter = new IREmitter();
-    emitter.visitProgram(program);
+  public static void compile(String outFile) throws IOException {
     for (Graph g : Program.getGraphs()) {
       //g.check();
       //binding_irgopt.remove_unreachable_code(g.ptr);
@@ -769,9 +767,8 @@ public class IREmitter
     assemble(outFile);
   }
 
-  public static void compileAndRun(minijava.ast.Program program, String outFile)
-      throws IOException {
-    compile(program, outFile);
+  public static void compileAndRun(String outFile) throws IOException {
+    compile(outFile);
     Process p = Runtime.getRuntime().exec("./" + outFile);
     int c;
     while ((c = p.getInputStream().read()) != -1) {

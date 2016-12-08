@@ -8,6 +8,7 @@ import com.beust.jcommander.ParameterException;
 import com.google.common.base.Joiner;
 import com.google.common.io.ByteStreams;
 import com.google.common.primitives.Booleans;
+import firm.Graph;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -17,6 +18,10 @@ import java.util.ArrayList;
 import java.util.List;
 import minijava.ast.Program;
 import minijava.ir.IREmitter;
+import minijava.ir.optimize.ConstantControlFlowOptimizer;
+import minijava.ir.optimize.ConstantFolder;
+import minijava.ir.optimize.Optimizer;
+import minijava.ir.optimize.UnreachableCodeRemover;
 import minijava.lexer.Lexer;
 import minijava.parser.Parser;
 import minijava.semantic.SemanticAnalyzer;
@@ -78,7 +83,7 @@ class Cli {
       } else if (params.check) {
         check(in);
       } else if (params.compile_firm) {
-        compileFirm(in, path.toString());
+        compileFirm(in);
       } else if (params.run_firm) {
         runFirm(in, path.toString());
       }
@@ -130,17 +135,42 @@ class Cli {
     ast.acceptVisitor(new SemanticLinter());
   }
 
-  private void compileFirm(InputStream in, String filename) throws IOException {
+  private void compileFirm(InputStream in) throws IOException {
     Program ast = new Parser(new Lexer(in)).parse();
     ast.acceptVisitor(new SemanticAnalyzer());
     ast.acceptVisitor(new SemanticLinter());
-    IREmitter.compile(ast, "a.out");
+    ast.acceptVisitor(new IREmitter());
+    if (optimizationRequested()) {
+      optimize();
+    }
+    IREmitter.compile("a.out");
+  }
+
+  private boolean optimizationRequested() {
+    String value = System.getenv("MJ_OPTIMIZE");
+    if (value.equals("1")) {
+      return true;
+    }
+    return false;
+  }
+
+  private void optimize() {
+    Optimizer constantFolder = new ConstantFolder();
+    Optimizer cotrolFlowOptimizer = new ConstantControlFlowOptimizer();
+    Optimizer unreachableCodeRemover = new UnreachableCodeRemover();
+
+    for (Graph graph : firm.Program.getGraphs()) {
+      constantFolder.optimize(graph);
+      cotrolFlowOptimizer.optimize(graph);
+      unreachableCodeRemover.optimize(graph);
+    }
   }
 
   private void runFirm(InputStream in, String filename) throws IOException {
     Program ast = new Parser(new Lexer(in)).parse();
     ast.acceptVisitor(new SemanticAnalyzer());
-    IREmitter.compileAndRun(ast, "a.out");
+    ast.acceptVisitor(new IREmitter());
+    IREmitter.compileAndRun("a.out");
   }
 
   private static class Parameters {
