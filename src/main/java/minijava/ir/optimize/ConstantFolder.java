@@ -121,6 +121,11 @@ public class ConstantFolder extends DefaultNodeVisitor implements Optimizer {
   }
 
   @Override
+  public void visit(Conv node) {
+    visitUnaryOperation(tv -> tv.convertTo(node.getMode()), node, node.getOp());
+  }
+
+  @Override
   public void visit(Div node) {
     visitBinaryOperation((lhs, rhs) -> lhs.div(rhs), node, node.getLeft(), node.getRight());
   }
