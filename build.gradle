@@ -53,7 +53,6 @@ tasks.withType(Test) {
 
 project(':mjtest') {
     task all(type: Exec, dependsOn: installDist) {
-        environment MJ_OPTIMIZE: 1
         commandLine 'python3', './mjt.py', 'all', '../run', '--ci_testing', '--parallel'
     }
     task compileFirm(type: Exec, dependsOn: installDist) {
