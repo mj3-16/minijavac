@@ -11,34 +11,19 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-public class ConstantFolder extends DefaultNodeVisitor implements Optimizer {
+public class ConstantFolder extends BaseOptimizer {
 
   private Map<Node, TargetValue> latticeMap;
-  private Graph graph;
-  private boolean hasChanged;
 
   @Override
-  public void optimize(Graph graph) {
+  public boolean optimize(Graph graph) {
     this.latticeMap = new HashMap<>();
     this.graph = graph;
     BackEdges.enable(graph);
-    fixedPointIteration();
+    boolean hasChanged = fixedPointIteration();
     replaceConstants();
     BackEdges.disable(graph);
-  }
-
-  private void fixedPointIteration() {
-    Worklist worklist = Worklist.fillTopological(graph);
-    while (!worklist.isEmpty()) {
-      Node n = worklist.removeFirst();
-      hasChanged = false;
-      n.accept(this);
-      if (hasChanged) {
-        for (BackEdges.Edge e : BackEdges.getOuts(n)) {
-          worklist.addFirst(e.node);
-        }
-      }
-    }
+    return hasChanged;
   }
 
   private void replaceConstants() {
@@ -82,12 +67,12 @@ public class ConstantFolder extends DefaultNodeVisitor implements Optimizer {
     hasChanged = Objects.equals(previousValue, newValue);
   }
 
-  boolean isUnknown(Node n) {
+  private boolean isUnknown(Node n) {
     TargetValue value = latticeMap.get(n);
     return Objects.equals(value, TargetValue.getUnknown());
   }
 
-  boolean isConstant(Node n) {
+  private boolean isConstant(Node n) {
     TargetValue value = latticeMap.get(n);
     return value != null && value.isConstant();
   }
