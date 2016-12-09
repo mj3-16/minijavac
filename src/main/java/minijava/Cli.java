@@ -140,18 +140,15 @@ class Cli {
     ast.acceptVisitor(new SemanticAnalyzer());
     ast.acceptVisitor(new SemanticLinter());
     ast.acceptVisitor(new IREmitter());
-    if (optimizationRequested()) {
+    if (!optimizationsTurnedOff()) {
       optimize();
     }
     IREmitter.compile("a.out");
   }
 
-  private boolean optimizationRequested() {
+  private boolean optimizationsTurnedOff() {
     String value = System.getenv("MJ_OPTIMIZE");
-    if (value.equals("1")) {
-      return true;
-    }
-    return false;
+    return value != null && value.equals("0");
   }
 
   private void optimize() {
