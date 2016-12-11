@@ -9,6 +9,13 @@ public abstract class BaseOptimizer extends DefaultNodeVisitor implements Optimi
   protected Graph graph;
   protected boolean hasChanged;
 
+  /**
+   * Uses the hasChanged property. If this is set to true in any of the visit methods then the fixed
+   * point iteration goes on.
+   *
+   * @return true if the hasChanged property is true for at least one visit invocation, i.e. the
+   *     graph has been changed
+   */
   protected boolean fixedPointIteration() {
     Worklist worklist = Worklist.fillTopological(graph);
     boolean hasChangedANode = false;

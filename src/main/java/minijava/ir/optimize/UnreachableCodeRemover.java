@@ -12,6 +12,6 @@ public class UnreachableCodeRemover implements Optimizer {
     binding_irgopt.remove_unreachable_code(
         graph.ptr); // find and replace unreachable code with Bad nodes
     binding_irgopt.remove_bads(graph.ptr);
-    return true;
+    return false; // checking whether a change on the graph occurred doesn't seem to be possible
   }
 }

@@ -9,18 +9,18 @@ import org.jooq.lambda.tuple.Tuple2;
 
 public class AlgebraicSimplifier extends BaseOptimizer {
 
-  private Map<Node, Node> nodesToExchange;
+  private List<Tuple2<Node, Node>> nodesToExchange;
 
   @Override
   public boolean optimize(Graph graph) {
     this.graph = graph;
     hasChanged = false;
-    nodesToExchange = new HashMap<>();
+    nodesToExchange = new ArrayList<>();
     BackEdges.enable(graph);
-    boolean hasChanged = fixedPointIteration();
+    fixedPointIteration();
     replaceNodes();
     BackEdges.disable(graph);
-    return true;
+    return nodesToExchange.size() > 0;
   }
 
   @Override
@@ -91,12 +91,12 @@ public class AlgebraicSimplifier extends BaseOptimizer {
 
   private void exchange(Node oldNode, Node newNode) {
     hasChanged = true;
-    nodesToExchange.put(oldNode, newNode);
+    nodesToExchange.add(new Tuple2<Node, Node>(oldNode, newNode));
   }
 
   private void replaceNodes() {
-    for (Node oldNode : nodesToExchange.keySet()) {
-      Graph.exchange(oldNode, nodesToExchange.get(oldNode));
+    for (Tuple2<Node, Node> oldAndNew : nodesToExchange) {
+      Graph.exchange(oldAndNew.v1, oldAndNew.v2);
     }
   }
 }

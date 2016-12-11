@@ -156,7 +156,7 @@ class Cli {
     for (Graph graph : firm.Program.getGraphs()) {
       while (Boolean.logicalAnd(
           constantFolder.optimize(graph), algebraicSimplifier.optimize(graph))) ;
-      controlFlowOptimizer.optimize(graph);
+      while (controlFlowOptimizer.optimize(graph)) ;
       unreachableCodeRemover.optimize(graph);
     }
   }
