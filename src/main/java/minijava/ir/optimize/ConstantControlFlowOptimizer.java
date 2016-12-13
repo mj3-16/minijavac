@@ -19,13 +19,16 @@ public class ConstantControlFlowOptimizer extends DefaultNodeVisitor implements 
   private Graph graph;
   private Proj trueProj;
   private Proj falseProj;
+  private boolean hasChanged;
 
   @Override
-  public void optimize(Graph graph) {
+  public boolean optimize(Graph graph) {
     this.graph = graph;
+    hasChanged = false;
     BackEdges.enable(graph);
     graph.walkTopological(this);
     BackEdges.disable(graph);
+    return hasChanged;
   }
 
   @Override
@@ -33,6 +36,7 @@ public class ConstantControlFlowOptimizer extends DefaultNodeVisitor implements 
     if (node.getSelector() instanceof Const) {
       TargetValue condition = ((Const) node.getSelector()).getTarval();
       determineProjectionNodes(node);
+      hasChanged = true;
       if (condition.equals(TargetValue.getBTrue())) {
         graph.exchange(trueProj, graph.newJmp(node.getBlock()));
         graph.exchange(falseProj, graph.newBad(Mode.getANY()));

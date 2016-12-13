@@ -18,10 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import minijava.ast.Program;
 import minijava.ir.IREmitter;
-import minijava.ir.optimize.ConstantControlFlowOptimizer;
-import minijava.ir.optimize.ConstantFolder;
-import minijava.ir.optimize.Optimizer;
-import minijava.ir.optimize.UnreachableCodeRemover;
+import minijava.ir.optimize.*;
 import minijava.lexer.Lexer;
 import minijava.parser.Parser;
 import minijava.semantic.SemanticAnalyzer;
@@ -153,12 +150,13 @@ class Cli {
 
   private void optimize() {
     Optimizer constantFolder = new ConstantFolder();
-    Optimizer cotrolFlowOptimizer = new ConstantControlFlowOptimizer();
+    Optimizer controlFlowOptimizer = new ConstantControlFlowOptimizer();
     Optimizer unreachableCodeRemover = new UnreachableCodeRemover();
-
+    Optimizer algebraicSimplifier = new AlgebraicSimplifier();
     for (Graph graph : firm.Program.getGraphs()) {
-      constantFolder.optimize(graph);
-      cotrolFlowOptimizer.optimize(graph);
+      while (Boolean.logicalAnd(
+          constantFolder.optimize(graph), algebraicSimplifier.optimize(graph))) ;
+      while (controlFlowOptimizer.optimize(graph)) ;
       unreachableCodeRemover.optimize(graph);
     }
   }
