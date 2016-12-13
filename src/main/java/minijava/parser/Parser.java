@@ -137,7 +137,7 @@ public class Parser {
     }
   }
 
-  /** MainMethod -> static void IDENT ( String [] IDENT ) Block */
+  /** MainMethod -> static void IDENT ( String [] IDENT ) block */
   private Method parseMainMethod(SourcePosition begin) {
     expectAndConsume(STATIC);
     Token void_ = expectAndConsume(VOID);
@@ -182,7 +182,7 @@ public class Parser {
     }
   }
 
-  /** Method -> ( Parameters? ) Block */
+  /** Method -> ( Parameters? ) block */
   private Method parseMethod(Type type, String name, SourcePosition begin) {
     List<LocalVariable> parameters = new ArrayList<>();
     expectAndConsume(LPAREN);
@@ -252,7 +252,7 @@ public class Parser {
   }
 
   /**
-   * Statement -> Block | EmptyStatement | IfStatement | ExpressionStatement | WhileStatement |
+   * Statement -> block | EmptyStatement | IfStatement | ExpressionStatement | WhileStatement |
    * ReturnStatement
    */
   private Statement parseStatement() {
@@ -279,7 +279,7 @@ public class Parser {
     }
   }
 
-  /** Block -> { BlockStatement* } */
+  /** block -> { BlockStatement* } */
   private Block parseBlock() {
     List<BlockStatement> blockStatements = new ArrayList<>();
     SourcePosition begin = expectAndConsume(LBRACE).range().begin;

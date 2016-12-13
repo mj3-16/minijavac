@@ -6,6 +6,7 @@ import firm.Mode;
 import firm.TargetValue;
 import firm.nodes.*;
 import java.util.stream.StreamSupport;
+import minijava.ir.DefaultNodeVisitor;
 
 /**
  * Replaces {@link Cond} nodes (or more precisely, their accompanying {@link Proj} nodes) with
@@ -14,7 +15,7 @@ import java.util.stream.StreamSupport;
  * <p>The {@link Proj} node that is no longer relevant is replaced with a {@link Bad} node. A
  * subsequent run of an {@link Optimizer} that removes such nodes is required.
  */
-public class ConstantControlFlowOptimizer extends DefaultNodeVisitor implements Optimizer {
+public class ConstantControlFlowOptimizer implements DefaultNodeVisitor, Optimizer {
 
   private Graph graph;
   private Proj trueProj;

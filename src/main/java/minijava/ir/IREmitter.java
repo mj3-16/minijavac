@@ -44,7 +44,7 @@ public class IREmitter
    * assigned index. Which is a firm thing.
    */
   private final IdentityHashMap<LocalVariable, Integer> localVarIndexes = new IdentityHashMap<>();
-  /** The Basic Block graph of the current function. */
+  /** The Basic block graph of the current function. */
   private Graph graph;
   /**
    * Construction is a firm Node factory that makes sure that we don't duplicate expressions, thus

@@ -82,7 +82,7 @@ public class ProgramGenerator extends Generator<Program> {
     return new Field(genType(random), genIdent(random), SourceRange.FIRST_CHAR);
   }
 
-  // public Type IDENT ( Parameters? ) Block
+  // public Type IDENT ( Parameters? ) block
   private Method genMethod(SourceOfRandomness random) {
     boolean isStatic = random.nextBoolean();
     Type returnType =
@@ -129,7 +129,7 @@ public class ProgramGenerator extends Generator<Program> {
   }
 
   /*
-  Block
+  block
   | EmptyStatement
   | IfStatement
   | ExpressionStatement

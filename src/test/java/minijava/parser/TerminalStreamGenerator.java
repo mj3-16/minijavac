@@ -80,7 +80,7 @@ public class TerminalStreamGenerator extends Generator<TerminalStream> {
     ret.add(SEMICOLON);
   }
 
-  // public Type IDENT ( Parameters? ) Block
+  // public Type IDENT ( Parameters? ) block
   private void genMethod(SourceOfRandomness random) {
     ret.add(PUBLIC);
     genType(random);
@@ -127,7 +127,7 @@ public class TerminalStreamGenerator extends Generator<TerminalStream> {
   }
 
   /*
-  Block
+  block
   | EmptyStatement
   | IfStatement
   | ExpressionStatement

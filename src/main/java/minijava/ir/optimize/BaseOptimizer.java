@@ -3,8 +3,9 @@ package minijava.ir.optimize;
 import firm.BackEdges;
 import firm.Graph;
 import firm.nodes.Node;
+import minijava.ir.DefaultNodeVisitor;
 
-public abstract class BaseOptimizer extends DefaultNodeVisitor implements Optimizer {
+public abstract class BaseOptimizer implements DefaultNodeVisitor, Optimizer {
 
   protected Graph graph;
   protected boolean hasChanged;
