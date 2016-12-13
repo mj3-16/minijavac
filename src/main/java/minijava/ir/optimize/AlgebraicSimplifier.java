@@ -31,7 +31,7 @@ public class AlgebraicSimplifier extends BaseOptimizer {
     }
     Tuple2<Const, Node> subNodes = subNodesOpt.get();
     if (subNodes.v1.getTarval().isNull()) { // x * 0  == 0
-      exchange(node, subNodes.v2);
+      exchangeNodesLater(node, subNodes.v2);
     } else if (subNodes.v2.getOpCode() == binding_irnode.ir_opcode.iro_Add) {
       // (x + 8) + 8 == x + 16
       Add subAddNode = (Add) subNodes.v2;
@@ -39,7 +39,7 @@ public class AlgebraicSimplifier extends BaseOptimizer {
       if (subAddNodesOpt.isPresent()) {
         Node constant =
             graph.newConst(subNodes.v1.getTarval().add(subAddNodesOpt.get().v1.getTarval()));
-        exchange(node, graph.newAdd(node.getBlock(), subAddNodesOpt.get().v2, constant));
+        exchangeNodesLater(node, graph.newAdd(node.getBlock(), subAddNodesOpt.get().v2, constant));
       }
     }
   }
@@ -52,9 +52,9 @@ public class AlgebraicSimplifier extends BaseOptimizer {
     }
     Tuple2<Const, Node> subNodes = subNodesOpt.get();
     if (subNodes.v1.getTarval().isNull()) { // x * 0  == 0
-      exchange(node, subNodes.v1);
+      exchangeNodesLater(node, subNodes.v1);
     } else if (subNodes.v1.getTarval().isOne()) { // x * 1 == x
-      exchange(node, subNodes.v2);
+      exchangeNodesLater(node, subNodes.v2);
     } else if (subNodes.v2.getOpCode() == binding_irnode.ir_opcode.iro_Mul) {
       // (x * 8) * 8 == x * 64
       Mul subMulNode = (Mul) subNodes.v2;
@@ -62,7 +62,7 @@ public class AlgebraicSimplifier extends BaseOptimizer {
       if (subMulNodesOpt.isPresent()) {
         Node constant =
             graph.newConst(subNodes.v1.getTarval().mul(subMulNodesOpt.get().v1.getTarval()));
-        exchange(node, graph.newMul(node.getBlock(), subMulNode, constant));
+        exchangeNodesLater(node, graph.newMul(node.getBlock(), subMulNode, constant));
       }
     }
   }
@@ -70,7 +70,7 @@ public class AlgebraicSimplifier extends BaseOptimizer {
   @Override
   public void visit(Minus node) {
     if (node.getOp().getOpCode() == binding_irnode.ir_opcode.iro_Minus) {
-      exchange(node, ((Minus) node.getOp()).getOp());
+      exchangeNodesLater(node, ((Minus) node.getOp()).getOp());
     }
   }
 
@@ -89,7 +89,7 @@ public class AlgebraicSimplifier extends BaseOptimizer {
     return Optional.of(new Tuple2<Const, Node>(constant, other));
   }
 
-  private void exchange(Node oldNode, Node newNode) {
+  private void exchangeNodesLater(Node oldNode, Node newNode) {
     hasChanged = true;
     nodesToExchange.add(new Tuple2<Node, Node>(oldNode, newNode));
   }
