@@ -2,6 +2,7 @@ package minijava.ir.assembler;
 
 import firm.Graph;
 import firm.nodes.Const;
+import firm.nodes.Conv;
 import firm.nodes.Node;
 import firm.nodes.Proj;
 import java.util.*;
@@ -14,7 +15,8 @@ import minijava.ir.assembler.location.StackLocation;
  * Simple stack based node allocator that tries to implement the scheme from the compiler lab
  * slides.
  *
- * <p>TODO: doesn't currently work and exists only for basic tests
+ * <p>Every value is stored on the stack in a new slot thereby using lot's of memory. The advantage
+ * of this inefficiency is the simplicity of the implementation.
  */
 public class SimpleNodeAllocator implements NodeAllocator {
 
@@ -38,6 +40,9 @@ public class SimpleNodeAllocator implements NodeAllocator {
         // TODO: is this correct?
         return new StackLocation((slot - 1) * STACK_SLOT_SIZE);
       }
+    } else if (node instanceof Conv) {
+      // ignore Conv nodes
+      return getLocation(node.getPred(0));
     }
     return getStackSlotAsLocation(node);
   }
@@ -57,6 +62,10 @@ public class SimpleNodeAllocator implements NodeAllocator {
 
   @Override
   public Location getResultLocation(Node node) {
+    if (node instanceof Conv) {
+      // ignore Conv nodes
+      return getLocation(node.getPred(0));
+    }
     return getStackSlotAsLocation(node);
   }
 
@@ -65,21 +74,16 @@ public class SimpleNodeAllocator implements NodeAllocator {
     return assignedStackSlots.size() * STACK_SLOT_SIZE;
   }
 
-  private boolean hasStackSlotAssigned(Node node) {
-    return assignedStackSlots.containsKey(node);
-  }
-
   private int getStackSlotOffset(Node node) {
     return assignedStackSlots.get(node) * STACK_SLOT_SIZE;
   }
 
   private void assignStackSlot(Node node) {
-    assert !assignedStackSlots.containsKey(node);
     assignedStackSlots.put(node, assignedStackSlots.size());
   }
 
   private Location getStackSlotAsLocation(Node node) {
-    if (!hasStackSlotAssigned(node)) {
+    if (!assignedStackSlots.containsKey(node)) {
       assignStackSlot(node);
     }
     return new StackLocation(getStackSlotOffset(node));

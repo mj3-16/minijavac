@@ -1,5 +1,7 @@
 package minijava.ir.assembler.instructions;
 
+import minijava.ir.assembler.location.Register;
+
 /**
  * Abstraction of a <code>subq</code> instruction that allocates bytes on the stack for the
  * activation record
@@ -20,6 +22,6 @@ public class AllocStack extends Instruction {
 
   @Override
   public String toGNUAssembler() {
-    return super.toGNUAssembler() + String.format("\tsubq $%d, %%rsp", amount);
+    return super.toGNUAssembler(new ConstArgument(amount), Register.STACK_POINTER);
   }
 }

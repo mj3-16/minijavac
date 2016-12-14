@@ -18,8 +18,9 @@ public class Register extends Location {
   public static final Register BASE_POINTER = new Register("rbp", Width.Quad);
   public static final Register STACK_POINTER = new Register("rsp", Width.Quad);
   public static final Register RETURN_REGISTER = new Register("rax", Width.Long);
-  public static final Register EAX_REGISTER = new Register("eax", Width.Long);
-  public static final Register EBX_REGISTER = new Register("ebx", Width.Long);
+  public static final Register EAX = new Register("eax", Width.Long);
+  public static final Register EBX = new Register("ebx", Width.Long);
+  public static final Register EDX = new Register("edx", Width.Long);
 
   public final String registerName;
   public final Width width;

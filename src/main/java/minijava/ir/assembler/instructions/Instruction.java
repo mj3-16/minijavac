@@ -8,8 +8,13 @@ import minijava.ir.assembler.location.Register;
 /** Models an assembler instruction */
 public abstract class Instruction implements GNUAssemblerConvertible {
   public static enum Type {
-    JMP("jmp"),
+    ADD("add", true),
     SUB("sub", true),
+    MUL("imul", true),
+    DIV("idivl", false),
+    NEG("neg", true),
+    CLTD("cltd"),
+    JMP("jmp"),
     PUSH("push", true),
     POP("pop", true),
     RET("ret"),
@@ -64,9 +69,9 @@ public abstract class Instruction implements GNUAssemblerConvertible {
   protected String commentsToGNUAssembler() {
     StringBuilder builder = new StringBuilder();
     if (comments.size() > 0) {
-      for (String comment : comments) {
-        builder.append("\n\t//").append(comment);
-      }
+      builder.append("/*");
+      builder.append(String.join("\n\t", comments));
+      builder.append("*/");
       builder.append("\n");
     }
     return builder.toString();
@@ -78,6 +83,7 @@ public abstract class Instruction implements GNUAssemblerConvertible {
    */
   protected String toGNUAssembler(Argument... arguments) {
     StringBuilder builder = new StringBuilder();
+    builder.append("\n");
     builder.append(commentsToGNUAssembler());
     builder.append("\t");
     builder.append(getAsmInstructionName());
