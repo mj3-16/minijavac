@@ -3,7 +3,9 @@ package minijava.ir.optimize;
 import com.google.common.collect.Iterables;
 import firm.*;
 import firm.nodes.*;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.stream.StreamSupport;
 
 /**
@@ -13,7 +15,7 @@ import java.util.stream.StreamSupport;
  * <p>The {@link Proj} node that is no longer relevant is replaced with a {@link Bad} node. A
  * subsequent run of an {@link Optimizer} that removes such nodes is required.
  */
-public class ConstantControlFlowOptimizer extends DefaultNodeVisitor implements Optimizer {
+public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements Optimizer {
 
   private Graph graph;
   private Proj trueProj;
@@ -25,7 +27,9 @@ public class ConstantControlFlowOptimizer extends DefaultNodeVisitor implements 
     this.graph = graph;
     hasChanged = false;
     BackEdges.enable(graph);
-    graph.walkTopological(this);
+    List<Node> topologicOrder = new ArrayList<>();
+    graph.walkTopological(new ConsumingNodeVisitor(topologicOrder::add));
+    topologicOrder.forEach(n -> n.accept(this));
     BackEdges.disable(graph);
     return hasChanged;
   }
