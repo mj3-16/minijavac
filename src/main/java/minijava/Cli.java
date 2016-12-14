@@ -158,7 +158,11 @@ class Cli {
       Dump.dumpGraph(graph, "before-optimization");
       while (Boolean.logicalAnd(
           constantFolder.optimize(graph), algebraicSimplifier.optimize(graph))) ;
-      while (controlFlowOptimizer.optimize(graph) || unreachableCodeRemover.optimize(graph)) {}
+      while (controlFlowOptimizer.optimize(graph)) {
+        Dump.dumpGraph(graph, "oizlkjh");
+        unreachableCodeRemover.optimize(graph);
+      }
+      unreachableCodeRemover.optimize(graph);
     }
   }
 

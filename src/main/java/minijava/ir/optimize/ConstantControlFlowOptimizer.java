@@ -1,12 +1,16 @@
 package minijava.ir.optimize;
 
+import static org.jooq.lambda.Seq.seq;
+
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import firm.*;
 import firm.nodes.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.StreamSupport;
+import minijava.ir.PhiNodes;
 
 /**
  * Replaces {@link Cond} nodes (or more precisely, their accompanying {@link Proj} nodes) with
@@ -26,11 +30,13 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
   public boolean optimize(Graph graph) {
     this.graph = graph;
     hasChanged = false;
+    PhiNodes.enable(graph);
     BackEdges.enable(graph);
     List<Node> topologicOrder = new ArrayList<>();
     graph.walkTopological(new ConsumingNodeVisitor(topologicOrder::add));
     topologicOrder.forEach(n -> n.accept(this));
     BackEdges.disable(graph);
+    PhiNodes.disable(graph);
     return hasChanged;
   }
 
@@ -74,25 +80,31 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
           // We redirect by replacing predecessor nodes by a BAD.
           Const condition = (Const) pred;
           Node bad = graph.newBad(Mode.getANY());
-          // src is the instruction from which we redirect the jump
+          // source is the instruction from which we redirect the jump
           // This can potentially be a Proj[X] or a Jmp
-          System.out.println(Iterables.toString(currentBlock.getPreds()));
-          Node src = currentBlock.getPred(i);
-          System.out.println("src (" + i + "): " + src);
+          Node source = currentBlock.getPred(i);
           phi.setPred(i, bad);
           currentBlock.setPred(i, bad);
           Node proj = condition.getTarval().equals(TargetValue.getBTrue()) ? trueProj : falseProj;
-          Block oldTarget = (Block) getSucc(proj);
-          Node[] ins = new Node[oldTarget.getPredCount() + 1];
-          int j = 0;
-          for (Node p : oldTarget.getPreds()) {
-            ins[j++] = p;
-          }
-          ins[j] = src;
-          System.out.println(graph.toString() + ": " + Arrays.toString(ins));
-          Block newTarget = (Block) graph.newBlock(ins);
-          Graph.exchange(oldTarget, newTarget);
+          BackEdges.Edge succ = BackEdges.getOuts(proj).iterator().next();
+          Block target = (Block) succ.node;
+          int predIdx = succ.pos;
+          Node[] newPreds = seq(target.getPreds()).append(source).toArray(Node[]::new);
+          Block newTarget = (Block) graph.newBlock(newPreds);
+          List<Phi> fixUp = Lists.newArrayList(PhiNodes.getPhiNodes(target));
+          Graph.exchange(target, newTarget);
+          System.out.println(Iterables.toString(PhiNodes.getPhiNodes(newTarget)));
           // TODO: phi nodes?!
+          for (Phi targetPhi : fixUp) {
+            System.out.println(targetPhi);
+            System.out.println(Iterables.toString(targetPhi.getPreds()));
+            Node[] newPhiPreds =
+                seq(targetPhi.getPreds()).append(targetPhi.getPred(predIdx)).toArray(Node[]::new);
+            System.out.println(Arrays.toString(newPhiPreds));
+            Phi newPhi = (Phi) graph.newPhi(newTarget, newPhiPreds, targetPhi.getMode());
+            newPhi.setLoop(targetPhi.getLoop());
+            Graph.exchange(targetPhi, newPhi);
+          }
           hasChanged = true;
         }
       }
