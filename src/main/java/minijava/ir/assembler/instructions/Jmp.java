@@ -13,7 +13,7 @@ public class Jmp extends Instruction {
 
   @Override
   public String toGNUAssembler() {
-    return super.toGNUAssembler() + String.format("\tjmp %s\n", nextBlock.label);
+    return "\n" + super.toGNUAssembler() + " " + nextBlock.label;
   }
 
   @Override

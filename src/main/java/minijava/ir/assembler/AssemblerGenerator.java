@@ -313,7 +313,7 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
 
         // this edge comes from a conditional jump
         Proj proj = (Proj) pred;
-        boolean isTrueEdge = proj.getNum() == 1;
+        boolean isTrueEdge = proj.getNum() == 0;
         // the condition
         Cond cond = (Cond) proj.getPred();
         // we ignore it as we're really interested in the preceding compare node
@@ -357,6 +357,18 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
         // an unconditional jump
         codeBlock.add(new Jmp(codeBlock));
       }
+    }
+  }
+
+  @Override
+  public void visit(Phi node) {
+    Block block = (Block) node.getBlock();
+    Location res = allocator.getResultLocation(node);
+    for (int i = 0; i < block.getPredCount(); i++) {
+      // the i.th block belongs to the i.th input edge of the phi node
+      CodeBlock predCodeBlock = getCodeBlockForNode(block.getPred(i));
+      Node inputNode = node.getPred(i);
+      predCodeBlock.add(new Mov(allocator.getLocation(inputNode), res).firm(node));
     }
   }
 }

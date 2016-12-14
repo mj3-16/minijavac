@@ -65,8 +65,6 @@ public class SimpleNodeAllocator implements NodeAllocator {
         args.add(getLocation(argNode));
       }
     }
-    for (Node argNodes : node.getPreds()) {}
-
     return args;
   }
 
