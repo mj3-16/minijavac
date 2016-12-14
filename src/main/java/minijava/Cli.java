@@ -8,6 +8,7 @@ import com.beust.jcommander.ParameterException;
 import com.google.common.base.Joiner;
 import com.google.common.io.ByteStreams;
 import com.google.common.primitives.Booleans;
+import firm.Dump;
 import firm.Graph;
 import java.io.IOException;
 import java.io.InputStream;
@@ -154,10 +155,10 @@ class Cli {
     Optimizer unreachableCodeRemover = new UnreachableCodeRemover();
     Optimizer algebraicSimplifier = new AlgebraicSimplifier();
     for (Graph graph : firm.Program.getGraphs()) {
+      Dump.dumpGraph(graph, "before-optimization");
       while (Boolean.logicalAnd(
           constantFolder.optimize(graph), algebraicSimplifier.optimize(graph))) ;
-      while (controlFlowOptimizer.optimize(graph)) ;
-      unreachableCodeRemover.optimize(graph);
+      while (controlFlowOptimizer.optimize(graph) || unreachableCodeRemover.optimize(graph)) {}
     }
   }
 
