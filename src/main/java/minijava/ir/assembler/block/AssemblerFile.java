@@ -1,5 +1,6 @@
 package minijava.ir.assembler.block;
 
+import com.sun.jna.Platform;
 import java.util.*;
 import minijava.ir.NameMangler;
 import minijava.ir.assembler.GNUAssemblerConvertible;
@@ -99,11 +100,15 @@ public class AssemblerFile implements GNUAssemblerConvertible, Collection<Segmen
 
   private static String getGNUAssemblerFilePrologue() {
     String mainMethod = NameMangler.mangledMainMethodName();
-    return "\t"
-        + String.join(
-            "\n\t",
-            ".p2align 4,,15",
-            ".globl " + mainMethod,
-            ".type\t" + mainMethod + ", @function");
+    if (Platform.isMac()) {
+      return "\t" + String.join("\n\t", ".p2align 4,0x90,15", ".globl " + mainMethod);
+    } else {
+      return "\t"
+          + String.join(
+              "\n\t",
+              ".p2align 4,,15",
+              ".globl " + mainMethod,
+              ".type\t" + mainMethod + ", @function");
+    }
   }
 }

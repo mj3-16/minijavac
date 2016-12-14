@@ -55,7 +55,7 @@ public class SimpleNodeAllocator implements NodeAllocator {
     List<Argument> args = new ArrayList<>();
     int start = 0;
     if (node instanceof Call) {
-      start = 1;
+      start = 2;
     }
     for (int i = start; i < node.getPredCount(); i++) {
       Node argNode = node.getPred(i);

@@ -19,7 +19,9 @@ import minijava.ir.assembler.instructions.*;
 import minijava.ir.assembler.instructions.Add;
 import minijava.ir.assembler.instructions.And;
 import minijava.ir.assembler.instructions.Call;
+import minijava.ir.assembler.instructions.Cmp;
 import minijava.ir.assembler.instructions.Div;
+import minijava.ir.assembler.instructions.Jmp;
 import minijava.ir.assembler.instructions.Mul;
 import minijava.ir.assembler.instructions.Sub;
 import minijava.ir.assembler.location.Location;
@@ -125,7 +127,8 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
     block.add(new CLTD().com("and convert it from 32 Bits to 64 Bits"));
     block.add(
         new Div(secondArg)
-            .com("the quotient is now in the EAX register and the remainder in the EDX register"));
+            .com("the quotient is now in the EAX register and the remainder in the EDX register")
+            .firm(node));
     block.add(new Mov(isDiv ? Register.EAX : Register.EDX, res));
   }
 
@@ -150,11 +153,11 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
                   "Store the first argument in an intermediate register, as "
                       + "the assembler uses a two adress format (the first argument "
                       + "has to be the result location)"));
-      block.add(new Neg(intermediateReg));
+      block.add(new Neg(intermediateReg).firm(node));
       block.add(new Mov(intermediateReg, res));
     } else {
       // everything is fine here
-      block.add(new Neg(arg));
+      block.add(new Neg(arg).firm(node));
     }
   }
 
@@ -180,11 +183,11 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
                   "Store the first argument in an intermediate register, as "
                       + "the assembler uses a two adress format (the first argument "
                       + "has to be the result location)"));
-      block.add(creator.apply(intermediateReg, secondArg));
+      block.add(creator.apply(intermediateReg, secondArg).firm(node));
       block.add(new Mov(intermediateReg, res));
     } else {
       // everything is fine here
-      block.add(creator.apply(firstArg, secondArg));
+      block.add(creator.apply(firstArg, secondArg).firm(node));
     }
   }
 
@@ -221,7 +224,7 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
         new Mov(Register.BASE_POINTER, Register.STACK_POINTER)
             .com("Copy base pointer to stack pointer (free stack)"));
     codeBlock.add(new Pop(Register.BASE_POINTER).com("Restore previous base pointer"));
-    codeBlock.add(new Ret().com("Jump to return adress (and remove it from the stack)"));
+    codeBlock.add(new Ret().com("Jump to return adress (and remove it from the stack)").firm(node));
   }
 
   @Override
@@ -265,7 +268,7 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
     block.add(
         new And(new ConstArgument(-0x10), Register.STACK_POINTER)
             .com("Align the stack pointer to 16 bytes"));
-    block.add(new Call(getMethodLdName(node)).com("Call the external function"));
+    block.add(new Call(getMethodLdName(node)).com("Call the external function").firm(node));
     block.add(
         new Mov(new StackLocation(Register.STACK_POINTER, 8), Register.STACK_POINTER)
             .com("Restore old stack pointer"));
@@ -280,12 +283,11 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
     // the arguments start at predecessor number 1
     List<Argument> args = allocator.getArguments(node);
     // push the arguments in reversed order on the stack
-    for (int i = node.getPredCount(); i > 1; i--) {
-      int argNr = i - 2;
-      block.add(new Push(args.get(argNr)));
+    for (int i = args.size() - 1; i >= 0; i--) {
+      block.add(new Push(args.get(i)));
     }
     // call the method
-    block.add(new Call(ldName));
+    block.add(new Call(ldName).firm(node));
     // free space on the stack (the arguments are needed any more)
     // assumes that a stack slot occupies 8 bytes
     block.add(new DeallocStack(args.size() * 8));
@@ -297,5 +299,64 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
     List<Argument> args = allocator.getArguments(node);
     assert args.size() == 1;
     return args.get(0);
+  }
+
+  @Override
+  public void visit(Block node) {
+    CodeBlock codeBlock = getCodeBlock(node);
+    // we only handle control flow edges here
+    for (Node pred : node.getPreds()) {
+      CodeBlock predCodeBlock = getCodeBlockForNode(pred);
+      // pred is a predecessor node but not a block
+      if (pred instanceof Proj) {
+        // we might do unnecessary work here, but the {@link CodeBlock} instance takes care of it
+
+        // this edge comes from a conditional jump
+        Proj proj = (Proj) pred;
+        boolean isTrueEdge = proj.getNum() == 1;
+        // the condition
+        Cond cond = (Cond) proj.getPred();
+        // we ignore it as we're really interested in the preceding compare node
+        firm.nodes.Cmp cmp = (firm.nodes.Cmp) cond.getPred(0);
+
+        Argument left = allocator.getLocation(cmp.getLeft());
+        Argument right = allocator.getLocation(cmp.getRight());
+
+        // add a compare instruction that compares both arguments
+        predCodeBlock.add(new Cmp(left, right).firm(cmp));
+
+        if (isTrueEdge) {
+          // choose the right jump instruction
+          Instruction jmp = null;
+          switch (cmp.getRelation()) {
+            case Less:
+              jmp = new JmpLess(codeBlock);
+              break;
+            case LessEqual:
+              jmp = new JmpLessOrEqual(codeBlock);
+              break;
+            case Greater:
+              jmp = new JmpGreater(codeBlock);
+              break;
+            case GreaterEqual:
+              jmp = new JmpGreaterOrEqual(codeBlock);
+              break;
+            case Equal:
+              jmp = new JmpEqual(codeBlock);
+              break;
+            default:
+              throw new UnsupportedOperationException();
+          }
+          // use the selected conditional jump
+          predCodeBlock.add(jmp);
+        } else {
+          // use an unconditional jump
+          predCodeBlock.add(new Jmp(codeBlock));
+        }
+      } else {
+        // an unconditional jump
+        codeBlock.add(new Jmp(codeBlock));
+      }
+    }
   }
 }

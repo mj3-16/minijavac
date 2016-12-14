@@ -1,5 +1,6 @@
 package minijava.ir.assembler.block;
 
+import com.sun.jna.Platform;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
@@ -29,7 +30,7 @@ public class CodeBlock implements GNUAssemblerConvertible, Collection<Instructio
   public String toGNUAssembler() {
     StringBuilder builder = new StringBuilder();
     builder.append("\n");
-    builder.append(label).append(":");
+    builder.append(Platform.isMac() ? label : ("." + label)).append(":");
     for (Instruction instruction : this) {
       builder.append("\n\t");
       builder.append(instruction.toGNUAssembler());
@@ -77,7 +78,29 @@ public class CodeBlock implements GNUAssemblerConvertible, Collection<Instructio
   @Override
   public boolean add(Instruction instruction) {
     if (instruction.isJmpOrCmpLike()) { // insert jumps and compares at the end
-      return instructions.add(instruction);
+      if (instruction.getType().category == Instruction.Category.CMP) {
+        if (hasCompareInstruction()) {
+          // ignore the instruction as we already have a compare instruction
+          return false;
+        } else {
+          instructions.add(indexOfFirstJmpInstruction, instruction);
+          return true;
+        }
+      } else if (instruction.getType() == Instruction.Type.JMP) {
+        if (hasUncoditionalJump()) {
+          // ignore the instruction as we already have an unconditional jump
+          return false;
+        } else {
+          return instructions.add(instruction);
+        }
+      } else {
+        if (hasCompareInstruction()) {
+          instructions.add(indexOfFirstJmpInstruction + 1, instruction);
+        } else {
+          instructions.add(indexOfFirstJmpInstruction, instruction);
+        }
+        return true;
+      }
     } else {
       instructions.add(indexOfFirstJmpInstruction++, instruction);
       return true;
@@ -126,5 +149,23 @@ public class CodeBlock implements GNUAssemblerConvertible, Collection<Instructio
       throw new UnsupportedOperationException();
     }
     instructions.add(0, instruction);
+  }
+
+  public boolean hasCompareInstruction() {
+    for (int i = indexOfFirstJmpInstruction; i < size(); i++) {
+      if (instructions.get(i).getType().category == Instruction.Category.CMP) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  public boolean hasUncoditionalJump() {
+    for (int i = indexOfFirstJmpInstruction; i < size(); i++) {
+      if (instructions.get(i).getType() == Instruction.Type.JMP) {
+        return true;
+      }
+    }
+    return false;
   }
 }

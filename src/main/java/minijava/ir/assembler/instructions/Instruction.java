@@ -1,5 +1,6 @@
 package minijava.ir.assembler.instructions;
 
+import firm.nodes.Node;
 import java.util.ArrayList;
 import java.util.List;
 import minijava.ir.assembler.GNUAssemblerConvertible;
@@ -14,7 +15,13 @@ public abstract class Instruction implements GNUAssemblerConvertible {
     DIV("idivl", false),
     NEG("neg", true),
     CLTD("cltd"),
-    JMP("jmp"),
+    CMP(Category.CMP, "cmp", true),
+    JMP_LESS(Category.JMP, "jl"),
+    JMP_LESS_OR_EQUAL(Category.JMP, "jle"),
+    JMP_GREATER(Category.JMP, "jg"),
+    JMP_GREATER_OR_EQUAL(Category.JMP, "jge"),
+    JMP_EQUAL(Category.JMP, "je"),
+    JMP(Category.JMP, "jmp"),
     PUSH("push", true),
     POP("pop", true),
     RET("ret"),
@@ -36,6 +43,10 @@ public abstract class Instruction implements GNUAssemblerConvertible {
       this.hasVaryingWidthArguments = hasVaryingWidthArguments;
     }
 
+    Type(Category category, String asm) {
+      this(category, asm, false);
+    }
+
     Type(String asm) {
       this(Category.NORMAL, asm, false);
     }
@@ -54,6 +65,8 @@ public abstract class Instruction implements GNUAssemblerConvertible {
 
   /** Comments that belong to this instruction */
   private List<String> comments = new ArrayList<>();
+
+  private Node associatedFirmNode = null;
 
   public void addComment(String comment) {
     comments.add(comment);
@@ -113,6 +126,12 @@ public abstract class Instruction implements GNUAssemblerConvertible {
    */
   public Instruction com(String comment) {
     comments.add(comment);
+    return this;
+  }
+
+  public Instruction firm(Node node) {
+    associatedFirmNode = node;
+    comments.add(0, node.toString());
     return this;
   }
 
