@@ -1,5 +1,7 @@
 package minijava.ir.assembler.instructions;
 
+import minijava.ir.assembler.location.Register;
+
 /** A binary instruction with two arguments */
 public abstract class BinaryInstruction extends Instruction {
   public final Argument left;
@@ -12,7 +14,11 @@ public abstract class BinaryInstruction extends Instruction {
 
   @Override
   public String toGNUAssembler() {
-    return super.toGNUAssembler()
-        + String.join(" ", getType().asm, left.toGNUAssembler(), right.toGNUAssembler());
+    return toGNUAssembler(left, right);
+  }
+
+  @Override
+  protected Register.Width getWidthOfArguments() {
+    return getMaxWithOfArguments(left, right);
   }
 }

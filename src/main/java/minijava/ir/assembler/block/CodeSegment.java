@@ -21,6 +21,7 @@ public class CodeSegment extends Segment {
     }
     builder.append("\t.text\n");
     for (CodeBlock block : blocks) {
+      builder.append("\n");
       builder.append(block.toGNUAssembler());
     }
     return builder.toString();
@@ -36,5 +37,9 @@ public class CodeSegment extends Segment {
 
   public List<CodeBlock> getBlocks() {
     return Collections.unmodifiableList(blocks);
+  }
+
+  public CodeBlock getStartBlock() {
+    return blocks.get(0);
   }
 }

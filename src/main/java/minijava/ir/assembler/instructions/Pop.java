@@ -1,0 +1,14 @@
+package minijava.ir.assembler.instructions;
+
+/** Pops a value of the stack */
+public class Pop extends UnaryInstruction {
+
+  public Pop(Argument arg) {
+    super(arg);
+  }
+
+  @Override
+  public Type getType() {
+    return Type.POP;
+  }
+}

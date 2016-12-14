@@ -18,6 +18,8 @@ import java.util.ArrayList;
 import java.util.List;
 import minijava.ast.Program;
 import minijava.ir.IREmitter;
+import minijava.ir.assembler.AssemblerGenerator;
+import minijava.ir.assembler.SimpleNodeAllocator;
 import minijava.ir.optimize.*;
 import minijava.lexer.Lexer;
 import minijava.parser.Parser;
@@ -32,7 +34,7 @@ class Cli {
       Joiner.on(System.lineSeparator())
           .join(
               new String[] {
-                "Usage: minijavac [--echo|--lextest|--parsetest|--check|--compile] [--help] file",
+                "Usage: minijavac [--echo|--lex-test|--parse-test|--check|--compile|--print-asm] [--help] file",
                 "",
                 "  --echo          write file's content to stdout",
                 "  --lextest       run lexical analysis on file's content and print tokens to stdout",
@@ -41,9 +43,10 @@ class Cli {
                 "  --check         parse the given file and perform semantic checks",
                 "  --compile-firm  compile the given file with the libfirm amd64 backend",
                 "  --run-firm      compile and run the given file with libfirm amd64 backend",
+                "  --print-asm     compile the given file and output the generated assembly",
                 "  --help          display this help and exit",
                 "",
-                "  One (and only one) of --echo, --lextest, --parsetest or --print-ast is required.",
+                "  One (and only one) of the passed flags is required.",
                 " Set the environment variable MJ_USE_GC to \"1\" to use the bdwgc."
               });
 
@@ -79,10 +82,12 @@ class Cli {
         printAst(in);
       } else if (params.check) {
         check(in);
-      } else if (params.compile_firm) {
+      } else if (params.compileFirm) {
         compileFirm(in);
-      } else if (params.run_firm) {
-        runFirm(in, path.toString());
+      } else if (params.runFirm) {
+        runFirm(in);
+      } else if (params.printAsm) {
+        printAsm(in);
       }
     } catch (AccessDeniedException e) {
       err.println("error: access to file '" + path + "' was denied");
@@ -161,11 +166,25 @@ class Cli {
     }
   }
 
-  private void runFirm(InputStream in, String filename) throws IOException {
+  private void runFirm(InputStream in) throws IOException {
     Program ast = new Parser(new Lexer(in)).parse();
     ast.acceptVisitor(new SemanticAnalyzer());
     ast.acceptVisitor(new IREmitter());
     IREmitter.compileAndRun("a.out");
+  }
+
+  private void printAsm(InputStream in) throws IOException {
+    Program ast = new Parser(new Lexer(in)).parse();
+    ast.acceptVisitor(new SemanticAnalyzer());
+    ast.acceptVisitor(new SemanticLinter());
+    ast.acceptVisitor(new IREmitter());
+    if (!optimizationsTurnedOff()) {
+      optimize();
+    }
+    for (Graph graph : firm.Program.getGraphs()) {
+      System.out.println(
+          new AssemblerGenerator(graph, new SimpleNodeAllocator()).generate().toGNUAssembler());
+    }
   }
 
   private static class Parameters {
@@ -191,13 +210,17 @@ class Cli {
     @Parameter(names = "--check")
     boolean check;
 
-    /** True if the --compile option was set */
+    /** True if the --compile-firm option was set */
     @Parameter(names = "--compile-firm")
-    boolean compile_firm;
+    boolean compileFirm;
 
-    /** True if the --run option was set */
+    /** True if the --run-firm option was set */
     @Parameter(names = "--run-firm")
-    boolean run_firm;
+    boolean runFirm;
+
+    /** True if the --print-asm option was set */
+    @Parameter(names = "--print-asm")
+    boolean printAsm;
 
     /** True if the --help option was set */
     @Parameter(names = "--help")
@@ -218,7 +241,7 @@ class Cli {
       return !invalid
           && (help
               || ((Booleans.countTrue(
-                          echo, lextest, parsetest, printAst, check, compile_firm, run_firm)
+                          echo, lextest, parsetest, printAst, check, compileFirm, runFirm, printAsm)
                       == 1)
                   && (file != null)));
     }

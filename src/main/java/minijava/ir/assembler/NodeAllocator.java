@@ -14,7 +14,8 @@ import minijava.ir.assembler.location.Location;
 public interface NodeAllocator {
 
   /**
-   * Process the given graph and initialize internal data structures
+   * Process the given graph and initialize internal data structures. This method has to be called
+   * before any of the other methods.
    *
    * @param graph given graph
    */
@@ -33,4 +34,7 @@ public interface NodeAllocator {
 
   /** Returns the location of the result of the given expression node */
   Optional<Location> getResultLocation(Node node);
+
+  /** Returns the size of the activation record in bytes. */
+  int getActivationRecordSize();
 }
