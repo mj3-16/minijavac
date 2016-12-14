@@ -1,22 +1,30 @@
 package minijava.ir.assembler;
 
 import firm.Graph;
+import firm.Program;
 import firm.nodes.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 import minijava.ir.DefaultNodeVisitor;
+import minijava.ir.NameMangler;
+import minijava.ir.assembler.block.AssemblerFile;
 import minijava.ir.assembler.block.CodeBlock;
 import minijava.ir.assembler.block.CodeSegment;
+import minijava.ir.assembler.block.Segment;
 import minijava.ir.assembler.instructions.*;
 import minijava.ir.assembler.instructions.Add;
+import minijava.ir.assembler.instructions.And;
+import minijava.ir.assembler.instructions.Call;
 import minijava.ir.assembler.instructions.Div;
 import minijava.ir.assembler.instructions.Mul;
 import minijava.ir.assembler.instructions.Sub;
 import minijava.ir.assembler.location.Location;
 import minijava.ir.assembler.location.Register;
+import minijava.ir.assembler.location.StackLocation;
 import minijava.ir.utils.MethodInformation;
 
 /**
@@ -32,7 +40,7 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
   private final MethodInformation info;
   private final NodeAllocator allocator;
   private final CodeSegment segment;
-  private Map<Block, CodeBlock> blocksToCodeBlocks;
+  private Map<Integer, CodeBlock> blocksToCodeBlocks;
 
   public AssemblerGenerator(Graph graph, NodeAllocator allocator) {
     this.graph = graph;
@@ -42,24 +50,36 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
     blocksToCodeBlocks = new HashMap<>();
     segment = new CodeSegment(new ArrayList<>(), new ArrayList<>());
     segment.addComment(String.format("Code segment for method %s", info.name));
-    segment.addBlock(getCodeBlock(graph.getStartBlock()));
     blocksToCodeBlocks = new HashMap<>();
   }
 
-  public CodeSegment generate() {
+  public Segment generate() {
     graph.walkTopological(this);
     prependStartBlockWithPrologue();
     return segment;
   }
 
-  @Override
-  public void visit(Block block) {
-    segment.addBlock(getCodeBlock(block));
+  public static AssemblerFile generateForAll(Supplier<NodeAllocator> nodeAllocCreator) {
+    AssemblerFile file = new AssemblerFile();
+    for (Graph graph : Program.getGraphs()) {
+      file.add(new AssemblerGenerator(graph, nodeAllocCreator.get()).generate());
+    }
+    return file;
   }
 
   private CodeBlock getCodeBlock(Block block) {
-    return blocksToCodeBlocks.computeIfAbsent(
-        block, b -> new CodeBlock(String.format(".L%d_%s", b.getNr(), info.ldName)));
+    if (!blocksToCodeBlocks.containsKey(block.getNr())) {
+      blocksToCodeBlocks.put(block.getNr(), new CodeBlock(getLabelForBlock(block)));
+      segment.addBlock(blocksToCodeBlocks.get(block.getNr()));
+    }
+    return blocksToCodeBlocks.get(block.getNr());
+  }
+
+  private String getLabelForBlock(Block block) {
+    if (block.getNr() == graph.getStartBlock().getNr()) {
+      return info.ldName;
+    }
+    return String.format(".L%d_%s", block.getNr(), info.ldName);
   }
 
   /** Get the code block for a given firm node (for the block the node belongs to) */
@@ -173,7 +193,7 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
    * stack for the activation record.
    */
   private void prependStartBlockWithPrologue() {
-    CodeBlock startBlock = segment.getStartBlock();
+    CodeBlock startBlock = getCodeBlock(graph.getStartBlock());
     startBlock.prepend(new AllocStack(allocator.getActivationRecordSize())); // subq $XX, %rsp
     startBlock.prepend(
         new Mov(Register.STACK_POINTER, Register.BASE_POINTER)
@@ -184,13 +204,17 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
   @Override
   public void visit(Return node) {
     CodeBlock codeBlock = getCodeBlockForNode(node);
-    List<Argument> args = allocator.getArguments(node);
-    assert args.size() == 1;
-    Argument arg = args.get(0);
-    if (!(Register.RETURN_REGISTER.equals(arg))) { // if the argument isn't in the correct register
-      codeBlock.add(
-          new Mov(arg, Register.RETURN_REGISTER)
-              .com("Copy the return value into the correct register"));
+    if (!(node.getPred(0) instanceof Unknown)) {
+      // we only need this if the return actually returns a value
+      List<Argument> args = allocator.getArguments(node);
+      assert args.size() == 1;
+      Argument arg = args.get(0);
+      if (!(Register.RETURN_REGISTER.equals(
+          arg))) { // if the argument isn't in the correct register
+        codeBlock.add(
+            new Mov(arg, Register.RETURN_REGISTER)
+                .com("Copy the return value into the correct register"));
+      }
     }
     // insert the epilogue
     codeBlock.add(
@@ -198,5 +222,80 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
             .com("Copy base pointer to stack pointer (free stack)"));
     codeBlock.add(new Pop(Register.BASE_POINTER).com("Restore previous base pointer"));
     codeBlock.add(new Ret().com("Jump to return adress (and remove it from the stack)"));
+  }
+
+  @Override
+  public void visit(firm.nodes.Call node) {
+    String ldName = getMethodLdName(node);
+    if (ldName.equals(NameMangler.mangledPrintIntMethodName())) {
+      visitPrintInt(node);
+    } else if (ldName.equals(NameMangler.mangledCallocMethodName())) {
+      visitCalloc(node);
+    } else {
+      // simple method calls
+      visitMethodCall(ldName, node);
+    }
+  }
+
+  private void visitPrintInt(firm.nodes.Call node) {
+    CodeBlock block = getCodeBlockForNode(node);
+    Argument arg = getOnlyArgument(node);
+    // the argument is passed via the register RDI
+    block.add(new Mov(arg, Register.RDI));
+    callABIConform(node);
+  }
+
+  private void visitCalloc(firm.nodes.Call node) {
+    CodeBlock block = getCodeBlockForNode(node);
+    List<Argument> args = allocator.getArguments(node);
+    assert args.size() == 2;
+    // the argument is passed via the registers RDI and RSI
+    block.add(new Mov(args.get(0), Register.RDI));
+    block.add(new Mov(args.get(1), Register.RSI));
+    callABIConform(node);
+  }
+
+  private void callABIConform(firm.nodes.Call node) {
+    CodeBlock block = getCodeBlockForNode(node);
+    // the 64 ABI requires the stack to aligned to 16 bytes
+    block.add(new Push(Register.STACK_POINTER).com("Save old stack pointer"));
+    block.add(
+        new Push(new StackLocation(Register.STACK_POINTER, 0))
+            .com("Save the stack pointer again because of alignment issues"));
+    block.add(
+        new And(new ConstArgument(-0x10), Register.STACK_POINTER)
+            .com("Align the stack pointer to 16 bytes"));
+    block.add(new Call(getMethodLdName(node)).com("Call the external function"));
+    block.add(
+        new Mov(new StackLocation(Register.STACK_POINTER, 8), Register.STACK_POINTER)
+            .com("Restore old stack pointer"));
+  }
+
+  private String getMethodLdName(firm.nodes.Call node) {
+    return ((Address) node.getPred(1)).getEntity().getLdName();
+  }
+
+  private void visitMethodCall(String ldName, firm.nodes.Call node) {
+    CodeBlock block = getCodeBlockForNode(node);
+    // the arguments start at predecessor number 1
+    List<Argument> args = allocator.getArguments(node);
+    // push the arguments in reversed order on the stack
+    for (int i = node.getPredCount(); i > 1; i--) {
+      int argNr = i - 2;
+      block.add(new Push(args.get(argNr)));
+    }
+    // call the method
+    block.add(new Call(ldName));
+    // free space on the stack (the arguments are needed any more)
+    // assumes that a stack slot occupies 8 bytes
+    block.add(new DeallocStack(args.size() * 8));
+    // copy the result from register RAX into its location
+    block.add(new Mov(Register.RETURN_REGISTER, allocator.getResultLocation(node)));
+  }
+
+  private Argument getOnlyArgument(Node node) {
+    List<Argument> args = allocator.getArguments(node);
+    assert args.size() == 1;
+    return args.get(0);
   }
 }

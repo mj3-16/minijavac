@@ -21,6 +21,8 @@ public class Register extends Location {
   public static final Register EAX = new Register("eax", Width.Long);
   public static final Register EBX = new Register("ebx", Width.Long);
   public static final Register EDX = new Register("edx", Width.Long);
+  public static final Register RDI = new Register("rdi", Width.Long);
+  public static final Register RSI = new Register("rsi", Width.Long);
 
   public final String registerName;
   public final Width width;

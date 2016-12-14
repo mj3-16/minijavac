@@ -18,7 +18,10 @@ public abstract class Instruction implements GNUAssemblerConvertible {
     PUSH("push", true),
     POP("pop", true),
     RET("ret"),
+    CALL("call"),
     ALLOC_STACK("subq"),
+    DEALLOC_STACK("addq"),
+    AND("and", true),
     MOV("mov", true);
 
     public final Category category;

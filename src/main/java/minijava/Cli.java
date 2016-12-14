@@ -181,10 +181,8 @@ class Cli {
     if (!optimizationsTurnedOff()) {
       optimize();
     }
-    for (Graph graph : firm.Program.getGraphs()) {
-      System.out.println(
-          new AssemblerGenerator(graph, new SimpleNodeAllocator()).generate().toGNUAssembler());
-    }
+    System.out.println(
+        AssemblerGenerator.generateForAll(SimpleNodeAllocator::new).toGNUAssembler());
   }
 
   private static class Parameters {

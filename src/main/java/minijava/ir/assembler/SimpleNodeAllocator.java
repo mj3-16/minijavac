@@ -1,14 +1,12 @@
 package minijava.ir.assembler;
 
 import firm.Graph;
-import firm.nodes.Const;
-import firm.nodes.Conv;
-import firm.nodes.Node;
-import firm.nodes.Proj;
+import firm.nodes.*;
 import java.util.*;
 import minijava.ir.assembler.instructions.Argument;
 import minijava.ir.assembler.instructions.ConstArgument;
 import minijava.ir.assembler.location.Location;
+import minijava.ir.assembler.location.Register;
 import minijava.ir.assembler.location.StackLocation;
 
 /**
@@ -22,6 +20,7 @@ public class SimpleNodeAllocator implements NodeAllocator {
 
   private static final int STACK_SLOT_SIZE = 8; // we're on an 64bit system
   private Map<Node, Integer> assignedStackSlots;
+  private int currentSlotNumber = 0;
   private Graph graph;
 
   @Override
@@ -36,9 +35,13 @@ public class SimpleNodeAllocator implements NodeAllocator {
       Proj proj = (Proj) node;
       if (proj.getPred() == graph.getArgs()) {
         // the proj node points to a method argument
-        int slot = -proj.getNum();
+        int slot = proj.getNum();
         // TODO: is this correct?
-        return new StackLocation((slot - 1) * STACK_SLOT_SIZE);
+        return new StackLocation(Register.BASE_POINTER, (slot + 1) * STACK_SLOT_SIZE);
+      } else if (proj.getPred() instanceof Call) {
+        // the proj node points to method result
+        // the result always lays on the stack
+        return new StackLocation(Register.STACK_POINTER, 0);
       }
     } else if (node instanceof Conv) {
       // ignore Conv nodes
@@ -50,13 +53,20 @@ public class SimpleNodeAllocator implements NodeAllocator {
   @Override
   public List<Argument> getArguments(Node node) {
     List<Argument> args = new ArrayList<>();
-    for (Node argNodes : node.getPreds()) {
-      if (argNodes instanceof Const) {
-        args.add(new ConstArgument(((Const) argNodes).getTarval().asInt()));
+    int start = 0;
+    if (node instanceof Call) {
+      start = 1;
+    }
+    for (int i = start; i < node.getPredCount(); i++) {
+      Node argNode = node.getPred(i);
+      if (argNode instanceof Const) {
+        args.add(new ConstArgument(((Const) argNode).getTarval().asInt()));
       } else {
-        args.add(getLocation(node));
+        args.add(getLocation(argNode));
       }
     }
+    for (Node argNodes : node.getPreds()) {}
+
     return args;
   }
 
@@ -65,13 +75,15 @@ public class SimpleNodeAllocator implements NodeAllocator {
     if (node instanceof Conv) {
       // ignore Conv nodes
       return getLocation(node.getPred(0));
-    }
+    } /*else if (node instanceof Call){
+        currentSlotNumber += node.getPredCount() - 2;
+      }*/
     return getStackSlotAsLocation(node);
   }
 
   @Override
   public int getActivationRecordSize() {
-    return assignedStackSlots.size() * STACK_SLOT_SIZE;
+    return (currentSlotNumber + 1) * STACK_SLOT_SIZE;
   }
 
   private int getStackSlotOffset(Node node) {
@@ -79,13 +91,13 @@ public class SimpleNodeAllocator implements NodeAllocator {
   }
 
   private void assignStackSlot(Node node) {
-    assignedStackSlots.put(node, assignedStackSlots.size());
+    assignedStackSlots.put(node, currentSlotNumber++);
   }
 
   private Location getStackSlotAsLocation(Node node) {
     if (!assignedStackSlots.containsKey(node)) {
       assignStackSlot(node);
     }
-    return new StackLocation(getStackSlotOffset(node));
+    return new StackLocation(Register.BASE_POINTER, -getStackSlotOffset(node));
   }
 }

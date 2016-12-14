@@ -38,8 +38,4 @@ public class CodeSegment extends Segment {
   public List<CodeBlock> getBlocks() {
     return Collections.unmodifiableList(blocks);
   }
-
-  public CodeBlock getStartBlock() {
-    return blocks.get(0);
-  }
 }
