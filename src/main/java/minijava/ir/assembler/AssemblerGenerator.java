@@ -12,7 +12,6 @@ import minijava.ir.DefaultNodeVisitor;
 import minijava.ir.assembler.block.CodeBlock;
 import minijava.ir.assembler.block.CodeSegment;
 import minijava.ir.assembler.instructions.*;
-import minijava.ir.assembler.location.Location;
 import minijava.ir.assembler.location.Register;
 import minijava.ir.utils.MethodInformation;
 
@@ -33,6 +32,7 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
     this.graph = graph;
     this.info = new MethodInformation(graph);
     this.allocator = allocator;
+    allocator.process(graph);
     blocksToCodeBlocks = new HashMap<>();
     segment = new CodeSegment(new ArrayList<>(), new ArrayList<>());
     segment.addComment(String.format("Code segment for method %s", info.name));
@@ -77,9 +77,9 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
   @Override
   public void visit(Return node) {
     CodeBlock codeBlock = getCodeBlockForNode(node);
-    List<Location> args = allocator.getArgumentLocations(node);
+    List<Argument> args = allocator.getArguments(node);
     assert args.size() == 1;
-    Location arg = args.get(0);
+    Argument arg = args.get(0);
     if (!(Register.RETURN_REGISTER.equals(arg))) { // if the argument isn't in the correct register
       codeBlock.add(
           new Mov(arg, Register.RETURN_REGISTER)

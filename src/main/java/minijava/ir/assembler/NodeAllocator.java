@@ -3,7 +3,7 @@ package minijava.ir.assembler;
 import firm.Graph;
 import firm.nodes.Node;
 import java.util.List;
-import java.util.Optional;
+import minijava.ir.assembler.instructions.Argument;
 import minijava.ir.assembler.location.Location;
 
 /**
@@ -30,10 +30,10 @@ public interface NodeAllocator {
   Location getLocation(Node node);
 
   /** Returns the locations of the arguments of the given expression nodes. */
-  List<Location> getArgumentLocations(Node node);
+  List<Argument> getArguments(Node node);
 
   /** Returns the location of the result of the given expression node */
-  Optional<Location> getResultLocation(Node node);
+  Location getResultLocation(Node node);
 
   /** Returns the size of the activation record in bytes. */
   int getActivationRecordSize();
