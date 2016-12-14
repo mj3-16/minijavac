@@ -22,7 +22,7 @@ public abstract class Instruction implements GNUAssemblerConvertible {
     JMP_GREATER_OR_EQUAL(Category.JMP, "jge"),
     JMP_EQUAL(Category.JMP, "je"),
     JMP(Category.JMP, "jmp"),
-    PUSH("push", true),
+    PUSH("pushq"),
     POP("pop", true),
     RET("ret"),
     CALL("call"),

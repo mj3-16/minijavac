@@ -28,6 +28,7 @@ import minijava.ir.assembler.location.Location;
 import minijava.ir.assembler.location.Register;
 import minijava.ir.assembler.location.StackLocation;
 import minijava.ir.utils.MethodInformation;
+import org.jooq.lambda.tuple.Tuple2;
 
 /**
  * Generates GNU assembler for a graph
@@ -81,7 +82,7 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
     if (block.getNr() == graph.getStartBlock().getNr()) {
       return info.ldName;
     }
-    return String.format(".L%d_%s", block.getNr(), info.ldName);
+    return String.format("L%d_%s", block.getNr(), info.ldName);
   }
 
   /** Get the code block for a given firm node (for the block the node belongs to) */
@@ -322,6 +323,13 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
         Argument left = allocator.getLocation(cmp.getLeft());
         Argument right = allocator.getLocation(cmp.getRight());
 
+        if (left instanceof StackLocation && right instanceof StackLocation) {
+          // use dirty hack to prevent cmp instructions with too many memory locations
+          // store the left argument in the EAX register
+          predCodeBlock.addToCmpSupportArea(new Mov(left, Register.EAX));
+          left = Register.EAX;
+        }
+
         // add a compare instruction that compares both arguments
         predCodeBlock.add(new Cmp(left, right).firm(cmp));
 
@@ -368,7 +376,34 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
       // the i.th block belongs to the i.th input edge of the phi node
       CodeBlock predCodeBlock = getCodeBlockForNode(block.getPred(i));
       Node inputNode = node.getPred(i);
-      predCodeBlock.add(new Mov(allocator.getLocation(inputNode), res).firm(node));
+      insertMov(predCodeBlock, allocator.getLocation(inputNode), res, node);
     }
+  }
+
+  /** Takes care of the case that the first and the second argument are memory locations */
+  private void insertMov(
+      CodeBlock block, Argument first, Argument second, Node firmNode, String comment) {
+    List<Tuple2<Argument, Location>> movInstructions = new ArrayList<>();
+    if (first instanceof StackLocation && second instanceof StackLocation) {
+      // would result in an error (two many memory references)
+      // solution: dirty hack: copy the first argument into a register
+      Register intermediateReg = Register.EAX;
+      movInstructions.add(new Tuple2<Argument, Location>(first, intermediateReg));
+      movInstructions.add(new Tuple2<Argument, Location>(intermediateReg, (Location) second));
+    }
+    for (Tuple2<Argument, Location> movInstruction : movInstructions) {
+      Mov mov = new Mov(movInstruction.v1, movInstruction.v2);
+      if (firmNode != null) {
+        mov.firm(firmNode);
+      }
+      if (comment != null) {
+        mov.addComment(comment);
+      }
+      block.add(mov);
+    }
+  }
+
+  private void insertMov(CodeBlock block, Argument first, Argument second, Node firmNode) {
+    insertMov(block, first, second, firmNode, null);
   }
 }

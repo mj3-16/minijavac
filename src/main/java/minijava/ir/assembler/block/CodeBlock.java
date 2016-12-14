@@ -18,6 +18,7 @@ public class CodeBlock implements GNUAssemblerConvertible, Collection<Instructio
 
   public final String label;
   private final List<Instruction> instructions;
+  private int indexOfFirstCmpSupportInstruction;
   private int indexOfFirstJmpInstruction;
 
   public CodeBlock(String label) {
@@ -102,9 +103,17 @@ public class CodeBlock implements GNUAssemblerConvertible, Collection<Instructio
         return true;
       }
     } else {
-      instructions.add(indexOfFirstJmpInstruction++, instruction);
+      instructions.add(indexOfFirstJmpInstruction, instruction);
+      indexOfFirstCmpSupportInstruction++;
+      indexOfFirstJmpInstruction++;
       return true;
     }
+  }
+
+  /** Use with care! */
+  public void addToCmpSupportArea(Instruction instruction) {
+    instructions.add(indexOfFirstJmpInstruction, instruction);
+    indexOfFirstJmpInstruction++;
   }
 
   @Override
