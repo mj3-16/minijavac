@@ -176,6 +176,15 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
     assert args.size() == 2;
     Argument firstArg = args.get(0);
     Argument secondArg = args.get(1);
+    Location res = allocator.getResultLocation(node);
+    CodeBlock block = getCodeBlockForNode(node);
+    block.add(new Mov(firstArg, Register.EAX));
+    block.add(new Mov(secondArg, Register.EBX));
+    block.add(creator.apply(Register.EAX, Register.EBX).firm(node));
+    block.add(new Mov(Register.EBX, res));
+    // dirty hack, not that efficient but our adviser says that this is okay
+    // we expect that none of the arguments lies in the register EAX or EBX
+    /*
     if (secondArg instanceof ConstArgument) {
       // swap both arguments as GNU assembler has problems with the second argument being a constant value
       Argument tmp = firstArg;
@@ -203,7 +212,7 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
     } else {
       // everything is fine here
       block.add(creator.apply(firstArg, secondArg).firm(node));
-    }
+    }*/
   }
 
   /**
@@ -214,9 +223,9 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
     CodeBlock startBlock = getCodeBlock(graph.getStartBlock());
     startBlock.prepend(
         new Push(Register.BASE_POINTER).com("Backup old base pointer"),
-        new AllocStack(allocator.getActivationRecordSize()),
         new Mov(Register.STACK_POINTER, Register.BASE_POINTER)
-            .com("Set base pointer for new activation record")); // subq $XX, %rsp
+            .com("Set base pointer for new activation record"),
+        new AllocStack(allocator.getActivationRecordSize()));
   }
 
   @Override
@@ -357,8 +366,15 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
           left = Register.EAX;
         }
 
+        // dirty hack: store the left argument in a register too
+        // why? nobody knows. it's amd64 assembler…
+        predCodeBlock.addToCmpOrJmpSupportInstructions(new Mov(left, Register.EBX));
+        left = Register.EBX;
+
         // add a compare instruction that compares both arguments
-        predCodeBlock.setCompare((Cmp) new Cmp(left, right).firm(cmp));
+        // we have to swap the arguments of the cmp instruction
+        // why? because of GNU assembler…
+        predCodeBlock.setCompare((Cmp) new Cmp(right, left).firm(cmp));
 
         if (isTrueEdge) {
           // choose the right jump instruction

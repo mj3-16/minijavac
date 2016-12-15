@@ -120,7 +120,7 @@ public class SimpleNodeAllocator implements NodeAllocator {
       }
     }
     for (int slot = 0; slot < currentSlotNumber; slot++) {
-      String slotInfo = String.format("%3d[%3d(%%esp)]", slot, -slot * STACK_SLOT_SIZE);
+      String slotInfo = String.format("%3d[%3d(%%ebp)]", slot, -slot * STACK_SLOT_SIZE);
       if (nodesForAssignedSlot.containsKey(slot)) {
         slotInfo += ": " + getInfoStringForNode(nodesForAssignedSlot.get(slot));
       }

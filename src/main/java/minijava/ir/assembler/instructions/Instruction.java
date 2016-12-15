@@ -87,7 +87,7 @@ public abstract class Instruction implements GNUAssemblerConvertible {
     if (comments.size() > 0) {
       StringBuilder builder = new StringBuilder();
       List<String> commentLines =
-          formatComments(LINE_WIDTH - asm.length() - 4, LINE_WIDTH - COMMAND_WITH - 4);
+          formatComments(LINE_WIDTH - asm.length() - 1, LINE_WIDTH - COMMAND_WITH - 1);
       builder.append(String.format(fmt, asm, commentLines.get(0)));
       for (int i = 1; i < commentLines.size(); i++) {
         builder.append(System.lineSeparator());
@@ -101,7 +101,7 @@ public abstract class Instruction implements GNUAssemblerConvertible {
 
   private List<String> formatComments(int maxWidthOfFirstLine, int maxWidth) {
     List<String> lines = new ArrayList<>();
-    String joined = String.join("; ", comments);
+    String joined = String.join("; ", comments) + " */";
     maxWidthOfFirstLine = Math.min(maxWidthOfFirstLine, maxWidth);
     if (joined.length() > maxWidthOfFirstLine) {
       lines.add("/* " + joined.substring(0, maxWidthOfFirstLine - 1));
@@ -109,9 +109,9 @@ public abstract class Instruction implements GNUAssemblerConvertible {
           Splitter.fixedLength(maxWidth).split(joined.substring(maxWidthOfFirstLine - 1))) {
         lines.add("   " + line);
       }
-      lines.set(lines.size() - 1, lines.get(lines.size() - 1) + " */");
+      lines.set(lines.size() - 1, lines.get(lines.size() - 1));
     } else {
-      lines.add("/* " + joined + " */");
+      lines.add("/* " + joined);
     }
     return lines;
   }
