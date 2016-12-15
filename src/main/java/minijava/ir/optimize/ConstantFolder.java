@@ -185,4 +185,33 @@ public class ConstantFolder extends BaseOptimizer {
   public void visit(Sub node) {
     visitBinaryOperation((lhs, rhs) -> lhs.sub(rhs), node, node.getLeft(), node.getRight());
   }
+
+  @Override
+  public void visit(Phi node) {
+    int n = node.getPredCount();
+    Block currentBlock = (Block) node.getBlock();
+    for (int i = 0; i < n; i++) {
+      // Try to utilize control flow information to deduce constness of a previously matched expression
+      Node pred = node.getPred(i);
+      // Find out from where we entered this block.
+      try {
+        // Also, we are only interested in conditional jumps, as that kind
+        // of control flow might reveal the constant value of the selected expression.
+        Proj jmpSource = (Proj) currentBlock.getPred(i);
+        Cond cond = (Cond) jmpSource.getPred();
+        Node selector = cond.getSelector();
+        if (selector.equals(pred)) {
+          hasChanged = true;
+          // This is the interesting case.
+          // The cond node matched on one of the preds of this phi, so we can
+          // recover the constant value of the selector from the control flow.
+          TargetValue targetValue =
+              jmpSource.getNum() == Cond.pnTrue ? TargetValue.getBTrue() : TargetValue.getBFalse();
+          node.setPred(i, graph.newConst(targetValue));
+        }
+      } catch (ClassCastException e) {
+        // Some other kind of jump, e.g. Jmp.
+      }
+    }
+  }
 }
