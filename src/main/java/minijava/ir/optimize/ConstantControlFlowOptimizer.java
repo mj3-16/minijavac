@@ -4,9 +4,9 @@ import static org.jooq.lambda.Seq.seq;
 
 import com.google.common.collect.Iterables;
 import firm.*;
+import firm.bindings.binding_irgopt;
 import firm.nodes.*;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.StreamSupport;
 import minijava.ir.Dominance;
@@ -58,6 +58,11 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
         Graph.exchange(trueProj, graph.newBad(Mode.getANY()));
       }
     } else if (node.getSelector() instanceof Phi) {
+      if (!node.getBlock().equals(node.getSelector().getBlock())) {
+        // The actual match and the phi are in different blocks, so we can't perform this
+        // transformation.
+        return;
+      }
       // Consider the case where we select on a Phi node, of which some of the operands are Const, e.g.
       //
       //  Cond(Phi(Add(..., ...), Const(true), Const(false))
@@ -73,14 +78,11 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
       Block currentBlock = (Block) node.getBlock();
       Phi phi = (Phi) node.getSelector();
       System.out.println(currentBlock + ": " + node + ", " + phi);
-      if (phi.getNr() == 137) {
-        Dump.dumpGraph(graph, "137");
-      }
       determineProjectionNodes(node);
       int n = phi.getPredCount();
       for (int i = 0; i < n; i++) {
         Node pred = phi.getPred(i);
-        if (pred instanceof Const && !(currentBlock.getPred(i) instanceof Bad)) {
+        if (pred instanceof Const && !(phi.getPred(i) instanceof Bad)) {
           // Success, we can redirect the i'th incoming jmp!
           // The above check is a sufficient condition for this: We need the Phi pred to be const, as well as
           // check that the predeccesor node of the current block isn't BAD, which may well happen if already exchanged
@@ -125,7 +127,6 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
             newPhi.setLoop(targetPhi.getLoop());
             Graph.exchange(targetPhi, newPhi);
           }
-          System.out.println(newTarget);
 
           // Changing the control flow also changed dominance frontiers, so that we potentially need to insert new
           // Phi nodes into target, because otherwise some references might not have dominating definitions.
@@ -155,57 +156,92 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
           // node 4 = target
 
           // 1. copy every Phi from node 3 to node 4, referencing the phi from node 3 as well as the input from node 1
-          Dump.dumpGraph(graph, "blub");
+          Dump.dumpGraph(graph, "before-reach-def");
           System.out.println("Current block: " + currentBlock);
           System.out.println("Target block: " + newTarget);
-          System.out.println(Dominance.dominates(newTarget, currentBlock));
-          System.out.println(Dominance.dominates(currentBlock, newTarget));
           List<Phi> currentPhis = getPhiNodes(currentBlock);
           System.out.println("currentPhis: " + Iterables.toString(currentPhis));
           for (Phi currentPhi : currentPhis) {
-            System.out.println(currentPhi);
-            List<BackEdges.Edge> dominatedRefs =
-                seq(BackEdges.getOuts(currentPhi))
-                    .filter(be -> Dominance.dominates(newTarget, (Block) be.node.getBlock()))
-                    .toList();
-            if (dominatedRefs.isEmpty()) continue;
+            System.out.println("current Phi: " + currentPhi);
+            for (BackEdges.Edge ref : BackEdges.getOuts(currentPhi)) {
+              System.out.println("used in: " + ref.node);
+              Node joinedDefinition =
+                  joinReachableDefinitions(
+                      currentPhi, currentPhi.getPred(i), (Block) ref.node.getBlock());
+              if (ref.node instanceof Phi && joinedDefinition instanceof Phi) {
+                // joinReachableDefinitions will always return a filled Phi node if there are multiple preds.
+                // We only need one entry of that.
+                Phi newPhi = (Phi) joinedDefinition;
 
-            System.out.println(
-                "Dominated refs: " + Iterables.toString(seq(dominatedRefs).map(be -> be.node)));
-            System.out.println(
-                "All refs:       "
-                    + Iterables.toString(seq(BackEdges.getOuts(currentPhi)).map(be -> be.node)));
-
-            // We have to update all dominated references with a (potentially new) phi node
-            for (BackEdges.Edge dominatedRef : dominatedRefs) {
-              if (dominatedRef.node instanceof Phi
-                  && dominatedRef.node.getBlock().equals(newTarget)) {
-                // This should already have been handled above.
-                continue;
+                assert newPhi.getBlock() == ref.node.getBlock();
+                ref.node.setPred(ref.pos, newPhi.getPred(ref.pos));
+              } else {
+                ref.node.setPred(ref.pos, joinedDefinition);
               }
-
-              // In all other cases, we have to add a phi node to newTarget and redirect all refs.
-              // All preds except the new one should point to the old phi.
-              // The new should follow the value at currentPhi, analogous to the first Phi fixup loop
-              System.out.println(dominatedRef.node);
-              Node[] preds = new Node[newTarget.getPredCount()];
-              Arrays.fill(preds, currentPhi);
-              preds[preds.length - 1] = currentPhi.getPred(i); // This is why we are doing all this.
-              System.out.println(Arrays.toString(preds));
-              Phi newPhi = (Phi) graph.newPhi(newTarget, preds, currentPhi.getMode());
-              newPhi.setLoop(currentPhi.getLoop());
-              dominatedRef.node.setPred(dominatedRef.pos, newPhi);
             }
           }
 
           // Finally we delete the stale pointers to the projs/jmps we just redirected
           // We redirect by replacing predecessor nodes by a BAD.
           Node bad = graph.newBad(Mode.getANY());
-          //phi.setPred(i, bad);
+          System.out.println("slfdkj: " + phi);
+          phi.setPred(i, bad);
           currentBlock.setPred(i, bad);
+
+          Dump.dumpGraph(graph, "after-reach-def");
         }
       }
     }
+    BackEdges.disable(graph);
+    binding_irgopt.remove_unreachable_code(
+        graph.ptr); // find and replace unreachable code with Bad nodes
+    binding_irgopt.remove_bads(graph.ptr); // find and replace unreachable code with Bad nodes
+    BackEdges.enable(graph);
+  }
+
+  private Node joinReachableDefinitions(Node preferredDef, Node dominatingDefinition, Block usage) {
+    System.out.println(
+        "Trying to find " + preferredDef + ", defaulting to " + dominatingDefinition);
+    assert preferredDef.getMode() == dominatingDefinition.getMode();
+    assert Dominance.dominates(
+        (Block) dominatingDefinition.getBlock(), usage); // Otherwise we might never terminate
+
+    if (Dominance.dominates((Block) preferredDef.getBlock(), usage)) {
+      // hooray, we found our preferred definition!
+      System.out.println("Found " + preferredDef + " for " + usage);
+      return preferredDef;
+    }
+
+    if (dominatingDefinition.getBlock().equals(usage)) {
+      // We followed edges until we found the dominating definition, which is consequently deemed visible.
+      System.out.println("Reached dominating definition " + dominatingDefinition);
+      return dominatingDefinition;
+    }
+
+    // Otherwise, we have to ask our predecessors and join results with Phi
+    int n = usage.getPredCount();
+    assert n > 0;
+    Node[] preds = new Node[n];
+    boolean allSame = true;
+    for (int i = 0; i < n; ++i) {
+      preds[i] =
+          joinReachableDefinitions(
+              preferredDef, dominatingDefinition, (Block) usage.getPred(i).getBlock());
+      if (i > 0) {
+        allSame &= preds[0].equals(preds[i]);
+      }
+    }
+
+    if (allSame) {
+      // We don't need to create a new phi node for this one
+      System.out.println("Forwarding allSame definition " + preds[0]);
+      return preds[0];
+    }
+
+    // TODO: Pass a hashmap for memoization of nodes. This can blow up quadratically otherwise, I think.
+    Node newPhi = graph.newPhi(usage, preds, preferredDef.getMode());
+    System.out.println("Combined definitions into " + newPhi);
+    return newPhi;
   }
 
   private static List<Phi> getPhiNodes(Block block) {
