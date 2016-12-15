@@ -10,6 +10,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.StreamSupport;
 import minijava.ir.Dominance;
+import org.pcollections.HashTreePSet;
+import org.pcollections.PSet;
 
 /**
  * Replaces {@link Cond} nodes (or more precisely, their accompanying {@link Proj} nodes) with
@@ -20,6 +22,7 @@ import minijava.ir.Dominance;
  */
 public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements Optimizer {
 
+  private int counter = 0;
   private Graph graph;
   private Proj trueProj;
   private Proj falseProj;
@@ -167,7 +170,10 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
               System.out.println("used in: " + ref.node);
               Node joinedDefinition =
                   joinReachableDefinitions(
-                      currentPhi, currentPhi.getPred(i), (Block) ref.node.getBlock());
+                      currentPhi,
+                      currentPhi.getPred(i),
+                      (Block) ref.node.getBlock(),
+                      HashTreePSet.empty());
               if (ref.node instanceof Phi && joinedDefinition instanceof Phi) {
                 // joinReachableDefinitions will always return a filled Phi node if there are multiple preds.
                 // We only need one entry of that.
@@ -184,7 +190,6 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
           // Finally we delete the stale pointers to the projs/jmps we just redirected
           // We redirect by replacing predecessor nodes by a BAD.
           Node bad = graph.newBad(Mode.getANY());
-          System.out.println("slfdkj: " + phi);
           phi.setPred(i, bad);
           currentBlock.setPred(i, bad);
 
@@ -199,9 +204,15 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
     BackEdges.enable(graph);
   }
 
-  private Node joinReachableDefinitions(Node preferredDef, Node dominatingDefinition, Block usage) {
+  private Node joinReachableDefinitions(
+      Node preferredDef, Node dominatingDefinition, Block usage, PSet<Block> loopBreakers) {
     System.out.println(
-        "Trying to find " + preferredDef + ", defaulting to " + dominatingDefinition);
+        "Trying to find "
+            + preferredDef
+            + ", defaulting to "
+            + dominatingDefinition
+            + ", from usage in "
+            + usage);
     assert preferredDef.getMode() == dominatingDefinition.getMode();
     assert Dominance.dominates(
         (Block) dominatingDefinition.getBlock(), usage); // Otherwise we might never terminate
@@ -218,6 +229,24 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
       return dominatingDefinition;
     }
 
+    if (loopBreakers.contains(usage)) {
+      // We follow some kind of endless loop. Just default to the dominatingDefinition
+      System.out.println(
+          "Loop detected. Defaulting to dominating definition " + dominatingDefinition);
+      return dominatingDefinition;
+    }
+
+    if (!Dominance.dominates((Block) dominatingDefinition.getBlock(), usage)) {
+      // This should actually always be the case. Maybe this doesn't hold in face of loops, as this still happens
+      // e.g. when compiling sudoku.mj. Not sure if this is OK :/
+      System.out.println(usage);
+      System.out.println(
+          "WARNING: Fell off dominance frontier of the dominating definition. "
+              + "Returning it anyway: "
+              + dominatingDefinition);
+      //return dominatingDefinition;
+    }
+
     // Otherwise, we have to ask our predecessors and join results with Phi
     int n = usage.getPredCount();
     assert n > 0;
@@ -226,13 +255,22 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
     for (int i = 0; i < n; ++i) {
       preds[i] =
           joinReachableDefinitions(
-              preferredDef, dominatingDefinition, (Block) usage.getPred(i).getBlock());
+              preferredDef,
+              dominatingDefinition,
+              (Block) usage.getPred(i).getBlock(),
+              loopBreakers.plus(usage));
       if (i > 0) {
         allSame &= preds[0].equals(preds[i]);
       }
     }
 
-    if (allSame) {
+    if (n == 0) {
+      System.out.println(graph);
+      System.out.println(usage);
+      System.out.println(Dominance.dominates((Block) dominatingDefinition.getBlock(), usage));
+    }
+
+    if (allSame && n > 0) {
       // We don't need to create a new phi node for this one
       System.out.println("Forwarding allSame definition " + preds[0]);
       return preds[0];
