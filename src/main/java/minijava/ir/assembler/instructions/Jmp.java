@@ -12,8 +12,8 @@ public class Jmp extends Instruction {
   }
 
   @Override
-  public String toGNUAssembler() {
-    return "\n" + super.toGNUAssembler() + " " + nextBlock.label;
+  protected String toGNUAssemblerWoComments() {
+    return super.toGNUAssemblerWoComments() + " " + nextBlock.label;
   }
 
   @Override

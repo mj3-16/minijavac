@@ -18,7 +18,7 @@ public class DeallocStack extends Instruction {
   }
 
   @Override
-  public String toGNUAssembler() {
-    return super.toGNUAssembler(new ConstArgument(amount), Register.STACK_POINTER);
+  protected String toGNUAssemblerWoComments() {
+    return super.createGNUAssemblerWoComments(new ConstArgument(amount), Register.STACK_POINTER);
   }
 }

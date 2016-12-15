@@ -56,6 +56,8 @@ public class SimpleNodeAllocator implements NodeAllocator {
     int start = 0;
     if (node instanceof Call) {
       start = 2;
+    } else if (node instanceof Return) {
+      start = 1;
     }
     for (int i = start; i < node.getPredCount(); i++) {
       Node argNode = node.getPred(i);

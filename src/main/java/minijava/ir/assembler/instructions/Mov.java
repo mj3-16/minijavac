@@ -15,8 +15,8 @@ public class Mov extends Instruction {
   }
 
   @Override
-  public String toGNUAssembler() {
-    return super.toGNUAssembler(source, destination);
+  protected String toGNUAssemblerWoComments() {
+    return createGNUAssemblerWoComments(source, destination);
   }
 
   @Override

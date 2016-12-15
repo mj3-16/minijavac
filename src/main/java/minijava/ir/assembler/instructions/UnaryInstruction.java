@@ -11,8 +11,8 @@ public abstract class UnaryInstruction extends Instruction {
   }
 
   @Override
-  public String toGNUAssembler() {
-    return toGNUAssembler(arg);
+  protected String toGNUAssemblerWoComments() {
+    return createGNUAssemblerWoComments(arg);
   }
 
   @Override

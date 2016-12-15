@@ -13,8 +13,8 @@ public abstract class BinaryInstruction extends Instruction {
   }
 
   @Override
-  public String toGNUAssembler() {
-    return toGNUAssembler(left, right);
+  protected String toGNUAssemblerWoComments() {
+    return createGNUAssemblerWoComments(left, right);
   }
 
   @Override

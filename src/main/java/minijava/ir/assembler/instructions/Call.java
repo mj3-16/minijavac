@@ -9,8 +9,8 @@ public class Call extends Instruction {
   }
 
   @Override
-  public String toGNUAssembler() {
-    return "\n" + super.toGNUAssembler() + " " + targetLdName;
+  protected String toGNUAssemblerWoComments() {
+    return super.toGNUAssemblerWoComments() + " " + targetLdName;
   }
 
   @Override

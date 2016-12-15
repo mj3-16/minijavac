@@ -9,6 +9,9 @@ import org.jetbrains.annotations.NotNull;
 /** List of segments that are combined to an assembler file */
 public class AssemblerFile implements GNUAssemblerConvertible, Collection<Segment> {
 
+  /** File name that helps debuggers. */
+  private String fileName;
+
   private final List<Segment> segments;
 
   public AssemblerFile() {
@@ -18,6 +21,12 @@ public class AssemblerFile implements GNUAssemblerConvertible, Collection<Segmen
   public AssemblerFile(Segment... segments) {
     this();
     addAll(Arrays.asList(segments));
+  }
+
+  /** Sets the file name to help debuggers. */
+  public AssemblerFile setFileName(String newFileName) {
+    this.fileName = newFileName;
+    return this;
   }
 
   @Override
@@ -91,6 +100,9 @@ public class AssemblerFile implements GNUAssemblerConvertible, Collection<Segmen
   @Override
   public String toGNUAssembler() {
     StringBuilder builder = new StringBuilder();
+    if (fileName != null) {
+      builder.append(".file " + fileName + "\n");
+    }
     builder.append(getGNUAssemblerFilePrologue());
     for (Segment segment : segments) {
       builder.append("\n\n").append(segment.toGNUAssembler());

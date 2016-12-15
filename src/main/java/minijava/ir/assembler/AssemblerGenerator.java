@@ -175,7 +175,7 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
     assert args.size() == 2;
     Argument firstArg = args.get(0);
     Argument secondArg = args.get(1);
-    if (secondArg instanceof ConstArgument){
+    if (secondArg instanceof ConstArgument) {
       // swap both arguments as GNU assembler has problems with the second argument being a constant value
       Argument tmp = firstArg;
       firstArg = secondArg;
@@ -221,7 +221,7 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
   @Override
   public void visit(Return node) {
     CodeBlock codeBlock = getCodeBlockForNode(node);
-    if (!(node.getPred(0) instanceof Unknown)) {
+    if (node.getPredCount() > 1) {
       // we only need this if the return actually returns a value
       List<Argument> args = allocator.getArguments(node);
       assert args.size() == 1;
@@ -338,14 +338,17 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
         Argument left = args.get(0);
         Argument right = args.get(1);
 
-        if (right instanceof ConstArgument){
-          // swap both arguments as GNU assembler has problems with the second argument being a constant value
-          Argument tmp = right;
-          right = left;
-          left = tmp;
-        }
-
-        if (left instanceof StackLocation && right instanceof StackLocation) {
+        if (right instanceof ConstArgument) {
+          // dirty hack as the cmp instruction doesn't allow constants as a right argument
+          Location newRight;
+          if (left == Register.EAX) {
+            newRight = Register.EBX;
+          } else {
+            newRight = Register.EAX;
+          }
+          predCodeBlock.addToCmpSupportArea(new Mov(right, newRight));
+          right = newRight;
+        } else if (left instanceof StackLocation && right instanceof StackLocation) {
           // use dirty hack to prevent cmp instructions with too many memory locations
           // store the left argument in the EAX register
           predCodeBlock.addToCmpSupportArea(new Mov(left, Register.EAX));

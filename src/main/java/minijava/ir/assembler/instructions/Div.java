@@ -19,8 +19,8 @@ public class Div extends Instruction {
   }
 
   @Override
-  public String toGNUAssembler() {
-    return toGNUAssembler(divisor);
+  protected String toGNUAssemblerWoComments() {
+    return createGNUAssemblerWoComments(divisor);
   }
 
   @Override

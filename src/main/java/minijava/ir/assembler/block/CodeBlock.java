@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Collectors;
 import minijava.ir.assembler.GNUAssemblerConvertible;
 import minijava.ir.assembler.instructions.Instruction;
 import org.jetbrains.annotations.NotNull;
@@ -29,12 +30,12 @@ public class CodeBlock implements GNUAssemblerConvertible, Collection<Instructio
   @Override
   public String toGNUAssembler() {
     StringBuilder builder = new StringBuilder();
-    builder.append("\n");
-    builder.append(label).append(":");
-    for (Instruction instruction : this) {
-      builder.append("\n\t");
-      builder.append(instruction.toGNUAssembler());
-    }
+    builder.append(label).append(":").append(System.lineSeparator());
+    builder.append(
+        instructions
+            .stream()
+            .map(Instruction::toGNUAssembler)
+            .collect(Collectors.joining(System.lineSeparator())));
     return builder.toString();
   }
 
@@ -87,7 +88,7 @@ public class CodeBlock implements GNUAssemblerConvertible, Collection<Instructio
           return true;
         }
       } else if (instruction.getType() == Instruction.Type.JMP) {
-        if (hasUncoditionalJump()) {
+        if (hasUnconditionalJump()) {
           // ignore the instruction as we already have an unconditional jump
           return false;
         } else {
@@ -168,7 +169,7 @@ public class CodeBlock implements GNUAssemblerConvertible, Collection<Instructio
     return false;
   }
 
-  public boolean hasUncoditionalJump() {
+  public boolean hasUnconditionalJump() {
     for (int i = indexOfFirstJmpInstruction; i < size(); i++) {
       if (instructions.get(i).getType() == Instruction.Type.JMP) {
         return true;

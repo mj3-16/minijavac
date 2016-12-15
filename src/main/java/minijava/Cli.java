@@ -20,6 +20,7 @@ import minijava.ast.Program;
 import minijava.ir.IREmitter;
 import minijava.ir.assembler.AssemblerGenerator;
 import minijava.ir.assembler.SimpleNodeAllocator;
+import minijava.ir.assembler.block.AssemblerFile;
 import minijava.ir.optimize.*;
 import minijava.lexer.Lexer;
 import minijava.parser.Parser;
@@ -34,7 +35,7 @@ class Cli {
       Joiner.on(System.lineSeparator())
           .join(
               new String[] {
-                "Usage: minijavac [--echo|--lex-test|--parse-test|--check|--compile|--print-asm] [--help] file",
+                "Usage: minijavac [--echo|--lex-test|--parse-test|--check|--compile-firm|--print-asm] [--help] file",
                 "",
                 "  --echo          write file's content to stdout",
                 "  --lextest       run lexical analysis on file's content and print tokens to stdout",
@@ -181,8 +182,11 @@ class Cli {
     if (!optimizationsTurnedOff()) {
       optimize();
     }
-    System.out.println(
-        AssemblerGenerator.generateForAll(SimpleNodeAllocator::new).toGNUAssembler());
+    AssemblerFile file = AssemblerGenerator.generateForAll(SimpleNodeAllocator::new);
+    if (System.getenv().containsKey("MJ_FILENAME")) {
+      file.setFileName(System.getenv("MJ_FILENAME"));
+    }
+    out.println(file.toGNUAssembler());
   }
 
   private static class Parameters {
