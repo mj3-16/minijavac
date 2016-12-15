@@ -60,6 +60,7 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
   public Segment generate() {
     graph.walkTopological(this);
     prependStartBlockWithPrologue();
+    segment.addComment(allocator.getActivationRecordInfo());
     return segment;
   }
 

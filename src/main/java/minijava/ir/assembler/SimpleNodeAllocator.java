@@ -8,6 +8,7 @@ import minijava.ir.assembler.instructions.ConstArgument;
 import minijava.ir.assembler.location.Location;
 import minijava.ir.assembler.location.Register;
 import minijava.ir.assembler.location.StackLocation;
+import minijava.ir.utils.MethodInformation;
 
 /**
  * Simple stack based node allocator that tries to implement the scheme from the compiler lab
@@ -22,10 +23,12 @@ public class SimpleNodeAllocator implements NodeAllocator {
   private Map<Node, Integer> assignedStackSlots;
   private int currentSlotNumber = 0;
   private Graph graph;
+  private MethodInformation info;
 
   @Override
   public void process(Graph graph) {
     this.graph = graph;
+    this.info = new MethodInformation(graph);
     this.assignedStackSlots = new HashMap<>();
   }
 
@@ -99,5 +102,34 @@ public class SimpleNodeAllocator implements NodeAllocator {
       assignStackSlot(node);
     }
     return new StackLocation(Register.BASE_POINTER, -getStackSlotOffset(node));
+  }
+
+  @Override
+  public String getActivationRecordInfo() {
+    List<String> lines = new ArrayList<>();
+    Map<Integer, Node> nodesForAssignedSlot = new HashMap<>();
+    for (Node node : assignedStackSlots.keySet()) {
+      nodesForAssignedSlot.put(assignedStackSlots.get(node), node);
+    }
+    for (int i = info.paramNumber - 1; i > 0; i--) {
+      String slotInfo = String.format("%3d[%3d(%%esp)]", i + 1, (i + 1) * STACK_SLOT_SIZE);
+      if (i == 1) {
+        lines.add(slotInfo + ": this");
+      } else {
+        lines.add(slotInfo + ": argument " + (i - 1));
+      }
+    }
+    for (int slot = 0; slot < currentSlotNumber; slot++) {
+      String slotInfo = String.format("%3d[%3d(%%esp)]", slot, -slot * STACK_SLOT_SIZE);
+      if (nodesForAssignedSlot.containsKey(slot)) {
+        slotInfo += ": " + getInfoStringForNode(nodesForAssignedSlot.get(slot));
+      }
+      lines.add(slotInfo);
+    }
+    return String.join(System.lineSeparator(), lines);
+  }
+
+  private String getInfoStringForNode(Node node) {
+    return node.toString();
   }
 }

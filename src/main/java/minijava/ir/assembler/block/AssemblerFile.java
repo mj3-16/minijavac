@@ -101,7 +101,7 @@ public class AssemblerFile implements GNUAssemblerConvertible, Collection<Segmen
   public String toGNUAssembler() {
     StringBuilder builder = new StringBuilder();
     if (fileName != null) {
-      builder.append(".file " + fileName + "\n");
+      builder.append("    .file \"" + fileName + "\"\n");
     }
     builder.append(getGNUAssemblerFilePrologue());
     for (Segment segment : segments) {
@@ -113,11 +113,11 @@ public class AssemblerFile implements GNUAssemblerConvertible, Collection<Segmen
   private static String getGNUAssemblerFilePrologue() {
     String mainMethod = NameMangler.mangledMainMethodName();
     if (Platform.isMac()) {
-      return "\t" + String.join("\n\t", ".p2align 4,0x90,15", ".globl " + mainMethod);
+      return "    " + String.join("\n    ", ".p2align 4,0x90,15", ".globl " + mainMethod);
     } else {
-      return "\t"
+      return "    "
           + String.join(
-              "\n\t",
+              "\n    ",
               ".p2align 4,,15",
               ".globl " + mainMethod,
               ".type\t" + mainMethod + ", @function");
