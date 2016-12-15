@@ -3,6 +3,7 @@ package minijava.ir.optimize;
 import firm.BackEdges;
 import firm.Graph;
 import firm.nodes.Node;
+import firm.nodes.NodeVisitor;
 
 public abstract class BaseOptimizer extends DefaultNodeVisitor implements Optimizer {
 
@@ -10,26 +11,25 @@ public abstract class BaseOptimizer extends DefaultNodeVisitor implements Optimi
   protected boolean hasChanged;
 
   /**
-   * Uses the hasChanged property. If this is set to true in any of the visit methods then the fixed
-   * point iteration goes on.
+   * Implements the work-list algorithm.
    *
-   * @return true if the hasChanged property is true for at least one visit invocation, i.e. the
-   *     graph has been changed
+   * <p>Nodes in the work-list are processed by calling {@link Node#accept(NodeVisitor)
+   * node.accept(this)}. In order for the data-flow analyses to be successful, implementations of
+   * {@link BaseOptimizer} <b>must</b> set the protected {@code hasChanged} field to true in the
+   * overwritten {@code visit(Node)} methods, if the outputs of the node's transfer function differ
+   * from the outputs of the previous visiting.
    */
-  protected boolean fixedPointIteration() {
+  protected void fixedPointIteration() {
     Worklist worklist = Worklist.fillTopological(graph);
-    boolean hasChangedANode = false;
     while (!worklist.isEmpty()) {
       Node n = worklist.removeFirst();
       hasChanged = false;
       n.accept(this);
       if (hasChanged) {
-        hasChangedANode = true;
         for (BackEdges.Edge e : BackEdges.getOuts(n)) {
           worklist.addFirst(e.node);
         }
       }
     }
-    return hasChangedANode;
   }
 }
