@@ -363,14 +363,14 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
               throw new UnsupportedOperationException();
           }
           // use the selected conditional jump
-          predCodeBlock.add(jmp);
+          predCodeBlock.add(jmp.firm(pred));
         } else {
           // use an unconditional jump
-          predCodeBlock.add(new Jmp(codeBlock));
+          predCodeBlock.add(new Jmp(codeBlock).firm(pred));
         }
       } else {
         // an unconditional jump
-        codeBlock.add(new Jmp(codeBlock));
+        predCodeBlock.add(new Jmp(codeBlock).firm(pred));
       }
     }
   }
