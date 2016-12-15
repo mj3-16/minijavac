@@ -1,6 +1,7 @@
 package minijava.ir.assembler;
 
 import com.sun.jna.Platform;
+import firm.BackEdges;
 import firm.Graph;
 import firm.Program;
 import firm.nodes.*;
@@ -58,6 +59,7 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
   }
 
   public Segment generate() {
+    BackEdges.enable(graph);
     graph.walkTopological(this);
     prependStartBlockWithPrologue();
     segment.addComment(allocator.getActivationRecordInfo());

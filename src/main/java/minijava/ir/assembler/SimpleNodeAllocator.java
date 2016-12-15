@@ -39,12 +39,13 @@ public class SimpleNodeAllocator implements NodeAllocator {
       if (proj.getPred().equals(graph.getArgs())) {
         // the proj node points to a method argument
         int slot = proj.getNum();
-        // TODO: is this correct?
+        // this seems to be correct?
         return new StackLocation(Register.BASE_POINTER, (slot + 2) * STACK_SLOT_SIZE);
-      } else if (proj.getPred() instanceof Call) {
+      } else if (proj.getPred().getPredCount() > 0 && proj.getPred().getPred(0) instanceof Call) {
         // the proj node points to method result
-        // the result always lays on the stack
-        return new StackLocation(Register.STACK_POINTER, 0);
+        // the result always lays in the RAX register
+        // [Call] <- [Tuple Proj] <- [Is Proj]
+        return getStackSlotAsLocation(proj.getPred().getPred(0));
       }
     } else if (node instanceof Conv) {
       // ignore Conv nodes
@@ -78,10 +79,8 @@ public class SimpleNodeAllocator implements NodeAllocator {
     if (node instanceof Conv) {
       // ignore Conv nodes
       return getLocation(node.getPred(0));
-    } /*else if (node instanceof Call){
-        currentSlotNumber += node.getPredCount() - 2;
-      }*/
-    return getStackSlotAsLocation(node);
+    }
+    return getLocation(node);
   }
 
   @Override
