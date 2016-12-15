@@ -1,6 +1,5 @@
 package minijava.ir.assembler.instructions;
 
-import com.sun.jna.Platform;
 import minijava.ir.assembler.block.CodeBlock;
 
 /** An unconditional jump to a new block */
@@ -14,11 +13,7 @@ public class Jmp extends Instruction {
 
   @Override
   public String toGNUAssembler() {
-    String label = nextBlock.label;
-    if (Platform.isLinux()) {
-      label = "." + label;
-    }
-    return "\n" + super.toGNUAssembler() + " " + label;
+    return "\n" + super.toGNUAssembler() + " " + nextBlock.label;
   }
 
   @Override

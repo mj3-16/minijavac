@@ -1,5 +1,6 @@
 package minijava.ir.assembler;
 
+import com.sun.jna.Platform;
 import firm.Graph;
 import firm.Program;
 import firm.nodes.*;
@@ -82,7 +83,13 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
     if (block.getNr() == graph.getStartBlock().getNr()) {
       return info.ldName;
     }
-    return String.format("L%d_%s", block.getNr(), info.ldName);
+    String ldFormat;
+    if (Platform.isLinux()) {
+      ldFormat = ".L%d_%s";
+    } else {
+      ldFormat = "L%d_%s";
+    }
+    return String.format(ldFormat, block.getNr(), info.ldName);
   }
 
   /** Get the code block for a given firm node (for the block the node belongs to) */

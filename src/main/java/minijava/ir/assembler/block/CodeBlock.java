@@ -1,6 +1,5 @@
 package minijava.ir.assembler.block;
 
-import com.sun.jna.Platform;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
@@ -31,7 +30,7 @@ public class CodeBlock implements GNUAssemblerConvertible, Collection<Instructio
   public String toGNUAssembler() {
     StringBuilder builder = new StringBuilder();
     builder.append("\n");
-    builder.append(Platform.isMac() ? label : ("." + label)).append(":");
+    builder.append(label).append(":");
     for (Instruction instruction : this) {
       builder.append("\n\t");
       builder.append(instruction.toGNUAssembler());
