@@ -175,6 +175,12 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
     assert args.size() == 2;
     Argument firstArg = args.get(0);
     Argument secondArg = args.get(1);
+    if (secondArg instanceof ConstArgument){
+      // swap both arguments as GNU assembler has problems with the second argument being a constant value
+      Argument tmp = firstArg;
+      firstArg = secondArg;
+      secondArg = tmp;
+    }
     Location res = allocator.getResultLocation(node);
     CodeBlock block = getCodeBlockForNode(node);
     if (firstArg != res) {
@@ -321,14 +327,23 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
 
         // this edge comes from a conditional jump
         Proj proj = (Proj) pred;
-        boolean isTrueEdge = proj.getNum() == 0;
+        boolean isTrueEdge = proj.getNum() == 1;
         // the condition
         Cond cond = (Cond) proj.getPred();
         // we ignore it as we're really interested in the preceding compare node
         firm.nodes.Cmp cmp = (firm.nodes.Cmp) cond.getPred(0);
 
-        Argument left = allocator.getLocation(cmp.getLeft());
-        Argument right = allocator.getLocation(cmp.getRight());
+        List<Argument> args = allocator.getArguments(cmp);
+        assert args.size() == 2;
+        Argument left = args.get(0);
+        Argument right = args.get(1);
+
+        if (right instanceof ConstArgument){
+          // swap both arguments as GNU assembler has problems with the second argument being a constant value
+          Argument tmp = right;
+          right = left;
+          left = tmp;
+        }
 
         if (left instanceof StackLocation && right instanceof StackLocation) {
           // use dirty hack to prevent cmp instructions with too many memory locations

@@ -33,11 +33,11 @@ public class SimpleNodeAllocator implements NodeAllocator {
   public Location getLocation(Node node) {
     if (node instanceof Proj) {
       Proj proj = (Proj) node;
-      if (proj.getPred() == graph.getArgs()) {
+      if (proj.getPred().equals(graph.getArgs())) {
         // the proj node points to a method argument
         int slot = proj.getNum();
         // TODO: is this correct?
-        return new StackLocation(Register.BASE_POINTER, (slot + 1) * STACK_SLOT_SIZE);
+        return new StackLocation(Register.BASE_POINTER, (slot + 2) * STACK_SLOT_SIZE);
       } else if (proj.getPred() instanceof Call) {
         // the proj node points to method result
         // the result always lays on the stack
