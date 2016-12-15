@@ -212,11 +212,11 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
    */
   private void prependStartBlockWithPrologue() {
     CodeBlock startBlock = getCodeBlock(graph.getStartBlock());
-    startBlock.prepend(new AllocStack(allocator.getActivationRecordSize())); // subq $XX, %rsp
     startBlock.prepend(
+        new Push(Register.BASE_POINTER).com("Backup old base pointer"),
+        new AllocStack(allocator.getActivationRecordSize()),
         new Mov(Register.STACK_POINTER, Register.BASE_POINTER)
-            .com("Set base pointer for new activation record")); // movq %rsp, %rbp
-    startBlock.prepend(new Push(Register.BASE_POINTER).com("Backup old base pointer"));
+            .com("Set base pointer for new activation record")); // subq $XX, %rsp
   }
 
   @Override
@@ -239,7 +239,8 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
         new Mov(Register.BASE_POINTER, Register.STACK_POINTER)
             .com("Copy base pointer to stack pointer (free stack)"));
     codeBlock.add(new Pop(Register.BASE_POINTER).com("Restore previous base pointer"));
-    codeBlock.add(new Ret().com("Jump to return adress (and remove it from the stack)").firm(node));
+    codeBlock.add(
+        new Ret().com("Jump to return address (and remove it from the stack)").firm(node));
   }
 
   @Override
@@ -347,17 +348,17 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
           } else {
             newRight = Register.EAX;
           }
-          predCodeBlock.addToCmpSupportArea(new Mov(right, newRight));
+          predCodeBlock.addToCmpOrJmpSupportInstructions(new Mov(right, newRight));
           right = newRight;
         } else if (left instanceof StackLocation && right instanceof StackLocation) {
           // use dirty hack to prevent cmp instructions with too many memory locations
           // store the left argument in the EAX register
-          predCodeBlock.addToCmpSupportArea(new Mov(left, Register.EAX));
+          predCodeBlock.addToCmpOrJmpSupportInstructions(new Mov(left, Register.EAX));
           left = Register.EAX;
         }
 
         // add a compare instruction that compares both arguments
-        predCodeBlock.add(new Cmp(left, right).firm(cmp));
+        predCodeBlock.setCompare((Cmp) new Cmp(left, right).firm(cmp));
 
         if (isTrueEdge) {
           // choose the right jump instruction
@@ -382,14 +383,14 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
               throw new UnsupportedOperationException();
           }
           // use the selected conditional jump
-          predCodeBlock.add(jmp.firm(pred));
+          predCodeBlock.addConditionalJump((Jmp) jmp.firm(pred));
         } else {
           // use an unconditional jump
-          predCodeBlock.add(new Jmp(codeBlock).firm(pred));
+          predCodeBlock.setUnconditionalJump((Jmp) new Jmp(codeBlock).firm(pred));
         }
       } else {
         // an unconditional jump
-        predCodeBlock.add(new Jmp(codeBlock).firm(pred));
+        predCodeBlock.setUnconditionalJump((Jmp) new Jmp(codeBlock).firm(pred));
       }
     }
   }
