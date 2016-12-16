@@ -32,7 +32,6 @@ import minijava.ir.assembler.location.Location;
 import minijava.ir.assembler.location.Register;
 import minijava.ir.assembler.location.StackLocation;
 import minijava.ir.utils.MethodInformation;
-import org.jooq.lambda.tuple.Tuple2;
 
 /**
  * Generates GNU assembler for a graph
@@ -99,6 +98,10 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
 
   /** Get the code block for a given firm node (for the block the node belongs to) */
   private CodeBlock getCodeBlockForNode(Node node) {
+    if (node.getBlock() == null) {
+      // the passed node is actually a block
+      return getCodeBlock((Block) node);
+    }
     return getCodeBlock((Block) node.getBlock());
   }
 
@@ -421,37 +424,18 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
     Location res = allocator.getResultLocation(node);
     for (int i = 0; i < block.getPredCount(); i++) {
       // the i.th block belongs to the i.th input edge of the phi node
-      CodeBlock predCodeBlock = getCodeBlockForNode(block.getPred(i));
       Node inputNode = node.getPred(i);
-      insertMov(predCodeBlock, allocator.getLocation(inputNode), res, node);
-    }
-  }
-
-  /** Takes care of the case that the first and the second argument are memory locations */
-  private void insertMov(
-      CodeBlock block, Argument first, Argument second, Node firmNode, String comment) {
-    List<Tuple2<Argument, Location>> movInstructions = new ArrayList<>();
-    if (first instanceof StackLocation && second instanceof StackLocation) {
-      // would result in an error (two many memory references)
-      // solution: dirty hack: copy the first argument into a register
+      // we get the correct block be taking the predecessors of the block of the phi node
+      Block inputBlock = (Block) block.getPred(i).getBlock();
+      CodeBlock inputCodeBlock = getCodeBlock(inputBlock);
+      Argument arg = allocator.getAsArgument(inputNode);
+      // we store the argument in a register
       Register intermediateReg = Register.EAX;
-      movInstructions.add(new Tuple2<Argument, Location>(first, intermediateReg));
-      movInstructions.add(new Tuple2<Argument, Location>(intermediateReg, (Location) second));
+      inputCodeBlock.addToCmpOrJmpSupportInstructions(
+          new Mov(arg, intermediateReg).firm(inputNode));
+      // we copy it into Phis location
+      inputCodeBlock.addToCmpOrJmpSupportInstructions(new Mov(intermediateReg, res).firm(node));
     }
-    for (Tuple2<Argument, Location> movInstruction : movInstructions) {
-      Mov mov = new Mov(movInstruction.v1, movInstruction.v2);
-      if (firmNode != null) {
-        mov.firm(firmNode);
-      }
-      if (comment != null) {
-        mov.addComment(comment);
-      }
-      block.add(mov);
-    }
-  }
-
-  private void insertMov(CodeBlock block, Argument first, Argument second, Node firmNode) {
-    insertMov(block, first, second, firmNode, null);
   }
 
   @Override
