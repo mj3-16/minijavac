@@ -108,17 +108,21 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
         // target is the block we actually want to redirect the jump to (from source).
         Block target = (Block) succ.node;
 
-        // Now, there might be some Phis in target which need fixing, because we will add another predecessor (namely source).
-        // For the new Phi entry, we will just copy the pred at index succ.pos, which is exactly the index of the
-        // incoming control flow from currentBlock.
-        List<Phi> fixUp = getPhiNodes(target);
+        // 1. Replace the old target block by a new one with the added incoming edge
 
         Node[] newPreds = seq(target.getPreds()).append(source).toArray(Node[]::new);
         Block newTarget = (Block) graph.newBlock(newPreds);
         Graph.exchange(target, newTarget);
 
-        int predIdx =
-            succ.pos; // The predecessor index of the currentBlock/proj wrt. to the target Block.
+        // 2. Add preds to the phi nodes in the target block
+
+        // There might be some Phis in target which need fixing, because we will add another predecessor (namely source).
+        // For the new Phi entry, we will just copy the pred at index succ.pos, which is exactly the index of the
+        // incoming control flow from currentBlock.
+        List<Phi> fixUp = getPhiNodes(newTarget);
+
+        // The predecessor index of the currentBlock/proj wrt. to the target Block.
+        int predIdx = succ.pos;
         for (Phi targetPhi : fixUp) {
           // Make a 'deep' copy of targetPhi, with an added predecessor entry for the new predecessor.
           // entry will point to the same predecessor as the pred entry for currentBlock/proj does,
@@ -135,8 +139,11 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
           Graph.exchange(targetPhi, newPhi);
         }
 
+        // 3. Potentially add new Phi nodes because the original definitions might not be visible any more
+
         // Changing the control flow also changed dominance frontiers, so that we potentially need to insert new
-        // Phi nodes into target, because otherwise some references might not have dominating definitions.
+        // Phi nodes into target and dominated blocks, because otherwise some references might not have
+        // dominating definitions.
         //
         // Consider this:
         //
@@ -154,7 +161,7 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
         //
         // Which is the situation for a simple if (true && true) statement without optimization.
         // We know that we can redirect edge 1-3 directly to 4 and pull node 3 into 2, like on the right.
-        // Now, node 4 was dominated by 3, but isnt any longer dominated by 2 on the right!
+        // Now, node 4 was dominated by 3, but isn't any longer dominated by 2 on the right!
         // This is problematic if 4 used any phi nodes of 3. So we have to move the respective phi nodes
         // into 4 (which is now the dominant frontier it belongs to) and also update all usages.
 
@@ -162,7 +169,7 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
         // node 1 = source
         // node 4 = target
 
-        // 1. copy every Phi from node 3 to node 4, referencing the phi from node 3 as well as the input from node 1
+        // For every Phi in currentBlock, check its usages and insert new Phi nodes as necessary.
         //Dump.dumpGraph(graph, "before-reach-def");
         //System.out.println("Target block: " + newTarget);
         List<Phi> currentPhis = getPhiNodes(currentBlock);
@@ -170,11 +177,13 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
         for (Phi currentPhi : currentPhis) {
           //System.out.println("Current Phi: " + currentPhi);
           for (BackEdges.Edge ref : BackEdges.getOuts(currentPhi)) {
+            // So ref.node uses currentPhi as an input, but the definition of currentPhi might not dominate
+            // ref.node.getBlock(). This is transparently handled in joinReachableDefinitions.
             //System.out.println("  used in: " + ref.node + ", input " + ref.pos);
             Block usage = (Block) ref.node.getBlock();
             if (ref.node instanceof Phi) {
               // In this case, it's enough to pretend the usage is in block usage.getPred(ref.pos)!
-              // This is because Phis are the only means to join control flow.
+              // This is because Phis are the only means to join control flow and consequently visible definitions.
               usage = (Block) usage.getPred(ref.pos).getBlock();
             }
             Node joinedDefinition =
@@ -183,6 +192,8 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
             ref.node.setPred(ref.pos, joinedDefinition);
           }
         }
+
+        // 4. Delete incoming edge from the currentBlock, which we redirected
 
         // Finally we delete the stale pointers to the projs/jmps we just redirected
         // We redirect by replacing predecessor nodes by a BAD.
@@ -195,6 +206,10 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
     }
   }
 
+  /**
+   * Returns a definition for {@param preferredDef} that is actually visible at {@param usage},
+   * defaulting to {@param defaultDefinition} where it is not.
+   */
   private Node joinReachableDefinitions(
       Node preferredDef, Node defaultDefinition, Block usage, PSet<Block> loopBreakers) {
     //System.out.println(
@@ -205,8 +220,6 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
     //        + ", from usage in "
     //        + usage);
     assert preferredDef.getMode() == defaultDefinition.getMode();
-    assert Dominance.dominates(
-        (Block) defaultDefinition.getBlock(), usage); // Otherwise we might never terminate
 
     if (Dominance.dominates((Block) preferredDef.getBlock(), usage)) {
       // hooray, we found our preferred definition!
@@ -222,6 +235,7 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
 
     if (loopBreakers.contains(usage)) {
       // We follow some kind of endless loop. Just default to the defaultDefinition
+      // and pray that it's visible (e.g. dominates the usage).
       assert Dominance.dominates((Block) defaultDefinition.getBlock(), usage);
       //System.out.println(
       //    "    Loop detected. Defaulting to default definition " + defaultDefinition);
@@ -250,8 +264,6 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
       //System.out.println("    Forwarding allSame definition " + preds[0]);
       return preds[0];
     }
-
-    //System.out.println(Arrays.toString(preds));
 
     // TODO: Possibly pass a hashmap for memoization of nodes.
     // This can blow up quadratically otherwise, I think.
