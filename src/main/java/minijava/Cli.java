@@ -156,10 +156,9 @@ class Cli {
     Optimizer algebraicSimplifier = new AlgebraicSimplifier();
     for (Graph graph : firm.Program.getGraphs()) {
       Dump.dumpGraph(graph, "before-optimization");
-      while (Boolean.logicalAnd(
-          constantFolder.optimize(graph), algebraicSimplifier.optimize(graph))) ;
+      while (constantFolder.optimize(graph) | algebraicSimplifier.optimize(graph)) ;
       Dump.dumpGraph(graph, "before-cfg");
-      while (controlFlowOptimizer.optimize(graph) || unreachableCodeRemover.optimize(graph)) {}
+      while (controlFlowOptimizer.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
     }
   }
 
