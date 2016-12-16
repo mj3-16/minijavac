@@ -5,6 +5,7 @@ import static minijava.ir.utils.FirmUtils.getMethodLdName;
 import com.sun.jna.Platform;
 import firm.BackEdges;
 import firm.Graph;
+import firm.Mode;
 import firm.Program;
 import firm.nodes.*;
 import java.util.ArrayList;
@@ -36,7 +37,11 @@ import minijava.ir.utils.MethodInformation;
 /**
  * Generates GNU assembler for a graph
  *
+ * <p>
+ *
  * <p>One of the goals of this implementation is to produce well documented assembly code.
+ *
+ * <p>
  *
  * <p>Important: it currently ignores any {@link firm.nodes.Conv} nodes
  */
@@ -341,6 +346,9 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
       CodeBlock predCodeBlock = getCodeBlockForNode(pred);
       // pred is a predecessor node but not a block
       if (pred instanceof Proj) {
+        if (pred.getMode() == Mode.getM()) {
+          continue;
+        }
         // we might do unnecessary work here, but the {@link CodeBlock} instance takes care of it
 
         // this edge comes from a conditional jump
@@ -348,78 +356,141 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
         boolean isTrueEdge = proj.getNum() == 1;
         // the condition
         Cond cond = (Cond) proj.getPred();
-        // we ignore it as we're really interested in the preceding compare node
-        firm.nodes.Cmp cmp = (firm.nodes.Cmp) cond.getPred(0);
 
-        List<Argument> args = allocator.getArguments(cmp);
-        assert args.size() == 2;
-        Argument left = args.get(0);
-        Argument right = args.get(1);
+        if (cond.getSelector() instanceof firm.nodes.Cmp) {
+          // we ignore it as we're really interested in the preceding compare node
+          firm.nodes.Cmp cmp = (firm.nodes.Cmp) cond.getSelector();
 
-        if (right instanceof ConstArgument) {
-          // dirty hack as the cmp instruction doesn't allow constants as a right argument
-          Location newRight;
-          if (left == Register.EAX) {
-            newRight = Register.EBX;
+          List<Argument> args = allocator.getArguments(cmp);
+          assert args.size() == 2;
+          Argument left = args.get(0);
+          Argument right = args.get(1);
+
+          if (right instanceof ConstArgument) {
+            // dirty hack as the cmp instruction doesn't allow constants as a right argument
+            Location newRight;
+            if (left == Register.EAX) {
+              newRight = Register.EBX;
+            } else {
+              newRight = Register.EAX;
+            }
+            predCodeBlock.addToCmpOrJmpSupportInstructions(new Mov(right, newRight));
+            right = newRight;
+          } else if (left instanceof StackLocation && right instanceof StackLocation) {
+            // use dirty hack to prevent cmp instructions with too many memory locations
+            // store the left argument in the EAX register
+            predCodeBlock.addToCmpOrJmpSupportInstructions(new Mov(left, Register.EAX));
+            left = Register.EAX;
+          }
+
+          // dirty hack: store the left argument in a register too
+          // why? nobody knows. it's amd64 assembler…
+          predCodeBlock.addToCmpOrJmpSupportInstructions(new Mov(left, Register.EBX));
+          left = Register.EBX;
+
+          // add a compare instruction that compares both arguments
+          // we have to swap the arguments of the cmp instruction
+          // why? because of GNU assembler…
+          predCodeBlock.setCompare((Cmp) new Cmp(right, left).firm(cmp));
+
+          if (isTrueEdge) {
+            // choose the right jump instruction
+            Instruction jmp = null;
+            switch (cmp.getRelation()) {
+              case Less:
+                jmp = new JmpLess(codeBlock);
+                break;
+              case LessEqual:
+                jmp = new JmpLessOrEqual(codeBlock);
+                break;
+              case Greater:
+                jmp = new JmpGreater(codeBlock);
+                break;
+              case GreaterEqual:
+                jmp = new JmpGreaterOrEqual(codeBlock);
+                break;
+              case Equal:
+                jmp = new JmpEqual(codeBlock);
+                break;
+              default:
+                throw new UnsupportedOperationException();
+            }
+            // use the selected conditional jump
+            predCodeBlock.addConditionalJump((Jmp) jmp.firm(pred));
           } else {
-            newRight = Register.EAX;
+            // use an unconditional jump
+            predCodeBlock.setUnconditionalJump((Jmp) new Jmp(codeBlock).firm(pred));
           }
-          predCodeBlock.addToCmpOrJmpSupportInstructions(new Mov(right, newRight));
-          right = newRight;
-        } else if (left instanceof StackLocation && right instanceof StackLocation) {
-          // use dirty hack to prevent cmp instructions with too many memory locations
-          // store the left argument in the EAX register
-          predCodeBlock.addToCmpOrJmpSupportInstructions(new Mov(left, Register.EAX));
-          left = Register.EAX;
-        }
-
-        // dirty hack: store the left argument in a register too
-        // why? nobody knows. it's amd64 assembler…
-        predCodeBlock.addToCmpOrJmpSupportInstructions(new Mov(left, Register.EBX));
-        left = Register.EBX;
-
-        // add a compare instruction that compares both arguments
-        // we have to swap the arguments of the cmp instruction
-        // why? because of GNU assembler…
-        predCodeBlock.setCompare((Cmp) new Cmp(right, left).firm(cmp));
-
-        if (isTrueEdge) {
-          // choose the right jump instruction
-          Instruction jmp = null;
-          switch (cmp.getRelation()) {
-            case Less:
-              jmp = new JmpLess(codeBlock);
-              break;
-            case LessEqual:
-              jmp = new JmpLessOrEqual(codeBlock);
-              break;
-            case Greater:
-              jmp = new JmpGreater(codeBlock);
-              break;
-            case GreaterEqual:
-              jmp = new JmpGreaterOrEqual(codeBlock);
-              break;
-            case Equal:
-              jmp = new JmpEqual(codeBlock);
-              break;
-            default:
-              throw new UnsupportedOperationException();
+        } else if (cond.getSelector() instanceof Phi) {
+          // we should have a Phi b node here
+          Phi bPhi = (Phi) cond.getSelector();
+          Location res = allocator.getLocation(bPhi);
+          for (Node inputNode : bPhi.getPreds()) {
+            CodeBlock inputCodeBlock = getCodeBlockForNode(inputNode);
+            if (inputNode instanceof firm.nodes.Cmp) {
+              if (!inputCodeBlock.hasCompare()) {
+                // we have to add one
+                // a set without a cmp doesn't make any sense
+                firm.nodes.Cmp cmp = (firm.nodes.Cmp) inputNode;
+                Argument leftArg = allocator.getAsArgument(cmp.getLeft());
+                Argument rightArg = allocator.getAsArgument(cmp.getRight());
+                Register immLeft = Register.EAX;
+                Register immRight = Register.EBX;
+                // copy the values into registers
+                inputCodeBlock.addToCmpOrJmpSupportInstructions(
+                    new Mov(leftArg, immLeft).firm(cmp.getLeft()));
+                inputCodeBlock.addToCmpOrJmpSupportInstructions(
+                    new Mov(rightArg, immRight).firm(cmp.getRight()));
+                // compare the value
+                // swap its arguments, GNU assembler...
+                inputCodeBlock.setCompare((Cmp) new Cmp(immRight, immLeft).firm(cmp));
+              }
+              // zero the result location
+              inputCodeBlock.addToAfterCompareInstructions(new Mov(new ConstArgument(0), res));
+              // set the value to one if condition did hold true
+              // TODO: really?   problem we cannot use the set instruction more than once for a given cmp
+              inputCodeBlock.addToAfterCompareInstructions(
+                  new Set(((firm.nodes.Cmp) inputNode).getRelation(), res).firm(bPhi));
+            } else {
+              Register intermediateReg = Register.EAX;
+              inputCodeBlock.add(
+                  new Mov(allocator.getLocation(inputNode), intermediateReg).firm(inputNode));
+              inputCodeBlock.add(new Mov(intermediateReg, res).firm(bPhi));
+            }
           }
-          // use the selected conditional jump
-          predCodeBlock.addConditionalJump((Jmp) jmp.firm(pred));
-        } else {
-          // use an unconditional jump
-          predCodeBlock.setUnconditionalJump((Jmp) new Jmp(codeBlock).firm(pred));
+          // we have to use the Phis value now
+          // first we copy its value in a register
+          Register phiVal = Register.EAX;
+          predCodeBlock.addToCmpOrJmpSupportInstructions(new Mov(res, phiVal).firm(bPhi));
+          // no we compare it with 1 (== true)
+          predCodeBlock.setCompare((Cmp) new Cmp(new ConstArgument(1), phiVal).firm(cond));
+          if (isTrueEdge) {
+            // we jump to the true block if both cmps arguments were equal
+            predCodeBlock.addConditionalJump((Jmp) new JmpEqual(codeBlock).firm(proj));
+          } else {
+            // we jump just to the false node by default
+            predCodeBlock.setUnconditionalJump((Jmp) new Jmp(codeBlock).firm(proj));
+          }
+        } else if (cond.getSelector() instanceof Const) {
+          Const constCond = (Const) cond.getSelector(); // true or false
+          if (constCond.getTarval().isOne() == isTrueEdge) {
+            // take the branch
+            predCodeBlock.setUnconditionalJump((Jmp) new Jmp(codeBlock).firm(cond));
+          }
         }
       } else {
         // an unconditional jump
-        predCodeBlock.setUnconditionalJump((Jmp) new Jmp(codeBlock).firm(pred));
+        predCodeBlock.setDefaultUnconditionalJump((Jmp) new Jmp(codeBlock).firm(pred));
       }
     }
   }
 
   @Override
   public void visit(Phi node) {
+    if (node.getMode().equals(Mode.getb())) {
+      // we deal with it in the visit(Block) method
+      return;
+    }
     Block block = (Block) node.getBlock();
     Location res = allocator.getResultLocation(node);
     for (int i = 0; i < block.getPredCount(); i++) {
@@ -431,10 +502,9 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
       Argument arg = allocator.getAsArgument(inputNode);
       // we store the argument in a register
       Register intermediateReg = Register.EAX;
-      inputCodeBlock.addToCmpOrJmpSupportInstructions(
-          new Mov(arg, intermediateReg).firm(inputNode));
+      inputCodeBlock.addPhiHelperInstruction(new Mov(arg, intermediateReg).firm(inputNode));
       // we copy it into Phis location
-      inputCodeBlock.addToCmpOrJmpSupportInstructions(new Mov(intermediateReg, res).firm(node));
+      inputCodeBlock.addPhiHelperInstruction(new Mov(intermediateReg, res).firm(node));
     }
   }
 

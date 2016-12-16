@@ -18,20 +18,24 @@ public class CodeBlock implements GNUAssemblerConvertible, Collection<Instructio
 
   public final String label;
   private final List<Instruction> normalInstructions;
+  private final List<Instruction> phiHelperInstructions;
   /** They have to be located between the jmp and cmp like instructions */
   private final List<Instruction> cmpOrJmpSupportInstructions;
 
   private Optional<Cmp> compareInstruction;
+  private List<Instruction> afterCompareInstructions;
   private List<Jmp> conditionalJumps;
   private Optional<Jmp> unconditionalJump;
 
   public CodeBlock(String label) {
     this.label = label;
     this.normalInstructions = new ArrayList<>();
+    this.phiHelperInstructions = new ArrayList<>();
     this.cmpOrJmpSupportInstructions = new ArrayList<>();
     this.compareInstruction = Optional.empty();
     this.conditionalJumps = new ArrayList<>();
     this.unconditionalJump = Optional.empty();
+    this.afterCompareInstructions = new ArrayList<>();
   }
 
   @Override
@@ -47,10 +51,12 @@ public class CodeBlock implements GNUAssemblerConvertible, Collection<Instructio
 
   public int size() {
     return normalInstructions.size()
+        + phiHelperInstructions.size()
         + cmpOrJmpSupportInstructions.size()
         + (compareInstruction.isPresent() ? 1 : 0)
         + conditionalJumps.size()
-        + (unconditionalJump.isPresent() ? 1 : 0);
+        + (unconditionalJump.isPresent() ? 1 : 0)
+        + afterCompareInstructions.size();
   }
 
   @Override
@@ -68,10 +74,14 @@ public class CodeBlock implements GNUAssemblerConvertible, Collection<Instructio
   public Iterator<Instruction> iterator() {
     List<Instruction> others = new ArrayList<>();
     compareInstruction.ifPresent(others::add);
+    others.addAll(afterCompareInstructions);
     others.addAll(conditionalJumps);
     unconditionalJump.ifPresent(others::add);
     return Iterators.concat(
-        normalInstructions.iterator(), cmpOrJmpSupportInstructions.iterator(), others.iterator());
+        normalInstructions.iterator(),
+        phiHelperInstructions.iterator(),
+        cmpOrJmpSupportInstructions.iterator(),
+        others.iterator());
   }
 
   @NotNull
@@ -115,6 +125,14 @@ public class CodeBlock implements GNUAssemblerConvertible, Collection<Instructio
    */
   public void addToCmpOrJmpSupportInstructions(Instruction instruction) {
     cmpOrJmpSupportInstructions.add(instruction);
+  }
+
+  public void addToAfterCompareInstructions(Instruction instruction) {
+    afterCompareInstructions.add(instruction);
+  }
+
+  public List<Instruction> getAfterCompareInstructions() {
+    return Collections.unmodifiableList(afterCompareInstructions);
   }
 
   public boolean addAll(@NotNull Collection<? extends Instruction> c) {
@@ -173,9 +191,19 @@ public class CodeBlock implements GNUAssemblerConvertible, Collection<Instructio
     unconditionalJump = Optional.of(jmp);
   }
 
+  public void setDefaultUnconditionalJump(Jmp jmp) {
+    if (!unconditionalJump.isPresent()) {
+      unconditionalJump = Optional.of(jmp);
+    }
+  }
+
   public void addConditionalJump(Jmp jmp) {
     checkArgument(jmp.getType() != Instruction.Type.JMP, jmp);
     conditionalJumps.add(jmp);
+  }
+
+  public void addPhiHelperInstruction(Instruction instruction) {
+    phiHelperInstructions.add(instruction);
   }
 
   public List<Jmp> getConditionalJumps() {

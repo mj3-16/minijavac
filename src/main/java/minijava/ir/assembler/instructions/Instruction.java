@@ -24,6 +24,7 @@ public abstract class Instruction implements GNUAssemblerConvertible {
     JMP_GREATER_OR_EQUAL(Category.JMP, "jge"),
     JMP_EQUAL(Category.JMP, "je"),
     JMP(Category.JMP, "jmp"),
+    SET(Category.AFTER_CMP, "set"),
     PUSH("pushq"),
     POP("pop", true),
     RET("ret"),
@@ -62,6 +63,7 @@ public abstract class Instruction implements GNUAssemblerConvertible {
   public static enum Category {
     JMP,
     CMP,
+    AFTER_CMP,
     NORMAL
   }
 

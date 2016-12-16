@@ -3,6 +3,8 @@ package minijava.ir.assembler;
 import static minijava.ir.utils.FirmUtils.getMethodLdName;
 
 import firm.Graph;
+import firm.Mode;
+import firm.TargetValue;
 import firm.nodes.*;
 import java.util.*;
 import minijava.ir.assembler.instructions.Argument;
@@ -65,7 +67,8 @@ public class SimpleNodeAllocator implements NodeAllocator {
     int start = 0;
     if (node instanceof Call) {
       start = 2;
-    } else if (node instanceof Return) {
+    } else if (node instanceof Return || node instanceof Mod || node instanceof Div) {
+      // they have memory dependencies
       start = 1;
     }
     for (int i = start; i < node.getPredCount(); i++) {
@@ -77,7 +80,14 @@ public class SimpleNodeAllocator implements NodeAllocator {
   @Override
   public Argument getAsArgument(Node node) {
     if (node instanceof Const) {
-      return new ConstArgument(((Const) node).getTarval().asInt());
+      TargetValue tarVal = ((Const) node).getTarval();
+      if (tarVal.isLong()) {
+        return new ConstArgument(tarVal.asInt());
+      } else if (tarVal.getMode().equals(Mode.getb())) {
+        return new ConstArgument(tarVal.isNull() ? 0 : 1);
+      } else {
+        assert false;
+      }
     }
     return getLocation(node);
   }
