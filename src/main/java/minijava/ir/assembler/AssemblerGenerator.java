@@ -136,18 +136,21 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
   }
 
   private void visitDivAndMod(Node node, boolean isDiv) {
+    Location res = allocator.getResultLocation(node);
+    CodeBlock block = getCodeBlockForNode(node);
     List<Argument> args = allocator.getArguments(node);
     assert args.size() == 2;
     Argument firstArg = args.get(0);
     Argument secondArg = args.get(1);
-    Location res = allocator.getResultLocation(node);
-    CodeBlock block = getCodeBlockForNode(node);
+    // move the second argument to a register too (requirement of the idiv instruction)
+    Register secondArgIm = Register.EBX;
+    block.add(new Mov(secondArg, secondArgIm));
     block.add(
         new Mov(firstArg, Register.EAX)
             .com("copy the first argument (the dividend) into the EAX register"));
     block.add(new CLTD().com("and convert it from 32 Bits to 64 Bits"));
     block.add(
-        new Div(secondArg)
+        new Div(secondArgIm)
             .com("the quotient is now in the EAX register and the remainder in the EDX register")
             .firm(node));
     block.add(new Mov(isDiv ? Register.EAX : Register.EDX, res));
