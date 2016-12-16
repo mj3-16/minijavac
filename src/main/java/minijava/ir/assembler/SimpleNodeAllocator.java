@@ -21,7 +21,7 @@ public class SimpleNodeAllocator implements NodeAllocator {
 
   private static final int STACK_SLOT_SIZE = 8; // we're on an 64bit system
   private Map<Node, Integer> assignedStackSlots;
-  private int currentSlotNumber = 0;
+  private int currentSlotNumber = 1;
   private Graph graph;
   private MethodInformation info;
 
@@ -110,9 +110,9 @@ public class SimpleNodeAllocator implements NodeAllocator {
     for (Node node : assignedStackSlots.keySet()) {
       nodesForAssignedSlot.put(assignedStackSlots.get(node), node);
     }
-    for (int i = info.paramNumber - 1; i > 0; i--) {
+    for (int i = info.paramNumber - 1; i >= 0; i--) {
       String slotInfo = String.format("%3d[%3d(%%esp)]", i + 1, (i + 1) * STACK_SLOT_SIZE);
-      if (i == 1) {
+      if (i == 0) {
         lines.add(slotInfo + ": this");
       } else {
         lines.add(slotInfo + ": argument " + (i - 1));
@@ -120,7 +120,9 @@ public class SimpleNodeAllocator implements NodeAllocator {
     }
     for (int slot = 0; slot < currentSlotNumber; slot++) {
       String slotInfo = String.format("%3d[%3d(%%ebp)]", slot, -slot * STACK_SLOT_SIZE);
-      if (nodesForAssignedSlot.containsKey(slot)) {
+      if (slot == 0){
+        slotInfo += ": backed up base pointer";
+      } else if (nodesForAssignedSlot.containsKey(slot)) {
         slotInfo += ": " + getInfoStringForNode(nodesForAssignedSlot.get(slot));
       }
       lines.add(slotInfo);

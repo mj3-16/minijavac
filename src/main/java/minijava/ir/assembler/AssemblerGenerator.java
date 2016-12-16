@@ -176,8 +176,9 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
       BiFunction<Argument, Argument, Instruction> creator, Node node) {
     List<Argument> args = allocator.getArguments(node);
     assert args.size() == 2;
-    Argument firstArg = args.get(0);
-    Argument secondArg = args.get(1);
+    // swap arguments because GNU assembler has them in reversed order (compared to Intel assembler)
+    Argument firstArg = args.get(1);
+    Argument secondArg = args.get(0);
     Location res = allocator.getResultLocation(node);
     CodeBlock block = getCodeBlockForNode(node);
     block.add(new Mov(firstArg, Register.EAX));
