@@ -1,5 +1,7 @@
 package minijava.ir.assembler;
 
+import static minijava.ir.utils.FirmUtils.getMethodLdName;
+
 import com.sun.jna.Platform;
 import firm.BackEdges;
 import firm.Graph;
@@ -273,7 +275,7 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
     Argument arg = getOnlyArgument(node);
     // the argument is passed via the register RDI
     block.add(new Mov(arg, Register.RDI));
-    callABIConform(node);
+    callABIConform(node, false);
   }
 
   private void visitCalloc(firm.nodes.Call node) {
@@ -283,10 +285,10 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
     // the argument is passed via the registers RDI and RSI
     block.add(new Mov(args.get(0), Register.RDI));
     block.add(new Mov(args.get(1), Register.RSI));
-    callABIConform(node);
+    callABIConform(node, true);
   }
 
-  private void callABIConform(firm.nodes.Call node) {
+  private void callABIConform(firm.nodes.Call node, boolean hasReturnValue) {
     CodeBlock block = getCodeBlockForNode(node);
     // the 64 ABI requires the stack to aligned to 16 bytes
     block.add(new Push(Register.STACK_POINTER).com("Save old stack pointer"));
@@ -300,10 +302,9 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
     block.add(
         new Mov(new StackLocation(Register.STACK_POINTER, 8), Register.STACK_POINTER)
             .com("Restore old stack pointer"));
-  }
-
-  private String getMethodLdName(firm.nodes.Call node) {
-    return ((Address) node.getPred(1)).getEntity().getLdName();
+    if (hasReturnValue) {
+      block.add(new Mov(Register.RETURN_REGISTER, allocator.getResultLocation(node)));
+    }
   }
 
   private void visitMethodCall(String ldName, firm.nodes.Call node) {
@@ -451,5 +452,40 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
 
   private void insertMov(CodeBlock block, Argument first, Argument second, Node firmNode) {
     insertMov(block, first, second, firmNode, null);
+  }
+
+  @Override
+  public void visit(Load node) {
+    // firm graph:
+    // [Ptr node, might be a calculation!] <- [Load] <- [Proj res]
+    Location arg = allocator.getLocation(node.getPtr());
+    Location res = allocator.getResultLocation(node);
+    CodeBlock block = getCodeBlockForNode(node);
+    Register intermediateReg = Register.EAX;
+    // load the pointer in a register
+    block.add(new Mov(arg, intermediateReg).firm(node.getPtr()));
+    // copy the value the pointer points to in a register
+    block.add(new Mov(new StackLocation(intermediateReg, 0), intermediateReg).firm(node));
+    // store the result
+    block.add(new Mov(intermediateReg, res));
+  }
+
+  @Override
+  public void visit(Store node) {
+    // firm graph:
+    // [Proj Mem] <---|
+    // [Ptr node] <---|
+    // [Value node] <-|Store] <- [Proj MM]
+    CodeBlock block = getCodeBlockForNode(node);
+    Register intermediateValReg = Register.EAX;
+    Register intermediateDestReg = Register.EBX;
+    Location dest = allocator.getLocation(node.getPtr());
+    Argument newValue = allocator.getAsArgument(node.getValue());
+    // copy the new value into a register
+    block.add(new Mov(newValue, intermediateValReg).firm(node.getValue()));
+    // copy the address into another register
+    block.add(new Mov(dest, intermediateDestReg).firm(node.getPtr()));
+    // store the new value at its new location
+    block.add(new Mov(intermediateValReg, new StackLocation(intermediateDestReg, 0)).firm(node));
   }
 }

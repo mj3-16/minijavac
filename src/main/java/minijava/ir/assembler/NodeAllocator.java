@@ -38,5 +38,7 @@ public interface NodeAllocator {
   /** Returns the size of the activation record in bytes. */
   int getActivationRecordSize();
 
+  Argument getAsArgument(Node node);
+
   String getActivationRecordInfo();
 }

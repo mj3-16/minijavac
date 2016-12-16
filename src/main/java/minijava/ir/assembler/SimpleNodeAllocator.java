@@ -1,5 +1,7 @@
 package minijava.ir.assembler;
 
+import static minijava.ir.utils.FirmUtils.getMethodLdName;
+
 import firm.Graph;
 import firm.nodes.*;
 import java.util.*;
@@ -46,6 +48,9 @@ public class SimpleNodeAllocator implements NodeAllocator {
         // the result always lays in the RAX register
         // [Call] <- [Tuple Proj] <- [Is Proj]
         return getStackSlotAsLocation(proj.getPred().getPred(0));
+      } else if (node.getPred(0) instanceof Load || node.getPred(0) instanceof Store) {
+        // [Proj p64] <- [Load|Store] <- [Proj res]
+        return getLocation(node.getPred(0));
       }
     } else if (node instanceof Conv) {
       // ignore Conv nodes
@@ -64,14 +69,17 @@ public class SimpleNodeAllocator implements NodeAllocator {
       start = 1;
     }
     for (int i = start; i < node.getPredCount(); i++) {
-      Node argNode = node.getPred(i);
-      if (argNode instanceof Const) {
-        args.add(new ConstArgument(((Const) argNode).getTarval().asInt()));
-      } else {
-        args.add(getLocation(argNode));
-      }
+      args.add(getAsArgument(node.getPred(i)));
     }
     return args;
+  }
+
+  @Override
+  public Argument getAsArgument(Node node) {
+    if (node instanceof Const) {
+      return new ConstArgument(((Const) node).getTarval().asInt());
+    }
+    return getLocation(node);
   }
 
   @Override
@@ -120,7 +128,7 @@ public class SimpleNodeAllocator implements NodeAllocator {
     }
     for (int slot = 0; slot < currentSlotNumber; slot++) {
       String slotInfo = String.format("%3d[%3d(%%ebp)]", slot, -slot * STACK_SLOT_SIZE);
-      if (slot == 0){
+      if (slot == 0) {
         slotInfo += ": backed up base pointer";
       } else if (nodesForAssignedSlot.containsKey(slot)) {
         slotInfo += ": " + getInfoStringForNode(nodesForAssignedSlot.get(slot));
@@ -131,6 +139,9 @@ public class SimpleNodeAllocator implements NodeAllocator {
   }
 
   private String getInfoStringForNode(Node node) {
+    if (node instanceof Call) {
+      return node.toString() + " -> " + getMethodLdName((Call) node);
+    }
     return node.toString();
   }
 }
