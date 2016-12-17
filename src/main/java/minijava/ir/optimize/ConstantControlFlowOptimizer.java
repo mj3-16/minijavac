@@ -23,11 +23,9 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
   public boolean optimize(Graph graph) {
     this.graph = graph;
     hasChanged = false;
-
     BackEdges.enable(graph);
     graph.walkTopological(this);
     BackEdges.disable(graph);
-
     return hasChanged;
   }
 

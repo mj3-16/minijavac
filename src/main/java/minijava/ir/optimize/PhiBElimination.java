@@ -36,7 +36,6 @@ public class PhiBElimination extends NodeVisitor.Default implements Optimizer {
   public boolean optimize(Graph graph) {
     this.graph = graph;
     hasChanged = false;
-
     BackEdges.enable(graph);
     List<Node> l = new ArrayList<>();
     graph.walkTopological(new ConsumingNodeVisitor(l::add));
@@ -49,7 +48,6 @@ public class PhiBElimination extends NodeVisitor.Default implements Optimizer {
       }
     }
     BackEdges.disable(graph);
-
     return hasChanged;
   }
 

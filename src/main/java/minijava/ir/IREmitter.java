@@ -87,7 +87,7 @@ public class IREmitter
 
     finishGraphAndHandleFallThrough(m);
 
-    Dump.dumpGraph(graph, "--after-construction");
+    Dump.dumpGraph(graph, "after-construction");
     graph.check();
   }
 
@@ -712,7 +712,7 @@ public class IREmitter
     /* dump all firm graphs to disk */
     for (Graph g : Program.getGraphs()) {
       g.check();
-      Dump.dumpGraph(g, "--finished");
+      Dump.dumpGraph(g, "finished");
     }
     /* use the amd64 backend */
     Backend.option("isa=amd64");
