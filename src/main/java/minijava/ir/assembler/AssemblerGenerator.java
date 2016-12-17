@@ -494,8 +494,18 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
   @Override
   public void visit(Phi node) {
     if (node.getMode().equals(Mode.getb())) {
-      // we deal with it in the visit(Block) method
-      return;
+      // we look for other phis that have this node as a predecessor
+      // if doesn't have, than we deal with it in the visit(Block) method
+      boolean phiLater = false;
+      for (BackEdges.Edge edge : BackEdges.getOuts(node)) {
+        if (edge.node instanceof Phi) {
+          phiLater = true;
+          break;
+        }
+      }
+      if (!phiLater) {
+        return;
+      }
     }
     if (node.getMode().equals(Mode.getM())) {
       // we don't have to deal with memory dependencies here
