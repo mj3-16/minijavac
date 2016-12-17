@@ -457,7 +457,7 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
             } else {
               Register intermediateReg = Register.EAX;
               inputCodeBlock.add(
-                  new Mov(allocator.getLocation(inputNode), intermediateReg).firm(inputNode));
+                  new Mov(allocator.getAsArgument(inputNode), intermediateReg).firm(inputNode));
               inputCodeBlock.add(new Mov(intermediateReg, res).firm(bPhi));
             }
           }
@@ -515,7 +515,7 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
   public void visit(Load node) {
     // firm graph:
     // [Ptr node, might be a calculation!] <- [Load] <- [Proj res]
-    Location arg = allocator.getLocation(node.getPtr());
+    Argument arg = allocator.getAsArgument(node.getPtr());
     Location res = allocator.getResultLocation(node);
     CodeBlock block = getCodeBlockForNode(node);
     Register intermediateReg = Register.EAX;
@@ -536,7 +536,7 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
     CodeBlock block = getCodeBlockForNode(node);
     Register intermediateValReg = Register.EAX;
     Register intermediateDestReg = Register.EBX;
-    Location dest = allocator.getLocation(node.getPtr());
+    Argument dest = allocator.getAsArgument(node.getPtr());
     Argument newValue = allocator.getAsArgument(node.getValue());
     // copy the new value into a register
     block.add(new Mov(newValue, intermediateValReg).firm(node.getValue()));
