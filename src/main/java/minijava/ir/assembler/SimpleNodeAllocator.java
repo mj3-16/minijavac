@@ -38,7 +38,23 @@ public class SimpleNodeAllocator implements NodeAllocator {
 
   @Override
   public Location getLocation(Node node) {
-    if (node instanceof Proj) {
+    if (node instanceof Conv) {
+      // Conv nodes are only generated for div and mod instructions
+      // this leads either to
+      // [Mod] <- [Proj] <- [Conv]
+      // where we return the location of the [Mov] node
+      // or
+      // [Arg node] <- [Conv] <- [Mod]
+      // where we return the location of the [Arg node]
+      Node operand = ((Conv) node).getOp();
+      if (operand.getPredCount() > 0) {
+        Node operandPred = operand.getPred(0);
+        if (operandPred instanceof Mod || operandPred instanceof Div) {
+          return getLocation(operandPred);
+        }
+      }
+      return getLocation(operand);
+    } else if (node instanceof Proj) {
       Proj proj = (Proj) node;
       if (proj.getPred().equals(graph.getArgs())) {
         // the proj node points to a method argument
@@ -54,9 +70,6 @@ public class SimpleNodeAllocator implements NodeAllocator {
         // [Proj p64] <- [Load|Store] <- [Proj res]
         return getLocation(node.getPred(0));
       }
-    } else if (node instanceof Conv) {
-      // ignore Conv nodes
-      return getLocation(node.getPred(0));
     }
     return getStackSlotAsLocation(node);
   }
@@ -94,10 +107,6 @@ public class SimpleNodeAllocator implements NodeAllocator {
 
   @Override
   public Location getResultLocation(Node node) {
-    if (node instanceof Conv) {
-      // ignore Conv nodes
-      return getLocation(node.getPred(0));
-    }
     return getLocation(node);
   }
 
@@ -129,7 +138,7 @@ public class SimpleNodeAllocator implements NodeAllocator {
       nodesForAssignedSlot.put(assignedStackSlots.get(node), node);
     }
     for (int i = info.paramNumber - 1; i >= 0; i--) {
-      String slotInfo = String.format("%3d[%3d(%%esp)]", i + 1, (i + 1) * STACK_SLOT_SIZE);
+      String slotInfo = String.format("%3d[%3d(%%esp)]", i + 2, (i + 2) * STACK_SLOT_SIZE);
       if (i == 0) {
         lines.add(slotInfo + ": this");
       } else {
