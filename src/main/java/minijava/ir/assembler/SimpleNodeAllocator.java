@@ -28,12 +28,14 @@ public class SimpleNodeAllocator implements NodeAllocator {
   private int currentSlotNumber = 1;
   private Graph graph;
   private MethodInformation info;
+  private LostCopyPronePhiDetector pronePhiDetector;
 
   @Override
   public void process(Graph graph) {
     this.graph = graph;
     this.info = new MethodInformation(graph);
     this.assignedStackSlots = new HashMap<>();
+    this.pronePhiDetector = new LostCopyPronePhiDetector();
   }
 
   @Override
