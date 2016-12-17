@@ -1,6 +1,5 @@
 package minijava.ir.optimize;
 
-import firm.BackEdges;
 import firm.Graph;
 import firm.TargetValue;
 import firm.nodes.*;
@@ -15,10 +14,8 @@ public class PhiOptimizer extends BaseOptimizer {
   @Override
   public boolean optimize(Graph graph) {
     this.graph = graph;
-    BackEdges.enable(graph);
-    // I don't think we need iteration here, but it doesn't hurt (much)
-    boolean hasChanged = fixedPointIteration();
-    BackEdges.disable(graph);
+    this.hasChanged = false;
+    graph.walkTopological(this);
     return hasChanged;
   }
 

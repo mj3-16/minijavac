@@ -28,14 +28,11 @@ import org.pcollections.PSet;
  * ConstantControlFlowOptimizer, since we can only determine constness *based on control flow*, e.g.
  * from which incoming edge we entered the current block.
  */
-public class PhiBElimination extends NodeVisitor.Default implements Optimizer {
-  private Graph graph;
-  private boolean hasChanged;
-
+public class PhiBElimination extends BaseOptimizer {
   @Override
   public boolean optimize(Graph graph) {
     this.graph = graph;
-    hasChanged = false;
+    this.hasChanged = false;
     BackEdges.enable(graph);
     List<Node> l = new ArrayList<>();
     graph.walkTopological(new ConsumingNodeVisitor(l::add));
