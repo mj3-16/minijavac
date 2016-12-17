@@ -8,6 +8,7 @@ import com.beust.jcommander.ParameterException;
 import com.google.common.base.Joiner;
 import com.google.common.io.ByteStreams;
 import com.google.common.primitives.Booleans;
+import firm.Dump;
 import firm.Graph;
 import java.io.IOException;
 import java.io.InputStream;
@@ -181,6 +182,9 @@ class Cli {
     ast.acceptVisitor(new IREmitter());
     if (!optimizationsTurnedOff()) {
       optimize();
+    }
+    for (Graph g : firm.Program.getGraphs()) {
+      Dump.dumpGraph(g, "--finished");
     }
     AssemblerFile file = AssemblerGenerator.generateForAll(SimpleNodeAllocator::new);
     if (System.getenv().containsKey("MJ_FILENAME")) {

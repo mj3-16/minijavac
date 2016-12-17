@@ -428,8 +428,11 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
           // we should have a Phi b node here
           Phi bPhi = (Phi) cond.getSelector();
           Location res = allocator.getLocation(bPhi);
-          for (Node inputNode : bPhi.getPreds()) {
-            CodeBlock inputCodeBlock = getCodeBlockForNode(inputNode);
+          for (int i = 0; i < bPhi.getPredCount(); i++) {
+            Node inputNode = bPhi.getPred(i);
+            // the i.th block belongs to the i.th input edge of the phi node
+            Block block = (Block) bPhi.getBlock().getPred(i).getBlock();
+            CodeBlock inputCodeBlock = getCodeBlock(block);
             if (inputNode instanceof firm.nodes.Cmp) {
               if (!inputCodeBlock.hasCompare()) {
                 // we have to add one
@@ -492,6 +495,10 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
   public void visit(Phi node) {
     if (node.getMode().equals(Mode.getb())) {
       // we deal with it in the visit(Block) method
+      return;
+    }
+    if (node.getMode().equals(Mode.getM())) {
+      // we don't have to deal with memory dependencies here
       return;
     }
     Block block = (Block) node.getBlock();
