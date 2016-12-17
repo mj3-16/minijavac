@@ -31,7 +31,7 @@ public abstract class Instruction implements GNUAssemblerConvertible {
     CALL("call"),
     ALLOC_STACK("subq"),
     DEALLOC_STACK("addq"),
-    AND("and", true),
+    AND("and", false),
     MOV("mov", true);
 
     public final Category category;
