@@ -15,7 +15,6 @@ public class UnreachableCodeRemover implements Optimizer {
 
     // checking whether a change on the graph occurred doesn't seem to be possible
     binding_irgopt.remove_bads(graph.ptr);
-
     return false;
   }
 }
