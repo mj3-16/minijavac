@@ -17,6 +17,7 @@ import org.jetbrains.annotations.NotNull;
 public class CodeBlock implements GNUAssemblerConvertible, Collection<Instruction> {
 
   public final String label;
+  private final List<Instruction> blockStartInstructions;
   private final List<Instruction> normalInstructions;
   private final List<Instruction> phiHelperInstructions;
   /** They have to be located between the jmp and cmp like instructions */
@@ -29,6 +30,7 @@ public class CodeBlock implements GNUAssemblerConvertible, Collection<Instructio
 
   public CodeBlock(String label) {
     this.label = label;
+    this.blockStartInstructions = new ArrayList<>();
     this.normalInstructions = new ArrayList<>();
     this.phiHelperInstructions = new ArrayList<>();
     this.cmpOrJmpSupportInstructions = new ArrayList<>();
@@ -50,7 +52,8 @@ public class CodeBlock implements GNUAssemblerConvertible, Collection<Instructio
   }
 
   public int size() {
-    return normalInstructions.size()
+    return blockStartInstructions.size()
+        + normalInstructions.size()
         + phiHelperInstructions.size()
         + cmpOrJmpSupportInstructions.size()
         + (compareInstruction.isPresent() ? 1 : 0)
@@ -78,6 +81,7 @@ public class CodeBlock implements GNUAssemblerConvertible, Collection<Instructio
     others.addAll(conditionalJumps);
     unconditionalJump.ifPresent(others::add);
     return Iterators.concat(
+        blockStartInstructions.iterator(),
         normalInstructions.iterator(),
         phiHelperInstructions.iterator(),
         cmpOrJmpSupportInstructions.iterator(),
@@ -208,5 +212,13 @@ public class CodeBlock implements GNUAssemblerConvertible, Collection<Instructio
 
   public List<Jmp> getConditionalJumps() {
     return Collections.unmodifiableList(conditionalJumps);
+  }
+
+  public void addBlockStartInstruction(Instruction instruction) {
+    blockStartInstructions.add(instruction);
+  }
+
+  public List<Instruction> getBlockStartInstructions() {
+    return Collections.unmodifiableList(blockStartInstructions);
   }
 }

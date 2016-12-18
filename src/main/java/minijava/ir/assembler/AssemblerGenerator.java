@@ -1,6 +1,7 @@
 package minijava.ir.assembler;
 
 import static minijava.ir.utils.FirmUtils.getMethodLdName;
+import static minijava.ir.utils.FirmUtils.isPhiProneToLostCopies;
 
 import com.sun.jna.Platform;
 import firm.BackEdges;
@@ -511,8 +512,20 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
       // we don't have to deal with memory dependencies here
       return;
     }
-    Block block = (Block) node.getBlock();
     Location res = allocator.getResultLocation(node);
+    Location tmpLocation = null;
+    if (isPhiProneToLostCopies(node)) {
+      // we only need a temporary variable if the phi is prone to lost copy errors
+      tmpLocation = allocator.createNewTemporaryVariable();
+      // we have copy the temporarily modified value into phis location
+      // at the start of the block that the phi is part of
+      CodeBlock phisBlock = getCodeBlockForNode(node);
+      Register intermediateReg = Register.EAX;
+      // we have to use a register to copy the value between two locations
+      phisBlock.addBlockStartInstruction(new Mov(tmpLocation, intermediateReg));
+      phisBlock.addBlockStartInstruction(new Mov(intermediateReg, res));
+    }
+    Block block = (Block) node.getBlock();
     for (int i = 0; i < block.getPredCount(); i++) {
       // the i.th block belongs to the i.th input edge of the phi node
       Node inputNode = node.getPred(i);
@@ -523,8 +536,14 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
       // we store the argument in a register
       Register intermediateReg = Register.EAX;
       inputCodeBlock.addPhiHelperInstruction(new Mov(arg, intermediateReg).firm(inputNode));
-      // we copy it into Phis location
-      inputCodeBlock.addPhiHelperInstruction(new Mov(intermediateReg, res).firm(node));
+      if (isPhiProneToLostCopies(node)) {
+        // if this phi is prone to lost copies then we copy the value only
+        // into the temporary variable
+        inputCodeBlock.addPhiHelperInstruction(new Mov(intermediateReg, tmpLocation));
+      } else {
+        // we copy it into Phis location
+        inputCodeBlock.addPhiHelperInstruction(new Mov(intermediateReg, res).firm(node));
+      }
     }
   }
 

@@ -41,4 +41,6 @@ public interface NodeAllocator {
   Argument getAsArgument(Node node);
 
   String getActivationRecordInfo();
+
+  Location createNewTemporaryVariable();
 }
