@@ -166,6 +166,6 @@ public class SimpleNodeAllocator implements NodeAllocator {
 
   @Override
   public Location createNewTemporaryVariable() {
-    return new StackLocation(Register.BASE_POINTER, currentSlotNumber++ * STACK_SLOT_SIZE);
+    return new StackLocation(Register.BASE_POINTER, currentSlotNumber++ * -STACK_SLOT_SIZE);
   }
 }
