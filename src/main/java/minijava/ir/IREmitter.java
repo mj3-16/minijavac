@@ -87,7 +87,7 @@ public class IREmitter
 
     finishGraphAndHandleFallThrough(m);
 
-    Dump.dumpGraph(graph, "--after-construction");
+    Dump.dumpGraph(graph, "after-construction");
     graph.check();
   }
 
@@ -711,7 +711,8 @@ public class IREmitter
     /* based on BrainFuck.main */
     /* dump all firm graphs to disk */
     for (Graph g : Program.getGraphs()) {
-      Dump.dumpGraph(g, "--finished");
+      g.check();
+      Dump.dumpGraph(g, "finished");
     }
     /* use the amd64 backend */
     Backend.option("isa=amd64");
@@ -759,11 +760,6 @@ public class IREmitter
   }
 
   public static void compile(String outFile) throws IOException {
-    for (Graph g : Program.getGraphs()) {
-      //g.check();
-      //binding_irgopt.remove_unreachable_code(g.ptr);
-      //binding_irgopt.remove_bads(g.ptr);
-    }
     assemble(outFile);
   }
 

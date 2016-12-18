@@ -37,7 +37,7 @@ public class ConstantFolder extends BaseOptimizer {
   private boolean replaceConstants() {
     boolean nodesChanged = false;
     for (Entry<Node, TargetValue> e : latticeMap.entrySet()) {
-      if (e.getValue().isConstant()) {
+      if (!(e.getKey() instanceof Const) && e.getValue().isConstant()) {
         Node constant = graph.newConst(e.getValue());
         Graph.exchange(e.getKey(), constant);
         nodesChanged = true;
@@ -205,7 +205,7 @@ public class ConstantFolder extends BaseOptimizer {
     visitBinaryOperation((lhs, rhs) -> lhs.sub(rhs), node, node.getLeft(), node.getRight());
   }
 
-  private class SupremumStrategy extends DefaultNodeVisitor {
+  private class SupremumStrategy extends NodeVisitor.Default {
     @Override
     public void visit(Phi node) {
       newValue =
@@ -230,7 +230,7 @@ public class ConstantFolder extends BaseOptimizer {
     return TargetValue.getBad();
   }
 
-  private class EqualAndConstantStrategy extends DefaultNodeVisitor {
+  private class EqualAndConstantStrategy extends NodeVisitor.Default {
     @Override
     public void visit(Phi node) {
       Node first = Iterables.getFirst(node.getPreds(), null);

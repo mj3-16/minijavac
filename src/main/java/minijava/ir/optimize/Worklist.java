@@ -17,7 +17,7 @@ class Worklist {
    */
   static Worklist fillTopological(Graph graph) {
     Worklist w = new Worklist();
-    graph.walkTopological(new NodeCollector(w));
+    graph.walkTopological(new ConsumingNodeVisitor(w::addLast));
     return w;
   }
 

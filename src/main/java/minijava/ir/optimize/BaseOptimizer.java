@@ -5,7 +5,7 @@ import firm.Graph;
 import firm.nodes.Node;
 import firm.nodes.NodeVisitor;
 
-public abstract class BaseOptimizer extends DefaultNodeVisitor implements Optimizer {
+public abstract class BaseOptimizer extends NodeVisitor.Default implements Optimizer {
 
   protected Graph graph;
   protected boolean hasChanged;
