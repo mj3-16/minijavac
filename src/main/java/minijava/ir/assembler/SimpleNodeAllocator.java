@@ -10,8 +10,8 @@ import java.util.*;
 import minijava.ir.assembler.instructions.Argument;
 import minijava.ir.assembler.instructions.ConstArgument;
 import minijava.ir.assembler.location.Location;
+import minijava.ir.assembler.location.RegRelativeLocation;
 import minijava.ir.assembler.location.Register;
-import minijava.ir.assembler.location.StackLocation;
 import minijava.ir.utils.MethodInformation;
 
 /**
@@ -29,8 +29,7 @@ public class SimpleNodeAllocator implements NodeAllocator {
   private Graph graph;
   private MethodInformation info;
 
-  @Override
-  public void process(Graph graph) {
+  public SimpleNodeAllocator(Graph graph) {
     this.graph = graph;
     this.info = new MethodInformation(graph);
     this.assignedStackSlots = new HashMap<>();
@@ -60,7 +59,7 @@ public class SimpleNodeAllocator implements NodeAllocator {
         // the proj node points to a method argument
         int slot = proj.getNum();
         // this seems to be correct?
-        return new StackLocation(Register.BASE_POINTER, (slot + 2) * STACK_SLOT_SIZE);
+        return new RegRelativeLocation(Register.BASE_POINTER, (slot + 2) * STACK_SLOT_SIZE);
       } else if (proj.getPred().getPredCount() > 0 && proj.getPred().getPred(0) instanceof Call) {
         // the proj node points to method result
         // the result always lays in the RAX register
@@ -127,7 +126,7 @@ public class SimpleNodeAllocator implements NodeAllocator {
     if (!assignedStackSlots.containsKey(node)) {
       assignStackSlot(node);
     }
-    return new StackLocation(Register.BASE_POINTER, -getStackSlotOffset(node));
+    return new RegRelativeLocation(Register.BASE_POINTER, -getStackSlotOffset(node));
   }
 
   @Override
@@ -166,6 +165,6 @@ public class SimpleNodeAllocator implements NodeAllocator {
 
   @Override
   public Location createNewTemporaryVariable() {
-    return new StackLocation(Register.BASE_POINTER, currentSlotNumber++ * -STACK_SLOT_SIZE);
+    return new RegRelativeLocation(Register.BASE_POINTER, currentSlotNumber++ * -STACK_SLOT_SIZE);
   }
 }

@@ -1,13 +1,13 @@
 package minijava.ir.assembler.location;
 
-/** Location on the stack (relative to the base pointer) */
-public class StackLocation extends Location {
+/** Location in the memory (relative to the base pointer) */
+public class RegRelativeLocation extends Location {
 
   public final Register base;
   /** Offset to base pointer (in bytes) */
   public final int offset;
 
-  public StackLocation(Register base, int offset) {
+  public RegRelativeLocation(Register base, int offset) {
     this.base = base;
     this.offset = offset;
   }

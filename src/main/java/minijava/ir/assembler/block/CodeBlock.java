@@ -1,6 +1,7 @@
 package minijava.ir.assembler.block;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static org.jooq.lambda.Seq.seq;
 
 import com.google.common.collect.Iterators;
 import java.util.*;
@@ -14,7 +15,7 @@ import org.jetbrains.annotations.NotNull;
 /**
  * A list of assembler instructions with a label, optional cmp support, cmp and jmp instructions.
  */
-public class CodeBlock implements GNUAssemblerConvertible, Collection<Instruction> {
+public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction> {
 
   public final String label;
   private final List<Instruction> blockStartInstructions;
@@ -45,7 +46,7 @@ public class CodeBlock implements GNUAssemblerConvertible, Collection<Instructio
     StringBuilder builder = new StringBuilder();
     builder.append(label).append(":").append(System.lineSeparator());
     builder.append(
-        stream()
+        seq(this)
             .map(Instruction::toGNUAssembler)
             .collect(Collectors.joining(System.lineSeparator())));
     return builder.toString();
@@ -60,16 +61,6 @@ public class CodeBlock implements GNUAssemblerConvertible, Collection<Instructio
         + conditionalJumps.size()
         + (unconditionalJump.isPresent() ? 1 : 0)
         + afterCompareInstructions.size();
-  }
-
-  @Override
-  public boolean isEmpty() {
-    return size() > 0;
-  }
-
-  @Override
-  public boolean contains(Object o) {
-    throw new UnsupportedOperationException();
   }
 
   @NotNull
@@ -88,37 +79,14 @@ public class CodeBlock implements GNUAssemblerConvertible, Collection<Instructio
         others.iterator());
   }
 
-  @NotNull
-  @Override
-  public Object[] toArray() {
-    throw new UnsupportedOperationException();
-  }
-
-  @NotNull
-  @Override
-  public <T> T[] toArray(@NotNull T[] a) {
-    throw new UnsupportedOperationException();
-  }
-
   /**
    * Add the instruction to the normal instructions
    *
    * <p>jmp or cmp like instructions aren't supported
    */
-  @Override
   public boolean add(Instruction instruction) {
     checkArgument(!instruction.isJmpOrCmpLike(), instruction);
     return normalInstructions.add(instruction);
-  }
-
-  @Override
-  public boolean remove(Object o) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public boolean containsAll(@NotNull Collection<?> c) {
-    throw new UnsupportedOperationException();
   }
 
   /**
@@ -140,21 +108,6 @@ public class CodeBlock implements GNUAssemblerConvertible, Collection<Instructio
   }
 
   public boolean addAll(@NotNull Collection<? extends Instruction> c) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public boolean removeAll(@NotNull Collection<?> c) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public boolean retainAll(@NotNull Collection<?> c) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public void clear() {
     throw new UnsupportedOperationException();
   }
 

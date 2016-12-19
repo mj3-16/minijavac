@@ -6,17 +6,14 @@ import com.sun.jna.Platform;
 import firm.BackEdges;
 import firm.Graph;
 import firm.Mode;
-import firm.Program;
 import firm.nodes.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
-import java.util.function.Supplier;
 import minijava.ir.DefaultNodeVisitor;
 import minijava.ir.NameMangler;
-import minijava.ir.assembler.block.AssemblerFile;
 import minijava.ir.assembler.block.CodeBlock;
 import minijava.ir.assembler.block.CodeSegment;
 import minijava.ir.assembler.block.Segment;
@@ -30,8 +27,8 @@ import minijava.ir.assembler.instructions.Jmp;
 import minijava.ir.assembler.instructions.Mul;
 import minijava.ir.assembler.instructions.Sub;
 import minijava.ir.assembler.location.Location;
+import minijava.ir.assembler.location.RegRelativeLocation;
 import minijava.ir.assembler.location.Register;
-import minijava.ir.assembler.location.StackLocation;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.MethodInformation;
 
@@ -51,7 +48,7 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
   private final Graph graph;
   private final MethodInformation info;
   private final NodeAllocator allocator;
-  private final CodeSegment segment;
+  private CodeSegment segment;
   private Map<Integer, CodeBlock> blocksToCodeBlocks;
   private static Map<Phi, Boolean> isPhiProneToLostCopies;
 
@@ -59,28 +56,19 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
     this.graph = graph;
     this.info = new MethodInformation(graph);
     this.allocator = allocator;
-    allocator.process(graph);
+    isPhiProneToLostCopies = new HashMap<>();
+  }
+
+  public Segment generateSegmentForGraph() {
     blocksToCodeBlocks = new HashMap<>();
     segment = new CodeSegment(new ArrayList<>(), new ArrayList<>());
     segment.addComment(String.format("Code segment for method %s", info.name));
     blocksToCodeBlocks = new HashMap<>();
-    isPhiProneToLostCopies = new HashMap<>();
-  }
-
-  public Segment generate() {
     BackEdges.enable(graph);
     graph.walkTopological(this);
     prependStartBlockWithPrologue();
     segment.addComment(allocator.getActivationRecordInfo());
     return segment;
-  }
-
-  public static AssemblerFile generateForAll(Supplier<NodeAllocator> nodeAllocCreator) {
-    AssemblerFile file = new AssemblerFile();
-    for (Graph graph : Program.getGraphs()) {
-      file.add(new AssemblerGenerator(graph, nodeAllocCreator.get()).generate());
-    }
-    return file;
   }
 
   private CodeBlock getCodeBlock(Block block) {
@@ -201,37 +189,6 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
     block.add(new Mov(secondArg, Register.EBX));
     block.add(creator.apply(Register.EAX, Register.EBX).firm(node));
     block.add(new Mov(Register.EBX, res));
-    // dirty hack, not that efficient but our adviser says that this is okay
-    // we expect that none of the arguments lies in the register EAX or EBX
-    /*
-    if (secondArg instanceof ConstArgument) {
-      // swap both arguments as GNU assembler has problems with the second argument being a constant value
-      Argument tmp = firstArg;
-      firstArg = secondArg;
-      secondArg = tmp;
-    }
-    Location res = allocator.getResultLocation(node);
-    CodeBlock block = getCodeBlockForNode(node);
-    if (firstArg != res) {
-      // if the left argument isn't equal to the result location
-      // then we have to store the left argument in a register
-      // and copy the register's content into the result location
-      // after the operation
-      // this is caused by the GNU assembler for amd64 being a two adress
-      // format
-      Register intermediateReg = Register.EAX;
-      block.add(
-          new Mov(firstArg, intermediateReg)
-              .com(
-                  "Store the first argument in an intermediate register, as "
-                      + "the assembler uses a two adress format (the first argument "
-                      + "has to be the result location)"));
-      block.add(creator.apply(intermediateReg, secondArg).firm(node));
-      block.add(new Mov(intermediateReg, res));
-    } else {
-      // everything is fine here
-      block.add(creator.apply(firstArg, secondArg).firm(node));
-    }*/
   }
 
   /**
@@ -307,14 +264,14 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
     // the 64 ABI requires the stack to aligned to 16 bytes
     block.add(new Push(Register.STACK_POINTER).com("Save old stack pointer"));
     block.add(
-        new Push(new StackLocation(Register.STACK_POINTER, 0))
+        new Push(new RegRelativeLocation(Register.STACK_POINTER, 0))
             .com("Save the stack pointer again because of alignment issues"));
     block.add(
         new And(new ConstArgument(-0x10), Register.STACK_POINTER)
             .com("Align the stack pointer to 16 bytes"));
     block.add(new Call(getMethodLdName(node)).com("Call the external function").firm(node));
     block.add(
-        new Mov(new StackLocation(Register.STACK_POINTER, 8), Register.STACK_POINTER)
+        new Mov(new RegRelativeLocation(Register.STACK_POINTER, 8), Register.STACK_POINTER)
             .com("Restore old stack pointer"));
     if (hasReturnValue) {
       block.add(new Mov(Register.RETURN_REGISTER, allocator.getResultLocation(node)));
@@ -382,7 +339,7 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
             }
             predCodeBlock.addToCmpOrJmpSupportInstructions(new Mov(right, newRight));
             right = newRight;
-          } else if (left instanceof StackLocation && right instanceof StackLocation) {
+          } else if (left instanceof RegRelativeLocation && right instanceof RegRelativeLocation) {
             // use dirty hack to prevent cmp instructions with too many memory locations
             // store the left argument in the EAX register
             predCodeBlock.addToCmpOrJmpSupportInstructions(new Mov(left, Register.EAX));
@@ -560,7 +517,7 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
     // load the pointer in a register
     block.add(new Mov(arg, intermediateReg).firm(node.getPtr()));
     // copy the value the pointer points to in a register
-    block.add(new Mov(new StackLocation(intermediateReg, 0), intermediateReg).firm(node));
+    block.add(new Mov(new RegRelativeLocation(intermediateReg, 0), intermediateReg).firm(node));
     // store the result
     block.add(new Mov(intermediateReg, res));
   }
@@ -581,7 +538,8 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
     // copy the address into another register
     block.add(new Mov(dest, intermediateDestReg).firm(node.getPtr()));
     // store the new value at its new location
-    block.add(new Mov(intermediateValReg, new StackLocation(intermediateDestReg, 0)).firm(node));
+    block.add(
+        new Mov(intermediateValReg, new RegRelativeLocation(intermediateDestReg, 0)).firm(node));
   }
 
   private boolean isPhiProneToLostCopies(Phi phi) {

@@ -1,6 +1,5 @@
 package minijava.ir.assembler;
 
-import firm.Graph;
 import firm.nodes.Node;
 import java.util.List;
 import minijava.ir.assembler.instructions.Argument;
@@ -12,14 +11,6 @@ import minijava.ir.assembler.location.Location;
  * <p>Register allocators should implement this interface
  */
 public interface NodeAllocator {
-
-  /**
-   * Process the given graph and initialize internal data structures. This method has to be called
-   * before any of the other methods.
-   *
-   * @param graph given graph
-   */
-  void process(Graph graph);
 
   /**
    * Returns the appropriate location (stack or register) for a given expression node

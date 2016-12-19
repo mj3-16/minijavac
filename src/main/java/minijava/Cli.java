@@ -19,7 +19,6 @@ import java.util.ArrayList;
 import java.util.List;
 import minijava.ast.Program;
 import minijava.ir.IREmitter;
-import minijava.ir.assembler.AssemblerGenerator;
 import minijava.ir.assembler.SimpleNodeAllocator;
 import minijava.ir.assembler.block.AssemblerFile;
 import minijava.ir.optimize.*;
@@ -36,7 +35,7 @@ class Cli {
       Joiner.on(System.lineSeparator())
           .join(
               new String[] {
-                "Usage: minijavac [--echo|--lex-test|--parse-test|--check|--compile-firm|--print-asm] [--help] file",
+                "Usage: minijavac [--echo|--lextest|--parsetest|--check|--compile-firm|--print-asm] [--help] file",
                 "",
                 "  --echo          write file's content to stdout",
                 "  --lextest       run lexical analysis on file's content and print tokens to stdout",
@@ -186,7 +185,8 @@ class Cli {
     for (Graph g : firm.Program.getGraphs()) {
       Dump.dumpGraph(g, "--finished");
     }
-    AssemblerFile file = AssemblerGenerator.generateForAll(SimpleNodeAllocator::new);
+    AssemblerFile file =
+        AssemblerFile.createForGraphs(firm.Program.getGraphs(), SimpleNodeAllocator::new);
     if (System.getenv().containsKey("MJ_FILENAME")) {
       file.setFileName(System.getenv("MJ_FILENAME"));
     }
