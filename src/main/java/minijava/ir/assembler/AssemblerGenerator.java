@@ -1,7 +1,6 @@
 package minijava.ir.assembler;
 
 import static minijava.ir.utils.FirmUtils.getMethodLdName;
-import static minijava.ir.utils.FirmUtils.isPhiProneToLostCopies;
 
 import com.sun.jna.Platform;
 import firm.BackEdges;
@@ -33,6 +32,7 @@ import minijava.ir.assembler.instructions.Sub;
 import minijava.ir.assembler.location.Location;
 import minijava.ir.assembler.location.Register;
 import minijava.ir.assembler.location.StackLocation;
+import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.MethodInformation;
 
 /**
@@ -53,6 +53,7 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
   private final NodeAllocator allocator;
   private final CodeSegment segment;
   private Map<Integer, CodeBlock> blocksToCodeBlocks;
+  private static Map<Phi, Boolean> isPhiProneToLostCopies;
 
   public AssemblerGenerator(Graph graph, NodeAllocator allocator) {
     this.graph = graph;
@@ -63,6 +64,7 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
     segment = new CodeSegment(new ArrayList<>(), new ArrayList<>());
     segment.addComment(String.format("Code segment for method %s", info.name));
     blocksToCodeBlocks = new HashMap<>();
+    isPhiProneToLostCopies = new HashMap<>();
   }
 
   public Segment generate() {
@@ -580,5 +582,12 @@ public class AssemblerGenerator implements DefaultNodeVisitor {
     block.add(new Mov(dest, intermediateDestReg).firm(node.getPtr()));
     // store the new value at its new location
     block.add(new Mov(intermediateValReg, new StackLocation(intermediateDestReg, 0)).firm(node));
+  }
+
+  private boolean isPhiProneToLostCopies(Phi phi) {
+    if (!isPhiProneToLostCopies.containsKey(phi)) {
+      isPhiProneToLostCopies.put(phi, FirmUtils.isPhiProneToLostCopies(phi));
+    }
+    return isPhiProneToLostCopies.get(phi);
   }
 }

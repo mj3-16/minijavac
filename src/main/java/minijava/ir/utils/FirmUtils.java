@@ -8,20 +8,11 @@ import java.util.*;
 
 public class FirmUtils {
 
-  private static Map<Phi, Boolean> isPhiProneToLostCopies = new HashMap<>();
-
   public static String getMethodLdName(firm.nodes.Call node) {
     return ((Address) node.getPred(1)).getEntity().getLdName();
   }
 
   public static boolean isPhiProneToLostCopies(Phi phi) {
-    if (!isPhiProneToLostCopies.containsKey(phi)) {
-      isPhiProneToLostCopies.put(phi, checkPhi(phi));
-    }
-    return isPhiProneToLostCopies.get(phi);
-  }
-
-  private static boolean checkPhi(Phi phi) {
     // Assumption: a phi is error prone if a circle in the graph exists that
     // contains this phi node
     // we detect a circle by using depth first search
