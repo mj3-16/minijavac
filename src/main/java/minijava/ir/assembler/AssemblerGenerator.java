@@ -12,7 +12,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
-import minijava.ir.DefaultNodeVisitor;
 import minijava.ir.NameMangler;
 import minijava.ir.assembler.block.CodeBlock;
 import minijava.ir.assembler.block.CodeSegment;
@@ -43,7 +42,7 @@ import minijava.ir.utils.MethodInformation;
  *
  * <p>Important: it currently ignores any {@link firm.nodes.Conv} nodes
  */
-public class AssemblerGenerator implements DefaultNodeVisitor {
+public class AssemblerGenerator extends NodeVisitor.Default {
 
   private final Graph graph;
   private final MethodInformation info;
