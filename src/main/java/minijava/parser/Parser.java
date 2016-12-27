@@ -137,7 +137,7 @@ public class Parser {
     }
   }
 
-  /** MainMethod -> static void IDENT ( String [] IDENT ) block */
+  /** MainMethod -> static void IDENT ( String [] IDENT ) MethodRest block */
   private Method parseMainMethod(SourcePosition begin) {
     expectAndConsume(STATIC);
     Token void_ = expectAndConsume(VOID);
@@ -150,6 +150,7 @@ public class Parser {
     Type parameterType = new Type(new Ref<>("String"), 1, new SourceRange(typeBegin, typeEnd));
     Token ident = expectAndConsume(IDENT);
     expectAndConsume(RPAREN);
+    parseMethodRest();
     Block block = parseBlock();
     LocalVariable parameter =
         new LocalVariable(
@@ -161,6 +162,14 @@ public class Parser {
         Arrays.asList(parameter),
         block,
         new SourceRange(begin, block.range().end));
+  }
+
+  /** MethodRest -> (throws IDENT)? */
+  private void parseMethodRest() {
+    if (isCurrentTokenTypeOf(THROWS)) {
+      consumeToken();
+      expectAndConsume(IDENT);
+    }
   }
 
   /** TypeIdentFieldOrMethod -> Type IDENT FieldOrMethod */
@@ -182,7 +191,7 @@ public class Parser {
     }
   }
 
-  /** Method -> ( Parameters? ) block */
+  /** Method -> ( Parameters? ) MethodRest block */
   private Method parseMethod(Type type, String name, SourcePosition begin) {
     List<LocalVariable> parameters = new ArrayList<>();
     expectAndConsume(LPAREN);
@@ -190,6 +199,7 @@ public class Parser {
       parameters = parseParameters();
     }
     expectAndConsume(RPAREN);
+    parseMethodRest();
     Block block = parseBlock();
     return new Method(
         false, type, name, parameters, block, new SourceRange(begin, block.range().end));

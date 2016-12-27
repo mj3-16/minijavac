@@ -22,6 +22,7 @@ public enum Terminal {
   TRUE("true"),
   VOID("void"),
   WHILE("while"),
+  THROWS("throws"),
 
   // operators
   NOT("!", LEFT, 0),
