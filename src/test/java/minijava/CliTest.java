@@ -28,13 +28,6 @@ public class CliTest {
   }
 
   @Test
-  public void nonExistingOption_printUsageAndSingalFailure() throws Exception {
-    int status = cli.run("--foo");
-    assertThat(status, is(not(0)));
-    assertThat(err.toString(), containsString(Cli.usage));
-  }
-
-  @Test
   public void fileDoesNotExist_printErrorMessageAndSingalFailure() throws Exception {
     String filename = "non-existing-file";
     int status = cli.run("--echo", filename);

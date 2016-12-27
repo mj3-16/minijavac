@@ -2,7 +2,6 @@ package minijava.ir;
 
 import static minijava.ir.Types.*;
 
-import com.google.common.io.Files;
 import com.sun.jna.Pointer;
 import firm.*;
 import firm.Program;
@@ -11,16 +10,14 @@ import firm.bindings.binding_ircons;
 import firm.bindings.binding_lowering;
 import firm.nodes.*;
 import firm.nodes.Block;
-import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.*;
 import java.util.function.BiFunction;
+import minijava.Cli;
 import minijava.ast.*;
 import minijava.ast.Class;
+import minijava.ir.utils.CompileUtils;
 import minijava.util.SourceRange;
-import org.apache.commons.io.FileUtils;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jooq.lambda.function.Function4;
 
@@ -86,8 +83,9 @@ public class IREmitter
     m.body.acceptVisitor(this);
 
     finishGraphAndHandleFallThrough(m);
-
-    Dump.dumpGraph(graph, "--after-construction");
+    if (Cli.shouldPrintGraphs()) {
+      Dump.dumpGraph(graph, "--after-construction");
+    }
     graph.check();
   }
 
@@ -708,54 +706,14 @@ public class IREmitter
   }
 
   private static void assemble(String outFile) throws IOException {
-    /* based on BrainFuck.main */
-    /* dump all firm graphs to disk */
-    for (Graph g : Program.getGraphs()) {
-      Dump.dumpGraph(g, "--finished");
-    }
     /* use the amd64 backend */
     Backend.option("isa=amd64");
     /* transform to x86 assembler */
-    Backend.createAssembler(String.format("%s.s", outFile), "<builtin>");
+    String outAsmFile = String.format("%s.s", outFile);
+    Backend.createAssembler(outAsmFile, "<builtin>");
     /* assembler */
 
-    File runtime = getRuntimeFile();
-
-    boolean useGC =
-        System.getenv().containsKey("MJ_USE_GC") && System.getenv("MJ_USE_GC").equals("1");
-
-    String gcApp = "";
-    if (useGC) {
-      gcApp = " -DUSE_GC -lgc ";
-    }
-    String cmd =
-        String.format("gcc %s %s.s -o %s %s", runtime.getAbsolutePath(), outFile, outFile, gcApp);
-    Process p = Runtime.getRuntime().exec(cmd);
-    int c;
-    while ((c = p.getErrorStream().read()) != -1) {
-      System.out.print(Character.toString((char) c));
-    }
-    int res = -1;
-    try {
-      res = p.waitFor();
-    } catch (Throwable t) {
-    }
-    if (res != 0) {
-      System.err.println("Warning: Linking step failed");
-      System.exit(1);
-    }
-  }
-
-  @NotNull
-  private static File getRuntimeFile() throws IOException {
-    File runtime = new File(Files.createTempDir(), "mj_runtime.c");
-    runtime.deleteOnExit();
-    InputStream s = ClassLoader.getSystemResourceAsStream("mj_runtime.c");
-    if (s == null) {
-      throw new RuntimeException("");
-    }
-    FileUtils.copyInputStreamToFile(s, runtime);
-    return runtime;
+    CompileUtils.compileAssemblerFile(outAsmFile, outFile);
   }
 
   public static void compile(String outFile) throws IOException {

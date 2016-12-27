@@ -10,10 +10,7 @@ import com.google.common.io.ByteStreams;
 import com.google.common.primitives.Booleans;
 import firm.Dump;
 import firm.Graph;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.PrintStream;
+import java.io.*;
 import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +19,7 @@ import minijava.ir.IREmitter;
 import minijava.ir.assembler.SimpleNodeAllocator;
 import minijava.ir.assembler.block.AssemblerFile;
 import minijava.ir.optimize.*;
+import minijava.ir.utils.CompileUtils;
 import minijava.lexer.Lexer;
 import minijava.parser.Parser;
 import minijava.semantic.SemanticAnalyzer;
@@ -29,7 +27,7 @@ import minijava.semantic.SemanticLinter;
 import minijava.token.Token;
 import minijava.util.PrettyPrinter;
 
-class Cli {
+public class Cli {
 
   static final String usage =
       Joiner.on(System.lineSeparator())
@@ -47,7 +45,7 @@ class Cli {
                 "  --print-asm     compile the given file and output the generated assembly",
                 "  --help          display this help and exit",
                 "",
-                "  One (and only one) of the passed flags is required.",
+                "  If no flag is given, the passed file is compiled to a.out",
                 " Set the environment variable MJ_USE_GC to \"1\" to use the bdwgc."
               });
 
@@ -89,6 +87,8 @@ class Cli {
         runFirm(in);
       } else if (params.printAsm) {
         printAsm(in);
+      } else {
+        compile(in);
       }
     } catch (AccessDeniedException e) {
       err.println("error: access to file '" + path + "' was denied");
@@ -144,14 +144,29 @@ class Cli {
     ast.acceptVisitor(new SemanticLinter());
     ast.acceptVisitor(new IREmitter());
     if (!optimizationsTurnedOff()) {
+      outputGraphsIfNeeded("");
       optimize();
     }
+    outputGraphsIfNeeded("--finished");
     IREmitter.compile("a.out");
   }
 
   private boolean optimizationsTurnedOff() {
     String value = System.getenv("MJ_OPTIMIZE");
     return value != null && value.equals("0");
+  }
+
+  public static boolean shouldPrintGraphs() {
+    String value = System.getenv("MJ_GRAPH");
+    return value != null && value.equals("1");
+  }
+
+  private void outputGraphsIfNeeded(String appendix) {
+    if (shouldPrintGraphs()) {
+      for (Graph g : firm.Program.getGraphs()) {
+        Dump.dumpGraph(g, appendix);
+      }
+    }
   }
 
   private void optimize() {
@@ -171,6 +186,7 @@ class Cli {
     Program ast = new Parser(new Lexer(in)).parse();
     ast.acceptVisitor(new SemanticAnalyzer());
     ast.acceptVisitor(new IREmitter());
+    outputGraphsIfNeeded("--finished");
     IREmitter.compileAndRun("a.out");
   }
 
@@ -180,17 +196,24 @@ class Cli {
     ast.acceptVisitor(new SemanticLinter());
     ast.acceptVisitor(new IREmitter());
     if (!optimizationsTurnedOff()) {
+      outputGraphsIfNeeded("");
       optimize();
     }
-    for (Graph g : firm.Program.getGraphs()) {
-      Dump.dumpGraph(g, "--finished");
-    }
+    outputGraphsIfNeeded("--finished");
     AssemblerFile file =
         AssemblerFile.createForGraphs(firm.Program.getGraphs(), SimpleNodeAllocator::new);
     if (System.getenv().containsKey("MJ_FILENAME")) {
       file.setFileName(System.getenv("MJ_FILENAME"));
     }
     out.println(file.toGNUAssembler());
+  }
+
+  private void compile(InputStream in) throws IOException {
+    File file = new File("a.out.s");
+    file.createNewFile();
+    FileInputStream aOutStream = new FileInputStream(file);
+    printAsm(aOutStream);
+    CompileUtils.compileAssemblerFile("a.out.s", "a.out");
   }
 
   private static class Parameters {
@@ -248,7 +271,7 @@ class Cli {
           && (help
               || ((Booleans.countTrue(
                           echo, lextest, parsetest, printAst, check, compileFirm, runFirm, printAsm)
-                      == 1)
+                      <= 1)
                   && (file != null)));
     }
 
