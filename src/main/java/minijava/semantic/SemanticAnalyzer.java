@@ -1,7 +1,9 @@
 package minijava.semantic;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 import java.util.Optional;
+import java.util.Set;
 import minijava.ast.*;
 import minijava.ast.Class;
 import minijava.ast.Expression.BooleanLiteral;
@@ -551,10 +553,10 @@ public class SemanticAnalyzer
   @Override
   public Expression visitMethodCall(Expression.MethodCall that) {
 
-    // This will be null if this wasn't a call to System.out.println
-    Expression self = systemOutPrintlnHackForSelf(that);
+    // This will be null if this wasn't a call to System.in.read, System.out.println, System.out.write or System.out.flush.
+    Expression self = systemHackForSelf(that);
     if (self == null) {
-      // That was not a call matching System.out.println(). So we procede regularly
+      // That was not a call to a special System method. So we procede regularly
       self = that.self.acceptVisitor(this);
     }
     that.self = self;
@@ -611,8 +613,11 @@ public class SemanticAnalyzer
     return that;
   }
 
-  /** Returns null if we don't resolve this to System.out.println. */
-  private Expression systemOutPrintlnHackForSelf(Expression.MethodCall that) {
+  /**
+   * Returns null if we don't resolve this to System.in.read, System.out.println, System.out.write
+   * and System.out.flush.
+   */
+  private Expression systemHackForSelf(Expression.MethodCall that) {
     if (!(that.self instanceof Expression.FieldAccess)) {
       return null;
     }
@@ -626,13 +631,21 @@ public class SemanticAnalyzer
         || fields.lookup("System").isPresent()) {
       return null;
     }
+
+    final Set<String> outMethodNames = ImmutableSet.of("println", "write", "flush");
+
     // "System" is not defined in the current scope somewhere
     // We know that the expression looks like this now: System.<foo>.<methodname>()
-    if (!fieldAccess.field.name().equals("out") || !that.method.name().equals("println")) {
-      return null;
+
+    if (fieldAccess.field.name().equals("out") && outMethodNames.contains(that.method.name())) {
+      return Expression.ReferenceTypeLiteral.systemOut(fieldAccess.range());
     }
 
-    return Expression.ReferenceTypeLiteral.systemOut(fieldAccess.range());
+    if (fieldAccess.field.name().equals("in") && that.method.name().equals("read")) {
+      return Expression.ReferenceTypeLiteral.systemIn(fieldAccess.range());
+    }
+
+    return null;
   }
 
   @NotNull
