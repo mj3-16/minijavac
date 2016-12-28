@@ -12,6 +12,12 @@ class Types {
   static final Entity CALLOC;
   static final MethodType PRINT_INT_TYPE;
   static final Entity PRINT_INT;
+  static final MethodType WRITE_INT_TYPE;
+  static final Entity WRITE_INT;
+  static final MethodType FLUSH_TYPE;
+  static final Entity FLUSH;
+  static final MethodType READ_INT_TYPE;
+  static final Entity READ_INT;
 
   static {
     // If we consistently call InitFirm.init() throughout our code, we guarantee that
@@ -31,6 +37,17 @@ class Types {
     PRINT_INT =
         new Entity(
             Program.getGlobalType(), NameMangler.mangledPrintIntMethodName(), Types.PRINT_INT_TYPE);
+    WRITE_INT_TYPE = new MethodType(new Type[] {Types.INT_TYPE}, new Type[] {});
+    WRITE_INT =
+        new Entity(
+            Program.getGlobalType(), NameMangler.mangledWriteIntMethodName(), Types.WRITE_INT_TYPE);
+    FLUSH_TYPE = new MethodType(new Type[] {}, new Type[] {});
+    FLUSH =
+        new Entity(Program.getGlobalType(), NameMangler.mangledFlushMethodName(), Types.FLUSH_TYPE);
+    READ_INT_TYPE = new MethodType(new Type[] {}, new Type[] {Types.INT_TYPE});
+    READ_INT =
+        new Entity(
+            Program.getGlobalType(), NameMangler.mangledReadIntMethodName(), Types.READ_INT_TYPE);
   }
 
   /**

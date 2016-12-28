@@ -21,24 +21,34 @@ public class NameMangler {
   }
 
   public static String mangledMainMethodName() {
-    if (Platform.isMac() || Platform.isWindows()) {
-      return "_mjMain";
-    }
-    return "mjMain";
+    return adjustLdNameToPlatform("mjMain");
   }
 
   public static String mangledPrintIntMethodName() {
-    if (Platform.isMac() || Platform.isWindows()) {
-      return "_print_int";
-    }
-    return "print_int";
+    return adjustLdNameToPlatform("print_int");
   }
 
   public static String mangledCallocMethodName() {
+    return adjustLdNameToPlatform("calloc_impl");
+  }
+
+  public static String mangledWriteIntMethodName() {
+    return adjustLdNameToPlatform("write_int");
+  }
+
+  public static String mangledFlushMethodName() {
+    return adjustLdNameToPlatform("flush");
+  }
+
+  public static String mangledReadIntMethodName() {
+    return adjustLdNameToPlatform("read_int");
+  }
+
+  private static String adjustLdNameToPlatform(String ldName) {
     if (Platform.isMac() || Platform.isWindows()) {
-      return "_calloc_impl";
+      return "_" + ldName;
     }
-    return "calloc_impl";
+    return ldName;
   }
 
   private static String replaceSep(String name) {
