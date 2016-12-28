@@ -3,21 +3,21 @@ package minijava.ir;
 import firm.*;
 import org.jetbrains.annotations.NotNull;
 
-class Types {
+public class Types {
 
-  static final Type INT_TYPE;
-  static final Type BOOLEAN_TYPE;
-  static final Type PTR_TYPE;
-  static final MethodType CALLOC_TYPE;
-  static final Entity CALLOC;
-  static final MethodType PRINT_INT_TYPE;
-  static final Entity PRINT_INT;
-  static final MethodType WRITE_INT_TYPE;
-  static final Entity WRITE_INT;
-  static final MethodType FLUSH_TYPE;
-  static final Entity FLUSH;
-  static final MethodType READ_INT_TYPE;
-  static final Entity READ_INT;
+  public static final Type INT_TYPE;
+  public static final Type BOOLEAN_TYPE;
+  public static final Type PTR_TYPE;
+  public static final MethodType CALLOC_TYPE;
+  public static final Entity CALLOC;
+  public static final MethodType PRINT_INT_TYPE;
+  public static final Entity PRINT_INT;
+  public static final MethodType WRITE_INT_TYPE;
+  public static final Entity WRITE_INT;
+  public static final MethodType FLUSH_TYPE;
+  public static final Entity FLUSH;
+  public static final MethodType READ_INT_TYPE;
+  public static final Entity READ_INT;
 
   static {
     // If we consistently call InitFirm.init() throughout our code, we guarantee that

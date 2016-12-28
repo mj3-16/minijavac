@@ -28,6 +28,7 @@ public class SimpleNodeAllocator implements NodeAllocator {
   private int currentSlotNumber = 1;
   private Graph graph;
   private MethodInformation info;
+  private boolean useABIConformCalling = false;
 
   public SimpleNodeAllocator(Graph graph) {
     this.graph = graph;
@@ -58,6 +59,12 @@ public class SimpleNodeAllocator implements NodeAllocator {
       if (proj.getPred().equals(graph.getArgs())) {
         // the proj node points to a method argument
         int slot = proj.getNum();
+        if (useABIConformCalling) {
+          if (slot < Register.methodArgumentQuadRegisters.size()) {
+            return Register.methodArgumentQuadRegisters.get(slot);
+          }
+          slot = slot - Register.methodArgumentQuadRegisters.size();
+        }
         // this seems to be correct?
         return new RegRelativeLocation(Register.BASE_POINTER, (slot + 2) * STACK_SLOT_SIZE);
       } else if (proj.getPred().getPredCount() > 0 && proj.getPred().getPred(0) instanceof Call) {
@@ -136,12 +143,28 @@ public class SimpleNodeAllocator implements NodeAllocator {
     for (Node node : assignedStackSlots.keySet()) {
       nodesForAssignedSlot.put(assignedStackSlots.get(node), node);
     }
-    for (int i = info.paramNumber - 1; i >= 0; i--) {
+    int argStart = useABIConformCalling ? Register.methodArgumentQuadRegisters.size() : 0;
+    for (int i = info.paramNumber - 1; i >= argStart; i--) {
       String slotInfo = String.format("%3d[%3d(%%esp)]", i + 2, (i + 2) * STACK_SLOT_SIZE);
       if (i == 0) {
         lines.add(slotInfo + ": this");
       } else {
         lines.add(slotInfo + ": argument " + (i - 1));
+      }
+    }
+    if (useABIConformCalling) {
+      for (int i = Math.min(info.paramNumber, Register.methodArgumentQuadRegisters.size()) - 1;
+          i >= 0;
+          i--) {
+        Register reg = Register.methodArgumentQuadRegisters.get(i);
+        String slotInfo =
+            String.format(
+                "%%%s/%%%s      ", Register.getLongVersion(reg).registerName, reg.registerName);
+        if (i == 0) {
+          lines.add(slotInfo + ": this");
+        } else {
+          lines.add(slotInfo + ": argument " + (i - 1));
+        }
       }
     }
     for (int slot = 0; slot < currentSlotNumber; slot++) {
@@ -166,5 +189,10 @@ public class SimpleNodeAllocator implements NodeAllocator {
   @Override
   public Location createNewTemporaryVariable() {
     return new RegRelativeLocation(Register.BASE_POINTER, currentSlotNumber++ * -STACK_SLOT_SIZE);
+  }
+
+  @Override
+  public void enableABIConformCalling() {
+    useABIConformCalling = true;
   }
 }

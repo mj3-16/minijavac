@@ -34,4 +34,6 @@ public interface NodeAllocator {
   String getActivationRecordInfo();
 
   Location createNewTemporaryVariable();
+
+  void enableABIConformCalling();
 }

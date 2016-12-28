@@ -3,9 +3,7 @@ package minijava.ir.assembler;
 import static minijava.ir.utils.FirmUtils.getMethodLdName;
 
 import com.sun.jna.Platform;
-import firm.BackEdges;
-import firm.Graph;
-import firm.Mode;
+import firm.*;
 import firm.nodes.*;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -13,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import minijava.ir.NameMangler;
+import minijava.ir.Types;
 import minijava.ir.assembler.block.CodeBlock;
 import minijava.ir.assembler.block.CodeSegment;
 import minijava.ir.assembler.block.Segment;
@@ -50,12 +49,26 @@ public class AssemblerGenerator extends NodeVisitor.Default {
   private CodeSegment segment;
   private Map<Integer, CodeBlock> blocksToCodeBlocks;
   private static Map<Phi, Boolean> isPhiProneToLostCopies;
+  private final boolean useABIConformCalling;
+  private Map<Register, Location> temporaryParamRegLocation = new HashMap();
 
   public AssemblerGenerator(Graph graph, NodeAllocator allocator) {
+    this(graph, allocator, true);
+  }
+
+  public AssemblerGenerator(Graph graph, NodeAllocator allocator, boolean useABIConformCalling) {
     this.graph = graph;
     this.info = new MethodInformation(graph);
     this.allocator = allocator;
     isPhiProneToLostCopies = new HashMap<>();
+    this.useABIConformCalling = useABIConformCalling;
+    if (useABIConformCalling) {
+      allocator.enableABIConformCalling();
+      for (int i = 0; i < Register.methodArgumentQuadRegisters.size(); i++) {
+        temporaryParamRegLocation.put(
+            Register.methodArgumentQuadRegisters.get(i), allocator.createNewTemporaryVariable());
+      }
+    }
   }
 
   public Segment generateSegmentForGraph() {
@@ -196,11 +209,13 @@ public class AssemblerGenerator extends NodeVisitor.Default {
    */
   private void prependStartBlockWithPrologue() {
     CodeBlock startBlock = getCodeBlock(graph.getStartBlock());
-    startBlock.prepend(
-        new Push(Register.BASE_POINTER).com("Backup old base pointer"),
+    List<Instruction> prepended = new ArrayList<>();
+    prepended.add(new Push(Register.BASE_POINTER).com("Backup old base pointer"));
+    prepended.add(
         new Mov(Register.STACK_POINTER, Register.BASE_POINTER)
-            .com("Set base pointer for new activation record"),
-        new AllocStack(allocator.getActivationRecordSize()));
+            .com("Set base pointer for new activation record"));
+    prepended.add(new AllocStack(allocator.getActivationRecordSize()));
+    startBlock.prepend(prepended.toArray(new Instruction[0]));
   }
 
   @Override
@@ -230,7 +245,8 @@ public class AssemblerGenerator extends NodeVisitor.Default {
   @Override
   public void visit(firm.nodes.Call node) {
     String ldName = getMethodLdName(node);
-    if (ldName.equals(NameMangler.mangledPrintIntMethodName())
+    if (useABIConformCalling
+        || ldName.equals(NameMangler.mangledPrintIntMethodName())
         || ldName.equals(NameMangler.mangledWriteIntMethodName())
         || ldName.equals(NameMangler.mangledFlushMethodName())
         || ldName.equals(NameMangler.mangledReadIntMethodName())) {
@@ -242,31 +258,25 @@ public class AssemblerGenerator extends NodeVisitor.Default {
   }
 
   private void visitABIConformCall(firm.nodes.Call node) {
+    MethodInformation info = new MethodInformation(node);
     List<Argument> args = allocator.getArguments(node);
-    assert args.size() <= 2;
     CodeBlock block = getCodeBlockForNode(node);
-    // the argument is passed via the register RDI and RSI
-    if (args.size() >= 1) {
-      block.add(new Mov(args.get(0), Register.RDI));
-      if (args.size() >= 2) {
-        block.add(new Mov(args.get(1), Register.RSI));
+    // the first six arguments are passed via registers
+    // backup them on the stack first
+    for (Register reg : Register.methodArgumentQuadRegisters) {
+      block.add(new Mov(reg, temporaryParamRegLocation.get(reg)));
+    }
+    for (int i = 0; i < Math.min(args.size(), Register.methodArgumentQuadRegisters.size()); i++) {
+      Register reg = Register.methodArgumentQuadRegisters.get(i);
+      if (hasTypeLongWidth(info.type.getParamType(0))) {
+        // clear the whole register
+        block.add(new Mov(new ConstArgument(0), reg));
+        // write to the lower 32 bits
+        block.add(new Mov(args.get(i), Register.getLongVersion(reg)));
+      } else {
+        block.add(new Mov(args.get(i), reg));
       }
     }
-    callABIConform(node, new MethodInformation(node).hasReturnValue);
-  }
-
-  private void visitCalloc(firm.nodes.Call node) {
-    CodeBlock block = getCodeBlockForNode(node);
-    List<Argument> args = allocator.getArguments(node);
-    assert args.size() == 2;
-    // the argument is passed via the registers RDI and RSI
-    block.add(new Mov(args.get(0), Register.RDI));
-
-    callABIConform(node, true);
-  }
-
-  private void callABIConform(firm.nodes.Call node, boolean hasReturnValue) {
-    CodeBlock block = getCodeBlockForNode(node);
     // the 64 ABI requires the stack to aligned to 16 bytes
     block.add(new Push(Register.STACK_POINTER).com("Save old stack pointer"));
     block.add(
@@ -275,13 +285,27 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     block.add(
         new And(new ConstArgument(-0x10), Register.STACK_POINTER)
             .com("Align the stack pointer to 16 bytes"));
+    for (int i = args.size() - 1; i >= Register.methodArgumentQuadRegisters.size(); i--) {
+      block.add(new Push(args.get(i)));
+    }
     block.add(new Call(getMethodLdName(node)).com("Call the external function").firm(node));
+    block.add(
+        new DeallocStack(
+            Math.max(0, args.size() - Register.methodArgumentQuadRegisters.size()) * 8));
     block.add(
         new Mov(new RegRelativeLocation(Register.STACK_POINTER, 8), Register.STACK_POINTER)
             .com("Restore old stack pointer"));
-    if (hasReturnValue) {
+    if (info.hasReturnValue) {
       block.add(new Mov(Register.RETURN_REGISTER, allocator.getResultLocation(node)));
     }
+    // fetch the backuped registers
+    for (Register reg : Register.methodArgumentQuadRegisters) {
+      block.add(new Mov(temporaryParamRegLocation.get(reg), reg));
+    }
+  }
+
+  private boolean hasTypeLongWidth(Type type) {
+    return type instanceof PrimitiveType && !(type.getMode().equals(Types.PTR_TYPE.getMode()));
   }
 
   private void visitMethodCall(String ldName, firm.nodes.Call node) {
