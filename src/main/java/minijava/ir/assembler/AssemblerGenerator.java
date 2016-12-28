@@ -230,22 +230,29 @@ public class AssemblerGenerator extends NodeVisitor.Default {
   @Override
   public void visit(firm.nodes.Call node) {
     String ldName = getMethodLdName(node);
-    if (ldName.equals(NameMangler.mangledPrintIntMethodName())) {
-      visitPrintInt(node);
-    } else if (ldName.equals(NameMangler.mangledCallocMethodName())) {
-      visitCalloc(node);
+    if (ldName.equals(NameMangler.mangledPrintIntMethodName())
+        || ldName.equals(NameMangler.mangledWriteIntMethodName())
+        || ldName.equals(NameMangler.mangledFlushMethodName())
+        || ldName.equals(NameMangler.mangledReadIntMethodName())) {
+      visitABIConformCall(node);
     } else {
       // simple method calls
       visitMethodCall(ldName, node);
     }
   }
 
-  private void visitPrintInt(firm.nodes.Call node) {
+  private void visitABIConformCall(firm.nodes.Call node) {
+    List<Argument> args = allocator.getArguments(node);
+    assert args.size() <= 2;
     CodeBlock block = getCodeBlockForNode(node);
-    Argument arg = getOnlyArgument(node);
-    // the argument is passed via the register RDI
-    block.add(new Mov(arg, Register.RDI));
-    callABIConform(node, false);
+    // the argument is passed via the register RDI and RSI
+    if (args.size() >= 1) {
+      block.add(new Mov(args.get(0), Register.RDI));
+      if (args.size() >= 2) {
+        block.add(new Mov(args.get(1), Register.RSI));
+      }
+    }
+    callABIConform(node, new MethodInformation(node).hasReturnValue);
   }
 
   private void visitCalloc(firm.nodes.Call node) {
@@ -254,7 +261,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     assert args.size() == 2;
     // the argument is passed via the registers RDI and RSI
     block.add(new Mov(args.get(0), Register.RDI));
-    block.add(new Mov(args.get(1), Register.RSI));
+
     callABIConform(node, true);
   }
 
