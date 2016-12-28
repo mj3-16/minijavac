@@ -206,6 +206,10 @@ public class SemanticAnalyzer
       }
     }
 
+    if (that.isNative) {
+      return null;
+    }
+
     // We collect local variables into a fresh symboltable. We need these later on,
     // when we try to resolve Variables via FieldAccess on this. in method bodies.
     locals = new SymbolTable<>();

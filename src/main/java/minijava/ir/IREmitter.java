@@ -70,6 +70,9 @@ public class IREmitter
   }
 
   private void emitBody(Method m) {
+    if (m.isNative) {
+      return;
+    }
     // graph and construction are irrelevant to anything before or after.
     // It's more like 2 additional parameters to the visitor.
 

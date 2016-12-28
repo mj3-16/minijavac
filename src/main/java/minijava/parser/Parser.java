@@ -125,11 +125,14 @@ public class Parser {
     parseClassMember(fields, methods, begin);
   }
 
-  /** ClassMember -> MainMethod | FieldOrMethod */
+  /** ClassMember -> MainMethod | FieldOrMethod | NativeMethod */
   private void parseClassMember(List<Field> fields, List<Method> methods, SourcePosition begin) {
     switch (currentToken.terminal) {
       case STATIC:
         methods.add(parseMainMethod(begin));
+        break;
+      case NATIVE:
+        methods.add(parseNativeMethod(begin));
         break;
       default:
         parseTypeIdentFieldOrMethod(fields, methods, begin);
@@ -157,6 +160,7 @@ public class Parser {
             parameterType, ident.lexval, new SourceRange(typeBegin, ident.range().end));
     return new Method(
         true,
+        false,
         voidType,
         name.lexval,
         Arrays.asList(parameter),
@@ -202,7 +206,26 @@ public class Parser {
     parseMethodRest();
     Block block = parseBlock();
     return new Method(
-        false, type, name, parameters, block, new SourceRange(begin, block.range().end));
+        false, false, type, name, parameters, block, new SourceRange(begin, block.range().end));
+  }
+
+  /** Method -> ( Parameters? ) MethodRest ; */
+  private Method parseNativeMethod(SourcePosition begin) {
+    consumeToken();
+    Type type = parseType();
+    String name = expectAndConsume(IDENT).lexval;
+    List<LocalVariable> parameters = new ArrayList<>();
+    expectAndConsume(LPAREN);
+    if (isCurrentTokenNotTypeOf(RPAREN)) {
+      parameters = parseParameters();
+    }
+    expectAndConsume(RPAREN);
+    parseMethodRest();
+    Token endToken = currentToken;
+    expectAndConsume(SEMICOLON);
+    SourceRange range = new SourceRange(begin, endToken.range().end);
+    return new Method(
+        false, true, type, name, parameters, new Block(new ArrayList<>(), range), range);
   }
 
   /** Parameters -> Parameter | Parameter , Parameters */
