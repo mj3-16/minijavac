@@ -9,6 +9,7 @@ import java.util.Map;
 public class Register extends Location {
 
   public static enum Width {
+    Byte("b"),
     /** 32 bit */
     Long("l"),
     /** 64 bit */
@@ -33,24 +34,24 @@ public class Register extends Location {
 
   private static final Map<String, Register> registerMap = new HashMap<>();
   public static final List<Register> methodArgumentQuadRegisters;
-  private static final String[][] longAndQuadNames =
+  private static final String[][] byteLongAndQuadNames =
       new String[][] {
-        {"eax", "rax"},
-        {"ebx", "rbx"},
-        {"ecx", "rcx"},
-        {"edx", "rdx"},
-        {"esi", "rsi"},
-        {"edi", "rdi"},
-        {"ebp", "rbp"},
-        {"esp", "rsp"},
-        {"r8d", "r8"},
-        {"r9d", "r9"},
-        {"r10d", "r10"},
-        {"r11d", "r11"},
-        {"r12d", "r12"},
-        {"r13d", "r13"},
-        {"r14d", "r14"},
-        {"r15d", "r15"}
+        {"al", "eax", "rax"},
+        {"bl", "ebx", "rbx"},
+        {"cl", "ecx", "rcx"},
+        {"dl", "edx", "rdx"},
+        {"sil", "esi", "rsi"},
+        {"dil", "edi", "rdi"},
+        {"bpl", "ebp", "rbp"},
+        {"spl", "esp", "rsp"},
+        {"r8b", "r8d", "r8"},
+        {"r9b", "r9d", "r9"},
+        {"r10b", "r10d", "r10"},
+        {"r11b", "r11d", "r11"},
+        {"r12b", "r12d", "r12"},
+        {"r13b", "r13d", "r13"},
+        {"r14b", "r14d", "r14"},
+        {"r15b", "r15d", "r15"}
       };
 
   static {
@@ -86,31 +87,38 @@ public class Register extends Location {
   }
 
   private static void init() {
-    for (String[] longAndQuadName : longAndQuadNames) {
-      registerMap.put(longAndQuadName[0], new Register(longAndQuadName[0], Width.Long));
-      registerMap.put(longAndQuadName[1], new Register(longAndQuadName[1], Width.Quad));
+    for (String[] longAndQuadName : byteLongAndQuadNames) {
+      registerMap.put(longAndQuadName[0], new Register(longAndQuadName[0], Width.Byte));
+      registerMap.put(longAndQuadName[1], new Register(longAndQuadName[1], Width.Long));
+      registerMap.put(longAndQuadName[2], new Register(longAndQuadName[2], Width.Quad));
     }
+  }
+
+  public static Register getByteVersion(Register reg) {
+    if (reg.width.equals(Width.Byte)) {
+      return reg;
+    }
+    return get(getRegNameRow(reg.registerName)[0]);
   }
 
   public static Register getLongVersion(Register reg) {
     if (reg.width.equals(Width.Long)) {
       return reg;
     }
-    for (String[] longAndQuadName : longAndQuadNames) {
-      if (longAndQuadName[1].equals(reg.registerName)) {
-        return get(longAndQuadName[0]);
-      }
-    }
-    throw new RuntimeException();
+    return get(getRegNameRow(reg.registerName)[1]);
   }
 
   public static Register getQuadVersion(Register reg) {
     if (reg.width.equals(Width.Quad)) {
       return reg;
     }
-    for (String[] longAndQuadName : longAndQuadNames) {
-      if (longAndQuadName[0].equals(reg.registerName)) {
-        return get(longAndQuadName[1]);
+    return get(getRegNameRow(reg.registerName)[2]);
+  }
+
+  private static String[] getRegNameRow(String regName) {
+    for (String[] row : byteLongAndQuadNames) {
+      if (row[0].equals(regName) || row[1].equals(regName) || row[2].equals(regName)) {
+        return row;
       }
     }
     throw new RuntimeException();

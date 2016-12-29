@@ -194,4 +194,9 @@ public abstract class Instruction implements GNUAssemblerConvertible {
     }
     return maxWidth;
   }
+
+  @Override
+  public String toString() {
+    return toGNUAssembler();
+  }
 }

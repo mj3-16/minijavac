@@ -45,25 +45,24 @@ public class AssemblerGenerator extends NodeVisitor.Default {
 
   private final Graph graph;
   private final MethodInformation info;
-  private final NodeAllocator allocator;
+  private final SimpleNodeAllocator allocator;
   private CodeSegment segment;
   private Map<Integer, CodeBlock> blocksToCodeBlocks;
   private static Map<Phi, Boolean> isPhiProneToLostCopies;
   private final boolean useABIConformCalling;
   private Map<Register, Location> temporaryParamRegLocation = new HashMap();
 
-  public AssemblerGenerator(Graph graph, NodeAllocator allocator) {
-    this(graph, allocator, true);
+  public AssemblerGenerator(Graph graph) {
+    this(graph, true);
   }
 
-  public AssemblerGenerator(Graph graph, NodeAllocator allocator, boolean useABIConformCalling) {
+  public AssemblerGenerator(Graph graph, boolean useABIConformCalling) {
     this.graph = graph;
     this.info = new MethodInformation(graph);
-    this.allocator = allocator;
+    this.allocator = new SimpleNodeAllocator(graph, useABIConformCalling);
     isPhiProneToLostCopies = new HashMap<>();
     this.useABIConformCalling = useABIConformCalling;
     if (useABIConformCalling) {
-      allocator.enableABIConformCalling();
       for (int i = 0; i < Register.methodArgumentQuadRegisters.size(); i++) {
         temporaryParamRegLocation.put(
             Register.methodArgumentQuadRegisters.get(i), allocator.createNewTemporaryVariable());
@@ -215,6 +214,14 @@ public class AssemblerGenerator extends NodeVisitor.Default {
         new Mov(Register.STACK_POINTER, Register.BASE_POINTER)
             .com("Set base pointer for new activation record"));
     prepended.add(new AllocStack(allocator.getActivationRecordSize()));
+    for (int i = 0;
+        i < Math.min(Register.methodArgumentQuadRegisters.size(), info.paramNumber);
+        i++) {
+      prepended.add(
+          new Mov(
+              Register.methodArgumentQuadRegisters.get(i),
+              allocator.getRegPassedParameterLocation(i)));
+    }
     startBlock.prepend(prepended.toArray(new Instruction[0]));
   }
 
@@ -262,10 +269,8 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     List<Argument> args = allocator.getArguments(node);
     CodeBlock block = getCodeBlockForNode(node);
     // the first six arguments are passed via registers
-    // backup them on the stack first
-    for (Register reg : Register.methodArgumentQuadRegisters) {
-      block.add(new Mov(reg, temporaryParamRegLocation.get(reg)));
-    }
+    // we don't have to backup them as we only use their copies somewhere on the stack
+    // that we created at the beginning of the methods assembly
     for (int i = 0; i < Math.min(args.size(), Register.methodArgumentQuadRegisters.size()); i++) {
       Register reg = Register.methodArgumentQuadRegisters.get(i);
       if (hasTypeLongWidth(info.type.getParamType(0))) {
@@ -297,10 +302,6 @@ public class AssemblerGenerator extends NodeVisitor.Default {
             .com("Restore old stack pointer"));
     if (info.hasReturnValue) {
       block.add(new Mov(Register.RETURN_REGISTER, allocator.getResultLocation(node)));
-    }
-    // fetch the backuped registers
-    for (Register reg : Register.methodArgumentQuadRegisters) {
-      block.add(new Mov(temporaryParamRegLocation.get(reg), reg));
     }
   }
 
@@ -483,7 +484,8 @@ public class AssemblerGenerator extends NodeVisitor.Default {
 
   @Override
   public void visit(Phi node) {
-    if (node.getMode().equals(Mode.getb())) {
+    boolean isPhiB = node.getMode().equals(Mode.getb());
+    if (isPhiB) {
       // we look for other phis that have this node as a predecessor
       // if doesn't have, than we deal with it in the visit(Block) method
       boolean phiLater = false;
@@ -524,14 +526,34 @@ public class AssemblerGenerator extends NodeVisitor.Default {
       Argument arg = allocator.getAsArgument(inputNode);
       // we store the argument in a register
       Register intermediateReg = Register.EAX;
-      inputCodeBlock.addPhiHelperInstruction(new Mov(arg, intermediateReg).firm(inputNode));
+      Instruction phiHelperMov = new Mov(arg, intermediateReg).firm(inputNode);
+      Instruction phiMov;
       if (isPhiProneToLostCopies(node)) {
         // if this phi is prone to lost copies then we copy the value only
         // into the temporary variable
-        inputCodeBlock.addPhiHelperInstruction(new Mov(intermediateReg, tmpLocation));
+        phiMov = new Mov(intermediateReg, tmpLocation).firm(node);
       } else {
         // we copy it into Phis location
-        inputCodeBlock.addPhiHelperInstruction(new Mov(intermediateReg, res).firm(node));
+        phiMov = new Mov(intermediateReg, res).firm(node);
+      }
+      if (isPhiB && inputNode instanceof firm.nodes.Cmp) {
+        // we have to insert the mov instructions behind (!) the compare
+        // first we have to make sure that the intermediate register is really zero
+        inputCodeBlock.addPhiBHelperInstruction(
+            new Mov(new ConstArgument(0), intermediateReg).firm(node));
+        // than we have to use the set instruction to set the registers value to one if the condition is true
+        // important note: we can only set the lowest 8 bit of the intermediate register
+        inputCodeBlock.addPhiBHelperInstruction(
+            new Set(
+                    ((firm.nodes.Cmp) inputNode).getRelation(),
+                    Register.getByteVersion(intermediateReg))
+                .firm(inputNode));
+        // we copy the intermediate value to its final destination
+        inputCodeBlock.addPhiBHelperInstruction(phiMov);
+      } else {
+        // compares don't matter and therefore we copy the value before the (possible) comparison takes place
+        inputCodeBlock.addPhiHelperInstruction(phiHelperMov);
+        inputCodeBlock.addPhiHelperInstruction(phiMov);
       }
     }
   }

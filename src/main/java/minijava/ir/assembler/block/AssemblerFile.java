@@ -4,11 +4,9 @@ import com.sun.jna.Platform;
 import firm.Graph;
 import firm.Program;
 import java.util.*;
-import java.util.function.Function;
 import minijava.ir.NameMangler;
 import minijava.ir.assembler.AssemblerGenerator;
 import minijava.ir.assembler.GNUAssemblerConvertible;
-import minijava.ir.assembler.NodeAllocator;
 import org.jetbrains.annotations.NotNull;
 
 /** List of segments that are combined to an assembler file */
@@ -129,12 +127,10 @@ public class AssemblerFile implements GNUAssemblerConvertible, Collection<Segmen
     }
   }
 
-  public static AssemblerFile createForGraphs(
-      Iterable<Graph> graphs, Function<Graph, NodeAllocator> nodeAllocCreator) {
+  public static AssemblerFile createForGraphs(Iterable<Graph> graphs) {
     AssemblerFile file = new AssemblerFile();
     for (Graph graph : Program.getGraphs()) {
-      file.add(
-          new AssemblerGenerator(graph, nodeAllocCreator.apply(graph)).generateSegmentForGraph());
+      file.add(new AssemblerGenerator(graph).generateSegmentForGraph());
     }
     return file;
   }
