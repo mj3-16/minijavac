@@ -29,6 +29,10 @@ public abstract class BinaryInstruction extends Instruction {
       Register leftReg = (Register) left;
       Register rightReg = (Register) right;
       Register.Width minWidth = Register.minWidth(leftReg, rightReg);
+      if (minWidth == Register.Width.Byte) {
+        return new Tuple2<Argument, Argument>(
+            Register.getByteVersion(leftReg), Register.getByteVersion(rightReg));
+      }
       if (minWidth == Register.Width.Long) {
         return new Tuple2<Argument, Argument>(
             Register.getLongVersion(leftReg), Register.getLongVersion(rightReg));
