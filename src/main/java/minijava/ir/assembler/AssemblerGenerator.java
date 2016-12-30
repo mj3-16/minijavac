@@ -159,7 +159,8 @@ public class AssemblerGenerator extends NodeVisitor.Default {
   }
 
   @Override
-  public void visit(firm.nodes.Not node) {
+  public void visit(firm.nodes.Minus node) {
+    // Note: this method handles the arithmetic negation (unary minus) operation
     List<Argument> args = allocator.getArguments(node);
     assert args.size() == 1;
     Argument arg = args.get(0);
