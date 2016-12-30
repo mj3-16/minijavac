@@ -19,7 +19,6 @@ import java.util.ArrayList;
 import java.util.List;
 import minijava.ast.Program;
 import minijava.ir.IREmitter;
-import minijava.ir.assembler.SimpleNodeAllocator;
 import minijava.ir.assembler.block.AssemblerFile;
 import minijava.ir.optimize.*;
 import minijava.lexer.Lexer;
@@ -185,8 +184,7 @@ class Cli {
     for (Graph g : firm.Program.getGraphs()) {
       Dump.dumpGraph(g, "--finished");
     }
-    AssemblerFile file =
-        AssemblerFile.createForGraphs(firm.Program.getGraphs(), SimpleNodeAllocator::new);
+    AssemblerFile file = AssemblerFile.createForGraphs(firm.Program.getGraphs());
     if (System.getenv().containsKey("MJ_FILENAME")) {
       file.setFileName(System.getenv("MJ_FILENAME"));
     }

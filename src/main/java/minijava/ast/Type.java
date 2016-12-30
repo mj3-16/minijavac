@@ -20,6 +20,7 @@ public class Type extends Node {
     Method println =
         new Method(
             false,
+            true,
             VOID,
             "println",
             ImmutableList.of(new LocalVariable(INT, "blub", SourceRange.FIRST_CHAR)),
@@ -28,13 +29,14 @@ public class Type extends Node {
     Method write =
         new Method(
             false,
+            true,
             VOID,
             "write",
             ImmutableList.of(new LocalVariable(INT, "blub", SourceRange.FIRST_CHAR)),
             null,
             SourceRange.FIRST_CHAR);
     Method flush =
-        new Method(false, VOID, "flush", ImmutableList.of(), null, SourceRange.FIRST_CHAR);
+        new Method(false, true, VOID, "flush", ImmutableList.of(), null, SourceRange.FIRST_CHAR);
     Class class_ =
         new Class(
             "type of System.out",
@@ -45,7 +47,8 @@ public class Type extends Node {
   }
 
   private static Type makeSystemIn() {
-    Method read = new Method(false, INT, "read", ImmutableList.of(), null, SourceRange.FIRST_CHAR);
+    Method read =
+        new Method(false, true, INT, "read", ImmutableList.of(), null, SourceRange.FIRST_CHAR);
     Class class_ =
         new Class(
             "type of System.in",
