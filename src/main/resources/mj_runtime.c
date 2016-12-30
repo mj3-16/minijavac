@@ -9,6 +9,18 @@ void print_int(int val) {
 	printf("%d\n", val);
 }
 
+void write_int(int val){
+    putchar(val);
+}
+
+void flush(){
+    fflush(stdout);
+}
+
+int read_int(){
+    return getc(stdin);
+}
+
 void mjMain();
 
 int main() {

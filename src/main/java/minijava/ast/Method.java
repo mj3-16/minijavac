@@ -10,6 +10,7 @@ public class Method extends Node implements Definition {
   public final List<LocalVariable> parameters;
   public final Block body;
   public Ref<Class> definingClass;
+  public final boolean isNative;
 
   /**
    * Constructs a new method node.
@@ -19,6 +20,7 @@ public class Method extends Node implements Definition {
    */
   public Method(
       boolean isStatic,
+      boolean isNative,
       Type returnType,
       String name,
       List<LocalVariable> parameters,
@@ -26,6 +28,7 @@ public class Method extends Node implements Definition {
       SourceRange range) {
     super(range);
     this.isStatic = isStatic;
+    this.isNative = isNative;
     this.returnType = returnType;
     this.name = name;
     this.parameters = parameters;
@@ -38,9 +41,20 @@ public class Method extends Node implements Definition {
       String name,
       List<LocalVariable> parameters,
       Block body,
+      SourceRange range) {
+    this(isStatic, false, returnType, name, parameters, body, range);
+  }
+
+  public Method(
+      boolean isStatic,
+      boolean isNative,
+      Type returnType,
+      String name,
+      List<LocalVariable> parameters,
+      Block body,
       SourceRange range,
       Ref<Class> definingClass) {
-    this(isStatic, returnType, name, parameters, body, range);
+    this(isNative, isStatic, returnType, name, parameters, body, range);
     this.definingClass = definingClass;
   }
 

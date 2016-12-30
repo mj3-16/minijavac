@@ -26,7 +26,7 @@ public class Lexer implements Iterator<Token> {
       Maps.uniqueIndex(
           EnumSet.of(
               BOOLEAN, CLASS, ELSE, FALSE, IF, INT, NEW, NULL, PUBLIC, RETURN, STATIC, THIS, TRUE,
-              VOID, WHILE),
+              VOID, WHILE, THROWS, NATIVE),
           t -> t.string);
 
   static final ImmutableSet<String> RESERVED_IDENTIFIERS =
@@ -55,7 +55,6 @@ public class Lexer implements Iterator<Token> {
           "instanceof",
           "interface",
           "long",
-          "native",
           "package",
           "private",
           "protected",
@@ -64,7 +63,6 @@ public class Lexer implements Iterator<Token> {
           "super",
           "switch",
           "synchronized",
-          "throws",
           "throw",
           "transient",
           "try",

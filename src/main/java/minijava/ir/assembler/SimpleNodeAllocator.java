@@ -21,21 +21,33 @@ import minijava.ir.utils.MethodInformation;
  * <p>Every value is stored on the stack in a new slot thereby using lot's of memory. The advantage
  * of this inefficiency is the simplicity of the implementation.
  */
-public class SimpleNodeAllocator implements NodeAllocator {
+public class SimpleNodeAllocator {
 
   private static final int STACK_SLOT_SIZE = 8; // we're on an 64bit system
   private Map<Node, Integer> assignedStackSlots;
   private int currentSlotNumber = 1;
   private Graph graph;
   private MethodInformation info;
+  private boolean useABIConformCalling = false;
+  private List<RegRelativeLocation> regPassedParameterLocations;
+  private Map<Integer, Register> regPassedParameterSlotsMap;
 
-  public SimpleNodeAllocator(Graph graph) {
+  public SimpleNodeAllocator(Graph graph, boolean useABIConformCalling) {
     this.graph = graph;
     this.info = new MethodInformation(graph);
     this.assignedStackSlots = new HashMap<>();
+    this.useABIConformCalling = useABIConformCalling;
+    this.regPassedParameterLocations = new ArrayList<>();
+    regPassedParameterSlotsMap = new HashMap<>();
+    if (useABIConformCalling) {
+      Register.methodArgumentQuadRegisters.forEach(
+          x -> {
+            regPassedParameterLocations.add((RegRelativeLocation) createNewTemporaryVariable());
+            regPassedParameterSlotsMap.put(currentSlotNumber - 1, x);
+          });
+    }
   }
 
-  @Override
   public Location getLocation(Node node) {
     if (node instanceof Conv) {
       // Conv nodes are only generated for div and mod instructions
@@ -58,6 +70,12 @@ public class SimpleNodeAllocator implements NodeAllocator {
       if (proj.getPred().equals(graph.getArgs())) {
         // the proj node points to a method argument
         int slot = proj.getNum();
+        if (useABIConformCalling) {
+          if (slot < Register.methodArgumentQuadRegisters.size()) {
+            return regPassedParameterLocations.get(slot);
+          }
+          slot = slot - Register.methodArgumentQuadRegisters.size();
+        }
         // this seems to be correct?
         return new RegRelativeLocation(Register.BASE_POINTER, (slot + 2) * STACK_SLOT_SIZE);
       } else if (proj.getPred().getPredCount() > 0 && proj.getPred().getPred(0) instanceof Call) {
@@ -73,7 +91,6 @@ public class SimpleNodeAllocator implements NodeAllocator {
     return getStackSlotAsLocation(node);
   }
 
-  @Override
   public List<Argument> getArguments(Node node) {
     List<Argument> args = new ArrayList<>();
     int start = 0;
@@ -89,7 +106,6 @@ public class SimpleNodeAllocator implements NodeAllocator {
     return args;
   }
 
-  @Override
   public Argument getAsArgument(Node node) {
     if (node instanceof Const) {
       TargetValue tarVal = ((Const) node).getTarval();
@@ -104,12 +120,10 @@ public class SimpleNodeAllocator implements NodeAllocator {
     return getLocation(node);
   }
 
-  @Override
   public Location getResultLocation(Node node) {
     return getLocation(node);
   }
 
-  @Override
   public int getActivationRecordSize() {
     return (currentSlotNumber + 1) * STACK_SLOT_SIZE;
   }
@@ -129,14 +143,14 @@ public class SimpleNodeAllocator implements NodeAllocator {
     return new RegRelativeLocation(Register.BASE_POINTER, -getStackSlotOffset(node));
   }
 
-  @Override
   public String getActivationRecordInfo() {
     List<String> lines = new ArrayList<>();
     Map<Integer, Node> nodesForAssignedSlot = new HashMap<>();
     for (Node node : assignedStackSlots.keySet()) {
       nodesForAssignedSlot.put(assignedStackSlots.get(node), node);
     }
-    for (int i = info.paramNumber - 1; i >= 0; i--) {
+    int argStart = useABIConformCalling ? Register.methodArgumentQuadRegisters.size() : 0;
+    for (int i = info.paramNumber - 1; i >= argStart; i--) {
       String slotInfo = String.format("%3d[%3d(%%esp)]", i + 2, (i + 2) * STACK_SLOT_SIZE);
       if (i == 0) {
         lines.add(slotInfo + ": this");
@@ -144,10 +158,28 @@ public class SimpleNodeAllocator implements NodeAllocator {
         lines.add(slotInfo + ": argument " + (i - 1));
       }
     }
+    if (useABIConformCalling) {
+      for (int i = Math.min(info.paramNumber, Register.methodArgumentQuadRegisters.size()) - 1;
+          i >= 0;
+          i--) {
+        Register reg = Register.methodArgumentQuadRegisters.get(i);
+        String slotInfo =
+            String.format(
+                "%%%s/%%%s      ", Register.getLongVersion(reg).registerName, reg.registerName);
+        if (i == 0) {
+          lines.add(slotInfo + ": this");
+        } else {
+          lines.add(slotInfo + ": argument " + (i - 1));
+        }
+      }
+    }
     for (int slot = 0; slot < currentSlotNumber; slot++) {
       String slotInfo = String.format("%3d[%3d(%%ebp)]", slot, -slot * STACK_SLOT_SIZE);
       if (slot == 0) {
         slotInfo += ": backed up base pointer";
+      } else if (regPassedParameterSlotsMap.containsKey(slot)) {
+        slotInfo +=
+            String.format(": Backuped %s", regPassedParameterSlotsMap.get(slot).registerName);
       } else if (nodesForAssignedSlot.containsKey(slot)) {
         slotInfo += ": " + getInfoStringForNode(nodesForAssignedSlot.get(slot));
       }
@@ -163,8 +195,11 @@ public class SimpleNodeAllocator implements NodeAllocator {
     return node.toString();
   }
 
-  @Override
   public Location createNewTemporaryVariable() {
     return new RegRelativeLocation(Register.BASE_POINTER, currentSlotNumber++ * -STACK_SLOT_SIZE);
+  }
+
+  public Location getRegPassedParameterLocation(int parameterNr) {
+    return regPassedParameterLocations.get(parameterNr);
   }
 }

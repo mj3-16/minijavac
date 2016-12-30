@@ -97,7 +97,16 @@ public class TerminalStreamGenerator extends Generator<TerminalStream> {
     }
 
     ret.add(RPAREN);
+    if (random.nextBoolean()) {
+      genMethodRest(random);
+    }
     genBlock(random);
+  }
+
+  // throws IDENT?
+  private void genMethodRest(SourceOfRandomness random) {
+    ret.add(THROWS);
+    ret.add(IDENT);
   }
 
   // Type IDENT

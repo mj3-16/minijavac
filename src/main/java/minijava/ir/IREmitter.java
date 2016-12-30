@@ -70,6 +70,9 @@ public class IREmitter
   }
 
   private void emitBody(Method m) {
+    if (m.isNative) {
+      return;
+    }
     // graph and construction are irrelevant to anything before or after.
     // It's more like 2 additional parameters to the visitor.
 
@@ -464,8 +467,19 @@ public class IREmitter
 
   @Override
   public Node visitMethodCall(Expression.MethodCall that) {
-    if (that.self.type == minijava.ast.Type.SYSTEM_OUT && that.method.name().equals("println")) {
-      return visitSystemOutPrintln(that.arguments.get(0));
+    if (that.self.type == minijava.ast.Type.SYSTEM_OUT) {
+      if (that.method.name().equals("println")) {
+        return callFunction(PRINT_INT, new Node[] {that.arguments.get(0).acceptVisitor(this)});
+      }
+      if (that.method.name().equals("write")) {
+        return callFunction(WRITE_INT, new Node[] {that.arguments.get(0).acceptVisitor(this)});
+      } else if (that.method.name().equals("flush")) {
+        return callFunction(FLUSH, new Node[] {});
+      }
+    } else if (that.self.type == minijava.ast.Type.SYSTEM_IN) {
+      if (that.method.name.equals("read")) {
+        return unpackCallResult(callFunction(READ_INT, new Node[] {}), INT_TYPE.getMode());
+      }
     }
 
     Entity method = methods.get(that.method.def);
@@ -505,10 +519,6 @@ public class IREmitter
     Node resultTuple = construction.newProj(call, Mode.getT(), Call.pnTResult);
     // at index 0 this tuple contains the result
     return convBuTob(construction.newProj(resultTuple, mode, 0));
-  }
-
-  private Node visitSystemOutPrintln(Expression argument) {
-    return callFunction(PRINT_INT, new Node[] {argument.acceptVisitor(this)});
   }
 
   @Override

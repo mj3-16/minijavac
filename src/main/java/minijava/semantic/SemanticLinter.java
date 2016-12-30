@@ -1,5 +1,6 @@
 package minijava.semantic;
 
+import static minijava.ast.Type.SYSTEM_IN;
 import static minijava.ast.Type.SYSTEM_OUT;
 
 import java.util.IdentityHashMap;
@@ -131,8 +132,8 @@ public class SemanticLinter
 
   @Override
   public Void visitMethodCall(Expression.MethodCall that) {
-    if (that.self.type == SYSTEM_OUT) {
-      // println has no associated Method instance
+    if (that.self.type == SYSTEM_OUT || that.self.type == SYSTEM_IN) {
+      // println and other methods have no associated Method instance
       return null;
     }
     assert !that.method.def.isStatic;
