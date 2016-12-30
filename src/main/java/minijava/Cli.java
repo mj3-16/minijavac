@@ -61,6 +61,7 @@ public class Cli {
   int run(String... args) {
     Parameters params = Parameters.parse(args);
     if (!params.valid()) {
+      err.println("Called as: " + String.join(" ", args));
       err.println(usage);
       return 1;
     }
@@ -147,7 +148,7 @@ public class Cli {
       optimize();
     }
     outputGraphsIfNeeded("--finished");
-    IREmitter.compile("a.out");
+    IREmitter.compile("a.out", shouldProduceDebuggableBinary());
   }
 
   private boolean optimizationsTurnedOff() {
@@ -157,6 +158,11 @@ public class Cli {
 
   public static boolean shouldPrintGraphs() {
     String value = System.getenv("MJ_GRAPH");
+    return value != null && value.equals("1");
+  }
+
+  private boolean shouldProduceDebuggableBinary() {
+    String value = System.getenv("MJ_DBG");
     return value != null && value.equals("1");
   }
 
@@ -191,10 +197,14 @@ public class Cli {
     ast.acceptVisitor(new SemanticAnalyzer());
     ast.acceptVisitor(new IREmitter());
     outputGraphsIfNeeded("--finished");
-    IREmitter.compileAndRun("a.out");
+    IREmitter.compileAndRun("a.out", shouldProduceDebuggableBinary());
   }
 
   private void printAsm(InputStream in) throws IOException {
+    printAsm(in, out);
+  }
+
+  private void printAsm(InputStream in, PrintStream out) throws IOException {
     Program ast = new Parser(new Lexer(in)).parse();
     ast.acceptVisitor(new SemanticAnalyzer());
     ast.acceptVisitor(new SemanticLinter());
@@ -214,9 +224,8 @@ public class Cli {
   private void compile(InputStream in) throws IOException {
     File file = new File("a.out.s");
     file.createNewFile();
-    FileInputStream aOutStream = new FileInputStream(file);
-    printAsm(aOutStream);
-    CompileUtils.compileAssemblerFile("a.out.s", "a.out");
+    printAsm(in, new PrintStream(new FileOutputStream(file)));
+    CompileUtils.compileAssemblerFile("a.out.s", "a.out", shouldProduceDebuggableBinary());
   }
 
   private static class Parameters {

@@ -9,20 +9,31 @@ import org.jetbrains.annotations.NotNull;
 
 public class CompileUtils {
 
-  public static void compileAssemblerFile(String assemblerFile, String outputFile)
-      throws IOException {
+  public static void compileAssemblerFile(
+      String assemblerFile, String outputFile, boolean produceDebuggableBinary) throws IOException {
     File runtime = getRuntimeFile();
 
     boolean useGC =
         System.getenv().containsKey("MJ_USE_GC") && System.getenv("MJ_USE_GC").equals("1");
 
-    String gcApp = "";
+    String gccApp = "";
     if (useGC) {
-      gcApp = " -DUSE_GC -lgc ";
+      gccApp = " -DUSE_GC -lgc ";
     }
+
+    if (System.getenv().containsKey("MJ_GCC_APP")) {
+      gccApp += " " + System.getenv("MJ_GCC_APP");
+    }
+
+    if (produceDebuggableBinary) {
+      gccApp = " -g3";
+    } else {
+      gccApp = " -O3";
+    }
+
     String cmd =
         String.format(
-            "gcc %s %s -o %s %s", runtime.getAbsolutePath(), assemblerFile, outputFile, gcApp);
+            "gcc %s %s -o %s %s", runtime.getAbsolutePath(), assemblerFile, outputFile, gccApp);
     Process p = Runtime.getRuntime().exec(cmd);
     int c;
     while ((c = p.getErrorStream().read()) != -1) {
@@ -34,7 +45,7 @@ public class CompileUtils {
     } catch (Throwable t) {
     }
     if (res != 0) {
-      System.err.println("Warning: Linking step failed");
+      System.err.println("Warning: Assembling and linking with gcc failed");
       System.exit(1);
     }
   }

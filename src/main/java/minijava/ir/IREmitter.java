@@ -144,11 +144,9 @@ public class IREmitter
         Node ret = construction.newReturn(construction.getCurrentMem(), new Node[0]);
         construction.setUnreachable();
         graph.getEndBlock().addPred(ret);
-      } else {
-        // We can't just conjure a return value of arbitrary type.
-        // This must be caught by the semantic pass.
-        assert false;
       }
+      // we don't have to handle the other case
+      // as the semantic linter already took care
     }
 
     construction.setCurrentBlock(graph.getEndBlock());
@@ -715,7 +713,7 @@ public class IREmitter
     }
   }
 
-  private static void assemble(String outFile) throws IOException {
+  public static void compile(String outFile, boolean produceDebuggableBinary) throws IOException {
     /* use the amd64 backend */
     Backend.option("isa=amd64");
     /* transform to x86 assembler */
@@ -723,15 +721,12 @@ public class IREmitter
     Backend.createAssembler(outAsmFile, "<builtin>");
     /* assembler */
 
-    CompileUtils.compileAssemblerFile(outAsmFile, outFile);
+    CompileUtils.compileAssemblerFile(outAsmFile, outFile, produceDebuggableBinary);
   }
 
-  public static void compile(String outFile) throws IOException {
-    assemble(outFile);
-  }
-
-  public static void compileAndRun(String outFile) throws IOException {
-    compile(outFile);
+  public static void compileAndRun(String outFile, boolean produceDebuggableBinary)
+      throws IOException {
+    compile(outFile, produceDebuggableBinary);
     Process p = Runtime.getRuntime().exec("./" + outFile);
     int c;
     while ((c = p.getInputStream().read()) != -1) {
