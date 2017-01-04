@@ -9,7 +9,7 @@ import org.jetbrains.annotations.Nullable;
  * a bit confusing sometimes, so here are a few words of explanation:
  *
  * The fact that Statement extends BlockStatement does _not_ mean that
- * a Statement must always be inside a block. In fact, a Block is a valid
+ * a Statement must always be inside a block. In fact, a block is a valid
  * Statement itself.
  * What this means is that a Statement is always also a valid BlockStatement.
  * It _can_ be used inside a block (as a BlockStatement), but it doesn't have

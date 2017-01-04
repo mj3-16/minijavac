@@ -9,6 +9,7 @@ import java.util.IdentityHashMap;
 import minijava.ast.*;
 import minijava.ast.Class;
 import minijava.ast.Program;
+import minijava.ir.utils.MethodInformation;
 
 class Collector implements Program.Visitor<Void> {
 
@@ -87,7 +88,7 @@ class Collector implements Program.Visitor<Void> {
 
     // Set the mangled name
     Entity methodEnt = new Entity(definingClass, m.name(), methodType);
-    methodEnt.setLdIdent(NameMangler.mangleMethodName(definingClass.getName(), m.name()));
+    methodEnt.setLdIdent(NameMangler.mangleName(new MethodInformation(methodEnt)));
     return methodEnt;
   }
 

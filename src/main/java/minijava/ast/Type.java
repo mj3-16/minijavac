@@ -14,21 +14,46 @@ public class Type extends Node {
   public static final Type ANY_REF =
       new Type(new Ref<>(BuiltinType.ANY_REF), 0, SourceRange.FIRST_CHAR);
   public static final Type SYSTEM_OUT = makeSystemOut();
+  public static final Type SYSTEM_IN = makeSystemIn();
 
   private static Type makeSystemOut() {
     Method println =
         new Method(
             false,
+            true,
             VOID,
             "println",
             ImmutableList.of(new LocalVariable(INT, "blub", SourceRange.FIRST_CHAR)),
             null,
             SourceRange.FIRST_CHAR);
+    Method write =
+        new Method(
+            false,
+            true,
+            VOID,
+            "write",
+            ImmutableList.of(new LocalVariable(INT, "blub", SourceRange.FIRST_CHAR)),
+            null,
+            SourceRange.FIRST_CHAR);
+    Method flush =
+        new Method(false, true, VOID, "flush", ImmutableList.of(), null, SourceRange.FIRST_CHAR);
     Class class_ =
         new Class(
             "type of System.out",
             ImmutableList.of(),
-            ImmutableList.of(println),
+            ImmutableList.of(println, write, flush),
+            SourceRange.FIRST_CHAR);
+    return new Type(new Ref<>(class_), 0, SourceRange.FIRST_CHAR);
+  }
+
+  private static Type makeSystemIn() {
+    Method read =
+        new Method(false, true, INT, "read", ImmutableList.of(), null, SourceRange.FIRST_CHAR);
+    Class class_ =
+        new Class(
+            "type of System.in",
+            ImmutableList.of(),
+            ImmutableList.of(read),
             SourceRange.FIRST_CHAR);
     return new Type(new Ref<>(class_), 0, SourceRange.FIRST_CHAR);
   }

@@ -80,7 +80,7 @@ public class TerminalStreamGenerator extends Generator<TerminalStream> {
     ret.add(SEMICOLON);
   }
 
-  // public Type IDENT ( Parameters? ) Block
+  // public Type IDENT ( Parameters? ) block
   private void genMethod(SourceOfRandomness random) {
     ret.add(PUBLIC);
     genType(random);
@@ -97,7 +97,16 @@ public class TerminalStreamGenerator extends Generator<TerminalStream> {
     }
 
     ret.add(RPAREN);
+    if (random.nextBoolean()) {
+      genMethodRest(random);
+    }
     genBlock(random);
+  }
+
+  // throws IDENT?
+  private void genMethodRest(SourceOfRandomness random) {
+    ret.add(THROWS);
+    ret.add(IDENT);
   }
 
   // Type IDENT
@@ -127,7 +136,7 @@ public class TerminalStreamGenerator extends Generator<TerminalStream> {
   }
 
   /*
-  Block
+  block
   | EmptyStatement
   | IfStatement
   | ExpressionStatement

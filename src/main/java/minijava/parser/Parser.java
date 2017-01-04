@@ -125,11 +125,14 @@ public class Parser {
     parseClassMember(fields, methods, begin);
   }
 
-  /** ClassMember -> MainMethod | FieldOrMethod */
+  /** ClassMember -> MainMethod | FieldOrMethod | NativeMethod */
   private void parseClassMember(List<Field> fields, List<Method> methods, SourcePosition begin) {
     switch (currentToken.terminal) {
       case STATIC:
         methods.add(parseMainMethod(begin));
+        break;
+      case NATIVE:
+        methods.add(parseNativeMethod(begin));
         break;
       default:
         parseTypeIdentFieldOrMethod(fields, methods, begin);
@@ -137,7 +140,7 @@ public class Parser {
     }
   }
 
-  /** MainMethod -> static void IDENT ( String [] IDENT ) Block */
+  /** MainMethod -> static void IDENT ( String [] IDENT ) MethodRest block */
   private Method parseMainMethod(SourcePosition begin) {
     expectAndConsume(STATIC);
     Token void_ = expectAndConsume(VOID);
@@ -150,17 +153,27 @@ public class Parser {
     Type parameterType = new Type(new Ref<>("String"), 1, new SourceRange(typeBegin, typeEnd));
     Token ident = expectAndConsume(IDENT);
     expectAndConsume(RPAREN);
+    parseMethodRest();
     Block block = parseBlock();
     LocalVariable parameter =
         new LocalVariable(
             parameterType, ident.lexval, new SourceRange(typeBegin, ident.range().end));
     return new Method(
         true,
+        false,
         voidType,
         name.lexval,
         Arrays.asList(parameter),
         block,
         new SourceRange(begin, block.range().end));
+  }
+
+  /** MethodRest -> (throws IDENT)? */
+  private void parseMethodRest() {
+    if (isCurrentTokenTypeOf(THROWS)) {
+      consumeToken();
+      expectAndConsume(IDENT);
+    }
   }
 
   /** TypeIdentFieldOrMethod -> Type IDENT FieldOrMethod */
@@ -182,7 +195,7 @@ public class Parser {
     }
   }
 
-  /** Method -> ( Parameters? ) Block */
+  /** Method -> ( Parameters? ) MethodRest block */
   private Method parseMethod(Type type, String name, SourcePosition begin) {
     List<LocalVariable> parameters = new ArrayList<>();
     expectAndConsume(LPAREN);
@@ -190,9 +203,29 @@ public class Parser {
       parameters = parseParameters();
     }
     expectAndConsume(RPAREN);
+    parseMethodRest();
     Block block = parseBlock();
     return new Method(
-        false, type, name, parameters, block, new SourceRange(begin, block.range().end));
+        false, false, type, name, parameters, block, new SourceRange(begin, block.range().end));
+  }
+
+  /** Method -> ( Parameters? ) MethodRest ; */
+  private Method parseNativeMethod(SourcePosition begin) {
+    consumeToken();
+    Type type = parseType();
+    String name = expectAndConsume(IDENT).lexval;
+    List<LocalVariable> parameters = new ArrayList<>();
+    expectAndConsume(LPAREN);
+    if (isCurrentTokenNotTypeOf(RPAREN)) {
+      parameters = parseParameters();
+    }
+    expectAndConsume(RPAREN);
+    parseMethodRest();
+    Token endToken = currentToken;
+    expectAndConsume(SEMICOLON);
+    SourceRange range = new SourceRange(begin, endToken.range().end);
+    return new Method(
+        false, true, type, name, parameters, new Block(new ArrayList<>(), range), range);
   }
 
   /** Parameters -> Parameter | Parameter , Parameters */
@@ -252,7 +285,7 @@ public class Parser {
   }
 
   /**
-   * Statement -> Block | EmptyStatement | IfStatement | ExpressionStatement | WhileStatement |
+   * Statement -> block | EmptyStatement | IfStatement | ExpressionStatement | WhileStatement |
    * ReturnStatement
    */
   private Statement parseStatement() {
@@ -279,7 +312,7 @@ public class Parser {
     }
   }
 
-  /** Block -> { BlockStatement* } */
+  /** block -> { BlockStatement* } */
   private Block parseBlock() {
     List<BlockStatement> blockStatements = new ArrayList<>();
     SourcePosition begin = expectAndConsume(LBRACE).range().begin;

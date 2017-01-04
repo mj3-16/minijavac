@@ -2,7 +2,6 @@ package minijava.ir;
 
 import static minijava.ir.Types.*;
 
-import com.google.common.io.Files;
 import com.sun.jna.Pointer;
 import firm.*;
 import firm.Program;
@@ -11,16 +10,14 @@ import firm.bindings.binding_ircons;
 import firm.bindings.binding_lowering;
 import firm.nodes.*;
 import firm.nodes.Block;
-import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.*;
 import java.util.function.BiFunction;
+import minijava.Cli;
 import minijava.ast.*;
 import minijava.ast.Class;
+import minijava.ir.utils.CompileUtils;
 import minijava.util.SourceRange;
-import org.apache.commons.io.FileUtils;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jooq.lambda.function.Function4;
 
@@ -44,7 +41,7 @@ public class IREmitter
    * assigned index. Which is a firm thing.
    */
   private final IdentityHashMap<LocalVariable, Integer> localVarIndexes = new IdentityHashMap<>();
-  /** The Basic Block graph of the current function. */
+  /** The Basic block graph of the current function. */
   private Graph graph;
   /**
    * Construction is a firm Node factory that makes sure that we don't duplicate expressions, thus
@@ -70,6 +67,9 @@ public class IREmitter
   }
 
   private void emitBody(Method m) {
+    if (m.isNative) {
+      return;
+    }
     // graph and construction are irrelevant to anything before or after.
     // It's more like 2 additional parameters to the visitor.
 
@@ -86,8 +86,9 @@ public class IREmitter
     m.body.acceptVisitor(this);
 
     finishGraphAndHandleFallThrough(m);
-
-    Dump.dumpGraph(graph, "after-construction");
+    if (Cli.shouldPrintGraphs()) {
+      Dump.dumpGraph(graph, "--after-construction");
+    }
     graph.check();
   }
 
@@ -143,11 +144,9 @@ public class IREmitter
         Node ret = construction.newReturn(construction.getCurrentMem(), new Node[0]);
         construction.setUnreachable();
         graph.getEndBlock().addPred(ret);
-      } else {
-        // We can't just conjure a return value of arbitrary type.
-        // This must be caught by the semantic pass.
-        assert false;
       }
+      // we don't have to handle the other case
+      // as the semantic linter already took care
     }
 
     construction.setCurrentBlock(graph.getEndBlock());
@@ -464,8 +463,19 @@ public class IREmitter
 
   @Override
   public Node visitMethodCall(Expression.MethodCall that) {
-    if (that.self.type == minijava.ast.Type.SYSTEM_OUT && that.method.name().equals("println")) {
-      return visitSystemOutPrintln(that.arguments.get(0));
+    if (that.self.type == minijava.ast.Type.SYSTEM_OUT) {
+      if (that.method.name().equals("println")) {
+        return callFunction(PRINT_INT, new Node[] {that.arguments.get(0).acceptVisitor(this)});
+      }
+      if (that.method.name().equals("write")) {
+        return callFunction(WRITE_INT, new Node[] {that.arguments.get(0).acceptVisitor(this)});
+      } else if (that.method.name().equals("flush")) {
+        return callFunction(FLUSH, new Node[] {});
+      }
+    } else if (that.self.type == minijava.ast.Type.SYSTEM_IN) {
+      if (that.method.name.equals("read")) {
+        return unpackCallResult(callFunction(READ_INT, new Node[] {}), INT_TYPE.getMode());
+      }
     }
 
     Entity method = methods.get(that.method.def);
@@ -505,10 +515,6 @@ public class IREmitter
     Node resultTuple = construction.newProj(call, Mode.getT(), Call.pnTResult);
     // at index 0 this tuple contains the result
     return convBuTob(construction.newProj(resultTuple, mode, 0));
-  }
-
-  private Node visitSystemOutPrintln(Expression argument) {
-    return callFunction(PRINT_INT, new Node[] {argument.acceptVisitor(this)});
   }
 
   @Override
@@ -612,8 +618,8 @@ public class IREmitter
   /** Converts a node of mode Bu to one of mode b, by val > 0. */
   private Node convBuTob(Node expression) {
     if (expression.getMode().equals(Mode.getBu())) {
-      Node zero = construction.newConst(0, Mode.getBu());
-      return construction.newCmp(expression, zero, Relation.Greater);
+      Node one = construction.newConst(1, Mode.getBu());
+      return construction.newCmp(expression, one, Relation.Equal);
     }
     return expression;
   }
@@ -707,64 +713,20 @@ public class IREmitter
     }
   }
 
-  private static void assemble(String outFile) throws IOException {
-    /* based on BrainFuck.main */
-    /* dump all firm graphs to disk */
-    for (Graph g : Program.getGraphs()) {
-      g.check();
-      Dump.dumpGraph(g, "finished");
-    }
+  public static void compile(String outFile, boolean produceDebuggableBinary) throws IOException {
     /* use the amd64 backend */
     Backend.option("isa=amd64");
     /* transform to x86 assembler */
-    Backend.createAssembler(String.format("%s.s", outFile), "<builtin>");
+    String outAsmFile = String.format("%s.s", outFile);
+    Backend.createAssembler(outAsmFile, "<builtin>");
     /* assembler */
 
-    File runtime = getRuntimeFile();
-
-    boolean useGC =
-        System.getenv().containsKey("MJ_USE_GC") && System.getenv("MJ_USE_GC").equals("1");
-
-    String gcApp = "";
-    if (useGC) {
-      gcApp = " -DUSE_GC -lgc ";
-    }
-    String cmd =
-        String.format("gcc %s %s.s -o %s %s", runtime.getAbsolutePath(), outFile, outFile, gcApp);
-    Process p = Runtime.getRuntime().exec(cmd);
-    int c;
-    while ((c = p.getErrorStream().read()) != -1) {
-      System.out.print(Character.toString((char) c));
-    }
-    int res = -1;
-    try {
-      res = p.waitFor();
-    } catch (Throwable t) {
-    }
-    if (res != 0) {
-      System.err.println("Warning: Linking step failed");
-      System.exit(1);
-    }
+    CompileUtils.compileAssemblerFile(outAsmFile, outFile, produceDebuggableBinary);
   }
 
-  @NotNull
-  private static File getRuntimeFile() throws IOException {
-    File runtime = new File(Files.createTempDir(), "mj_runtime.c");
-    runtime.deleteOnExit();
-    InputStream s = ClassLoader.getSystemResourceAsStream("mj_runtime.c");
-    if (s == null) {
-      throw new RuntimeException("");
-    }
-    FileUtils.copyInputStreamToFile(s, runtime);
-    return runtime;
-  }
-
-  public static void compile(String outFile) throws IOException {
-    assemble(outFile);
-  }
-
-  public static void compileAndRun(String outFile) throws IOException {
-    compile(outFile);
+  public static void compileAndRun(String outFile, boolean produceDebuggableBinary)
+      throws IOException {
+    compile(outFile, produceDebuggableBinary);
     Process p = Runtime.getRuntime().exec("./" + outFile);
     int c;
     while ((c = p.getInputStream().read()) != -1) {

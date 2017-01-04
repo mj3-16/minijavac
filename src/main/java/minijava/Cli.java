@@ -8,17 +8,17 @@ import com.beust.jcommander.ParameterException;
 import com.google.common.base.Joiner;
 import com.google.common.io.ByteStreams;
 import com.google.common.primitives.Booleans;
+import firm.Dump;
 import firm.Graph;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.PrintStream;
+import java.io.*;
 import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.List;
 import minijava.ast.Program;
 import minijava.ir.IREmitter;
+import minijava.ir.assembler.block.AssemblerFile;
 import minijava.ir.optimize.*;
+import minijava.ir.utils.CompileUtils;
 import minijava.lexer.Lexer;
 import minijava.parser.Parser;
 import minijava.semantic.SemanticAnalyzer;
@@ -26,13 +26,13 @@ import minijava.semantic.SemanticLinter;
 import minijava.token.Token;
 import minijava.util.PrettyPrinter;
 
-class Cli {
+public class Cli {
 
   static final String usage =
       Joiner.on(System.lineSeparator())
           .join(
               new String[] {
-                "Usage: minijavac [--echo|--lextest|--parsetest|--check|--compile] [--help] file",
+                "Usage: minijavac [--echo|--lextest|--parsetest|--check|--compile-firm|--print-asm] [--help] file",
                 "",
                 "  --echo          write file's content to stdout",
                 "  --lextest       run lexical analysis on file's content and print tokens to stdout",
@@ -41,9 +41,10 @@ class Cli {
                 "  --check         parse the given file and perform semantic checks",
                 "  --compile-firm  compile the given file with the libfirm amd64 backend",
                 "  --run-firm      compile and run the given file with libfirm amd64 backend",
+                "  --print-asm     compile the given file and output the generated assembly",
                 "  --help          display this help and exit",
                 "",
-                "  One (and only one) of --echo, --lextest, --parsetest or --print-ast is required.",
+                "  If no flag is given, the passed file is compiled to a.out",
                 " Set the environment variable MJ_USE_GC to \"1\" to use the bdwgc."
               });
 
@@ -60,6 +61,7 @@ class Cli {
   int run(String... args) {
     Parameters params = Parameters.parse(args);
     if (!params.valid()) {
+      err.println("Called as: " + String.join(" ", args));
       err.println(usage);
       return 1;
     }
@@ -79,10 +81,14 @@ class Cli {
         printAst(in);
       } else if (params.check) {
         check(in);
-      } else if (params.compile_firm) {
+      } else if (params.compileFirm) {
         compileFirm(in);
-      } else if (params.run_firm) {
-        runFirm(in, path.toString());
+      } else if (params.runFirm) {
+        runFirm(in);
+      } else if (params.printAsm) {
+        printAsm(in);
+      } else {
+        compile(in);
       }
     } catch (AccessDeniedException e) {
       err.println("error: access to file '" + path + "' was denied");
@@ -140,7 +146,8 @@ class Cli {
     if (!optimizationsTurnedOff()) {
       optimize();
     }
-    IREmitter.compile("a.out");
+    outputGraphsIfNeeded("--finished");
+    IREmitter.compile("a.out", shouldProduceDebuggableBinary());
   }
 
   private boolean optimizationsTurnedOff() {
@@ -148,7 +155,26 @@ class Cli {
     return value != null && value.equals("0");
   }
 
+  public static boolean shouldPrintGraphs() {
+    String value = System.getenv("MJ_GRAPH");
+    return value != null && value.equals("1");
+  }
+
+  private boolean shouldProduceDebuggableBinary() {
+    String value = System.getenv("MJ_DBG");
+    return value != null && value.equals("1");
+  }
+
+  private void outputGraphsIfNeeded(String appendix) {
+    if (shouldPrintGraphs()) {
+      for (Graph g : firm.Program.getGraphs()) {
+        Dump.dumpGraph(g, appendix);
+      }
+    }
+  }
+
   private void optimize() {
+    outputGraphsIfNeeded("--before-optimizations");
     Optimizer constantFolder = new ConstantFolder();
     Optimizer controlFlowOptimizer = new ConstantControlFlowOptimizer();
     Optimizer unreachableCodeRemover = new UnreachableCodeRemover();
@@ -164,13 +190,42 @@ class Cli {
       while (controlFlowOptimizer.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
       while (phiBElimination.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
     }
+    outputGraphsIfNeeded("--after-optimizations");
   }
 
-  private void runFirm(InputStream in, String filename) throws IOException {
+  private void runFirm(InputStream in) throws IOException {
     Program ast = new Parser(new Lexer(in)).parse();
     ast.acceptVisitor(new SemanticAnalyzer());
     ast.acceptVisitor(new IREmitter());
-    IREmitter.compileAndRun("a.out");
+    outputGraphsIfNeeded("--finished");
+    IREmitter.compileAndRun("a.out", shouldProduceDebuggableBinary());
+  }
+
+  private void printAsm(InputStream in) throws IOException {
+    printAsm(in, out);
+  }
+
+  private void printAsm(InputStream in, PrintStream out) throws IOException {
+    Program ast = new Parser(new Lexer(in)).parse();
+    ast.acceptVisitor(new SemanticAnalyzer());
+    ast.acceptVisitor(new SemanticLinter());
+    ast.acceptVisitor(new IREmitter());
+    if (!optimizationsTurnedOff()) {
+      optimize();
+    }
+    outputGraphsIfNeeded("--finished");
+    AssemblerFile file = AssemblerFile.createForGraphs(firm.Program.getGraphs());
+    if (System.getenv().containsKey("MJ_FILENAME")) {
+      file.setFileName(System.getenv("MJ_FILENAME"));
+    }
+    out.println(file.toGNUAssembler());
+  }
+
+  private void compile(InputStream in) throws IOException {
+    File file = new File("a.out.s");
+    file.createNewFile();
+    printAsm(in, new PrintStream(new FileOutputStream(file)));
+    CompileUtils.compileAssemblerFile("a.out.s", "a.out", shouldProduceDebuggableBinary());
   }
 
   private static class Parameters {
@@ -196,13 +251,17 @@ class Cli {
     @Parameter(names = "--check")
     boolean check;
 
-    /** True if the --compile option was set */
+    /** True if the --compile-firm option was set */
     @Parameter(names = "--compile-firm")
-    boolean compile_firm;
+    boolean compileFirm;
 
-    /** True if the --run option was set */
+    /** True if the --run-firm option was set */
     @Parameter(names = "--run-firm")
-    boolean run_firm;
+    boolean runFirm;
+
+    /** True if the --print-asm option was set */
+    @Parameter(names = "--print-asm")
+    boolean printAsm;
 
     /** True if the --help option was set */
     @Parameter(names = "--help")
@@ -223,8 +282,8 @@ class Cli {
       return !invalid
           && (help
               || ((Booleans.countTrue(
-                          echo, lextest, parsetest, printAst, check, compile_firm, run_firm)
-                      == 1)
+                          echo, lextest, parsetest, printAst, check, compileFirm, runFirm, printAsm)
+                      <= 1)
                   && (file != null)));
     }
 

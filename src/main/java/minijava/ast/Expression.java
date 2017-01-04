@@ -205,6 +205,12 @@ public abstract class Expression extends Node {
       return ret;
     }
 
+    public static ReferenceTypeLiteral systemIn(SourceRange range) {
+      ReferenceTypeLiteral ret = new ReferenceTypeLiteral("System.in", range);
+      ret.type = Type.SYSTEM_IN;
+      return ret;
+    }
+
     @Override
     public <T> T acceptVisitor(Expression.Visitor<T> visitor) {
       return visitor.visitReferenceTypeLiteral(this);

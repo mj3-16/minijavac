@@ -3,15 +3,21 @@ package minijava.ir;
 import firm.*;
 import org.jetbrains.annotations.NotNull;
 
-class Types {
+public class Types {
 
-  static final Type INT_TYPE;
-  static final Type BOOLEAN_TYPE;
-  static final Type PTR_TYPE;
-  static final MethodType CALLOC_TYPE;
-  static final Entity CALLOC;
-  static final MethodType PRINT_INT_TYPE;
-  static final Entity PRINT_INT;
+  public static final Type INT_TYPE;
+  public static final Type BOOLEAN_TYPE;
+  public static final Type PTR_TYPE;
+  public static final MethodType CALLOC_TYPE;
+  public static final Entity CALLOC;
+  public static final MethodType PRINT_INT_TYPE;
+  public static final Entity PRINT_INT;
+  public static final MethodType WRITE_INT_TYPE;
+  public static final Entity WRITE_INT;
+  public static final MethodType FLUSH_TYPE;
+  public static final Entity FLUSH;
+  public static final MethodType READ_INT_TYPE;
+  public static final Entity READ_INT;
 
   static {
     // If we consistently call InitFirm.init() throughout our code, we guarantee that
@@ -31,6 +37,17 @@ class Types {
     PRINT_INT =
         new Entity(
             Program.getGlobalType(), NameMangler.mangledPrintIntMethodName(), Types.PRINT_INT_TYPE);
+    WRITE_INT_TYPE = new MethodType(new Type[] {Types.INT_TYPE}, new Type[] {});
+    WRITE_INT =
+        new Entity(
+            Program.getGlobalType(), NameMangler.mangledWriteIntMethodName(), Types.WRITE_INT_TYPE);
+    FLUSH_TYPE = new MethodType(new Type[] {}, new Type[] {});
+    FLUSH =
+        new Entity(Program.getGlobalType(), NameMangler.mangledFlushMethodName(), Types.FLUSH_TYPE);
+    READ_INT_TYPE = new MethodType(new Type[] {}, new Type[] {Types.INT_TYPE});
+    READ_INT =
+        new Entity(
+            Program.getGlobalType(), NameMangler.mangledReadIntMethodName(), Types.READ_INT_TYPE);
   }
 
   /**
