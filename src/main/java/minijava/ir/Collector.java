@@ -52,7 +52,7 @@ class Collector implements Program.Visitor<Void> {
   }
 
   private Entity createEntity(Field f) {
-    Type type = getStorageType(f.type);
+    Type type = storageType(f.type);
     ClassType definingClass = classTypes.get(f.definingClass.def);
     Entity fieldEnt = new Entity(definingClass, f.name(), type);
     fieldEnt.setLdIdent(NameMangler.mangleInstanceFieldName(definingClass.getName(), f.name()));
@@ -74,13 +74,13 @@ class Collector implements Program.Visitor<Void> {
     parameterTypes.add(ptrTo(definingClass));
     for (LocalVariable p : m.parameters) {
       // In the body, we need to refer to local variables by index, so we save that mapping.
-      parameterTypes.add(getStorageType(p.type));
+      parameterTypes.add(storageType(p.type));
     }
 
     // The visitor returns null if that.returnType was void.
     Type[] returnTypes = {};
     if (!m.returnType.equals(minijava.ast.Type.VOID)) {
-      returnTypes = new Type[] {getStorageType(m.returnType)};
+      returnTypes = new Type[] {storageType(m.returnType)};
     }
 
     Type methodType = new MethodType(parameterTypes.toArray(new Type[0]), returnTypes);

@@ -27,8 +27,6 @@ import org.jooq.lambda.function.Function4;
 /** Emits an intermediate representation for a given minijava Program. */
 public class IREmitter
     implements minijava.ast.Program.Visitor<Void>,
-        minijava.ast.Type.Visitor<Type>,
-        minijava.ast.BasicType.Visitor<Type>,
         minijava.ast.Block.Visitor<Void>,
         Expression.Visitor<Node>,
         BlockStatement.Visitor<Void> {
@@ -37,8 +35,6 @@ public class IREmitter
   private final IdentityHashMap<Method, Entity> methods = new IdentityHashMap<>();
   private final IdentityHashMap<Field, Entity> fields = new IdentityHashMap<>();
 
-  /** Reference to the method currently under construction. Fields below are reset per method. */
-  private Method currentMethod;
   /**
    * Maps local variable definitions such as parameters and local variable definitions to their
    * assigned index. Which is a firm thing.
@@ -73,7 +69,6 @@ public class IREmitter
     // graph and construction are irrelevant to anything before or after.
     // It's more like 2 additional parameters to the visitor.
 
-    currentMethod = m;
     graph = constructEmptyGraphFromPrototype(m);
     construction = new Construction(graph);
 
@@ -121,7 +116,7 @@ public class IREmitter
     // We rely on this when accessing this.
     assert thisIdx == 0;
     construction.setVariable(
-        thisIdx, construction.newProj(args, storageModeForType(fakeThisType), thisIdx));
+        thisIdx, construction.newProj(args, storageType(fakeThisType).getMode(), thisIdx));
 
     for (LocalVariable p : that.parameters) {
       // we just made this connection in the loop above
@@ -129,7 +124,7 @@ public class IREmitter
       // Also note that we are never trying to access this or the
       int idx = getLocalVarIndex(p);
       // Where is this documented anyway? SimpleIf seems to be the only reference...
-      Node param = construction.newProj(args, storageModeForType(p.type), idx);
+      Node param = construction.newProj(args, storageType(p.type).getMode(), idx);
       construction.setVariable(idx, param);
     }
   }
@@ -152,50 +147,6 @@ public class IREmitter
 
     construction.setCurrentBlock(graph.getEndBlock());
     construction.finish();
-  }
-
-  @Override
-  public Type visitType(minijava.ast.Type that) {
-    Type type = that.basicType.def.acceptVisitor(this);
-    if (type == null) {
-      // e.g. void
-      return null;
-    }
-    for (int i = 0; i < that.dimension; i++) {
-      // We don't know the array statically, so just pass 0
-      // of the number of elements (which is allowed according
-      // to the docs)
-      // TODO shouldn't we reuse types for arrays as well?
-      type = new PointerType(new ArrayType(type, 0));
-    }
-    return type;
-  }
-
-  @Override
-  public Type visitVoid(BuiltinType that) {
-    return null;
-  }
-
-  @Override
-  public Type visitInt(BuiltinType that) {
-    return INT_TYPE;
-  }
-
-  @Override
-  public Type visitBoolean(BuiltinType that) {
-    return BOOLEAN_TYPE;
-  }
-
-  @Override
-  public Type visitAny(BuiltinType that) {
-    // TODO... not sure how to handle this
-    assert false;
-    return null;
-  }
-
-  @Override
-  public Type visitClass(Class that) {
-    return classTypes.get(that);
   }
 
   @Override
@@ -448,7 +399,7 @@ public class IREmitter
     if (that.op == Expression.UnOp.NEGATE && that.expression instanceof Expression.IntegerLiteral) {
       // treat this case special in case the integer literal is 2147483648 (doesn't fit in int)
       int lit = Integer.parseInt("-" + ((Expression.IntegerLiteral) that.expression).literal);
-      return construction.newConst(lit, storageModeForType(minijava.ast.Type.INT));
+      return construction.newConst(lit, storageType(minijava.ast.Type.INT).getMode());
     }
     Node expression = that.expression.acceptVisitor(this);
     // This can never produce an lval (an assignable expression)
@@ -482,7 +433,7 @@ public class IREmitter
     Node call = callFunction(method, args.toArray(new Node[0]));
     minijava.ast.Type returnType = that.method.def.returnType;
     if (!returnType.equals(minijava.ast.Type.VOID)) {
-      return unpackCallResult(call, storageModeForType(returnType));
+      return unpackCallResult(call, storageType(returnType).getMode());
     }
     return call;
   }
@@ -518,7 +469,7 @@ public class IREmitter
 
     // We store val at the absOffset
 
-    return load(absOffset, storageModeForType(that.type));
+    return load(absOffset, storageType(that.type).getMode());
   }
 
   private Node calculateOffsetForAccess(Expression.FieldAccess that) {
@@ -534,13 +485,13 @@ public class IREmitter
     // We store val at the absOffset
 
     // Now just dereference the computed offset
-    return load(address, storageModeForType(that.type));
+    return load(address, storageType(that.type).getMode());
   }
 
   private Node calculateOffsetOfAccess(Expression.ArrayAccess that) {
     Node array = that.array.acceptVisitor(this);
     Node index = that.index.acceptVisitor(this);
-    return construction.newSel(array, index, new ArrayType(visitType(that.type), 0));
+    return construction.newSel(array, index, new ArrayType(storageType(that.type), 0));
   }
 
   private Node store(Node address, Node value) {
@@ -557,7 +508,7 @@ public class IREmitter
 
   @Override
   public Node visitNewObject(Expression.NewObject that) {
-    Type type = visitType(that.type);
+    Type type = classTypes.get(that.type.basicType.def); // Only class types can be new allocated
     Node num = construction.newConst(1, Mode.getP());
     Node size = construction.newSize(Mode.getIs(), type);
     return calloc(num, size);
@@ -571,7 +522,7 @@ public class IREmitter
     // because this will do the wrong thing for classes, namely returning the size of the
     // class. But in the class case we rather want to allocate an array of references.
     // The access mode is really what we want to query here.
-    Type elementType = getStorageType(that.elementType);
+    Type elementType = storageType(that.elementType);
     Node size = construction.newSize(Mode.getIs(), elementType);
     return calloc(num, size);
   }
@@ -590,7 +541,7 @@ public class IREmitter
 
   @Override
   public Node visitVariable(Expression.Variable that) {
-    Mode mode = storageModeForType(that.type);
+    Mode mode = storageType(that.type).getMode();
     // This will allocate a new index if necessary.
     int idx = getLocalVarIndex(that.var.def);
     return convBuTob(construction.getVariable(idx, mode));
@@ -627,7 +578,7 @@ public class IREmitter
   public Node visitIntegerLiteral(Expression.IntegerLiteral that) {
     // We handled the 0x80000000 case while visiting the unary minus
     int lit = Integer.parseInt(that.literal);
-    return construction.newConst(lit, storageModeForType(minijava.ast.Type.INT));
+    return construction.newConst(lit, storageType(minijava.ast.Type.INT).getMode());
   }
 
   @Override

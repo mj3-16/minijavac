@@ -1,7 +1,10 @@
 package minijava.ir;
 
 import firm.*;
-import org.jetbrains.annotations.NotNull;
+import firm.Program;
+import firm.Type;
+import minijava.ast.*;
+import minijava.ast.Class;
 
 class Types {
 
@@ -34,30 +37,60 @@ class Types {
   }
 
   /**
-   * Returns the primitive type in which to store type @type@. Consider a @boolean b;@ declaration,
-   * that should have PrimitiveType(Mode.getBu());, wheras @A a;@ for a reference type @A@ should
-   * return the type of the reference, e.g. a pointer @new PrimitiveType(Mode.getP());@
+   * Returns the type in which to store AST type @type@. Consider a @boolean b;@ declaration, that
+   * should have BOOLEAN_TYPE, whereas @A a;@ for a reference type @A@ should return the type of the
+   * reference, e.g. a pointer @new PointerType(actualClassType)@
    *
    * <p>So, for value types just return their value, for reference types return a pointer.
    */
-  @NotNull
-  static PrimitiveType getStorageType(minijava.ast.Type type) {
-    // TODO shouldn't we reuse these types?
-    return new PrimitiveType(storageModeForType(type));
+  static Type storageType(minijava.ast.Type type) {
+    return type.acceptVisitor(new StorageTypeVisitor());
   }
 
-  static Mode storageModeForType(minijava.ast.Type type) {
-    if (type.dimension > 0) {
-      return Mode.getP();
+  private static class StorageTypeVisitor
+      implements minijava.ast.Type.Visitor<Type>, minijava.ast.BasicType.Visitor<Type> {
+
+    @Override
+    public Type visitType(minijava.ast.Type that) {
+      Type type = that.basicType.def.acceptVisitor(this);
+      if (type == null) {
+        // e.g. void
+        return null;
+      }
+      for (int i = 0; i < that.dimension; i++) {
+        // We don't know the array statically, so just pass 0
+        // of the number of elements (which is allowed according
+        // to the docs)
+        type = new PointerType(new ArrayType(type, 0));
+      }
+      return type;
     }
 
-    switch (type.basicType.name()) {
-      case "int":
-        return Mode.getIs();
-      case "boolean":
-        return Mode.getBu();
-      default:
-        return Mode.getP();
+    @Override
+    public Type visitVoid(BuiltinType that) {
+      return null;
+    }
+
+    @Override
+    public Type visitInt(BuiltinType that) {
+      return INT_TYPE;
+    }
+
+    @Override
+    public Type visitBoolean(BuiltinType that) {
+      return BOOLEAN_TYPE;
+    }
+
+    @Override
+    public Type visitAny(BuiltinType that) {
+      assert false;
+      return null;
+    }
+
+    @Override
+    public Type visitClass(Class that) {
+      // The actual firm.ClassType is irrelevant for storing references to it.
+      return new PrimitiveType(Mode.getP());
     }
   }
 }
