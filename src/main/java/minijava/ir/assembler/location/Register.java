@@ -29,6 +29,8 @@ public class Register extends Location {
   public static final Register EAX;
   public static final Register EBX;
   public static final Register EDX;
+  public static final Register RAX;
+  public static final Register RBX;
   public static final Register RDI;
   public static final Register RSI;
 
@@ -64,6 +66,8 @@ public class Register extends Location {
     EDX = get("edx");
     RDI = get("rdi");
     RSI = get("rsi");
+    RAX = get("rax");
+    RBX = get("rbx");
     methodArgumentQuadRegisters =
         ImmutableList.of(get("rdi"), get("rsi"), get("rdx"), get("rcx"), get("r8"), get("r9"));
   }

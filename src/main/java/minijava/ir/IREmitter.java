@@ -618,8 +618,8 @@ public class IREmitter
   /** Converts a node of mode Bu to one of mode b, by val > 0. */
   private Node convBuTob(Node expression) {
     if (expression.getMode().equals(Mode.getBu())) {
-      Node zero = construction.newConst(0, Mode.getBu());
-      return construction.newCmp(expression, zero, Relation.Greater);
+      Node one = construction.newConst(1, Mode.getBu());
+      return construction.newCmp(expression, one, Relation.Equal);
     }
     return expression;
   }

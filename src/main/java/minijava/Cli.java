@@ -144,7 +144,6 @@ public class Cli {
     ast.acceptVisitor(new SemanticLinter());
     ast.acceptVisitor(new IREmitter());
     if (!optimizationsTurnedOff()) {
-      outputGraphsIfNeeded("");
       optimize();
     }
     outputGraphsIfNeeded("--finished");
@@ -175,6 +174,7 @@ public class Cli {
   }
 
   private void optimize() {
+    outputGraphsIfNeeded("--before-optimizations");
     Optimizer constantFolder = new ConstantFolder();
     Optimizer controlFlowOptimizer = new ConstantControlFlowOptimizer();
     Optimizer unreachableCodeRemover = new UnreachableCodeRemover();
@@ -190,6 +190,7 @@ public class Cli {
       while (controlFlowOptimizer.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
       while (phiBElimination.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
     }
+    outputGraphsIfNeeded("--after-optimizations");
   }
 
   private void runFirm(InputStream in) throws IOException {
@@ -210,7 +211,6 @@ public class Cli {
     ast.acceptVisitor(new SemanticLinter());
     ast.acceptVisitor(new IREmitter());
     if (!optimizationsTurnedOff()) {
-      outputGraphsIfNeeded("");
       optimize();
     }
     outputGraphsIfNeeded("--finished");

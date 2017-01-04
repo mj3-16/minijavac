@@ -361,27 +361,34 @@ public class AssemblerGenerator extends NodeVisitor.Default {
           Argument left = args.get(0);
           Argument right = args.get(1);
 
+          Register aReg = Register.EAX;
+          Register bReg = Register.EBX;
+          if (hasCmpBooleanArguments(cmp)) {
+            aReg = Register.getByteVersion(aReg);
+            bReg = Register.getByteVersion(bReg);
+          }
+
           if (right instanceof ConstArgument) {
             // dirty hack as the cmp instruction doesn't allow constants as a right argument
             Location newRight;
             if (left == Register.EAX) {
-              newRight = Register.EBX;
+              newRight = bReg;
             } else {
-              newRight = Register.EAX;
+              newRight = aReg;
             }
             predCodeBlock.addToCmpOrJmpSupportInstructions(new Mov(right, newRight));
             right = newRight;
           } else if (left instanceof RegRelativeLocation && right instanceof RegRelativeLocation) {
             // use dirty hack to prevent cmp instructions with too many memory locations
             // store the left argument in the EAX register
-            predCodeBlock.addToCmpOrJmpSupportInstructions(new Mov(left, Register.EAX));
-            left = Register.EAX;
+            predCodeBlock.addToCmpOrJmpSupportInstructions(new Mov(left, aReg));
+            left = aReg;
           }
 
           // dirty hack: store the left argument in a register too
           // why? nobody knows. it's amd64 assembler…
-          predCodeBlock.addToCmpOrJmpSupportInstructions(new Mov(left, Register.EBX));
-          left = Register.EBX;
+          predCodeBlock.addToCmpOrJmpSupportInstructions(new Mov(left, bReg));
+          left = bReg;
 
           // add a compare instruction that compares both arguments
           // we have to swap the arguments of the cmp instruction
@@ -481,6 +488,11 @@ public class AssemblerGenerator extends NodeVisitor.Default {
         predCodeBlock.setDefaultUnconditionalJump((Jmp) new Jmp(codeBlock).firm(pred));
       }
     }
+  }
+
+  private boolean hasCmpBooleanArguments(firm.nodes.Cmp cmp) {
+    return cmp.getRight().getMode().equals(Types.BOOLEAN_TYPE.getMode())
+        || cmp.getLeft().getMode().equals(Types.BOOLEAN_TYPE.getMode());
   }
 
   @Override
@@ -584,6 +596,9 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     CodeBlock block = getCodeBlockForNode(node);
     Register intermediateValReg = Register.EAX;
     Register intermediateDestReg = Register.EBX;
+    if (node.getValue().getMode().equals(Types.BOOLEAN_TYPE.getMode())) {
+      intermediateValReg = Register.getByteVersion(intermediateValReg);
+    }
     Argument dest = allocator.getAsArgument(node.getPtr());
     Argument newValue = allocator.getAsArgument(node.getValue());
     // copy the new value into a register
