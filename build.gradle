@@ -18,7 +18,7 @@ repositories {
 
 googleJavaFormat {
     toolVersion '1.1'
-    include 'src'
+    source = sourceSets*.allJava
 }
 
 project(':jFirm') {
