@@ -1,10 +1,13 @@
 package minijava.ir.utils;
 
+import firm.Mode;
+import firm.Relation;
 import firm.nodes.Address;
 import firm.nodes.Block;
 import firm.nodes.Node;
 import firm.nodes.Phi;
 import java.util.*;
+import minijava.ir.assembler.location.Register;
 
 public class FirmUtils {
 
@@ -33,5 +36,37 @@ public class FirmUtils {
       }
     }
     return false;
+  }
+
+  public static Register.Width modeToWidth(Mode mode) {
+    switch (mode.getSizeBytes()) {
+      case 1:
+        return Register.Width.Byte;
+      case 4:
+        return Register.Width.Long;
+      case 8:
+        return Register.Width.Quad;
+    }
+    if (mode.isReference()) {
+      return Register.Width.Quad;
+    }
+    throw new RuntimeException();
+  }
+
+  public static String relationToInstructionSuffix(Relation relation) {
+    switch (relation) {
+      case Greater:
+        return "g";
+      case GreaterEqual:
+        return "ge";
+      case Less:
+        return "l";
+      case LessEqual:
+        return "le";
+      case Equal:
+        return "e";
+      default:
+        throw new RuntimeException();
+    }
   }
 }

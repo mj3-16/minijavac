@@ -1,9 +1,7 @@
 package minijava.ir.assembler.location;
 
 import com.google.common.collect.ImmutableList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /** Location in a register */
 public class Register extends Location {
@@ -36,6 +34,7 @@ public class Register extends Location {
 
   private static final Map<String, Register> registerMap = new HashMap<>();
   public static final List<Register> methodArgumentQuadRegisters;
+  public static final List<Register> usableRegisters;
   private static final String[][] byteLongAndQuadNames =
       new String[][] {
         {"al", "eax", "rax"},
@@ -70,10 +69,21 @@ public class Register extends Location {
     RBX = get("rbx");
     methodArgumentQuadRegisters =
         ImmutableList.of(get("rdi"), get("rsi"), get("rdx"), get("rcx"), get("r8"), get("r9"));
+    List<Register> regs = new ArrayList<>();
+    for (String[] byteLongAndQuadName : byteLongAndQuadNames) {
+      String quad = byteLongAndQuadName[2];
+      if (!quad.equals("rbp") && !quad.equals("rsp")) {
+        regs.add(get(quad));
+      }
+    }
+    usableRegisters = Collections.unmodifiableList(regs);
   }
 
   public final String registerName;
   public final Width width;
+  private Register byteVersion;
+  private Register longVersion;
+  private Register quadVersion;
 
   private Register(String registerName, Width width) {
     this.registerName = registerName;
@@ -143,5 +153,26 @@ public class Register extends Location {
   @Override
   public int hashCode() {
     return registerName.hashCode();
+  }
+
+  public Register longVersion() {
+    if (longVersion == null) {
+      longVersion = getLongVersion(this);
+    }
+    return longVersion;
+  }
+
+  public Register byteVersion() {
+    if (byteVersion == null) {
+      byteVersion = getByteVersion(this);
+    }
+    return byteVersion;
+  }
+
+  public Register quadVersion() {
+    if (quadVersion == null) {
+      quadVersion = getQuadVersion(this);
+    }
+    return quadVersion;
   }
 }
