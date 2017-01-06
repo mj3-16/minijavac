@@ -181,14 +181,28 @@ public class Cli {
     Optimizer algebraicSimplifier = new AlgebraicSimplifier();
     Optimizer phiOptimizer = new PhiOptimizer();
     Optimizer phiBElimination = new PhiBElimination();
-    for (Graph graph : firm.Program.getGraphs()) {
-      //Dump.dumpGraph(graph, "before-simplification");
-      while (constantFolder.optimize(graph)
-          | algebraicSimplifier.optimize(graph)
-          | phiOptimizer.optimize(graph)) ;
-      //Dump.dumpGraph(graph, "before-control-flow-optimizations");
-      while (controlFlowOptimizer.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
-      while (phiBElimination.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
+    while (true) {
+      for (Graph graph : firm.Program.getGraphs()) {
+        //Dump.dumpGraph(graph, "before-simplification");
+        while (constantFolder.optimize(graph)
+            | algebraicSimplifier.optimize(graph)
+            | phiOptimizer.optimize(graph)) ;
+        //Dump.dumpGraph(graph, "before-control-flow-optimizations");
+        while (controlFlowOptimizer.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
+        while (phiBElimination.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
+      }
+
+      // Here comes the interprocedural stuff... This is method is really turning into a mess
+      ProgramMetrics metrics = ProgramMetrics.analyse(firm.Program.getGraphs());
+      Optimizer inliner = new Inliner(metrics);
+      boolean hasChanged = false;
+      for (Graph graph : firm.Program.getGraphs()) {
+        hasChanged |= inliner.optimize(graph);
+        unreachableCodeRemover.optimize(graph);
+      }
+      if (!hasChanged) {
+        break;
+      }
     }
     outputGraphsIfNeeded("--after-optimizations");
   }

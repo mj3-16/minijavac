@@ -1,10 +1,15 @@
 package minijava.ir.utils;
 
+import firm.BackEdges;
+import firm.Graph;
 import firm.nodes.Address;
 import firm.nodes.Block;
 import firm.nodes.Node;
 import firm.nodes.Phi;
-import java.util.*;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.Stack;
+import java.util.function.Supplier;
 
 public class FirmUtils {
 
@@ -33,5 +38,61 @@ public class FirmUtils {
       }
     }
     return false;
+  }
+
+  public static <T> T withBackEdges(Graph graph, Supplier<T> body) {
+    boolean responsible = !BackEdges.enabled(graph);
+    if (responsible) {
+      BackEdges.enable(graph);
+    }
+    try {
+      return body.get();
+    } finally {
+      if (responsible) {
+        BackEdges.disable(graph);
+      }
+    }
+  }
+
+  public static void withBackEdges(Graph graph, Runnable body) {
+    boolean responsible = !BackEdges.enabled(graph);
+    if (responsible) {
+      BackEdges.enable(graph);
+    }
+    try {
+      body.run();
+    } finally {
+      if (responsible) {
+        BackEdges.disable(graph);
+      }
+    }
+  }
+
+  public static <T> T withoutBackEdges(Graph graph, Supplier<T> body) {
+    boolean responsible = BackEdges.enabled(graph);
+    if (responsible) {
+      BackEdges.disable(graph);
+    }
+    try {
+      return body.get();
+    } finally {
+      if (responsible) {
+        BackEdges.enable(graph);
+      }
+    }
+  }
+
+  public static void withoutBackEdges(Graph graph, Runnable body) {
+    boolean responsible = BackEdges.enabled(graph);
+    if (responsible) {
+      BackEdges.disable(graph);
+    }
+    try {
+      body.run();
+    } finally {
+      if (responsible) {
+        BackEdges.enable(graph);
+      }
+    }
   }
 }

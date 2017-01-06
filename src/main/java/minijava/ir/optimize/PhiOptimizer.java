@@ -21,7 +21,16 @@ public class PhiOptimizer extends BaseOptimizer {
 
   @Override
   public void visit(Phi node) {
+    removeSinglePredPhi(node);
     findControlFlowDependentConstants(node);
+  }
+
+  private void removeSinglePredPhi(Phi node) {
+    // If a block only has a single predecessor, the predecessor's block is the direct dominator.
+    // We can freely use any values from that block, including the predecessor itself, with which we replace the Phi.
+    if (node.getPredCount() == 1) {
+      Graph.exchange(node, node.getPred(0));
+    }
   }
 
   private void findControlFlowDependentConstants(Phi node) {

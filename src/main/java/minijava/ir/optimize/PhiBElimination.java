@@ -10,7 +10,7 @@ import firm.nodes.*;
 import java.util.ArrayList;
 import java.util.List;
 import minijava.ir.Dominance;
-import minijava.ir.NodeUtils;
+import minijava.ir.utils.NodeUtils;
 import org.pcollections.HashTreePSet;
 import org.pcollections.PSet;
 

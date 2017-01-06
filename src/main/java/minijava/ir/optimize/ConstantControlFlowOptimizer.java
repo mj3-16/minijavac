@@ -5,7 +5,7 @@ import firm.Graph;
 import firm.Mode;
 import firm.TargetValue;
 import firm.nodes.*;
-import minijava.ir.NodeUtils;
+import minijava.ir.utils.NodeUtils;
 
 /**
  * Replaces {@link Cond} nodes (or more precisely, their accompanying {@link Proj} nodes) with

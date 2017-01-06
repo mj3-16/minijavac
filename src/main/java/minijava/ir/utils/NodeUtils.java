@@ -1,4 +1,4 @@
-package minijava.ir;
+package minijava.ir.utils;
 
 import static org.jooq.lambda.Seq.seq;
 
