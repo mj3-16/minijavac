@@ -10,22 +10,21 @@ import minijava.ir.assembler.instructions.Instruction;
 public class NodeLocation extends Location {
 
   public final int id;
-  public final Register.Width width;
   public final Optional<firm.nodes.Node> node;
   private Set<Instruction> usedBy;
 
-  public NodeLocation(int id, Register.Width width, firm.nodes.Node node) {
+  public NodeLocation(Register.Width width, int id, firm.nodes.Node node) {
+    super(width);
     this.id = id;
     this.node = Optional.ofNullable(node);
     this.usedBy = new HashSet<>();
-    this.width = width;
     if (this.node.isPresent()) {
       setComment(node);
     }
   }
 
-  public NodeLocation(int id, Register.Width width) {
-    this(id, width, null);
+  public NodeLocation(Register.Width width, int id) {
+    this(width, id, null);
   }
 
   @Override

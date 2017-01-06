@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Places the constant argument of binary operations as the left argument if possible.
+ * Places the constant argument of arithmetic operations at the correct place (left or right).
  *
  * <p>Constant folding has to be done before.
  */
@@ -49,8 +49,9 @@ public class Normalizer extends BaseOptimizer {
   }
 
   public void visit(Sub node) {
-    Node left = node.getLeft();
-    Node right = node.getRight();
+    // sub x, y in assembly === y - x → the constant should be the right argument
+    Node right = node.getLeft();
+    Node left = node.getRight();
     if (hasToChangeArguments(left, right)) {
       Node negatedRight = graph.newMinus(left.getBlock(), right);
       Node newAdd = graph.newAdd(left.getBlock(), negatedRight, left);

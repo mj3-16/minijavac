@@ -5,21 +5,18 @@ import static minijava.ir.utils.FirmUtils.modeToWidth;
 import com.sun.jna.Platform;
 import firm.*;
 import firm.nodes.*;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.BiFunction;
 import minijava.ir.Types;
 import minijava.ir.assembler.block.CodeBlock;
 import minijava.ir.assembler.block.CodeSegment;
-import minijava.ir.assembler.block.Segment;
 import minijava.ir.assembler.instructions.*;
 import minijava.ir.assembler.instructions.Add;
 import minijava.ir.assembler.instructions.Cmp;
 import minijava.ir.assembler.instructions.Div;
 import minijava.ir.assembler.instructions.Jmp;
 import minijava.ir.assembler.instructions.Mul;
+import minijava.ir.assembler.instructions.Set;
 import minijava.ir.assembler.instructions.Sub;
 import minijava.ir.assembler.location.*;
 import minijava.ir.optimize.Normalizer;
@@ -56,7 +53,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     isPhiProneToLostCopies = new HashMap<>();
   }
 
-  public Segment generateSegmentForGraph() {
+  public CodeSegment generateSegmentForGraph() {
     blocksToCodeBlocks = new HashMap<>();
     segment = new CodeSegment(new ArrayList<>(), new ArrayList<>());
     segment.addComment(String.format("Code segment for method %s", info.name));
@@ -64,9 +61,6 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     BackEdges.enable(graph);
     graph.walkTopological(this);
     prependStartBlockWithPrologue();
-    for (CodeBlock block : segment.getBlocks()) {
-      block.finishBasicAssemblerGeneration();
-    }
     return segment;
   }
 
@@ -205,7 +199,11 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     List<Argument> args = allocator.getArguments(node);
     CodeBlock block = getCodeBlockForNode(node);
     block.add(new Evict(Register.usableRegisters));
-    block.add(new MetaCall(args, info));
+    Optional<Argument> ret = Optional.empty();
+    if (info.hasReturnValue) {
+      ret = Optional.of(allocator.getResultLocation(node));
+    }
+    block.add(new MetaCall(args, ret, info).firm(node));
     if (info.hasReturnValue) {
       block.add(new Mov(Register.RETURN_REGISTER, allocator.getLocation(node)));
     }
@@ -284,7 +282,8 @@ public class AssemblerGenerator extends NodeVisitor.Default {
                 inputCodeBlock.setCompare((Cmp) new Cmp(leftArg, rightArg).firm(cmp));
               }
               // zero the result location
-              inputCodeBlock.addToAfterCompareInstructions(new Mov(new ConstArgument(0), res));
+              inputCodeBlock.addToAfterCompareInstructions(
+                  new Mov(new ConstArgument(res.width, 0), res));
               // set the value to one if condition did hold true
               inputCodeBlock.addToAfterCompareInstructions(
                   new Set(((firm.nodes.Cmp) inputNode).getRelation(), res).firm(bPhi));
@@ -295,10 +294,10 @@ public class AssemblerGenerator extends NodeVisitor.Default {
           // we compare the phi's value with 1 (== true)
           NodeLocation intermediateLoc =
               new NodeLocation(
-                  allocator.genLocationId(), modeToWidth(Types.BOOLEAN_TYPE.getMode()));
+                  modeToWidth(Types.BOOLEAN_TYPE.getMode()), allocator.genLocationId());
           intermediateLoc.setComment("1");
           predCodeBlock.addToCmpOrJmpSupportInstructions(
-              new Mov(new ConstArgument(1), intermediateLoc).firm(node));
+              new Mov(new ConstArgument(Register.Width.Byte, 1), intermediateLoc).firm(node));
           predCodeBlock.setCompare((Cmp) new Cmp(intermediateLoc, res).firm(cond));
           if (isTrueEdge) {
             // we jump to the true block if both cmps arguments were equal
@@ -352,7 +351,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     Location tmpLocation = null;
     if (isPhiProneToLostCopies(node)) {
       // we only need a temporary variable if the phi is prone to lost copy errors
-      tmpLocation = new NodeLocation(allocator.genLocationId(), modeToWidth(node.getMode()));
+      tmpLocation = new NodeLocation(modeToWidth(node.getMode()), allocator.genLocationId());
       // we have copy the temporarily modified value into phis location
       // at the start of the block that the phi is part of
       CodeBlock phisBlock = getCodeBlockForNode(node);
@@ -382,10 +381,10 @@ public class AssemblerGenerator extends NodeVisitor.Default {
         // we have to insert the mov instructions behind (!) the compare
         // first we have to make sure that the intermediate register is really zero
         NodeLocation intermediateLoc =
-            new NodeLocation(allocator.genLocationId(), modeToWidth(Types.BOOLEAN_TYPE.getMode()));
+            new NodeLocation(modeToWidth(Types.BOOLEAN_TYPE.getMode()), allocator.genLocationId());
         intermediateLoc.setComment("0");
         inputCodeBlock.addPhiBHelperInstruction(
-            new Mov(new ConstArgument(0), intermediateLoc).firm(node));
+            new Mov(new ConstArgument(intermediateLoc.width, 0), intermediateLoc).firm(node));
         // than we have to use the set instruction to set the registers value to one if the condition is true
         // important note: we can only set the lowest 8 bit of the intermediate register
         inputCodeBlock.addPhiBHelperInstruction(
@@ -407,10 +406,10 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     Location res = allocator.getLocation(node);
     CodeBlock block = getCodeBlockForNode(node);
     block.add(
-        new Mov(
+        new MetaLoad(
                 new MemoryNodeLocation(
-                    allocator.genLocationId(),
                     modeToWidth(node.getType().getMode()),
+                    allocator.genLocationId(),
                     node.getPtr(),
                     arg),
                 res)
@@ -427,11 +426,11 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     Argument dest = allocator.getAsArgument(node.getPtr());
     Argument newValue = allocator.getAsArgument(node.getValue());
     block.add(
-        new Mov(
+        new MetaStore(
                 newValue,
                 new MemoryNodeLocation(
-                    allocator.genLocationId(),
                     modeToWidth(node.getValue().getMode()),
+                    allocator.genLocationId(),
                     node.getPtr(),
                     dest))
             .firm(node));
@@ -442,5 +441,9 @@ public class AssemblerGenerator extends NodeVisitor.Default {
       isPhiProneToLostCopies.put(phi, FirmUtils.isPhiProneToLostCopies(phi));
     }
     return isPhiProneToLostCopies.get(phi);
+  }
+
+  public SimpleNodeAllocator getAllocator() {
+    return allocator;
   }
 }

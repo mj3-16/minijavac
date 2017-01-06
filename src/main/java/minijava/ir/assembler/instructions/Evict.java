@@ -31,4 +31,9 @@ public class Evict extends Instruction {
   public List<Argument> getArguments() {
     return ImmutableList.of();
   }
+
+  @Override
+  public <T> T accept(InstructionVisitor<T> visitor) {
+    return visitor.visit(this);
+  }
 }

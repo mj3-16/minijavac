@@ -24,4 +24,9 @@ public class ConditionalJmp extends Jmp {
   public Type getType() {
     return Type.COND_JMP;
   }
+
+  @Override
+  public <T> T accept(InstructionVisitor<T> visitor) {
+    return visitor.visit(this);
+  }
 }

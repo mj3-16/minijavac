@@ -30,6 +30,9 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
   private Optional<Jmp> unconditionalJump;
   private final List<Instruction> phiBHelperInstructions;
 
+  /** This should by used after the assembler generation has been finished. */
+  private List<Instruction> instructions;
+
   public CodeBlock(String label) {
     this.label = label;
     this.blockStartInstructions = new ArrayList<>();
@@ -193,22 +196,7 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
     return instruction;
   }
 
-  private void setInstructionNrs() {
-    int i = 0;
-    for (Instruction instruction : this) {
-      instruction.setNumberInBlock(i);
-      i++;
-    }
-  }
-
-  private void setUsedByRelations() {
-    for (Instruction instruction : this) {
-      instruction.setUsedByRelations();
-    }
-  }
-
-  public void finishBasicAssemblerGeneration() {
-    setInstructionNrs();
-    setUsedByRelations();
+  public boolean isEmpty() {
+    return size() == 0;
   }
 }

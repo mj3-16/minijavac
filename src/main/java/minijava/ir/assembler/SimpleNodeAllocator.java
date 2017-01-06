@@ -22,19 +22,20 @@ public class SimpleNodeAllocator {
   private int currentLocationId;
   private Graph graph;
   private MethodInformation info;
-  private List<ParamLocation> paramLocations;
+  public final List<ParamLocation> paramLocations;
   private Map<Node, NodeLocation> assignedLocations;
 
   public SimpleNodeAllocator(Graph graph) {
     this.currentLocationId = 0;
     this.graph = graph;
     this.info = new MethodInformation(graph);
-    this.paramLocations = new ArrayList<>();
     this.assignedLocations = new HashMap<>();
+    List<ParamLocation> paramLocations = new ArrayList<>();
     for (int i = 0; i < info.paramNumber; i++) {
-      this.paramLocations.add(
-          new ParamLocation(genLocationId(), modeToWidth(info.type.getParamType(i).getMode()), i));
+      paramLocations.add(
+          new ParamLocation(modeToWidth(info.type.getParamType(i).getMode()), genLocationId(), i));
     }
+    this.paramLocations = Collections.unmodifiableList(paramLocations);
   }
 
   public Location getLocation(Node node) {
@@ -106,9 +107,9 @@ public class SimpleNodeAllocator {
     if (node instanceof Const) {
       TargetValue tarVal = ((Const) node).getTarval();
       if (tarVal.isLong()) {
-        return new ConstArgument(tarVal.asInt());
+        return new ConstArgument(Register.Width.Long, tarVal.asInt());
       } else if (tarVal.getMode().equals(Mode.getb())) {
-        return new ConstArgument(tarVal.isNull() ? 0 : 1);
+        return new ConstArgument(Register.Width.Byte, tarVal.isNull() ? 0 : 1);
       } else {
         assert false;
       }
@@ -129,7 +130,7 @@ public class SimpleNodeAllocator {
       if (mode == null) {
         mode = node.getMode();
       }
-      assignedLocations.put(node, new NodeLocation(genLocationId(), modeToWidth(mode), node));
+      assignedLocations.put(node, new NodeLocation(modeToWidth(mode), genLocationId(), node));
     }
     return assignedLocations.get(node);
   }

@@ -25,4 +25,9 @@ public class Set extends UnaryInstruction {
   public Type getType() {
     return Type.SET;
   }
+
+  @Override
+  public <T> T accept(InstructionVisitor<T> visitor) {
+    return visitor.visit(this);
+  }
 }

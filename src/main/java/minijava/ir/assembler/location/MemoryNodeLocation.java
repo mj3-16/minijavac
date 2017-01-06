@@ -8,8 +8,8 @@ public class MemoryNodeLocation extends NodeLocation {
 
   public final Argument address;
 
-  public MemoryNodeLocation(int id, Register.Width width, Node node, Argument address) {
-    super(id, width, node);
+  public MemoryNodeLocation(Register.Width width, int id, Node node, Argument address) {
+    super(width, id, node);
     this.address = address;
   }
 

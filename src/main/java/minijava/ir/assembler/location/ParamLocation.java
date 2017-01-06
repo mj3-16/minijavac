@@ -5,8 +5,8 @@ public class ParamLocation extends NodeLocation {
 
   public final int paramNumber;
 
-  public ParamLocation(int id, Register.Width width, int paramNumber) {
-    super(id, width);
+  public ParamLocation(Register.Width width, int id, int paramNumber) {
+    super(width, id);
     this.paramNumber = paramNumber;
     setComment(String.format("Param %d", paramNumber));
   }

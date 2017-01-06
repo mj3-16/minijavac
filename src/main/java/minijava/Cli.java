@@ -14,6 +14,7 @@ import java.io.*;
 import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import minijava.ast.Program;
 import minijava.ir.IREmitter;
 import minijava.ir.assembler.block.AssemblerFile;
@@ -25,6 +26,7 @@ import minijava.semantic.SemanticAnalyzer;
 import minijava.semantic.SemanticLinter;
 import minijava.token.Token;
 import minijava.util.PrettyPrinter;
+import org.jooq.lambda.tuple.Tuple2;
 
 public class Cli {
 
@@ -204,10 +206,11 @@ public class Cli {
   }
 
   private void printAsm(InputStream in) throws IOException {
-    printAsm(in, out);
+    printAsm(in, Optional.empty(), out);
   }
 
-  private void printAsm(InputStream in, PrintStream out) throws IOException {
+  private void printAsm(InputStream in, Optional<PrintStream> preAsmOut, PrintStream out)
+      throws IOException {
     Program ast = new Parser(new Lexer(in)).parse();
     ast.acceptVisitor(new SemanticAnalyzer());
     ast.acceptVisitor(new SemanticLinter());
@@ -216,17 +219,28 @@ public class Cli {
       optimize();
     }
     outputGraphsIfNeeded("--finished");
-    AssemblerFile file = AssemblerFile.createForGraphs(firm.Program.getGraphs());
+    Tuple2<AssemblerFile, AssemblerFile> preAsmAndAsmFile =
+        AssemblerFile.createForGraphs(firm.Program.getGraphs());
+    AssemblerFile preAsmFile = preAsmAndAsmFile.v1;
+    AssemblerFile file = preAsmAndAsmFile.v2;
+
     if (System.getenv().containsKey("MJ_FILENAME")) {
+      preAsmFile.setFileName(System.getenv("MJ_FILENAME"));
       file.setFileName(System.getenv("MJ_FILENAME"));
     }
+    preAsmOut.ifPresent(o -> o.println(preAsmFile.toGNUAssembler()));
     out.println(file.toGNUAssembler());
   }
 
   private void compile(InputStream in) throws IOException {
     File file = new File("a.out.s");
     file.createNewFile();
-    printAsm(in, new PrintStream(new FileOutputStream(file)));
+    File preAsmFile = new File("a.out.pre");
+    preAsmFile.createNewFile();
+    printAsm(
+        in,
+        Optional.of(new PrintStream(new FileOutputStream(preAsmFile))),
+        new PrintStream(new FileOutputStream(file)));
     CompileUtils.compileAssemblerFile("a.out.s", "a.out", shouldProduceDebuggableBinary());
   }
 

@@ -7,7 +7,10 @@ import java.util.*;
 import minijava.ir.NameMangler;
 import minijava.ir.assembler.AssemblerGenerator;
 import minijava.ir.assembler.GNUAssemblerConvertible;
+import minijava.ir.assembler.allocator.BasicRegAllocator;
+import minijava.ir.utils.MethodInformation;
 import org.jetbrains.annotations.NotNull;
+import org.jooq.lambda.tuple.Tuple2;
 
 /** List of segments that are combined to an assembler file */
 public class AssemblerFile implements GNUAssemblerConvertible, Collection<Segment> {
@@ -127,11 +130,20 @@ public class AssemblerFile implements GNUAssemblerConvertible, Collection<Segmen
     }
   }
 
-  public static AssemblerFile createForGraphs(Iterable<Graph> graphs) {
+  /** @return (pre asm, real asm) */
+  public static Tuple2<AssemblerFile, AssemblerFile> createForGraphs(Iterable<Graph> graphs) {
+    AssemblerFile preAsmFile = new AssemblerFile();
     AssemblerFile file = new AssemblerFile();
     for (Graph graph : Program.getGraphs()) {
-      file.add(new AssemblerGenerator(graph).generateSegmentForGraph());
+      AssemblerGenerator asmGenerator = new AssemblerGenerator(graph);
+      CodeSegment segment = asmGenerator.generateSegmentForGraph();
+      preAsmFile.add(segment);
+      LinearCodeSegment linCode = LinearCodeSegment.fromCodeSegment(segment);
+      BasicRegAllocator allocator =
+          new BasicRegAllocator(new MethodInformation(graph), linCode, asmGenerator.getAllocator());
+      LinearCodeSegment ret = allocator.process();
+      file.add(ret);
     }
-    return file;
+    return new Tuple2<AssemblerFile, AssemblerFile>(preAsmFile, file);
   }
 }

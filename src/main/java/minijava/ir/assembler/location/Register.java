@@ -7,17 +7,20 @@ import java.util.*;
 public class Register extends Location {
 
   public static enum Width {
-    Byte("b"),
+    Byte("b", 1),
     /** 32 bit */
-    Long("l"),
+    Long("l", 4),
     /** 64 bit */
-    Quad("q");
+    Quad("q", 8);
 
     /** Suffix of instructions like <code>mov</code> that work with registers of this size */
     public final String asm;
 
-    Width(String asm) {
+    public final int sizeInBytes;
+
+    Width(String asm, int sizeInBytes) {
       this.asm = asm;
+      this.sizeInBytes = sizeInBytes;
     }
   }
 
@@ -79,15 +82,16 @@ public class Register extends Location {
     usableRegisters = Collections.unmodifiableList(regs);
   }
 
+  private final int registerClassId;
   public final String registerName;
-  public final Width width;
   private Register byteVersion;
   private Register longVersion;
   private Register quadVersion;
 
-  private Register(String registerName, Width width) {
+  private Register(Width width, int registerClassId, String registerName) {
+    super(width);
+    this.registerClassId = registerClassId;
     this.registerName = registerName;
-    this.width = width;
   }
 
   @Override
@@ -97,14 +101,16 @@ public class Register extends Location {
 
   @Override
   public boolean equals(Object obj) {
-    return (obj instanceof Register) && ((Register) obj).registerName.equals(registerName);
+    return (obj instanceof Register) && ((Register) obj).registerClassId == registerClassId;
   }
 
   private static void init() {
+    int i = 0;
     for (String[] longAndQuadName : byteLongAndQuadNames) {
-      registerMap.put(longAndQuadName[0], new Register(longAndQuadName[0], Width.Byte));
-      registerMap.put(longAndQuadName[1], new Register(longAndQuadName[1], Width.Long));
-      registerMap.put(longAndQuadName[2], new Register(longAndQuadName[2], Width.Quad));
+      registerMap.put(longAndQuadName[0], new Register(Width.Byte, i, longAndQuadName[0]));
+      registerMap.put(longAndQuadName[1], new Register(Width.Long, i, longAndQuadName[1]));
+      registerMap.put(longAndQuadName[2], new Register(Width.Quad, i, longAndQuadName[2]));
+      i++;
     }
   }
 
@@ -152,7 +158,7 @@ public class Register extends Location {
 
   @Override
   public int hashCode() {
-    return registerName.hashCode();
+    return registerClassId;
   }
 
   public Register longVersion() {
@@ -174,5 +180,17 @@ public class Register extends Location {
       quadVersion = getQuadVersion(this);
     }
     return quadVersion;
+  }
+
+  public Register ofWidth(Width width) {
+    switch (width) {
+      case Byte:
+        return byteVersion();
+      case Long:
+        return longVersion();
+      case Quad:
+        return quadVersion();
+    }
+    throw new RuntimeException();
   }
 }

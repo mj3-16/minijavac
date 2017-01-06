@@ -16,4 +16,9 @@ public class Cmp extends BinaryInstruction {
   public Type getType() {
     return Type.CMP;
   }
+
+  @Override
+  public <T> T accept(InstructionVisitor<T> visitor) {
+    return visitor.visit(this);
+  }
 }

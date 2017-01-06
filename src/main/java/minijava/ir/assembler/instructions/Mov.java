@@ -37,4 +37,9 @@ public class Mov extends Instruction {
   public List<Argument> getArguments() {
     return ImmutableList.of(source, destination);
   }
+
+  @Override
+  public <T> T accept(InstructionVisitor<T> visitor) {
+    return visitor.visit(this);
+  }
 }

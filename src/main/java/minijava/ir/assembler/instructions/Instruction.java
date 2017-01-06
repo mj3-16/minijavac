@@ -7,11 +7,11 @@ import java.util.List;
 import java.util.Optional;
 import minijava.ir.assembler.GNUAssemblerConvertible;
 import minijava.ir.assembler.block.CodeBlock;
-import minijava.ir.assembler.location.NodeLocation;
-import minijava.ir.assembler.location.Register;
+import minijava.ir.assembler.location.*;
+import org.jetbrains.annotations.NotNull;
 
 /** Models an assembler instruction */
-public abstract class Instruction implements GNUAssemblerConvertible {
+public abstract class Instruction implements GNUAssemblerConvertible, Comparable<Instruction> {
 
   public static enum Type {
     ADD("add", true),
@@ -34,7 +34,9 @@ public abstract class Instruction implements GNUAssemblerConvertible {
     MOV("mov", true),
     EVICT(Category.META, "evict"),
     PROLOGUE(Category.META, "prologue"),
-    META_CALL(Category.META, "meta_call");
+    META_CALL(Category.META, "meta_call"),
+    META_LOAD(Category.META, "meta_load"),
+    META_STORE(Category.META, "meta_store");
 
     public final Category category;
     /** GNU Assembler name (without argument width appendix) */
@@ -76,7 +78,7 @@ public abstract class Instruction implements GNUAssemblerConvertible {
   private Node associatedFirmNode = null;
 
   private Optional<CodeBlock> parentBlock = Optional.empty();
-  private Optional<Integer> numberInBlock = Optional.empty();
+  private Optional<Integer> numberInSegment = Optional.empty();
 
   public final void addComment(String comment) {
     comments.add(comment);
@@ -170,6 +172,10 @@ public abstract class Instruction implements GNUAssemblerConvertible {
     return this;
   }
 
+  public Node firm() {
+    return associatedFirmNode;
+  }
+
   /** Takes into account the instructions with varying width arguments */
   protected String getAsmInstructionName() {
     if (getType().hasVaryingWidthArguments) {
@@ -186,18 +192,10 @@ public abstract class Instruction implements GNUAssemblerConvertible {
   protected Register.Width getMaxWithOfArguments(Argument... arguments) {
     Register.Width maxWidth = null;
     for (Argument argument : arguments) {
-      if (argument instanceof Register) {
-        Register.Width argWidth = ((Register) argument).width;
-        if (maxWidth == null) {
-          maxWidth = argWidth;
-        } else if (argWidth.ordinal() > maxWidth.ordinal()) {
-          maxWidth = argWidth;
-        }
-      } else if (argument instanceof NodeLocation) {
-        Register.Width argWidth = ((NodeLocation) argument).width;
-        if (maxWidth == null || argWidth.ordinal() > maxWidth.ordinal()) {
-          maxWidth = argWidth;
-        }
+      if (maxWidth == null) {
+        maxWidth = argument.width;
+      } else if (argument.width.ordinal() > maxWidth.ordinal()) {
+        maxWidth = argument.width;
       }
     }
     if (maxWidth == null) {
@@ -222,15 +220,12 @@ public abstract class Instruction implements GNUAssemblerConvertible {
     return parentBlock.get();
   }
 
-  public void setNumberInBlock(int number) {
-    if (this.numberInBlock.isPresent()) {
-      throw new RuntimeException();
-    }
-    this.numberInBlock = Optional.of(number);
+  public void setNumberInSegment(int number) {
+    this.numberInSegment = Optional.of(number);
   }
 
-  public int getNumberInBlock() {
-    return numberInBlock.get();
+  public int getNumberInSegment() {
+    return numberInSegment.get();
   }
 
   public boolean isMetaInstruction() {
@@ -244,4 +239,12 @@ public abstract class Instruction implements GNUAssemblerConvertible {
       argument.addUsedByRelation(this);
     }
   }
+
+  /** Can only be used if the "number in block" is already set. */
+  @Override
+  public int compareTo(@NotNull Instruction other) {
+    return Integer.compare(this.getNumberInSegment(), other.getNumberInSegment());
+  }
+
+  public abstract <T> T accept(InstructionVisitor<T> visitor);
 }

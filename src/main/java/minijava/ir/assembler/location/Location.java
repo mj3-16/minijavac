@@ -7,6 +7,10 @@ public abstract class Location extends Argument {
 
   private String comment;
 
+  public Location(Register.Width width) {
+    super(width);
+  }
+
   protected String formatComment() {
     if (comment != null) {
       return String.format("/*%s*/", comment);

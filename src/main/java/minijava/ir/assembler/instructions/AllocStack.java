@@ -29,6 +29,12 @@ public class AllocStack extends Instruction {
 
   @Override
   protected String toGNUAssemblerWoComments() {
-    return super.createGNUAssemblerWoComments(new ConstArgument(amount), Register.STACK_POINTER);
+    return super.createGNUAssemblerWoComments(
+        new ConstArgument(Register.Width.Quad, amount), Register.STACK_POINTER);
+  }
+
+  @Override
+  public <T> T accept(InstructionVisitor<T> visitor) {
+    return visitor.visit(this);
   }
 }

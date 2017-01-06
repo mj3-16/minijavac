@@ -5,9 +5,10 @@ public class RegRelativeLocation extends Location {
 
   public final Register base;
   /** Offset to base pointer (in bytes) */
-  public final int offset;
+  public final Integer offset;
 
-  public RegRelativeLocation(Register base, int offset) {
+  public RegRelativeLocation(Register.Width width, Register base, int offset) {
+    super(width);
     this.base = base;
     this.offset = offset;
   }

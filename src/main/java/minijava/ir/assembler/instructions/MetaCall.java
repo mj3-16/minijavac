@@ -2,6 +2,7 @@ package minijava.ir.assembler.instructions;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import minijava.ir.utils.MethodInformation;
 
 /**
@@ -24,10 +25,12 @@ import minijava.ir.utils.MethodInformation;
 public class MetaCall extends Instruction {
 
   public final List<Argument> args;
+  public final Optional<Argument> result;
   public final MethodInformation methodInfo;
 
-  public MetaCall(List<Argument> args, MethodInformation methodInfo) {
+  public MetaCall(List<Argument> args, Optional<Argument> result, MethodInformation methodInfo) {
     this.args = Collections.unmodifiableList(args);
+    this.result = result;
     this.methodInfo = methodInfo;
   }
 
@@ -39,5 +42,10 @@ public class MetaCall extends Instruction {
   @Override
   public List<Argument> getArguments() {
     return args;
+  }
+
+  @Override
+  public <T> T accept(InstructionVisitor<T> visitor) {
+    return visitor.visit(this);
   }
 }
