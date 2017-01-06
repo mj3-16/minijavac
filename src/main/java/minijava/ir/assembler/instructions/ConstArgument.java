@@ -1,7 +1,7 @@
 package minijava.ir.assembler.instructions;
 
 /** Constant argument for assembler instructions */
-public class ConstArgument implements Argument {
+public class ConstArgument extends Argument {
 
   public final String value;
 

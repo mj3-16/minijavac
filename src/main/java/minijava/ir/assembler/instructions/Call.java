@@ -1,5 +1,8 @@
 package minijava.ir.assembler.instructions;
 
+import com.google.common.collect.ImmutableList;
+import java.util.List;
+
 public class Call extends Instruction {
 
   public final String targetLdName;
@@ -16,5 +19,10 @@ public class Call extends Instruction {
   @Override
   public Type getType() {
     return Type.CALL;
+  }
+
+  @Override
+  public List<Argument> getArguments() {
+    return ImmutableList.of();
   }
 }

@@ -1,5 +1,7 @@
 package minijava.ir.assembler.instructions;
 
+import com.google.common.collect.ImmutableList;
+import java.util.List;
 import minijava.ir.assembler.location.Register;
 import org.jooq.lambda.tuple.Tuple2;
 
@@ -39,5 +41,10 @@ public abstract class BinaryInstruction extends Instruction {
       }
     }
     return new Tuple2<Argument, Argument>(left, right);
+  }
+
+  @Override
+  public List<Argument> getArguments() {
+    return ImmutableList.of(left, right);
   }
 }

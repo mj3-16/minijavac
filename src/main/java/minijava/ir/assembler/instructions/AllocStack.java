@@ -1,5 +1,7 @@
 package minijava.ir.assembler.instructions;
 
+import com.google.common.collect.ImmutableList;
+import java.util.List;
 import minijava.ir.assembler.location.Register;
 
 /**
@@ -18,6 +20,11 @@ public class AllocStack extends Instruction {
   @Override
   public Type getType() {
     return Type.ALLOC_STACK;
+  }
+
+  @Override
+  public List<Argument> getArguments() {
+    return ImmutableList.of();
   }
 
   @Override

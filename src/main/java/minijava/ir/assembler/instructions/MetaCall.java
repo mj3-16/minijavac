@@ -35,4 +35,9 @@ public class MetaCall extends Instruction {
   public Type getType() {
     return Type.META_CALL;
   }
+
+  @Override
+  public List<Argument> getArguments() {
+    return args;
+  }
 }

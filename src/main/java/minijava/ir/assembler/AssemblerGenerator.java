@@ -64,6 +64,9 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     BackEdges.enable(graph);
     graph.walkTopological(this);
     prependStartBlockWithPrologue();
+    for (CodeBlock block : segment.getBlocks()) {
+      block.finishBasicAssemblerGeneration();
+    }
     return segment;
   }
 

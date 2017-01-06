@@ -193,11 +193,22 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
     return instruction;
   }
 
-  public void setInstructionNrs() {
+  private void setInstructionNrs() {
     int i = 0;
     for (Instruction instruction : this) {
       instruction.setNumberInBlock(i);
       i++;
     }
+  }
+
+  private void setUsedByRelations() {
+    for (Instruction instruction : this) {
+      instruction.setUsedByRelations();
+    }
+  }
+
+  public void finishBasicAssemblerGeneration() {
+    setInstructionNrs();
+    setUsedByRelations();
   }
 }

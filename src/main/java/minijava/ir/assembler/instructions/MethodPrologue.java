@@ -1,5 +1,8 @@
 package minijava.ir.assembler.instructions;
 
+import com.google.common.collect.ImmutableList;
+import java.util.List;
+
 /**
  * Method instruction that should be replaced by a method prologue:
  *
@@ -12,5 +15,10 @@ public class MethodPrologue extends Instruction {
   @Override
   public Type getType() {
     return Type.PROLOGUE;
+  }
+
+  @Override
+  public List<Argument> getArguments() {
+    return ImmutableList.of();
   }
 }

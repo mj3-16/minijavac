@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 import minijava.ir.assembler.GNUAssemblerConvertible;
 import minijava.ir.assembler.block.CodeBlock;
+import minijava.ir.assembler.location.NodeLocation;
 import minijava.ir.assembler.location.Register;
 
 /** Models an assembler instruction */
@@ -192,6 +193,11 @@ public abstract class Instruction implements GNUAssemblerConvertible {
         } else if (argWidth.ordinal() > maxWidth.ordinal()) {
           maxWidth = argWidth;
         }
+      } else if (argument instanceof NodeLocation) {
+        Register.Width argWidth = ((NodeLocation) argument).width;
+        if (maxWidth == null || argWidth.ordinal() > maxWidth.ordinal()) {
+          maxWidth = argWidth;
+        }
       }
     }
     if (maxWidth == null) {
@@ -229,5 +235,13 @@ public abstract class Instruction implements GNUAssemblerConvertible {
 
   public boolean isMetaInstruction() {
     return getType().category == Category.META;
+  }
+
+  public abstract List<Argument> getArguments();
+
+  public void setUsedByRelations() {
+    for (Argument argument : getArguments()) {
+      argument.addUsedByRelation(this);
+    }
   }
 }

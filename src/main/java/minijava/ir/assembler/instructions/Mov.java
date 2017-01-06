@@ -1,5 +1,7 @@
 package minijava.ir.assembler.instructions;
 
+import com.google.common.collect.ImmutableList;
+import java.util.List;
 import minijava.ir.assembler.location.Location;
 import minijava.ir.assembler.location.Register;
 import org.jooq.lambda.tuple.Tuple2;
@@ -29,5 +31,10 @@ public class Mov extends Instruction {
   @Override
   protected Register.Width getWidthOfArguments() {
     return getMaxWithOfArguments(source, destination);
+  }
+
+  @Override
+  public List<Argument> getArguments() {
+    return ImmutableList.of(source, destination);
   }
 }

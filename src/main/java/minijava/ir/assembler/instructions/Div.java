@@ -1,5 +1,8 @@
 package minijava.ir.assembler.instructions;
 
+import com.google.common.collect.ImmutableList;
+import java.util.List;
+
 /**
  * <code>idivl</code> instruction.
  *
@@ -26,5 +29,10 @@ public class Div extends Instruction {
   @Override
   public Type getType() {
     return Type.DIV;
+  }
+
+  @Override
+  public List<Argument> getArguments() {
+    return ImmutableList.of();
   }
 }

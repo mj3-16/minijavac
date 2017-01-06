@@ -1,5 +1,6 @@
 package minijava.ir.assembler.instructions;
 
+import com.google.common.collect.ImmutableList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -24,5 +25,10 @@ public class Evict extends Instruction {
   @Override
   public Type getType() {
     return Type.EVICT;
+  }
+
+  @Override
+  public List<Argument> getArguments() {
+    return ImmutableList.of();
   }
 }

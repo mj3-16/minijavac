@@ -13,11 +13,9 @@ import minijava.ir.utils.MethodInformation;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Simple stack based node allocator that tries to implement the scheme from the compiler lab
- * slides.
+ * Basic allocator that allocates nodes into {@link NodeLocation} objects.
  *
- * <p>Every value is stored on the stack in a new slot thereby using lot's of memory. The advantage
- * of this inefficiency is the simplicity of the implementation.
+ * <p>These {@link NodeLocation}s should be replaced later by a register allocator
  */
 public class SimpleNodeAllocator {
 
