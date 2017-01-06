@@ -22,6 +22,7 @@ import minijava.ir.assembler.instructions.Jmp;
 import minijava.ir.assembler.instructions.Mul;
 import minijava.ir.assembler.instructions.Sub;
 import minijava.ir.assembler.location.*;
+import minijava.ir.optimize.Normalizer;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.MethodInformation;
 
