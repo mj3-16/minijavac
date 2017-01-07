@@ -11,6 +11,7 @@ public class MetaStore extends Instruction {
   public final MemoryNodeLocation destination;
 
   public MetaStore(Argument source, MemoryNodeLocation destination) {
+    super(getWidthOfArguments(MetaStore.class, source, destination));
     this.source = source;
     this.destination = destination;
   }

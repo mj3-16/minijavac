@@ -2,6 +2,7 @@ package minijava.ir.assembler.instructions;
 
 import com.google.common.collect.ImmutableList;
 import java.util.List;
+import minijava.ir.assembler.location.Register;
 
 /**
  * Convert Signed Long to Signed Double Long
@@ -9,6 +10,10 @@ import java.util.List;
  * <p>Sign-extends EAX, resulting in EDX:EAX
  */
 public class CLTD extends Instruction {
+
+  public CLTD() {
+    super(Register.Width.Long);
+  }
 
   @Override
   public Type getType() {

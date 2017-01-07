@@ -4,9 +4,14 @@ import static minijava.ir.assembler.instructions.Instruction.Type.META_FRAME_ALL
 
 import com.google.common.collect.ImmutableList;
 import java.util.List;
+import minijava.ir.assembler.location.Register;
 
 /** Meta instruction to allocate a frame at the start of a method */
 public class MetaMethodFrameAlloc extends Instruction {
+
+  public MetaMethodFrameAlloc() {
+    super(Register.Width.Quad);
+  }
 
   @Override
   public Type getType() {

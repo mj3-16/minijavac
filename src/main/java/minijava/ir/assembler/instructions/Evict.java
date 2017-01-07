@@ -15,6 +15,7 @@ public class Evict extends Instruction {
   public final List<Register> registers;
 
   public Evict(List<Register> registers) {
+    super(Register.Width.Quad);
     this.registers = Collections.unmodifiableList(registers);
   }
 

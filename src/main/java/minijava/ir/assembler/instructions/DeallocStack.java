@@ -10,6 +10,7 @@ public class DeallocStack extends Instruction {
   public final int amount;
 
   public DeallocStack(int amount) {
+    super(Register.Width.Quad);
     this.amount = amount;
     this.addComment(String.format("Free %d bytes of the stack", amount));
   }

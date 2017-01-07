@@ -1,10 +1,14 @@
 package minijava.ir.assembler.instructions;
 
+import static org.jooq.lambda.Seq.seq;
+
 import com.google.common.base.Splitter;
 import firm.nodes.Node;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import minijava.ir.assembler.GNUAssemblerConvertible;
 import minijava.ir.assembler.block.CodeBlock;
 import minijava.ir.assembler.location.*;
@@ -71,6 +75,34 @@ public abstract class Instruction implements GNUAssemblerConvertible, Comparable
     AFTER_CMP,
     NORMAL,
     META
+  }
+
+  /** Width of the arguments (and therefore the result most of the time) */
+  public final Register.Width width;
+
+  protected Instruction(Register.Width width) {
+    this.width = width;
+  }
+
+  public static Register.Width getWidthOfArguments(Class klass, Argument... arguments) {
+    Register.Width width = arguments[0].width;
+    for (int i = 1; i < arguments.length; i++) {
+      Argument argument = arguments[i];
+      if (argument.width != width) {
+        throw new RuntimeException(
+            String.format(
+                "%s %s: Argument %d has invalid width %s, expected %s",
+                klass.getSimpleName(),
+                seq(Arrays.asList(arguments))
+                    .map(Argument::toString)
+                    .stream()
+                    .collect(Collectors.joining(" ")),
+                i,
+                argument.width,
+                width));
+      }
+    }
+    return width;
   }
 
   /** Comments that belong to this instruction */
@@ -180,33 +212,9 @@ public abstract class Instruction implements GNUAssemblerConvertible, Comparable
   /** Takes into account the instructions with varying width arguments */
   protected String getAsmInstructionName() {
     if (getType().hasVaryingWidthArguments) {
-      return getType().asm + getWidthOfArguments().asm;
+      return getType().asm + width.asm;
     }
     return getType().asm;
-  }
-
-  /** Returns the width of the arguments for instructions with varying argument widths. */
-  protected Register.Width getWidthOfArguments() {
-    throw new UnsupportedOperationException();
-  }
-
-  protected Register.Width getMaxWithOfArguments(Argument... arguments) {
-    Register.Width maxWidth = null;
-    for (Argument argument : arguments) {
-      if (maxWidth == null) {
-        if (argument == null) {
-          throw new RuntimeException(this.getType().asm);
-        }
-        maxWidth = argument.width;
-      } else if (argument.width.ordinal() > maxWidth.ordinal()) {
-        maxWidth = argument.width;
-        assert false;
-      }
-    }
-    if (maxWidth == null) {
-      maxWidth = Register.Width.Long;
-    }
-    return maxWidth;
   }
 
   @Override

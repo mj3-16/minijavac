@@ -13,6 +13,7 @@ public class AllocStack extends Instruction {
   public final int amount;
 
   public AllocStack(int amount) {
+    super(Register.Width.Quad);
     this.amount = amount;
     this.addComment(String.format("Allocate %d bytes for the activation record", amount));
   }

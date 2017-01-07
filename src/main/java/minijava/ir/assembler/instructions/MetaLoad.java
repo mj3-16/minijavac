@@ -11,6 +11,7 @@ public class MetaLoad extends Instruction {
   public final Argument destination;
 
   public MetaLoad(MemoryNodeLocation source, Argument destination) {
+    super(getWidthOfArguments(MemoryNodeLocation.class, source, destination));
     this.source = source;
     this.destination = destination;
   }

@@ -2,9 +2,14 @@ package minijava.ir.assembler.instructions;
 
 import com.google.common.collect.ImmutableList;
 import java.util.List;
+import minijava.ir.assembler.location.Register;
 
 /** <code>ret</code> instruction that returns from a function call */
 public class Ret extends Instruction {
+  public Ret() {
+    super(Register.Width.Quad);
+  }
+
   @Override
   public Type getType() {
     return Type.RET;

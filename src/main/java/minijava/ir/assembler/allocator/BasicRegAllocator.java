@@ -427,7 +427,11 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
       instructions.add(new Push(getCurrentLocation(arg)));
     }
     instructions.add(
-        new Call(metaCall.methodInfo.ldName)
+        new Call(
+                metaCall.methodInfo.hasReturnValue
+                    ? metaCall.result.get().width
+                    : Register.Width.Quad,
+                metaCall.methodInfo.ldName)
             .com("Call the external function")
             .firm(metaCall.firm()));
     instructions.add(

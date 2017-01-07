@@ -3,8 +3,6 @@ package minijava.ir.assembler.instructions;
 import com.google.common.collect.ImmutableList;
 import java.util.List;
 import minijava.ir.assembler.location.Location;
-import minijava.ir.assembler.location.Register;
-import org.jooq.lambda.tuple.Tuple2;
 
 /** Moves the source value into the destination */
 public class Mov extends Instruction {
@@ -13,10 +11,9 @@ public class Mov extends Instruction {
   public final Location destination;
 
   public Mov(Argument source, Location destination) {
-    assert source.width == destination.width;
-    Tuple2<Argument, Argument> t = BinaryInstruction.getAdjustedRegisters(source, destination);
-    this.source = t.v1;
-    this.destination = (Location) t.v2;
+    super(getWidthOfArguments(Mov.class, source, destination));
+    this.source = source;
+    this.destination = destination;
   }
 
   @Override
@@ -27,11 +24,6 @@ public class Mov extends Instruction {
   @Override
   public Type getType() {
     return Type.MOV;
-  }
-
-  @Override
-  protected Register.Width getWidthOfArguments() {
-    return getMaxWithOfArguments(source, destination);
   }
 
   @Override

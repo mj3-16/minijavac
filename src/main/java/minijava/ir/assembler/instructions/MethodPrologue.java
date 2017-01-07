@@ -2,6 +2,7 @@ package minijava.ir.assembler.instructions;
 
 import com.google.common.collect.ImmutableList;
 import java.util.List;
+import minijava.ir.assembler.location.Register;
 
 /**
  * Method instruction that should be replaced by a method prologue:
@@ -11,6 +12,10 @@ import java.util.List;
  * record")); prepended.add(new AllocStack(allocator.getActivationRecordSize()));
  */
 public class MethodPrologue extends Instruction {
+
+  public MethodPrologue() {
+    super(Register.Width.Quad);
+  }
 
   @Override
   public Type getType() {
