@@ -13,6 +13,7 @@ public class Mov extends Instruction {
   public final Location destination;
 
   public Mov(Argument source, Location destination) {
+    assert source.width == destination.width;
     Tuple2<Argument, Argument> t = BinaryInstruction.getAdjustedRegisters(source, destination);
     this.source = t.v1;
     this.destination = (Location) t.v2;

@@ -7,6 +7,7 @@ import firm.*;
 import firm.nodes.*;
 import java.util.*;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 import minijava.ir.Types;
 import minijava.ir.assembler.block.CodeBlock;
 import minijava.ir.assembler.block.CodeSegment;
@@ -162,7 +163,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     Location res = allocator.getLocation(node);
     CodeBlock block = getCodeBlockForNode(node);
     block.add(new Mov(firstArg, res));
-    block.add(new Sub(secondArg, res));
+    block.add(creator.apply(secondArg, res).firm(node));
   }
 
   /**
@@ -203,7 +204,16 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     if (info.hasReturnValue) {
       ret = Optional.of(allocator.getResultLocation(node));
     }
-    block.add(new MetaCall(args, ret, info).firm(node));
+    block.add(
+        new MetaCall(args, ret, info)
+            .firm(node)
+            .com(
+                "-> "
+                    + info.ldName
+                    + " "
+                    + args.stream().map(Argument::toString).collect(Collectors.joining("|"))
+                    + " -> "
+                    + ret));
     if (info.hasReturnValue) {
       block.add(new Mov(Register.RETURN_REGISTER, allocator.getLocation(node)));
     }

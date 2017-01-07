@@ -193,4 +193,9 @@ public class Register extends Location {
     }
     throw new RuntimeException();
   }
+
+  @Override
+  public String toString() {
+    return toGNUAssembler();
+  }
 }

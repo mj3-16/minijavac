@@ -11,4 +11,9 @@ public class StackSlot extends RegRelativeLocation {
   public boolean equals(Object obj) {
     return obj instanceof StackSlot && ((StackSlot) obj).offset == offset;
   }
+
+  @Override
+  public String toString() {
+    return String.format("[%d]", offset) + getComment();
+  }
 }

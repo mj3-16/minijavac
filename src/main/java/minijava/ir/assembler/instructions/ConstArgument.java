@@ -22,4 +22,9 @@ public class ConstArgument extends Argument {
   public String toGNUAssembler() {
     return value;
   }
+
+  @Override
+  public String toString() {
+    return String.format("Const(%s)", value);
+  }
 }

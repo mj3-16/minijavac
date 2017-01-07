@@ -11,6 +11,7 @@ public abstract class BinaryInstruction extends Instruction {
   public final Argument right;
 
   public BinaryInstruction(Argument left, Argument right) {
+    assert left.width == right.width;
     Tuple2<Argument, Argument> t = getAdjustedRegisters(left, right);
     this.left = t.v1;
     this.right = t.v2;

@@ -36,7 +36,8 @@ public abstract class Instruction implements GNUAssemblerConvertible, Comparable
     PROLOGUE(Category.META, "prologue"),
     META_CALL(Category.META, "meta_call"),
     META_LOAD(Category.META, "meta_load"),
-    META_STORE(Category.META, "meta_store");
+    META_STORE(Category.META, "meta_store"),
+    META_FRAME_ALLOC(Category.META, "frame_alloc");
 
     public final Category category;
     /** GNU Assembler name (without argument width appendix) */
@@ -193,9 +194,13 @@ public abstract class Instruction implements GNUAssemblerConvertible, Comparable
     Register.Width maxWidth = null;
     for (Argument argument : arguments) {
       if (maxWidth == null) {
+        if (argument == null) {
+          throw new RuntimeException(this.getType().asm);
+        }
         maxWidth = argument.width;
       } else if (argument.width.ordinal() > maxWidth.ordinal()) {
         maxWidth = argument.width;
+        assert false;
       }
     }
     if (maxWidth == null) {
@@ -247,4 +252,10 @@ public abstract class Instruction implements GNUAssemblerConvertible, Comparable
   }
 
   public abstract <T> T accept(InstructionVisitor<T> visitor);
+
+  public Instruction firmAndComments(Instruction other) {
+    this.comments = other.comments;
+    this.associatedFirmNode = other.associatedFirmNode;
+    return this;
+  }
 }

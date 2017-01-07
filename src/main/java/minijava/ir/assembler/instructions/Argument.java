@@ -78,4 +78,8 @@ public abstract class Argument implements GNUAssemblerConvertible {
   public String getComment() {
     return "";
   }
+
+  public boolean isUsed() {
+    return !instructionRelations.isEmpty();
+  }
 }

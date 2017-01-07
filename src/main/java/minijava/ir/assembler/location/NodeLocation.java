@@ -49,4 +49,9 @@ public class NodeLocation extends Location {
   public Set<Instruction> getUsages() {
     return Collections.unmodifiableSet(usedBy);
   }
+
+  @Override
+  public String toString() {
+    return toGNUAssembler();
+  }
 }
