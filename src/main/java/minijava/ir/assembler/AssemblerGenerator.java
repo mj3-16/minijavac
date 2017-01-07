@@ -215,7 +215,8 @@ public class AssemblerGenerator extends NodeVisitor.Default {
                     + " -> "
                     + ret));
     if (info.hasReturnValue) {
-      block.add(new Mov(Register.RETURN_REGISTER, allocator.getLocation(node)));
+      Location returnLocation = allocator.getLocation(node);
+      block.add(new Mov(Register.RETURN_REGISTER.ofWidth(returnLocation.width), returnLocation));
     }
   }
 
@@ -365,7 +366,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
       // we have copy the temporarily modified value into phis location
       // at the start of the block that the phi is part of
       CodeBlock phisBlock = getCodeBlockForNode(node);
-      Register intermediateReg = Register.EAX;
+      Register intermediateReg = Register.EAX.ofWidth(tmpLocation.width);
       // we have to use a register to copy the value between two locations
       phisBlock.addBlockStartInstruction(new Mov(tmpLocation, res));
     }

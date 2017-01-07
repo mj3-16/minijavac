@@ -223,7 +223,9 @@ public class Cli {
         AssemblerFile.createForGraphs(firm.Program.getGraphs());
     AssemblerFile preAsmFile = preAsmAndAsmFile.v1;
     AssemblerFile file = preAsmAndAsmFile.v2;
-    preAsmOut = Optional.of(System.err);
+    if (!preAsmOut.isPresent()) {
+      preAsmOut = Optional.of(System.err);
+    }
     if (System.getenv().containsKey("MJ_FILENAME")) {
       preAsmFile.setFileName(System.getenv("MJ_FILENAME"));
       file.setFileName(System.getenv("MJ_FILENAME"));

@@ -181,6 +181,9 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
    * Returns the register that contains the arguments value if the returned instruction were
    * executed before
    *
+   * <p>Attention the argument shouldn't be a constant. Use constants directly as an instruction
+   * argument.
+   *
    * @return (optional spill and reload instructions, register the argument is placed in)
    */
   private Tuple2<Optional<List<Instruction>>, Register> getRegisterForArgument(Argument argument) {
@@ -215,7 +218,7 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
           new Mov(argumentStackSlots.get(argument), register)
               .com(String.format("Move %s into register", argument)));
     } else if (argument instanceof ConstArgument) {
-      // we to load const arguments
+      // we don't have to load const arguments
       //instructions.add(new Mov(argument, register).com(String.format("Load constant value %s into register", argument)));
       assert false;
     }
