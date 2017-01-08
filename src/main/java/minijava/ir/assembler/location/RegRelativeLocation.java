@@ -17,4 +17,9 @@ public class RegRelativeLocation extends Location {
   public String toGNUAssembler() {
     return String.format("%d(%s)", offset, base.toGNUAssembler());
   }
+
+  @Override
+  public String toString() {
+    return toGNUAssembler();
+  }
 }

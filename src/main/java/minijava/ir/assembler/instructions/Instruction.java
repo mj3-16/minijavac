@@ -144,7 +144,7 @@ public abstract class Instruction implements GNUAssemblerConvertible, Comparable
 
   private List<String> formatComments(int maxWidthOfFirstLine, int maxWidth) {
     List<String> lines = new ArrayList<>();
-    String joined = String.join("; ", comments) + " */";
+    String joined = String.join("; ", comments).replace("/*", "[").replace("*/", "]") + " */";
     maxWidthOfFirstLine = Math.max(Math.min(maxWidthOfFirstLine, maxWidth), 1);
     if (joined.length() > maxWidthOfFirstLine) {
       lines.add("/* " + joined.substring(0, maxWidthOfFirstLine - 1));

@@ -49,8 +49,10 @@ public class FirmUtils {
     }
     if (mode.isReference()) {
       return Register.Width.Quad;
+    } else if (mode.equals(Mode.getb())) {
+      return Register.Width.Byte;
     }
-    throw new RuntimeException();
+    throw new RuntimeException(mode.toString());
   }
 
   public static String relationToInstructionSuffix(Relation relation) {

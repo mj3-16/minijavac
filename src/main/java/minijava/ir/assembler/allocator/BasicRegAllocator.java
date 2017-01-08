@@ -40,8 +40,8 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
   private Map<Argument, Register> argumentsInRegisters;
   private TreeSet<Argument> sortedArgumentsInRegisters;
   private Set<Register> freeRegisters;
-  private int maxStackHeight;
-  private int currentStackHeight;
+  private int maxStackDepth;
+  private int currentStackDepth;
   private int currentInstructionNumber;
   private Instruction currentInstruction;
 
@@ -50,8 +50,8 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
     this.methodInfo = methodInfo;
     this.code = code;
     this.nodeAllocator = nodeAllocator;
-    this.maxStackHeight = 0;
-    this.currentStackHeight = 0;
+    this.maxStackDepth = 0;
+    this.currentStackDepth = 8;
     this.currentInstructionNumber = 0;
     this.assignedStackSlots = new ArrayList<>();
     this.argumentStackSlots = new HashMap<>();
@@ -105,14 +105,16 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
 
   private void putArgumentOnStack(Argument argument) {
     if (!hasStackSlotAsigned(argument)) {
-      StackSlot slot = new StackSlot(argument.width, -currentStackHeight);
+      if (assignedStackSlots.size() > 0) {
+        currentStackDepth += argument.width.sizeInBytes;
+      }
+      StackSlot slot = new StackSlot(argument.width, -currentStackDepth);
       slot.setComment(argument.getComment());
       argumentStackSlots.put(argument, slot);
       usedStackSlots.put(slot, argument);
       assignedStackSlots.add(Optional.of(slot));
-      currentStackHeight += argument.width.sizeInBytes;
-      if (currentStackHeight > maxStackHeight) {
-        maxStackHeight = currentStackHeight;
+      if (currentStackDepth > maxStackDepth) {
+        maxStackDepth = currentStackDepth;
       }
     }
   }
@@ -143,7 +145,7 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
     for (int i = assignedStackSlots.size() - 1; i >= 0; i--) {
       Optional<StackSlot> s = assignedStackSlots.get(i);
       if (s.isPresent()) {
-        maxStackHeight = -s.get().offset + s.get().width.sizeInBytes;
+        maxStackDepth = -s.get().offset + s.get().width.sizeInBytes;
         break;
       } else {
         assignedStackSlots.remove(i);
@@ -177,7 +179,7 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
     for (int i = 0; i < ret.size(); i++) {
       if (ret.get(i).instruction.isPresent()) {
         if (ret.get(i).instruction.get() instanceof MetaMethodFrameAlloc) {
-          ret.set(i, new LinearCodeSegment.InstructionOrString(new AllocStack(maxStackHeight)));
+          ret.set(i, new LinearCodeSegment.InstructionOrString(new AllocStack(currentStackDepth)));
         }
       }
     }
@@ -209,7 +211,7 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
     Register register;
     if (needsToEvictRegister()) {
       // we need to evict registers here
-      register = chooseRegisterToEvict();
+      register = chooseRegisterToEvict().ofWidth(width);
       genSpillRegisterInstruction(register.ofWidth(width)).ifPresent(instructions::add);
       Argument priorArgument = usedRegisters.get(register);
       removeArgumentFromRegister(priorArgument);
@@ -219,15 +221,19 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
       freeRegisters.remove(register);
     }
     putArgumentIntoRegister(argument, register);
+    Argument currentPlace = null;
     if (hasStackSlotAsigned(argument)) {
       // the argument was evicted once, we have to load its value
-      instructions.add(
-          new Mov(argumentStackSlots.get(argument), register)
-              .com(String.format("Move %s into register", argument)));
+      currentPlace = argumentStackSlots.get(argument);
     } else if (argument instanceof ConstArgument) {
-      // we don't have to load const arguments
-      //instructions.add(new Mov(argument, register).com(String.format("Load constant value %s into register", argument)));
-      assert false;
+      // this is usually a sign that something went wrong, as this case should be been captured early an the constant
+      // placed directly into the instruction
+      // the only instance where this seems to happen is for Cmp instructions
+      currentPlace = argument;
+    }
+    if (currentPlace != null) {
+      instructions.add(
+          new Mov(currentPlace, register).com(String.format("Move %s into register", argument)));
     }
     return new Tuple2<Optional<List<Instruction>>, Register>(Optional.of(instructions), register);
   }
@@ -417,11 +423,11 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
     // the 64 ABI requires the stack to aligned to 16 bytes
     instructions.add(new Push(Register.STACK_POINTER).com("Save old stack pointer"));
     int stackAlignmentDecrement = 0;
-    if (currentStackHeight % 16 != 0) { // the stack isn't aligned to 16 Bytes
+    if (currentStackDepth % 16 != 0) { // the stack isn't aligned to 16 Bytes
       // we have to align the stack by decrementing the stack counter
       // this works because we can assume that the base pointer is correctly aligned
       // (induction and the main method is correctly called)
-      stackAlignmentDecrement = 16 - currentStackHeight % 16;
+      stackAlignmentDecrement = 16 - currentStackDepth % 16;
       instructions.add(
           new Add(
                   new ConstArgument(Register.Width.Quad, -stackAlignmentDecrement),
@@ -515,8 +521,7 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
         load.source.address,
         load.destination,
         (l, r) -> {
-          RegRelativeLocation source =
-              new RegRelativeLocation(load.destination.width, (Register) l, 0);
+          RegRelativeLocation source = new RegRelativeLocation(load.width, (Register) l, 0);
           return new Mov(source, r).firm(load.firm()).com("Load " + source.toString());
         });
   }
