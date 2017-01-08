@@ -7,7 +7,7 @@ public class ConstArgument extends Argument {
 
   public final String value;
 
-  public ConstArgument(Register.Width width, int value) {
+  public ConstArgument(Register.Width width, long value) {
     super(width);
     this.value = "$" + value;
   }

@@ -249,6 +249,9 @@ public abstract class Instruction implements GNUAssemblerConvertible, Comparable
 
   public void setUsedByRelations() {
     for (Argument argument : getArguments()) {
+      if (argument instanceof MemoryNodeLocation) {
+        ((MemoryNodeLocation) argument).address.addUsedByRelation(this);
+      }
       argument.addUsedByRelation(this);
     }
   }

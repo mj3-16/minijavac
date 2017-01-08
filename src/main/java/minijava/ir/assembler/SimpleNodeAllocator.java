@@ -106,8 +106,10 @@ public class SimpleNodeAllocator {
   public Argument getAsArgument(Node node) {
     if (node instanceof Const) {
       TargetValue tarVal = ((Const) node).getTarval();
-      if (tarVal.isLong()) {
-        return new ConstArgument(Register.Width.Long, tarVal.asInt());
+      if (tarVal.getMode().getSizeBytes() == 4) {
+        return new ConstArgument(Register.Width.Long, tarVal.asLong());
+      } else if (tarVal.getMode().getSizeBytes() == 8 || tarVal.getMode().isReference()) {
+        return new ConstArgument(Register.Width.Quad, tarVal.asLong());
       } else if (tarVal.getMode().equals(Mode.getb())) {
         return new ConstArgument(Register.Width.Byte, tarVal.isNull() ? 0 : 1);
       } else {

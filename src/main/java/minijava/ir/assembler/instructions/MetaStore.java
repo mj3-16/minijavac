@@ -30,4 +30,9 @@ public class MetaStore extends Instruction {
   public <T> T accept(InstructionVisitor<T> visitor) {
     return visitor.visit(this);
   }
+
+  @Override
+  protected String toGNUAssemblerWoComments() {
+    return createGNUAssemblerWoComments(source, destination);
+  }
 }

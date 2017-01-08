@@ -43,6 +43,7 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
   private int maxStackHeight;
   private int currentStackHeight;
   private int currentInstructionNumber;
+  private Instruction currentInstruction;
 
   public BasicRegAllocator(
       MethodInformation methodInfo, LinearCodeSegment code, SimpleNodeAllocator nodeAllocator) {
@@ -80,7 +81,8 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
     // put a pseudo element on the stack as we can't use the 0. stack slot (we backup the old frame pointer there)
     putArgumentOnStack(new ConstArgument(Register.Width.Quad, 42));
     this.freeRegisters =
-        seq(Register.usableRegisters).removeAll(argRegs).collect(Collectors.toSet());
+        seq(Register.usableRegisters).removeAll(usedRegisters.keySet()).collect(Collectors.toSet());
+    simpleRegisterIntegrityCheck();
   }
 
   private void putArgumentIntoRegister(Argument argument, Register register) {
@@ -88,6 +90,9 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
     this.argumentsInRegisters.put(argument, register);
     this.usedRegisters.put(register, argument);
     this.sortedArgumentsInRegisters.add(argument);
+    if (freeRegisters.contains(register)) {
+      freeRegisters.remove(register);
+    }
   }
 
   private void removeArgumentFromRegister(Argument argument) {
@@ -161,8 +166,10 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
       if (instructionOrString.instruction.isPresent()) {
         Instruction instruction = instructionOrString.instruction.get();
         currentInstructionNumber = instruction.getNumberInSegment();
+        currentInstruction = instruction;
         List<Instruction> replacement = instruction.accept(this);
         replacement.stream().map(LinearCodeSegment.InstructionOrString::new).forEach(ret::add);
+        simpleRegisterIntegrityCheck();
       } else {
         ret.add(instructionOrString);
       }
@@ -555,5 +562,39 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
         .stream()
         .map(a -> String.format("  %s -> %s", argumentsInRegisters.get(a), a.getComment()))
         .collect(Collectors.joining("\n"));
+  }
+
+  /**
+   * Checks that all registers in the free set aren't currently in use and that all usable registers
+   * are either used or free.
+   *
+   * @throws RuntimeException if this isn't the case
+   */
+  private void simpleRegisterIntegrityCheck() {
+    String prefix = "";
+    if (currentInstruction != null) {
+      prefix = currentInstruction.toGNUAssembler() + ": ";
+    }
+    List<Register> incorrectRegisters =
+        seq(freeRegisters).retainAll(usedRegisters.keySet()).collect(Collectors.toList());
+    if (incorrectRegisters.size() > 0) {
+      throw new RuntimeException(
+          prefix
+              + "Registers "
+              + incorrectRegisters.stream().map(Object::toString).collect(Collectors.joining(", "))
+              + " are free and used at the same time");
+    }
+    incorrectRegisters =
+        seq(Register.usableRegisters)
+            .removeAll(freeRegisters)
+            .removeAll(usedRegisters.keySet())
+            .collect(Collectors.toList());
+    if (incorrectRegisters.size() > 0) {
+      throw new RuntimeException(
+          prefix
+              + "Registers "
+              + incorrectRegisters.stream().map(Object::toString).collect(Collectors.joining(", "))
+              + " are neither free nor used");
+    }
   }
 }
