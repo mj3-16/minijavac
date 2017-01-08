@@ -3,6 +3,7 @@ package minijava.ir.assembler.allocator;
 import static org.jooq.lambda.Seq.seq;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import java.util.*;
 import java.util.Set;
 import java.util.function.BiFunction;
@@ -100,7 +101,19 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
     this.usedRegisters.remove(reg);
     this.argumentsInRegisters.remove(argument);
     this.sortedArgumentsInRegisters.remove(argument);
-    this.freeRegisters.remove(reg);
+    this.freeRegisters.add(reg);
+  }
+
+  private void removeNeverAgainUsedArgumentsFromRegisters() {
+    for (Argument argument : ImmutableSet.copyOf(usedRegisters.values())) {
+      if (!isArgumentUsedLater(argument)) {
+        removeArgumentFromRegister(argument);
+      }
+    }
+  }
+
+  private boolean isArgumentUsedLater(Argument argument) {
+    return currentInstructionNumber < argument.instructionRelations.getLastInstructionNumber();
   }
 
   private void putArgumentOnStack(Argument argument) {
@@ -171,6 +184,10 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
         currentInstruction = instruction;
         List<Instruction> replacement = instruction.accept(this);
         replacement.stream().map(LinearCodeSegment.InstructionOrString::new).forEach(ret::add);
+        if (!instruction.isMetaInstruction() && instruction.getType() != Instruction.Type.DIV) {
+          // remove old arguments if possible
+          removeNeverAgainUsedArgumentsFromRegisters();
+        }
         simpleRegisterIntegrityCheck();
       } else {
         ret.add(instructionOrString);
@@ -239,9 +256,14 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
   }
 
   private Optional<Instruction> evictFromRegister(Register register) {
-    if (usedRegisters.containsKey(register)) {
+    return evictFromRegister(register, false);
+  }
+
+  private Optional<Instruction> evictFromRegister(Register register, boolean forceSpill) {
+    if (forceSpill || usedRegisters.containsKey(register)) {
       Argument arg = usedRegisters.get(register);
-      Optional<Instruction> spill = genSpillRegisterInstruction(register.ofWidth(arg.width));
+      Optional<Instruction> spill =
+          genSpillRegisterInstruction(register.ofWidth(arg.width), forceSpill);
       removeArgumentFromRegister(arg);
       freeRegisters.add(register);
       return spill;
@@ -257,6 +279,10 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
     return ret;
   }
 
+  private Optional<Instruction> genSpillRegisterInstruction(Register register) {
+    return genSpillRegisterInstruction(register, false);
+  }
+
   /**
    * It generates an instruction that spills the value stored in the passed register if the value
    * has to be backuped. A value can be dismissed if …
@@ -269,10 +295,13 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
    * It doesn't remove the register or the value from any data structure, but creates a stack
    * location if needed.
    */
-  private Optional<Instruction> genSpillRegisterInstruction(Register register) {
+  private Optional<Instruction> genSpillRegisterInstruction(
+      Register register, boolean forceSpilling) {
     Argument argument = usedRegisters.get(register);
-    if (argument instanceof ConstArgument
-        || currentInstructionNumber >= argument.instructionRelations.getLastInstructionNumber()) {
+    if (!forceSpilling
+        && (argument instanceof ConstArgument
+            || currentInstructionNumber
+                >= argument.instructionRelations.getLastInstructionNumber())) {
       // we don't have to do anything (see method comment)
       return Optional.empty();
     }
@@ -413,6 +442,11 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
   public List<Instruction> visit(MetaCall metaCall) {
     List<Register> argRegs = Register.methodArgumentQuadRegisters;
     List<Instruction> instructions = new ArrayList<>();
+    // only evict all registers that are currently used
+    for (Register register : Register.usableRegisters) {
+      boolean forceSpill = metaCall.args.contains(usedRegisters.get(register));
+      evictFromRegister(register, forceSpill).ifPresent(instructions::add);
+    }
     // move the register passed argument into the registers
     for (int i = 0; i < Math.min(argRegs.size(), metaCall.methodInfo.paramNumber); i++) {
       Argument arg = metaCall.args.get(i);

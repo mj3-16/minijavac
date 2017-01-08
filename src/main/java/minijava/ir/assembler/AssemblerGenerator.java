@@ -199,7 +199,6 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     MethodInformation info = new MethodInformation(node);
     List<Argument> args = allocator.getArguments(node);
     CodeBlock block = getCodeBlockForNode(node);
-    block.add(new Evict(Register.usableRegisters));
     Optional<Argument> ret = Optional.empty();
     if (info.hasReturnValue) {
       ret = Optional.of(allocator.getResultLocation(node));
