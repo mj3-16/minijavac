@@ -30,6 +30,8 @@ public interface InstructionVisitor<T> {
 
   T visit(Mov mov);
 
+  T visit(MovFromSmallerToGreater mov);
+
   T visit(Mul mul);
 
   T visit(Neg neg);

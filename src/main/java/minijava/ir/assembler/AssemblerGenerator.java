@@ -162,7 +162,14 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     Argument secondArg = args.get(0);
     Location res = allocator.getLocation(node);
     CodeBlock block = getCodeBlockForNode(node);
-    block.add(new Mov(firstArg, res));
+    if (firstArg.width == res.width) {
+      block.add(new Mov(firstArg, res));
+    } else if (firstArg.width.ordinal() < res.width.ordinal()) {
+      block.add(new Mov(new ConstArgument(res.width, 0), res));
+      block.add(new MovFromSmallerToGreater(firstArg, res));
+    } else {
+      assert false;
+    }
     block.add(creator.apply(secondArg, res).firm(node));
   }
 
@@ -183,7 +190,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
       List<Argument> args = allocator.getArguments(node);
       assert args.size() == 1;
       Argument arg = args.get(0);
-      codeBlock.add(new Mov(arg, Register.RETURN_REGISTER));
+      codeBlock.add(new Mov(arg, Register.RETURN_REGISTER.ofWidth(arg.width)));
     }
     // insert the epilogue
     codeBlock.add(

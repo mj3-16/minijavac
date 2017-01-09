@@ -112,8 +112,22 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
     }
   }
 
+  private void removeNeverAgainUsedArgumentsFromStack() {
+    // we skip the first element that represents the backuped stack pointer that the don't want to remove
+    List<Argument> removeArgs =
+        assignedStackSlots
+            .stream()
+            .skip(1)
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .filter(a -> !isArgumentUsedLater(a))
+            .collect(Collectors.toList());
+    removeArgs.forEach(this::removeArgumentFromStack);
+  }
+
   private boolean isArgumentUsedLater(Argument argument) {
-    return currentInstructionNumber < argument.instructionRelations.getLastInstructionNumber();
+    return argument.instructionRelations.isEmpty()
+        || currentInstructionNumber < argument.instructionRelations.getLastInstructionNumber();
   }
 
   private void putArgumentOnStack(Argument argument) {
@@ -187,6 +201,7 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
         if (!instruction.isMetaInstruction() && instruction.getType() != Instruction.Type.DIV) {
           // remove old arguments if possible
           removeNeverAgainUsedArgumentsFromRegisters();
+          removeNeverAgainUsedArgumentsFromStack();
         }
         simpleRegisterIntegrityCheck();
       } else {
@@ -510,6 +525,16 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
   @Override
   public List<Instruction> visit(Mov mov) {
     return visitBinaryInstruction(mov, mov.source, mov.destination, Mov::new);
+  }
+
+  @Override
+  public List<Instruction> visit(MovFromSmallerToGreater mov) {
+    mov.com("bla");
+    return visitBinaryInstruction(
+        mov,
+        mov.source,
+        mov.destination,
+        (l, r) -> new MovFromSmallerToGreater(l, r.ofWidth(mov.source.width)));
   }
 
   @Override

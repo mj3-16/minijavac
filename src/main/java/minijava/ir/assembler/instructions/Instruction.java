@@ -36,6 +36,7 @@ public abstract class Instruction implements GNUAssemblerConvertible, Comparable
     DEALLOC_STACK("addq"),
     AND("and", false),
     MOV("mov", true),
+    MOVSG("mov", true),
     EVICT(Category.META, "evict"),
     PROLOGUE(Category.META, "prologue"),
     META_CALL(Category.META, "meta_call"),
