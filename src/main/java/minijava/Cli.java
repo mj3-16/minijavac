@@ -222,15 +222,15 @@ public class Cli {
     Tuple2<AssemblerFile, AssemblerFile> preAsmAndAsmFile =
         AssemblerFile.createForGraphs(firm.Program.getGraphs());
     AssemblerFile preAsmFile = preAsmAndAsmFile.v1;
-    AssemblerFile file = preAsmAndAsmFile.v2;
     if (!preAsmOut.isPresent()) {
       preAsmOut = Optional.of(System.err);
     }
+    preAsmOut.ifPresent(o -> o.println(preAsmFile.toGNUAssembler()));
+    AssemblerFile file = preAsmAndAsmFile.v2;
     if (System.getenv().containsKey("MJ_FILENAME")) {
       preAsmFile.setFileName(System.getenv("MJ_FILENAME"));
       file.setFileName(System.getenv("MJ_FILENAME"));
     }
-    preAsmOut.ifPresent(o -> o.println(preAsmFile.toGNUAssembler()));
     out.println(file.toGNUAssembler());
   }
 

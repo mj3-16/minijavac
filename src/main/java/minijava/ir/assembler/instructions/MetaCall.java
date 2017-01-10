@@ -3,6 +3,7 @@ package minijava.ir.assembler.instructions;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import minijava.ir.assembler.location.Location;
 import minijava.ir.assembler.location.Register;
 import minijava.ir.utils.MethodInformation;
 
@@ -26,10 +27,10 @@ import minijava.ir.utils.MethodInformation;
 public class MetaCall extends Instruction {
 
   public final List<Argument> args;
-  public final Optional<Argument> result;
+  public final Optional<Location> result;
   public final MethodInformation methodInfo;
 
-  public MetaCall(List<Argument> args, Optional<Argument> result, MethodInformation methodInfo) {
+  public MetaCall(List<Argument> args, Optional<Location> result, MethodInformation methodInfo) {
     super(result.isPresent() ? result.get().width : Register.Width.Quad);
     this.args = Collections.unmodifiableList(args);
     this.result = result;

@@ -86,6 +86,16 @@ public abstract class Instruction implements GNUAssemblerConvertible, Comparable
   }
 
   public static Register.Width getWidthOfArguments(Class klass, Argument... arguments) {
+    if (arguments[0] == null) {
+      throw new NullPointerException(
+          String.format(
+              "%s %s",
+              klass.getSimpleName(),
+              seq(Arrays.asList(arguments))
+                  .map(x -> x == null ? "null" : x.toString())
+                  .stream()
+                  .collect(Collectors.joining(" "))));
+    }
     Register.Width width = arguments[0].width;
     for (int i = 1; i < arguments.length; i++) {
       Argument argument = arguments[i];

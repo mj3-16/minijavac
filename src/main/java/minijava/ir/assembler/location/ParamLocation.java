@@ -20,4 +20,9 @@ public class ParamLocation extends NodeLocation {
   public Location setComment(String comment) {
     return this;
   }
+
+  @Override
+  public String toGNUAssembler() {
+    return toString();
+  }
 }

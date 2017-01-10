@@ -139,10 +139,16 @@ public class AssemblerFile implements GNUAssemblerConvertible, Collection<Segmen
       CodeSegment segment = asmGenerator.generateSegmentForGraph();
       preAsmFile.add(segment);
       LinearCodeSegment linCode = LinearCodeSegment.fromCodeSegment(segment);
-      BasicRegAllocator allocator =
-          new BasicRegAllocator(new MethodInformation(graph), linCode, asmGenerator.getAllocator());
-      LinearCodeSegment ret = allocator.process();
-      file.add(ret);
+      try {
+        BasicRegAllocator allocator =
+            new BasicRegAllocator(
+                new MethodInformation(graph), linCode, asmGenerator.getAllocator());
+        LinearCodeSegment ret = allocator.process();
+        file.add(ret);
+      } catch (NullPointerException ex) {
+        System.err.println(linCode.toGNUAssembler());
+        throw ex;
+      }
     }
     return new Tuple2<AssemblerFile, AssemblerFile>(preAsmFile, file);
   }

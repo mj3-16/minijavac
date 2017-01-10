@@ -128,10 +128,10 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     Argument firstArg = args.get(0);
     Argument secondArg = args.get(1);
     block.add(new Evict(Register.EAX, Register.EBX, Register.EDX));
-    Register secondArgIm = Register.EBX;
+    Register secondArgIm = Register.EBX.ofWidth(secondArg.width);
     block.add(new Mov(secondArg, secondArgIm));
     block.add(
-        new Mov(firstArg, Register.EAX)
+        new Mov(firstArg, Register.EAX.ofWidth(firstArg.width))
             .com("copy the first argument (the dividend) into the EAX register"));
     block.add(new CLTD().com("and convert it from 32 Bits to 64 Bits"));
     block.add(
@@ -206,7 +206,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     MethodInformation info = new MethodInformation(node);
     List<Argument> args = allocator.getArguments(node);
     CodeBlock block = getCodeBlockForNode(node);
-    Optional<Argument> ret = Optional.empty();
+    Optional<Location> ret = Optional.empty();
     if (info.hasReturnValue) {
       ret = Optional.of(allocator.getResultLocation(node));
     }
@@ -372,7 +372,6 @@ public class AssemblerGenerator extends NodeVisitor.Default {
       // we have copy the temporarily modified value into phis location
       // at the start of the block that the phi is part of
       CodeBlock phisBlock = getCodeBlockForNode(node);
-      Register intermediateReg = Register.EAX.ofWidth(tmpLocation.width);
       // we have to use a register to copy the value between two locations
       phisBlock.addBlockStartInstruction(new Mov(tmpLocation, res));
     }
