@@ -3,9 +3,9 @@ package minijava.ir.assembler.allocator;
 import static org.jooq.lambda.Seq.seq;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import java.util.*;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -15,14 +15,12 @@ import minijava.ir.assembler.block.LinearCodeSegment;
 import minijava.ir.assembler.instructions.*;
 import minijava.ir.assembler.location.*;
 import minijava.ir.utils.MethodInformation;
-import org.jooq.lambda.tuple.Tuple2;
 
 /**
  * This is a basic implementation of a register allocator, that allocates {@link
  * minijava.ir.assembler.location.NodeLocation} instances in registers and the heap.
  *
- * <p>It implements the linear scan algorithm →
- * http://web.cs.ucla.edu/~palsberg/course/cs132/linearscan.pdf
+ * <p>It's pretty slow (stores everything on the stack) but works well.
  */
 public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> {
 
@@ -69,7 +67,7 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
                     o2.instructionRelations.getLastInstruction().getNumberInSegment()));
     // setup the method parameters
     List<Register> argRegs = Register.methodArgumentQuadRegisters;
-    for (int i = 0; i < Math.min(argRegs.size(), methodInfo.paramNumber); i++) {
+    /*for (int i = 0; i < Math.min(argRegs.size(), methodInfo.paramNumber); i++) {
       ParamLocation location = nodeAllocator.paramLocations.get(i);
       if (location.isUsed()) {
         // we can omit unused parameters
@@ -79,11 +77,45 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
     for (int i = argRegs.size(); i < methodInfo.paramNumber; i++) {
       ParamLocation paramLocation = nodeAllocator.paramLocations.get(i);
       putParameterOnStack(paramLocation);
-    }
+    }*/
     // put a pseudo element on the stack as we can't use the 0. stack slot (we backup the old frame pointer there)
     putArgumentOnStack(new ConstArgument(Register.Width.Quad, 42));
     this.freeRegisters =
         seq(Register.usableRegisters).removeAll(usedRegisters.keySet()).collect(Collectors.toSet());
+  }
+
+  private List<Instruction> prepopulateStack() {
+    List<Instruction> instructions = new ArrayList<>();
+    // we populate the stack with all NodeArguments used in this method
+    // this will result in a pretty large stack at the advantage of being simple
+    // we first populate the stack with the parameters
+    for (ParamLocation paramLocation : nodeAllocator.paramLocations) {
+      putArgumentOnStack(paramLocation);
+    }
+    // then we copy the parameters from the registers
+    for (int i = 0;
+        i
+            < Math.min(
+                Register.methodArgumentQuadRegisters.size(), nodeAllocator.paramLocations.size());
+        i++) {
+      ParamLocation param = nodeAllocator.paramLocations.get(i);
+      Register paramReg = Register.methodArgumentQuadRegisters.get(i).ofWidth(param.width);
+      ;
+      instructions.add(
+          new Mov(paramReg, (Location) getCurrentLocation(param))
+              .com(String.format("Copy %d. parameter on the stack", i)));
+    }
+    // we assign all NodeLocations that appear in instructions a stack slot
+    for (LinearCodeSegment.InstructionOrString instructionOrString : code) {
+      if (instructionOrString.instruction.isPresent()) {
+        for (Argument arg : instructionOrString.instruction.get().getArguments()) {
+          if (arg instanceof NodeLocation && !(arg instanceof ParamLocation)) {
+            putArgumentOnStack(arg);
+          }
+        }
+      }
+    }
+    return instructions;
   }
 
   /** Important: This method doesn't create any instructions (hence the return type void) */
@@ -98,11 +130,13 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
   }
 
   private void removeArgumentFromRegister(Argument argument) {
-    Register reg = argumentsInRegisters.get(argument);
-    this.usedRegisters.remove(reg);
-    this.argumentsInRegisters.remove(argument);
-    this.sortedArgumentsInRegisters.remove(argument);
-    this.freeRegisters.add(reg);
+    if (!hasStackSlotAssigned(argument)) {
+      Register reg = argumentsInRegisters.get(argument);
+      this.usedRegisters.remove(reg);
+      this.argumentsInRegisters.remove(argument);
+      this.sortedArgumentsInRegisters.remove(argument);
+      this.freeRegisters.add(reg);
+    }
   }
 
   private void removeNeverAgainUsedArgumentsFromRegisters() {
@@ -132,9 +166,9 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
   }
 
   private void putArgumentOnStack(Argument argument) {
-    if (!hasStackSlotAsigned(argument)) {
+    if (!hasStackSlotAssigned(argument)) {
       if (assignedStackSlots.size() > 0) {
-        currentStackDepth += argument.width.sizeInBytes;
+        currentStackDepth += 8; //argument.width.sizeInBytes;
       }
       StackSlot slot = new StackSlot(argument.width, -currentStackDepth);
       slot.setComment(argument.getComment());
@@ -148,7 +182,7 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
   }
 
   private void putParameterOnStack(ParamLocation param) {
-    if (!hasStackSlotAsigned(param)) {
+    if (!hasStackSlotAssigned(param)) {
       int offset = (param.paramNumber + 2) * 8;
       StackSlot slot = new StackSlot(param.width, offset);
       slot.setComment(param.getComment());
@@ -159,7 +193,7 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
   }
 
   private void removeArgumentFromStack(Argument argument) {
-    if (hasStackSlotAsigned(argument)) {
+    if (hasStackSlotAssigned(argument)) {
       final StackSlot slot = argumentStackSlots.get(argument);
       argumentStackSlots.remove(argument);
       assignedStackSlots.replaceAll(
@@ -194,18 +228,17 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
     List<LinearCodeSegment.InstructionOrString> ret = new ArrayList<>();
     for (LinearCodeSegment.InstructionOrString instructionOrString : code) {
       if (instructionOrString.instruction.isPresent()) {
+        if (currentInstruction instanceof MethodPrologue) {
+          prepopulateStack()
+              .stream()
+              .map(LinearCodeSegment.InstructionOrString::new)
+              .forEach(ret::add);
+        }
         Instruction instruction = instructionOrString.instruction.get();
         currentInstructionNumber = instruction.getNumberInSegment();
         currentInstruction = instruction;
         List<Instruction> replacement = instruction.accept(this);
         replacement.stream().map(LinearCodeSegment.InstructionOrString::new).forEach(ret::add);
-        simpleRegisterIntegrityCheck();
-        if (!instruction.isMetaInstruction() && instruction.getType() != Instruction.Type.DIV) {
-          // remove old arguments if possible
-          removeNeverAgainUsedArgumentsFromRegisters();
-          removeNeverAgainUsedArgumentsFromStack();
-        }
-        simpleRegisterIntegrityCheck();
       } else {
         ret.add(instructionOrString);
       }
@@ -220,122 +253,7 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
     return new LinearCodeSegment(ret, code.getComments());
   }
 
-  /**
-   * Returns the register that contains the arguments value if the returned instruction were
-   * executed before
-   *
-   * <p>Attention the argument shouldn't be a constant. Use constants directly as an instruction
-   * argument.
-   *
-   * @return (optional spill and reload instructions, register the argument is placed in)
-   */
-  private Tuple2<Optional<List<Instruction>>, Register> getRegisterForArgument(Argument argument) {
-    if (argument instanceof Register) {
-      // a valid register was already passed as an argument
-      return new Tuple2<Optional<List<Instruction>>, Register>(
-          Optional.empty(), (Register) argument);
-    }
-    if (argumentsInRegisters.containsKey(argument)) {
-      // the argument is already in a register, nothing to do...
-      return new Tuple2<Optional<List<Instruction>>, Register>(
-          Optional.empty(), argumentsInRegisters.get(argument));
-    }
-    Register.Width width = argument.width;
-    List<Instruction> instructions = new ArrayList<>();
-    Register register;
-    if (needsToEvictRegister()) {
-      // we need to evict registers here
-      register = chooseRegisterToEvict().ofWidth(width);
-      genSpillRegisterInstruction(register.ofWidth(width)).ifPresent(instructions::add);
-      Argument priorArgument = usedRegisters.get(register);
-      removeArgumentFromRegister(priorArgument);
-    } else {
-      // we have enough registers
-      register = seq(freeRegisters.iterator()).findFirst().get().ofWidth(width);
-      freeRegisters.remove(register);
-    }
-    putArgumentIntoRegister(argument, register);
-    Argument currentPlace = null;
-    if (hasStackSlotAsigned(argument)) {
-      // the argument was evicted once, we have to load its value
-      currentPlace = argumentStackSlots.get(argument);
-    } else if (argument instanceof ConstArgument) {
-      // this is usually a sign that something went wrong, as this case should be been captured early an the constant
-      // placed directly into the instruction
-      // the only instance where this seems to happen is for Cmp instructions
-      currentPlace = argument;
-    }
-    if (currentPlace != null) {
-      instructions.add(
-          new Mov(currentPlace, register).com(String.format("Move %s into register", argument)));
-    }
-    return new Tuple2<Optional<List<Instruction>>, Register>(Optional.of(instructions), register);
-  }
-
-  private Optional<Instruction> evictFromRegister(Register register) {
-    return evictFromRegister(register, false);
-  }
-
-  private Optional<Instruction> evictFromRegister(Register register, boolean forceSpill) {
-    if (forceSpill || usedRegisters.containsKey(register)) {
-      Argument arg = usedRegisters.get(register);
-      Optional<Instruction> spill =
-          genSpillRegisterInstruction(register.ofWidth(arg.width), forceSpill);
-      removeArgumentFromRegister(arg);
-      freeRegisters.add(register);
-      return spill;
-    }
-    return Optional.empty();
-  }
-
-  private List<Instruction> genSpillRegistersInstructions(List<Register> registers) {
-    List<Instruction> ret = new ArrayList<>();
-    for (Register register : registers) {
-      genSpillRegisterInstruction(register).ifPresent(ret::add);
-    }
-    return ret;
-  }
-
-  private Optional<Instruction> genSpillRegisterInstruction(Register register) {
-    return genSpillRegisterInstruction(register, false);
-  }
-
-  /**
-   * It generates an instruction that spills the value stored in the passed register if the value
-   * has to be backuped. A value can be dismissed if …
-   *
-   * <ul>
-   *   <li>it's a constant value
-   *   <li>it isn't used at a later time (via number in segment)
-   * </ul>
-   *
-   * It doesn't remove the register or the value from any data structure, but creates a stack
-   * location if needed.
-   */
-  private Optional<Instruction> genSpillRegisterInstruction(
-      Register register, boolean forceSpilling) {
-    Argument argument = usedRegisters.get(register);
-    if (!forceSpilling
-        && (argument instanceof ConstArgument
-            || currentInstructionNumber
-                >= argument.instructionRelations.getLastInstructionNumber())) {
-      // we don't have to do anything (see method comment)
-      return Optional.empty();
-    }
-    // we have to spill the value
-    if (!hasStackSlotAsigned(argument)) {
-      // if we don't have already assigned a stack slot, we create one
-      // we use the method because it handles the data structures...
-      putArgumentOnStack(argument);
-    }
-    StackSlot spillSlot = argumentStackSlots.get(argument);
-    Instruction spillInstruction =
-        new Mov(register.ofWidth(argument.width), spillSlot)
-            .com(String.format("Evict %s to %s", register, spillSlot));
-    return Optional.of(spillInstruction);
-  }
-
-  private boolean hasStackSlotAsigned(Argument argument) {
+  private boolean hasStackSlotAssigned(Argument argument) {
     return argumentStackSlots.containsKey(argument);
   }
 
@@ -362,29 +280,47 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
       Argument left,
       Argument right,
       BiFunction<Argument, Register, Instruction> instrCreator) {
-    Tuple2<Optional<List<Instruction>>, Register> spillAndRegLeft = null;
-    if (!(left instanceof ConstArgument)) {
-      spillAndRegLeft = getRegisterForArgument(left);
-    }
-    Tuple2<Optional<List<Instruction>>, Register> spillAndRegRight = getRegisterForArgument(right);
     List<Instruction> instructions = new ArrayList<>();
-    Argument leftArgument = left;
-    if (spillAndRegLeft != null) {
-      spillAndRegLeft.v1.ifPresent(instructions::addAll);
-      leftArgument = spillAndRegLeft.v2;
+    // we copy both arguments simply into these registers
+    // they are new in the x86-64 (compared to x86) and can therefore be used freely
+    Register leftReg;
+    if (!(left instanceof Register)) {
+      leftReg = Register.R14.ofWidth(left.width);
+      instructions.add(new Mov(getCurrentLocation(left), leftReg));
+    } else {
+      leftReg = (Register) left;
     }
-    spillAndRegRight.v1.ifPresent(instructions::addAll);
-    instructions.add(
-        instrCreator.apply(leftArgument, spillAndRegRight.v2).firmAndComments(instruction));
+    Register rightReg;
+    if (!(right instanceof Register)) {
+      rightReg = Register.R15.ofWidth(right.width);
+      instructions.add(new Mov(getCurrentLocation(right), rightReg));
+    } else {
+      rightReg = (Register) right;
+    }
+    instructions.add(instrCreator.apply(leftReg, rightReg).firmAndComments(instruction));
+    // copy the result back
+    if (!(right instanceof ConstArgument)) {
+      if (!(right instanceof Register)) {
+        instructions.add(new Mov(rightReg, (Location) getCurrentLocation(right)));
+      }
+    }
     return instructions;
   }
 
   private List<Instruction> visitUnaryInstruction(
       Instruction instruction, Argument arg, Function<Register, Instruction> instrCreator) {
-    Tuple2<Optional<List<Instruction>>, Register> spillAndReg = getRegisterForArgument(arg);
     List<Instruction> instructions = new ArrayList<>();
-    spillAndReg.v1.ifPresent(instructions::addAll);
-    instructions.add(instrCreator.apply(spillAndReg.v2).firmAndComments(instruction));
+    // use a temporary register
+    Register reg = Register.R14.ofWidth(arg.width);
+    if (arg instanceof Register) {
+      reg = (Register) arg;
+    } else {
+      instructions.add(new Mov(getCurrentLocation(arg), reg));
+    }
+    instructions.add(instrCreator.apply(reg).firmAndComments(instruction));
+    if (!(arg instanceof ConstArgument) && !(arg instanceof Register)) {
+      instructions.add(new Mov(reg, (Location) getCurrentLocation(arg)));
+    }
     return instructions;
   }
 
@@ -430,11 +366,7 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
 
   @Override
   public List<Instruction> visit(Evict evict) {
-    List<Instruction> instructions = new ArrayList<>();
-    for (Register register : evict.registers) {
-      evictFromRegister(register).ifPresent(instructions::add);
-    }
-    return instructions;
+    return ImmutableList.of();
   }
 
   @Override
@@ -459,14 +391,6 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
   public List<Instruction> visit(MetaCall metaCall) {
     List<Register> argRegs = Register.methodArgumentQuadRegisters;
     List<Instruction> instructions = new ArrayList<>();
-    // the used registers before the whole call (and eviction)
-    Map<Register, Argument> usedRegistersCopy = ImmutableMap.copyOf(usedRegisters);
-    Map<Argument, StackSlot> argumentStackSlotsCopy = ImmutableMap.copyOf(argumentStackSlots);
-    // only evict all registers that are currently used
-    for (Register register : Register.usableRegisters) {
-      boolean forceSpill = metaCall.args.contains(usedRegisters.get(register));
-      evictFromRegister(register, forceSpill).ifPresent(instructions::add);
-    }
     // move the register passed argument into the registers
     for (int i = 0; i < Math.min(argRegs.size(), metaCall.methodInfo.paramNumber); i++) {
       Argument arg = metaCall.args.get(i);
@@ -503,7 +427,7 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
                     ? metaCall.result.get().width
                     : Register.Width.Quad,
                 metaCall.methodInfo.ldName)
-            .com("Call the external function")
+            .com("Call the function")
             .firm(metaCall.firm()));
     instructions.add(
         new DeallocStack(
@@ -523,27 +447,8 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
                 new RegRelativeLocation(Register.Width.Quad, Register.STACK_POINTER, 0),
                 Register.STACK_POINTER)
             .com("Restore old stack pointer"));
-    // the following builds upon the assumption that %rax register isn't used
-    // we sacrifice one register here but it's amd64, so we've got enough of them
-    // we restore the state before the whole eviction process
-    // we only have to do this as other blocks that follow the block the current instruction is in might only
-    // lie in code but not in the control flow graph behind it
-    // therefore we have to restore the registers
-    for (Register register : usedRegistersCopy.keySet()) {
-      Argument argument = usedRegistersCopy.get(register);
-      if (argumentStackSlots.containsKey(argument)) {
-        // place the argument into the correct register
-        putArgumentIntoRegister(argument, register);
-        // and also move it there from its StackSlot
-        instructions.add(new Mov(argumentStackSlots.get(argument), register));
-      }
-    }
-    // we also have to remove all stack slots that we created only (!) for this method call
-    seq(ImmutableSet.copyOf(argumentStackSlots.keySet()))
-        .removeAll(argumentStackSlotsCopy.keySet())
-        .forEach(this::removeArgumentFromStack);
     if (metaCall.methodInfo.hasReturnValue) {
-      Location ret = metaCall.result.get();
+      Location ret = (Location) getCurrentLocation(metaCall.result.get());
       // now we move the return value from the %rax register into the return value's location
       instructions.addAll(visit(new Mov(Register.RETURN_REGISTER.ofWidth(ret.width), ret)));
     }
@@ -598,7 +503,7 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
 
   @Override
   public List<Instruction> visit(Sub sub) {
-    return visitBinaryInstruction(sub, Sub::new);
+    return visitBinaryInstruction(sub, (l, r) -> new Sub(l, r));
   }
 
   @Override

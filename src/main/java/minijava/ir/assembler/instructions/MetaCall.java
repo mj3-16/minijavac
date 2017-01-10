@@ -1,5 +1,6 @@
 package minijava.ir.assembler.instructions;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -44,7 +45,10 @@ public class MetaCall extends Instruction {
 
   @Override
   public List<Argument> getArguments() {
-    return args;
+    List<Argument> usedArgs = new ArrayList<>();
+    usedArgs.addAll(args);
+    result.ifPresent(usedArgs::add);
+    return usedArgs;
   }
 
   @Override

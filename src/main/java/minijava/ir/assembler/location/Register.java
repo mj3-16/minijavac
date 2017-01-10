@@ -34,6 +34,8 @@ public class Register extends Location {
   public static final Register RBX;
   public static final Register RDI;
   public static final Register RSI;
+  public static final Register R14;
+  public static final Register R15;
 
   private static final Map<String, Register> registerMap = new HashMap<>();
   public static final List<Register> methodArgumentQuadRegisters;
@@ -70,6 +72,8 @@ public class Register extends Location {
     RSI = get("rsi");
     RAX = get("rax");
     RBX = get("rbx");
+    R14 = get("r14");
+    R15 = get("r15");
     methodArgumentQuadRegisters =
         ImmutableList.of(get("rdi"), get("rsi"), get("rdx"), get("rcx"), get("r8"), get("r9"));
     List<Register> regs = new ArrayList<>();

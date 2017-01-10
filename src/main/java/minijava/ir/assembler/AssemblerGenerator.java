@@ -20,7 +20,6 @@ import minijava.ir.assembler.instructions.Mul;
 import minijava.ir.assembler.instructions.Set;
 import minijava.ir.assembler.instructions.Sub;
 import minijava.ir.assembler.location.*;
-import minijava.ir.optimize.Normalizer;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.MethodInformation;
 
@@ -34,9 +33,6 @@ import minijava.ir.utils.MethodInformation;
  * <p>
  *
  * <p>Important: it currently ignores any {@link firm.nodes.Conv} nodes
- *
- * <p>The {@link Normalizer} should be run first (binary operations should have their constant
- * argument as their left argument if they have one).
  */
 public class AssemblerGenerator extends NodeVisitor.Default {
 
@@ -128,8 +124,8 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     Argument firstArg = args.get(0);
     Argument secondArg = args.get(1);
     block.add(new Evict(Register.EAX, Register.EBX, Register.EDX));
-    Register secondArgIm = Register.EBX.ofWidth(secondArg.width);
-    block.add(new Mov(secondArg, secondArgIm));
+    Register secondArgIm = Register.EBX;
+    block.add(new Mov(secondArg, secondArgIm.ofWidth(secondArg.width)));
     block.add(
         new Mov(firstArg, Register.EAX.ofWidth(firstArg.width))
             .com("copy the first argument (the dividend) into the EAX register"));
@@ -158,10 +154,15 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     List<Argument> args = allocator.getArguments(node);
     assert args.size() == 2;
     // swap arguments because GNU assembler has them in reversed order (compared to Intel assembler)
-    Argument firstArg = args.get(1);
-    Argument secondArg = args.get(0);
+    Argument firstArg = args.get(0);
+    Argument secondArg = args.get(1);
     Location res = allocator.getLocation(node);
     CodeBlock block = getCodeBlockForNode(node);
+    if (secondArg.width.ordinal() < res.width.ordinal()) {
+      Location intermLoc = new NodeLocation(res.width, allocator.genLocationId());
+      block.add(new MovFromSmallerToGreater(secondArg, intermLoc));
+      secondArg = intermLoc;
+    }
     if (firstArg.width == res.width) {
       block.add(new Mov(firstArg, res));
     } else if (firstArg.width.ordinal() < res.width.ordinal()) {
