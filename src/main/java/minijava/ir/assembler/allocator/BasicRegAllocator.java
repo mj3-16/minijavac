@@ -51,7 +51,7 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
     this.code = code;
     this.nodeAllocator = nodeAllocator;
     this.maxStackDepth = 0;
-    this.currentStackDepth = 8;
+    this.currentStackDepth = 0;
     this.currentInstructionNumber = 0;
     this.assignedStackSlots = new ArrayList<>();
     this.argumentStackSlots = new HashMap<>();
@@ -167,9 +167,8 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
 
   private void putArgumentOnStack(Argument argument) {
     if (!hasStackSlotAssigned(argument)) {
-      if (assignedStackSlots.size() > 0) {
-        currentStackDepth += 8; //argument.width.sizeInBytes;
-      }
+      currentStackDepth += 8; //argument.width.sizeInBytes;
+      System.out.println(currentStackDepth);
       StackSlot slot = new StackSlot(argument.width, -currentStackDepth);
       slot.setComment(argument.getComment());
       argumentStackSlots.put(argument, slot);
@@ -405,11 +404,12 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
     // the 64 ABI requires the stack to aligned to 16 bytes
     instructions.add(new Push(Register.STACK_POINTER).com("Save old stack pointer"));
     int stackAlignmentDecrement = 0;
-    if (currentStackDepth % 16 != 0) { // the stack isn't aligned to 16 Bytes
+    int stackDepthWithProlog = currentStackDepth + 8; // for saving %rbp
+    if (stackDepthWithProlog % 16 != 0) { // the stack isn't aligned to 16 Bytes
       // we have to align the stack by decrementing the stack counter
       // this works because we can assume that the base pointer is correctly aligned
       // (induction and the main method is correctly called)
-      stackAlignmentDecrement = 16 - currentStackDepth % 16;
+      stackAlignmentDecrement = 16 - stackDepthWithProlog % 16;
       instructions.add(
           new Add(
                   new ConstArgument(Register.Width.Quad, -stackAlignmentDecrement),
