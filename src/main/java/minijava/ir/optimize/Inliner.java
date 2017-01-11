@@ -2,6 +2,7 @@ package minijava.ir.optimize;
 
 import static firm.bindings.binding_irnode.ir_opcode.iro_Address;
 import static firm.bindings.binding_irnode.ir_opcode.iro_Const;
+import static firm.bindings.binding_irnode.ir_opcode.iro_Phi;
 import static org.jooq.lambda.Seq.seq;
 
 import com.google.common.collect.Sets;
@@ -48,6 +49,7 @@ public class Inliner extends BaseOptimizer {
   }
 
   private boolean inlineCandidates() {
+    graph.check();
     Dump.dumpGraph(graph, "before-inlining");
     boolean hasChanged = false;
     for (Call call : callsToInline) {
@@ -55,6 +57,8 @@ public class Inliner extends BaseOptimizer {
       hasChanged = true;
     }
     Dump.dumpGraph(graph, "after-inlining");
+    graph.check();
+
     return hasChanged;
   }
 
@@ -195,6 +199,12 @@ public class Inliner extends BaseOptimizer {
         });
 
     for (Node move : toMove) {
+      if (move.getOpCode().equals(iro_Phi)) {
+        // We don't move phi nodes, as they are tied to the block.
+        // This case only happens in loops, where the PHi depends on the result of the call
+        // and a value of the last iteration.
+        continue;
+      }
       move.setBlock(newBlock);
     }
 
