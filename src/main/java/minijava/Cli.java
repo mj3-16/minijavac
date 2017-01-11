@@ -180,6 +180,7 @@ public class Cli {
     Optimizer constantFolder = new ConstantFolder();
     Optimizer controlFlowOptimizer = new ConstantControlFlowOptimizer();
     Optimizer unreachableCodeRemover = new UnreachableCodeRemover();
+    Optimizer expressionNormalizer = new ExpressionNormalizer();
     Optimizer algebraicSimplifier = new AlgebraicSimplifier();
     Optimizer commonSubexpressionElimination = new CommonSubexpressionElimination();
     Optimizer phiOptimizer = new PhiOptimizer();
@@ -187,6 +188,7 @@ public class Cli {
     for (Graph graph : firm.Program.getGraphs()) {
       //Dump.dumpGraph(graph, "before-simplification");
       while (constantFolder.optimize(graph)
+          | expressionNormalizer.optimize(graph)
           | algebraicSimplifier.optimize(graph)
           | commonSubexpressionElimination.optimize(graph)
           | phiOptimizer.optimize(graph)) ;
