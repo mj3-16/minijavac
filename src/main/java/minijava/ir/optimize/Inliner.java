@@ -1,11 +1,28 @@
 package minijava.ir.optimize;
 
+import static firm.bindings.binding_irnode.ir_opcode.iro_Address;
+import static firm.bindings.binding_irnode.ir_opcode.iro_Const;
 import static org.jooq.lambda.Seq.seq;
 
-import firm.*;
-import firm.bindings.binding_irnode;
-import firm.nodes.*;
-import java.util.*;
+import com.google.common.collect.Sets;
+import firm.BackEdges;
+import firm.Dump;
+import firm.Graph;
+import firm.MethodType;
+import firm.Mode;
+import firm.bindings.binding_irnode.ir_opcode;
+import firm.nodes.Address;
+import firm.nodes.Block;
+import firm.nodes.Call;
+import firm.nodes.End;
+import firm.nodes.Jmp;
+import firm.nodes.Node;
+import firm.nodes.Phi;
+import firm.nodes.Proj;
+import firm.nodes.Return;
+import firm.nodes.Start;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Consumer;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
@@ -13,6 +30,8 @@ import org.jooq.lambda.Seq;
 import org.jooq.lambda.tuple.Tuple2;
 
 public class Inliner extends BaseOptimizer {
+  private static final Set<ir_opcode> ALWAYS_IN_START_BLOCK =
+      Sets.newHashSet(iro_Const, iro_Address);
   private final ProgramMetrics metrics;
   private final Set<Call> callsToInline = new HashSet<>();
 
@@ -53,8 +72,8 @@ public class Inliner extends BaseOptimizer {
 
     Consumer<Node> onFinish =
         node -> {
-          if (node.getOpCode().equals(binding_irnode.ir_opcode.iro_Const)) {
-            // Const nodes must always be placed in the start block.
+          if (ALWAYS_IN_START_BLOCK.contains(node.getOpCode())) {
+            // Const and Address nodes must always be placed in the start block.
             node.setBlock(graph.getStartBlock());
           } else if (startBlock.equals(node.getBlock())) {
             node.setBlock(call.getBlock());
@@ -136,7 +155,22 @@ public class Inliner extends BaseOptimizer {
         node.getGraph(),
         () -> {
           Set<Node> toVisit = new HashSet<>();
+
+          // the successors of the node itself should be checked
           toVisit.add(node);
+
+          for (BackEdges.Edge edge : BackEdges.getOuts(node.getBlock())) {
+            // ... as well as any control flow nodes.
+            if (edge.node.getMode().equals(Mode.getX())) {
+              toVisit.add(edge.node);
+
+              // In case of Projs (e.g. conditional jumps), we also want to move the Cond node.
+              // This is so we don't have to generate spill instructions for values of mode b.
+              // Otherwise the FloatIn transformation should do this.
+              FirmUtils.asProj(edge.node).ifPresent(proj -> toVisit.add(proj.getPred()));
+            }
+          }
+
           while (!toVisit.isEmpty()) {
             Node move = seq(toVisit).findAny().get();
             toVisit.remove(move);
