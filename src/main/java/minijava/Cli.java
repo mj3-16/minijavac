@@ -181,12 +181,14 @@ public class Cli {
     Optimizer controlFlowOptimizer = new ConstantControlFlowOptimizer();
     Optimizer unreachableCodeRemover = new UnreachableCodeRemover();
     Optimizer algebraicSimplifier = new AlgebraicSimplifier();
+    Optimizer commonSubexpressionElimination = new CommonSubexpressionElimination();
     Optimizer phiOptimizer = new PhiOptimizer();
     Optimizer phiBElimination = new PhiBElimination();
     for (Graph graph : firm.Program.getGraphs()) {
       //Dump.dumpGraph(graph, "before-simplification");
       while (constantFolder.optimize(graph)
           | algebraicSimplifier.optimize(graph)
+          | commonSubexpressionElimination.optimize(graph)
           | phiOptimizer.optimize(graph)) ;
       //Dump.dumpGraph(graph, "before-control-flow-optimizations");
       while (controlFlowOptimizer.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
