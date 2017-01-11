@@ -11,4 +11,9 @@ public class Neg extends UnaryInstruction {
   public Type getType() {
     return Type.NEG;
   }
+
+  @Override
+  public <T> T accept(InstructionVisitor<T> visitor) {
+    return visitor.visit(this);
+  }
 }

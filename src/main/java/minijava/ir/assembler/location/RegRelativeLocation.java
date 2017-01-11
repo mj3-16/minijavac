@@ -5,9 +5,10 @@ public class RegRelativeLocation extends Location {
 
   public final Register base;
   /** Offset to base pointer (in bytes) */
-  public final int offset;
+  public final Integer offset;
 
-  public RegRelativeLocation(Register base, int offset) {
+  public RegRelativeLocation(Register.Width width, Register base, int offset) {
+    super(width);
     this.base = base;
     this.offset = offset;
   }
@@ -15,5 +16,10 @@ public class RegRelativeLocation extends Location {
   @Override
   public String toGNUAssembler() {
     return String.format("%d(%s)", offset, base.toGNUAssembler());
+  }
+
+  @Override
+  public String toString() {
+    return toGNUAssembler();
   }
 }

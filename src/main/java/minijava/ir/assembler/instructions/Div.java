@@ -1,5 +1,9 @@
 package minijava.ir.assembler.instructions;
 
+import com.google.common.collect.ImmutableList;
+import java.util.List;
+import minijava.ir.assembler.location.Register;
+
 /**
  * <code>idivl</code> instruction.
  *
@@ -15,6 +19,7 @@ public class Div extends Instruction {
   public final Argument divisor;
 
   public Div(Argument divisor) {
+    super(Register.Width.Quad);
     this.divisor = divisor;
   }
 
@@ -26,5 +31,15 @@ public class Div extends Instruction {
   @Override
   public Type getType() {
     return Type.DIV;
+  }
+
+  @Override
+  public List<Argument> getArguments() {
+    return ImmutableList.of();
+  }
+
+  @Override
+  public <T> T accept(InstructionVisitor<T> visitor) {
+    return visitor.visit(this);
   }
 }

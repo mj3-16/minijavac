@@ -9,4 +9,9 @@ public class Add extends BinaryInstruction {
   public Type getType() {
     return Type.ADD;
   }
+
+  @Override
+  public <T> T accept(InstructionVisitor<T> visitor) {
+    return visitor.visit(this);
+  }
 }

@@ -44,4 +44,8 @@ public class CodeSegment extends Segment {
   public List<CodeBlock> getBlocks() {
     return Collections.unmodifiableList(blocks);
   }
+
+  public List<String> getComments() {
+    return comments;
+  }
 }

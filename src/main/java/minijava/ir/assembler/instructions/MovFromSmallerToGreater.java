@@ -4,14 +4,21 @@ import com.google.common.collect.ImmutableList;
 import java.util.List;
 import minijava.ir.assembler.location.Location;
 
-/** Moves the source value into the destination */
-public class Mov extends Instruction {
+/**
+ * The destination may have a greater width than the source register. Be sure to zero the
+ * destination register before.
+ */
+public class MovFromSmallerToGreater extends Instruction {
 
   public final Argument source;
   public final Location destination;
 
-  public Mov(Argument source, Location destination) {
-    super(getWidthOfArguments(Mov.class, source, destination));
+  public MovFromSmallerToGreater(Argument source, Location destination) {
+    super(source.width);
+    if (source.width.ordinal() > destination.width.ordinal()) {
+      throw new RuntimeException(
+          String.format("Destination has width %s < source width %s", destination, source));
+    }
     this.source = source;
     this.destination = destination;
   }
@@ -23,7 +30,7 @@ public class Mov extends Instruction {
 
   @Override
   public Type getType() {
-    return Type.MOV;
+    return Type.MOVSG;
   }
 
   @Override
