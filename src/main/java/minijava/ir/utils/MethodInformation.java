@@ -32,4 +32,9 @@ public class MethodInformation {
   public MethodInformation(Graph graph) {
     this(graph.getEntity());
   }
+
+  @Override
+  public String toString() {
+    return ldName;
+  }
 }

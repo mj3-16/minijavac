@@ -3,27 +3,26 @@ package minijava.ir.assembler.instructions;
 import static minijava.ir.utils.FirmUtils.relationToInstructionSuffix;
 
 import firm.Relation;
-import minijava.ir.assembler.location.Location;
+import minijava.ir.assembler.block.CodeBlock;
 
-public class Set extends UnaryInstruction {
+/** Conditional jmp (je, …) */
+public class ConditionalJmp extends Jmp {
 
   public final Relation relation;
 
-  public Set(Relation relation, Location destination) {
-    super(destination);
+  public ConditionalJmp(CodeBlock nextBlock, Relation relation) {
+    super(nextBlock);
     this.relation = relation;
   }
 
   @Override
   protected String toGNUAssemblerWoComments() {
-    String asm = getType().asm;
-    return String.format(
-        "%s%s %s", getType().asm, relationToInstructionSuffix(relation), arg.toGNUAssembler());
+    return String.format("j%s %s", relationToInstructionSuffix(relation), nextBlock.label);
   }
 
   @Override
   public Type getType() {
-    return Type.SET;
+    return Type.COND_JMP;
   }
 
   @Override

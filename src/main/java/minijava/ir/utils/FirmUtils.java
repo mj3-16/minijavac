@@ -2,28 +2,24 @@ package minijava.ir.utils;
 
 import firm.BackEdges;
 import firm.Graph;
-import firm.nodes.Address;
-import firm.nodes.Block;
+import firm.Mode;
+import firm.Relation;
 import firm.nodes.Node;
 import firm.nodes.Phi;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.Stack;
 import java.util.function.Supplier;
+import minijava.ir.assembler.location.Register;
 
 public class FirmUtils {
-
-  public static String getMethodLdName(firm.nodes.Call node) {
-    return ((Address) node.getPred(1)).getEntity().getLdName();
-  }
 
   public static boolean isPhiProneToLostCopies(Phi phi) {
     // Assumption: a phi is error prone if a circle in the graph exists that
     // contains this phi node
     // we detect a circle by using depth first search
-    Block phiBlock = (Block) phi.getBlock();
     Set<Integer> visitedNodeIds = new HashSet<>();
-    Stack<Node> toVisit = new Stack<Node>();
+    Stack<Node> toVisit = new Stack<>();
     toVisit.add(phi);
     while (!toVisit.isEmpty()) {
       Node currentNode = toVisit.pop();
@@ -93,6 +89,40 @@ public class FirmUtils {
       if (responsible) {
         BackEdges.enable(graph);
       }
+    }
+  }
+
+  public static Register.Width modeToWidth(Mode mode) {
+    switch (mode.getSizeBytes()) {
+      case 1:
+        return Register.Width.Byte;
+      case 4:
+        return Register.Width.Long;
+      case 8:
+        return Register.Width.Quad;
+    }
+    if (mode.isReference()) {
+      return Register.Width.Quad;
+    } else if (mode.equals(Mode.getb())) {
+      return Register.Width.Byte;
+    }
+    throw new RuntimeException(mode.toString());
+  }
+
+  public static String relationToInstructionSuffix(Relation relation) {
+    switch (relation) {
+      case Greater:
+        return "g";
+      case GreaterEqual:
+        return "ge";
+      case Less:
+        return "l";
+      case LessEqual:
+        return "le";
+      case Equal:
+        return "e";
+      default:
+        throw new RuntimeException();
     }
   }
 }

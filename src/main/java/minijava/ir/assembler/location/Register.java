@@ -1,25 +1,26 @@
 package minijava.ir.assembler.location;
 
 import com.google.common.collect.ImmutableList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /** Location in a register */
 public class Register extends Location {
 
   public static enum Width {
-    Byte("b"),
+    Byte("b", 1),
     /** 32 bit */
-    Long("l"),
+    Long("l", 4),
     /** 64 bit */
-    Quad("q");
+    Quad("q", 8);
 
     /** Suffix of instructions like <code>mov</code> that work with registers of this size */
     public final String asm;
 
-    Width(String asm) {
+    public final int sizeInBytes;
+
+    Width(String asm, int sizeInBytes) {
       this.asm = asm;
+      this.sizeInBytes = sizeInBytes;
     }
   }
 
@@ -33,9 +34,12 @@ public class Register extends Location {
   public static final Register RBX;
   public static final Register RDI;
   public static final Register RSI;
+  public static final Register R14;
+  public static final Register R15;
 
   private static final Map<String, Register> registerMap = new HashMap<>();
   public static final List<Register> methodArgumentQuadRegisters;
+  public static final List<Register> usableRegisters;
   private static final String[][] byteLongAndQuadNames =
       new String[][] {
         {"al", "eax", "rax"},
@@ -68,16 +72,30 @@ public class Register extends Location {
     RSI = get("rsi");
     RAX = get("rax");
     RBX = get("rbx");
+    R14 = get("r14");
+    R15 = get("r15");
     methodArgumentQuadRegisters =
         ImmutableList.of(get("rdi"), get("rsi"), get("rdx"), get("rcx"), get("r8"), get("r9"));
+    List<Register> regs = new ArrayList<>();
+    for (String[] byteLongAndQuadName : byteLongAndQuadNames) {
+      String quad = byteLongAndQuadName[2];
+      if (!quad.equals("rbp") && !quad.equals("rsp") && !quad.equals("rax")) {
+        regs.add(get(quad));
+      }
+    }
+    usableRegisters = Collections.unmodifiableList(regs);
   }
 
+  private final int registerClassId;
   public final String registerName;
-  public final Width width;
+  private Register byteVersion;
+  private Register longVersion;
+  private Register quadVersion;
 
-  private Register(String registerName, Width width) {
+  private Register(Width width, int registerClassId, String registerName) {
+    super(width);
+    this.registerClassId = registerClassId;
     this.registerName = registerName;
-    this.width = width;
   }
 
   @Override
@@ -87,14 +105,16 @@ public class Register extends Location {
 
   @Override
   public boolean equals(Object obj) {
-    return (obj instanceof Register) && ((Register) obj).registerName.equals(registerName);
+    return (obj instanceof Register) && ((Register) obj).registerClassId == registerClassId;
   }
 
   private static void init() {
+    int i = 0;
     for (String[] longAndQuadName : byteLongAndQuadNames) {
-      registerMap.put(longAndQuadName[0], new Register(longAndQuadName[0], Width.Byte));
-      registerMap.put(longAndQuadName[1], new Register(longAndQuadName[1], Width.Long));
-      registerMap.put(longAndQuadName[2], new Register(longAndQuadName[2], Width.Quad));
+      registerMap.put(longAndQuadName[0], new Register(Width.Byte, i, longAndQuadName[0]));
+      registerMap.put(longAndQuadName[1], new Register(Width.Long, i, longAndQuadName[1]));
+      registerMap.put(longAndQuadName[2], new Register(Width.Quad, i, longAndQuadName[2]));
+      i++;
     }
   }
 
@@ -142,6 +162,44 @@ public class Register extends Location {
 
   @Override
   public int hashCode() {
-    return registerName.hashCode();
+    return registerClassId;
+  }
+
+  public Register longVersion() {
+    if (longVersion == null) {
+      longVersion = getLongVersion(this);
+    }
+    return longVersion;
+  }
+
+  public Register byteVersion() {
+    if (byteVersion == null) {
+      byteVersion = getByteVersion(this);
+    }
+    return byteVersion;
+  }
+
+  public Register quadVersion() {
+    if (quadVersion == null) {
+      quadVersion = getQuadVersion(this);
+    }
+    return quadVersion;
+  }
+
+  public Register ofWidth(Width width) {
+    switch (width) {
+      case Byte:
+        return byteVersion();
+      case Long:
+        return longVersion();
+      case Quad:
+        return quadVersion();
+    }
+    throw new RuntimeException();
+  }
+
+  @Override
+  public String toString() {
+    return toGNUAssembler();
   }
 }

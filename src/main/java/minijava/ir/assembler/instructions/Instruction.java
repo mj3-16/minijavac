@@ -1,14 +1,21 @@
 package minijava.ir.assembler.instructions;
 
+import static org.jooq.lambda.Seq.seq;
+
 import com.google.common.base.Splitter;
 import firm.nodes.Node;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 import minijava.ir.assembler.GNUAssemblerConvertible;
-import minijava.ir.assembler.location.Register;
+import minijava.ir.assembler.block.CodeBlock;
+import minijava.ir.assembler.location.*;
+import org.jetbrains.annotations.NotNull;
 
 /** Models an assembler instruction */
-public abstract class Instruction implements GNUAssemblerConvertible {
+public abstract class Instruction implements GNUAssemblerConvertible, Comparable<Instruction> {
 
   public static enum Type {
     ADD("add", true),
@@ -18,11 +25,7 @@ public abstract class Instruction implements GNUAssemblerConvertible {
     NEG("neg", true),
     CLTD("cltd"),
     CMP(Category.CMP, "cmp", true),
-    JMP_LESS(Category.JMP, "jl"),
-    JMP_LESS_OR_EQUAL(Category.JMP, "jle"),
-    JMP_GREATER(Category.JMP, "jg"),
-    JMP_GREATER_OR_EQUAL(Category.JMP, "jge"),
-    JMP_EQUAL(Category.JMP, "je"),
+    COND_JMP(Category.JMP, "j"),
     JMP(Category.JMP, "jmp"),
     SET(Category.AFTER_CMP, "set"),
     PUSH("pushq"),
@@ -32,7 +35,14 @@ public abstract class Instruction implements GNUAssemblerConvertible {
     ALLOC_STACK("subq"),
     DEALLOC_STACK("addq"),
     AND("and", false),
-    MOV("mov", true);
+    MOV("mov", true),
+    MOVSG("mov", true),
+    EVICT(Category.META, "evict"),
+    PROLOGUE(Category.META, "prologue"),
+    META_CALL(Category.META, "meta_call"),
+    META_LOAD(Category.META, "meta_load"),
+    META_STORE(Category.META, "meta_store"),
+    META_FRAME_ALLOC(Category.META, "frame_alloc");
 
     public final Category category;
     /** GNU Assembler name (without argument width appendix) */
@@ -64,13 +74,55 @@ public abstract class Instruction implements GNUAssemblerConvertible {
     JMP,
     CMP,
     AFTER_CMP,
-    NORMAL
+    NORMAL,
+    META
+  }
+
+  /** Width of the arguments (and therefore the result most of the time) */
+  public final Register.Width width;
+
+  protected Instruction(Register.Width width) {
+    this.width = width;
+  }
+
+  public static Register.Width getWidthOfArguments(Class klass, Argument... arguments) {
+    if (arguments[0] == null) {
+      throw new NullPointerException(
+          String.format(
+              "%s %s",
+              klass.getSimpleName(),
+              seq(Arrays.asList(arguments))
+                  .map(x -> x == null ? "null" : x.toString())
+                  .stream()
+                  .collect(Collectors.joining(" "))));
+    }
+    Register.Width width = arguments[0].width;
+    for (int i = 1; i < arguments.length; i++) {
+      Argument argument = arguments[i];
+      if (argument.width != width) {
+        throw new RuntimeException(
+            String.format(
+                "%s %s: Argument %d has invalid width %s, expected %s",
+                klass.getSimpleName(),
+                seq(Arrays.asList(arguments))
+                    .map(Argument::toString)
+                    .stream()
+                    .collect(Collectors.joining(" ")),
+                i,
+                argument.width,
+                width));
+      }
+    }
+    return width;
   }
 
   /** Comments that belong to this instruction */
   private List<String> comments = new ArrayList<>();
 
   private Node associatedFirmNode = null;
+
+  private Optional<CodeBlock> parentBlock = Optional.empty();
+  private Optional<Integer> numberInSegment = Optional.empty();
 
   public final void addComment(String comment) {
     comments.add(comment);
@@ -82,8 +134,8 @@ public abstract class Instruction implements GNUAssemblerConvertible {
    */
   @Override
   public final String toGNUAssembler() {
-    final int COMMAND_WITH = 30;
-    final int LINE_WIDTH = 80 - 6;
+    final int COMMAND_WITH = 50;
+    final int LINE_WIDTH = 100 - 6;
     String fmt = "    %-" + COMMAND_WITH + "s%s";
     String asm = toGNUAssemblerWoComments();
     if (comments.size() > 0) {
@@ -103,8 +155,8 @@ public abstract class Instruction implements GNUAssemblerConvertible {
 
   private List<String> formatComments(int maxWidthOfFirstLine, int maxWidth) {
     List<String> lines = new ArrayList<>();
-    String joined = String.join("; ", comments) + " */";
-    maxWidthOfFirstLine = Math.min(maxWidthOfFirstLine, maxWidth);
+    String joined = String.join("; ", comments).replace("/*", "[").replace("*/", "]") + " */";
+    maxWidthOfFirstLine = Math.max(Math.min(maxWidthOfFirstLine, maxWidth), 1);
     if (joined.length() > maxWidthOfFirstLine) {
       lines.add("/* " + joined.substring(0, maxWidthOfFirstLine - 1));
       for (String line :
@@ -164,39 +216,68 @@ public abstract class Instruction implements GNUAssemblerConvertible {
     return this;
   }
 
+  public Node firm() {
+    return associatedFirmNode;
+  }
+
   /** Takes into account the instructions with varying width arguments */
   protected String getAsmInstructionName() {
     if (getType().hasVaryingWidthArguments) {
-      return getType().asm + getWidthOfArguments().asm;
+      return getType().asm + width.asm;
     }
     return getType().asm;
-  }
-
-  /** Returns the width of the arguments for instructions with varying argument widths. */
-  protected Register.Width getWidthOfArguments() {
-    throw new UnsupportedOperationException();
-  }
-
-  protected Register.Width getMaxWithOfArguments(Argument... arguments) {
-    Register.Width maxWidth = null;
-    for (Argument argument : arguments) {
-      if (argument instanceof Register) {
-        Register.Width argWidth = ((Register) argument).width;
-        if (maxWidth == null) {
-          maxWidth = argWidth;
-        } else if (argWidth.ordinal() > maxWidth.ordinal()) {
-          maxWidth = argWidth;
-        }
-      }
-    }
-    if (maxWidth == null) {
-      maxWidth = Register.Width.Long;
-    }
-    return maxWidth;
   }
 
   @Override
   public String toString() {
     return toGNUAssembler();
+  }
+
+  public void setParentBlock(CodeBlock codeBlock) {
+    if (this.parentBlock.isPresent()) {
+      throw new RuntimeException();
+    }
+    this.parentBlock = Optional.of(codeBlock);
+  }
+
+  public CodeBlock getParentBlock() {
+    return parentBlock.get();
+  }
+
+  public void setNumberInSegment(int number) {
+    this.numberInSegment = Optional.of(number);
+  }
+
+  public int getNumberInSegment() {
+    return numberInSegment.get();
+  }
+
+  public boolean isMetaInstruction() {
+    return getType().category == Category.META;
+  }
+
+  public abstract List<Argument> getArguments();
+
+  public void setUsedByRelations() {
+    for (Argument argument : getArguments()) {
+      if (argument instanceof MemoryNodeLocation) {
+        ((MemoryNodeLocation) argument).address.addUsedByRelation(this);
+      }
+      argument.addUsedByRelation(this);
+    }
+  }
+
+  /** Can only be used if the "number in block" is already set. */
+  @Override
+  public int compareTo(@NotNull Instruction other) {
+    return Integer.compare(this.getNumberInSegment(), other.getNumberInSegment());
+  }
+
+  public abstract <T> T accept(InstructionVisitor<T> visitor);
+
+  public Instruction firmAndComments(Instruction other) {
+    this.comments = other.comments;
+    this.associatedFirmNode = other.associatedFirmNode;
+    return this;
   }
 }

@@ -1,23 +1,21 @@
 package minijava.ir.assembler.instructions;
 
+import static minijava.ir.assembler.instructions.Instruction.Type.META_FRAME_ALLOC;
+
 import com.google.common.collect.ImmutableList;
 import java.util.List;
 import minijava.ir.assembler.location.Register;
 
-/**
- * Convert Signed Long to Signed Double Long
- *
- * <p>Sign-extends EAX, resulting in EDX:EAX
- */
-public class CLTD extends Instruction {
+/** Meta instruction to allocate a frame at the start of a method */
+public class MetaMethodFrameAlloc extends Instruction {
 
-  public CLTD() {
-    super(Register.Width.Long);
+  public MetaMethodFrameAlloc() {
+    super(Register.Width.Quad);
   }
 
   @Override
   public Type getType() {
-    return Type.CLTD;
+    return META_FRAME_ALLOC;
   }
 
   @Override
@@ -27,6 +25,6 @@ public class CLTD extends Instruction {
 
   @Override
   public <T> T accept(InstructionVisitor<T> visitor) {
-    return visitor.visit(this);
+    throw new RuntimeException();
   }
 }
