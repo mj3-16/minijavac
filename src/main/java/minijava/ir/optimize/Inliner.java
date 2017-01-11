@@ -3,8 +3,10 @@ package minijava.ir.optimize;
 import static org.jooq.lambda.Seq.seq;
 
 import firm.*;
+import firm.bindings.binding_irnode;
 import firm.nodes.*;
 import java.util.*;
+import java.util.function.Consumer;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
 import org.jooq.lambda.Seq;
@@ -48,11 +50,13 @@ public class Inliner extends BaseOptimizer {
     // We have to replace Projs to the Start node.
     // We can't yet use BackEdges since the subgraph is not yet connected to the graphs End node.
     Block startBlock = (Block) start.getBlock();
-    GraphUtils.walkFromNodeDepthFirst(
-        end,
-        n -> {},
+
+    Consumer<Node> onFinish =
         node -> {
-          if (startBlock.equals(node.getBlock())) {
+          if (node.getOpCode().equals(binding_irnode.ir_opcode.iro_Const)) {
+            // Const nodes must always be placed in the start block.
+            node.setBlock(graph.getStartBlock());
+          } else if (startBlock.equals(node.getBlock())) {
             node.setBlock(call.getBlock());
           }
 
@@ -77,7 +81,8 @@ public class Inliner extends BaseOptimizer {
             // First pred to call is M, second is the functions Address
             Graph.exchange(proj, call.getPred(argIndex + 2));
           }
-        });
+        };
+    GraphUtils.walkFromNodeDepthFirst(end, n -> {}, onFinish);
 
     Dump.dumpGraph(graph, "after-start");
 
