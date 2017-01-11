@@ -114,6 +114,7 @@ public class Inliner extends BaseOptimizer {
     int returnVals = mt.getNRess() + 1; // index 0 is M
     Node[][] phiPreds = new Node[returnVals][returnNodes];
     for (int i = 0; i < returnNodes; ++i) {
+      System.out.println(callee);
       Return ret = (Return) endBlock.getPred(i);
       for (int r = 0; r < returnVals; ++r) {
         phiPreds[r][i] = ret.getPred(r);
@@ -161,7 +162,12 @@ public class Inliner extends BaseOptimizer {
 
           for (BackEdges.Edge edge : BackEdges.getOuts(node.getBlock())) {
             // ... as well as any control flow nodes.
-            if (edge.node.getMode().equals(Mode.getX())) {
+            boolean controlFlowNode = edge.node.getMode().equals(Mode.getX());
+
+            // Seems unnecessary, but this filters out keep edges
+            boolean sameBlock = edge.node.getBlock().equals(node.getBlock());
+
+            if (controlFlowNode && sameBlock) {
               toVisit.add(edge.node);
 
               // In case of Projs (e.g. conditional jumps), we also want to move the Cond node.
