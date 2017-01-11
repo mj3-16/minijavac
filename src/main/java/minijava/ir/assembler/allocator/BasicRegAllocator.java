@@ -89,9 +89,6 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
     // we populate the stack with all NodeArguments used in this method
     // this will result in a pretty large stack at the advantage of being simple
     // we first populate the stack with the parameters
-    for (ParamLocation paramLocation : nodeAllocator.paramLocations) {
-      putArgumentOnStack(paramLocation);
-    }
     // then we copy the parameters from the registers
     for (int i = 0;
         i
@@ -99,6 +96,7 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
                 Register.methodArgumentQuadRegisters.size(), nodeAllocator.paramLocations.size());
         i++) {
       ParamLocation param = nodeAllocator.paramLocations.get(i);
+      putArgumentOnStack(param);
       Register paramReg = Register.methodArgumentQuadRegisters.get(i).ofWidth(param.width);
       ;
       instructions.add(
@@ -379,6 +377,13 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
       if (argumentsInRegisters.containsKey(arg)) {
         return argumentsInRegisters.get(arg);
       } else {
+        if (arg instanceof ParamLocation) {
+          if (((ParamLocation) arg).paramNumber >= Register.methodArgumentQuadRegisters.size()) {
+            int inRegs = Register.methodArgumentQuadRegisters.size();
+            int paramNum = ((ParamLocation) arg).paramNumber;
+            return new StackSlot(arg.width, (paramNum - inRegs + 2) * 8);
+          }
+        }
         return argumentStackSlots.get(arg);
       }
     }
@@ -417,7 +422,7 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
               .com("Decrement the stack to ensure alignment"));
     }
     // Use the tmpReg to move the additional parameters on the stack
-    for (int i = argRegs.size(); i < metaCall.methodInfo.paramNumber; i++) {
+    for (int i = metaCall.methodInfo.paramNumber - 1; i >= argRegs.size(); i--) {
       Argument arg = metaCall.args.get(i);
       instructions.add(new Push(getCurrentLocation(arg)));
     }
