@@ -236,6 +236,11 @@ public class Inliner extends BaseOptimizer {
       // In case we do want this though, we have to keep_alive(end.getPred(1).ptr);
       return;
     }
+    if (calleeInfo.size > 2000) {
+      // This should be sufficiently high so that the call overhead isn't noticable
+      // (generally, imagine an if/else...).
+      return;
+    }
     callsToInline.add(call);
   }
 

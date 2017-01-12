@@ -4,6 +4,7 @@ import firm.Graph;
 import firm.nodes.Address;
 import firm.nodes.Call;
 import firm.nodes.End;
+import firm.nodes.Node;
 import firm.nodes.NodeVisitor;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -30,16 +31,24 @@ public class ProgramMetrics {
   public static class GraphInfo {
     public final Set<Graph> calls;
     public final boolean diverges;
+    public final int size;
 
-    public GraphInfo(Set<Graph> calls, boolean diverges) {
+    public GraphInfo(Set<Graph> calls, boolean diverges, int size) {
       this.calls = calls;
       this.diverges = diverges;
+      this.size = size;
     }
   }
 
   private static class GraphWalker extends NodeVisitor.Default {
     private final Set<Graph> calls = new HashSet<>();
     private boolean diverges = true;
+    private int size = 0;
+
+    @Override
+    public void defaultVisit(Node n) {
+      size++;
+    }
 
     @Override
     public void visit(End node) {
@@ -48,6 +57,7 @@ public class ProgramMetrics {
       //
       // If a graph certainly diverges, its end node will have both predecessors (possibly more, I don't know).
       diverges = node.getPredCount() >= 2;
+      super.visit(node);
     }
 
     @Override
@@ -59,10 +69,11 @@ public class ProgramMetrics {
         return;
       }
       calls.add(callee);
+      super.visit(node);
     }
 
     public GraphInfo resultSummary() {
-      return new GraphInfo(calls, diverges);
+      return new GraphInfo(calls, diverges, size);
     }
   }
 }
