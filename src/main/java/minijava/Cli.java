@@ -148,7 +148,7 @@ public class Cli {
     if (!optimizationsTurnedOff()) {
       optimize();
     }
-    outputGraphsIfNeeded("--finished");
+    dumpGraphsIfNeeded("--finished");
     IREmitter.compile("a.out", shouldProduceDebuggableBinary());
   }
 
@@ -157,7 +157,7 @@ public class Cli {
     return value != null && value.equals("0");
   }
 
-  public static boolean shouldPrintGraphs() {
+  private static boolean shouldPrintGraphs() {
     String value = System.getenv("MJ_GRAPH");
     return value != null && value.equals("1");
   }
@@ -167,7 +167,7 @@ public class Cli {
     return value != null && value.equals("1");
   }
 
-  private void outputGraphsIfNeeded(String appendix) {
+  public static void dumpGraphsIfNeeded(String appendix) {
     if (shouldPrintGraphs()) {
       for (Graph g : firm.Program.getGraphs()) {
         Dump.dumpGraph(g, appendix);
@@ -175,8 +175,14 @@ public class Cli {
     }
   }
 
+  public static void dumpGraphIfNeeded(Graph g, String appendix) {
+    if (shouldPrintGraphs()) {
+      Dump.dumpGraph(g, appendix);
+    }
+  }
+
   private void optimize() {
-    outputGraphsIfNeeded("before-optimizations");
+    dumpGraphsIfNeeded("before-optimizations");
     Optimizer constantFolder = new ConstantFolder();
     Optimizer controlFlowOptimizer = new ConstantControlFlowOptimizer();
     Optimizer unreachableCodeRemover = new UnreachableCodeRemover();
@@ -187,13 +193,13 @@ public class Cli {
     Optimizer phiBElimination = new PhiBElimination();
     while (true) {
       for (Graph graph : firm.Program.getGraphs()) {
-        Dump.dumpGraph(graph, "before-simplification");
+        dumpGraphIfNeeded(graph, "before-simplification");
         while (constantFolder.optimize(graph)
             | expressionNormalizer.optimize(graph)
             | algebraicSimplifier.optimize(graph)
             | commonSubexpressionElimination.optimize(graph)
             | phiOptimizer.optimize(graph)) ;
-        Dump.dumpGraph(graph, "before-control-flow-optimizations");
+        dumpGraphIfNeeded(graph, "before-control-flow-optimizations");
         while (controlFlowOptimizer.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
         while (phiBElimination.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
       }
@@ -211,14 +217,14 @@ public class Cli {
         break;
       }
     }
-    outputGraphsIfNeeded("after-optimizations");
+    dumpGraphsIfNeeded("after-optimizations");
   }
 
   private void runFirm(InputStream in) throws IOException {
     Program ast = new Parser(new Lexer(in)).parse();
     ast.acceptVisitor(new SemanticAnalyzer());
     ast.acceptVisitor(new IREmitter());
-    outputGraphsIfNeeded("finished");
+    dumpGraphsIfNeeded("finished");
     IREmitter.compileAndRun("a.out", shouldProduceDebuggableBinary());
   }
 
@@ -235,7 +241,7 @@ public class Cli {
     if (!optimizationsTurnedOff()) {
       optimize();
     }
-    outputGraphsIfNeeded("--finished");
+    dumpGraphsIfNeeded("--finished");
     Tuple2<AssemblerFile, AssemblerFile> preAsmAndAsmFile =
         AssemblerFile.createForGraphs(firm.Program.getGraphs());
     AssemblerFile preAsmFile = preAsmAndAsmFile.v1;

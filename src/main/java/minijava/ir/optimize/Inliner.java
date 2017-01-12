@@ -7,7 +7,6 @@ import static org.jooq.lambda.Seq.seq;
 
 import com.google.common.collect.Sets;
 import firm.BackEdges;
-import firm.Dump;
 import firm.Graph;
 import firm.MethodType;
 import firm.Mode;
@@ -48,15 +47,13 @@ public class Inliner extends BaseOptimizer {
   }
 
   private boolean inlineCandidates() {
-    graph.check();
-    Dump.dumpGraph(graph, "before-inlining");
+    //Cli.dumpGraphIfNeeded(graph, "before-inlining");
     boolean hasChanged = false;
     for (Call call : callsToInline) {
       inline(call);
       hasChanged = true;
     }
-    Dump.dumpGraph(graph, "after-inlining");
-    graph.check();
+    //Cli.dumpGraphIfNeeded(graph, "after-inlining");
 
     return hasChanged;
   }
@@ -106,8 +103,6 @@ public class Inliner extends BaseOptimizer {
         };
     GraphUtils.walkFromNodeDepthFirst(end, n -> {}, onFinish);
 
-    Dump.dumpGraph(graph, "after-start");
-
     // The End node has to replaced by Phis, one for the ret val, the other for M.
     // Other than that, we have to do pretty much the same Proj substitution at the call site
     // as we did for the callee copy for the Start node.
@@ -117,7 +112,6 @@ public class Inliner extends BaseOptimizer {
     int returnVals = mt.getNRess() + 1; // index 0 is M
     Node[][] phiPreds = new Node[returnVals][returnNodes];
     for (int i = 0; i < returnNodes; ++i) {
-      System.out.println(callee);
       Return ret = (Return) endBlock.getPred(i);
       for (int r = 0; r < returnVals; ++r) {
         phiPreds[r][i] = ret.getPred(r);

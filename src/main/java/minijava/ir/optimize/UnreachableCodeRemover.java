@@ -1,6 +1,5 @@
 package minijava.ir.optimize;
 
-import firm.Dump;
 import firm.Graph;
 import firm.bindings.binding_irgopt;
 
@@ -8,7 +7,7 @@ public class UnreachableCodeRemover implements Optimizer {
 
   @Override
   public boolean optimize(Graph graph) {
-    Dump.dumpGraph(graph, "before-unreachable");
+    //Cli.dumpGraphIfNeeded(graph, "before-unreachable");
 
     // first remove Bad nodes we inserted manually (the remove_unreachable_code function doesn't pick them up)
     binding_irgopt.remove_bads(graph.ptr);

@@ -13,9 +13,11 @@ import firm.nodes.Jmp;
 import firm.nodes.Node;
 import firm.nodes.NodeVisitor;
 import firm.nodes.Proj;
+import java.util.Optional;
 import minijava.ir.Dominance;
 import minijava.ir.utils.GraphUtils;
 import minijava.ir.utils.NodeUtils;
+import minijava.ir.utils.NodeUtils.CondProjs;
 
 /**
  * Replaces {@link Cond} nodes (or more precisely, their accompanying {@link Proj} nodes) with
@@ -43,7 +45,13 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
   public void visit(Cond node) {
     if (node.getSelector() instanceof Const) {
       TargetValue condition = ((Const) node.getSelector()).getTarval();
-      NodeUtils.CondProjs projs = NodeUtils.determineProjectionNodes(node);
+      Optional<CondProjs> optProjs = NodeUtils.determineProjectionNodes(node);
+
+      if (!optProjs.isPresent()) {
+        // Not exactly 2 projs, so we might be in a dirty state and don't perform the optimization.
+        return;
+      }
+      CondProjs projs = optProjs.get();
 
       Node delete, alwaysTake;
       if (condition.equals(TargetValue.getBTrue())) {

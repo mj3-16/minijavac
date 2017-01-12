@@ -20,14 +20,18 @@ public class NodeUtils {
     return node.getOpCode().equals(iro_Const) ? Optional.of((Const) node) : Optional.empty();
   }
 
-  public static CondProjs determineProjectionNodes(Cond node) {
+  public static Optional<CondProjs> determineProjectionNodes(Cond node) {
     Proj[] projs =
         seq(BackEdges.getOuts(node)).map(be -> be.node).ofType(Proj.class).toArray(Proj[]::new);
-    assert projs.length == 2;
+
+    if (projs.length != 2) {
+      return Optional.empty();
+    }
+
     if (projs[0].getNum() == Cond.pnTrue) {
-      return new CondProjs(projs[0], projs[1]);
+      return Optional.of(new CondProjs(projs[0], projs[1]));
     } else {
-      return new CondProjs(projs[1], projs[0]);
+      return Optional.of(new CondProjs(projs[1], projs[0]));
     }
   }
 

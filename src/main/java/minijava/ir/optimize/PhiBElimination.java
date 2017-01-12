@@ -9,8 +9,10 @@ import firm.TargetValue;
 import firm.nodes.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import minijava.ir.Dominance;
 import minijava.ir.utils.NodeUtils;
+import minijava.ir.utils.NodeUtils.CondProjs;
 import org.pcollections.HashTreePSet;
 import org.pcollections.PSet;
 
@@ -62,11 +64,17 @@ public class PhiBElimination extends BaseOptimizer {
   }
 
   private void redirectConstantControlFlow(Cond node) {
+    Optional<CondProjs> projs = NodeUtils.determineProjectionNodes(node);
+    if (!projs.isPresent()) {
+      // we are in a dirty state, don't perform this optimization in this iteration.
+      return;
+    }
+
     Block currentBlock = (Block) node.getBlock();
     Phi phi = (Phi) node.getSelector();
     //System.out.println(currentBlock + ": " + node + ", " + phi);
+
     int n = phi.getPredCount();
-    NodeUtils.CondProjs projs = NodeUtils.determineProjectionNodes(node);
     for (int i = 0; i < n; i++) {
       Node pred = phi.getPred(i);
       if (pred instanceof Const && !(phi.getPred(i) instanceof Bad)) {
@@ -84,7 +92,9 @@ public class PhiBElimination extends BaseOptimizer {
         // We know which jump to take here, because we know the constant value of the condition
         // for the specific currentBlock's predecessor i.
         Node proj =
-            condition.getTarval().equals(TargetValue.getBTrue()) ? projs.true_ : projs.false_;
+            condition.getTarval().equals(TargetValue.getBTrue())
+                ? projs.get().true_
+                : projs.get().false_;
         BackEdges.Edge succ = BackEdges.getOuts(proj).iterator().next();
         // target is the block we actually want to redirect the jump to (from source).
         Block target = (Block) succ.node;
