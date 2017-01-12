@@ -2,8 +2,6 @@ package minijava.ir.utils;
 
 import firm.Mode;
 import firm.Relation;
-import firm.nodes.Address;
-import firm.nodes.Block;
 import firm.nodes.Node;
 import firm.nodes.Phi;
 import java.util.*;
@@ -11,15 +9,10 @@ import minijava.ir.assembler.location.Register;
 
 public class FirmUtils {
 
-  public static String getMethodLdName(firm.nodes.Call node) {
-    return ((Address) node.getPred(1)).getEntity().getLdName();
-  }
-
   public static boolean isPhiProneToLostCopies(Phi phi) {
     // Assumption: a phi is error prone if a circle in the graph exists that
     // contains this phi node
     // we detect a circle by using depth first search
-    Block phiBlock = (Block) phi.getBlock();
     Set<Integer> visitedNodeIds = new HashSet<>();
     Stack<Node> toVisit = new Stack<Node>();
     toVisit.add(phi);

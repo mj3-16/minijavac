@@ -221,8 +221,7 @@ public class Cli {
       optimize();
     }
     outputGraphsIfNeeded("--finished");
-    Tuple2<AssemblerFile, AssemblerFile> preAsmAndAsmFile =
-        AssemblerFile.createForGraphs(firm.Program.getGraphs());
+    Tuple2<AssemblerFile, AssemblerFile> preAsmAndAsmFile = AssemblerFile.createForGraphs();
     AssemblerFile preAsmFile = preAsmAndAsmFile.v1;
     if (!preAsmOut.isPresent()) {
       preAsmOut = Optional.of(System.err);

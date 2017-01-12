@@ -1,20 +1,14 @@
 package minijava.ir.assembler.allocator;
 
-import static org.jooq.lambda.Seq.seq;
-
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 import java.util.*;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import minijava.ir.assembler.SimpleNodeAllocator;
 import minijava.ir.assembler.block.LinearCodeSegment;
 import minijava.ir.assembler.instructions.*;
 import minijava.ir.assembler.location.*;
-import minijava.ir.utils.MethodInformation;
 
 /**
  * This is a basic implementation of a register allocator, that allocates {@link
@@ -24,7 +18,6 @@ import minijava.ir.utils.MethodInformation;
  */
 public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> {
 
-  protected final MethodInformation methodInfo;
   protected final SimpleNodeAllocator nodeAllocator;
   protected final LinearCodeSegment code;
 
@@ -36,52 +29,22 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
    */
   private List<Optional<StackSlot>> assignedStackSlots;
 
-  private Map<Register, Argument> usedRegisters;
   private Map<Argument, Register> argumentsInRegisters;
-  private TreeSet<Argument> sortedArgumentsInRegisters;
-  private Set<Register> freeRegisters;
   private int maxStackDepth;
   private int currentStackDepth;
-  private int currentInstructionNumber;
   private Instruction currentInstruction;
 
-  public BasicRegAllocator(
-      MethodInformation methodInfo, LinearCodeSegment code, SimpleNodeAllocator nodeAllocator) {
-    this.methodInfo = methodInfo;
+  public BasicRegAllocator(LinearCodeSegment code, SimpleNodeAllocator nodeAllocator) {
     this.code = code;
     this.nodeAllocator = nodeAllocator;
     this.maxStackDepth = 0;
     this.currentStackDepth = 0;
-    this.currentInstructionNumber = 0;
     this.assignedStackSlots = new ArrayList<>();
     this.argumentStackSlots = new HashMap<>();
-    this.usedRegisters = new HashMap<>();
     this.usedStackSlots = new HashMap<>();
-    this.freeRegisters = new HashSet<>();
     this.argumentsInRegisters = new HashMap<>();
-    this.sortedArgumentsInRegisters =
-        new TreeSet<>(
-            (o1, o2) ->
-                Integer.compare(
-                    o1.instructionRelations.getLastInstruction().getNumberInSegment(),
-                    o2.instructionRelations.getLastInstruction().getNumberInSegment()));
-    // setup the method parameters
-    List<Register> argRegs = Register.methodArgumentQuadRegisters;
-    /*for (int i = 0; i < Math.min(argRegs.size(), methodInfo.paramNumber); i++) {
-      ParamLocation location = nodeAllocator.paramLocations.get(i);
-      if (location.isUsed()) {
-        // we can omit unused parameters
-        putArgumentIntoRegister(location, argRegs.get(i));
-      }
-    }
-    for (int i = argRegs.size(); i < methodInfo.paramNumber; i++) {
-      ParamLocation paramLocation = nodeAllocator.paramLocations.get(i);
-      putParameterOnStack(paramLocation);
-    }*/
     // put a pseudo element on the stack as we can't use the 0. stack slot (we backup the old frame pointer there)
     putArgumentOnStack(new ConstArgument(Register.Width.Quad, 42));
-    this.freeRegisters =
-        seq(Register.usableRegisters).removeAll(usedRegisters.keySet()).collect(Collectors.toSet());
   }
 
   private List<Instruction> prepopulateStack() {
@@ -116,53 +79,6 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
     return instructions;
   }
 
-  /** Important: This method doesn't create any instructions (hence the return type void) */
-  private void putArgumentIntoRegister(Argument argument, Register register) {
-    register = register.ofWidth(argument.width);
-    this.argumentsInRegisters.put(argument, register);
-    this.usedRegisters.put(register, argument);
-    this.sortedArgumentsInRegisters.add(argument);
-    if (freeRegisters.contains(register)) {
-      freeRegisters.remove(register);
-    }
-  }
-
-  private void removeArgumentFromRegister(Argument argument) {
-    if (!hasStackSlotAssigned(argument)) {
-      Register reg = argumentsInRegisters.get(argument);
-      this.usedRegisters.remove(reg);
-      this.argumentsInRegisters.remove(argument);
-      this.sortedArgumentsInRegisters.remove(argument);
-      this.freeRegisters.add(reg);
-    }
-  }
-
-  private void removeNeverAgainUsedArgumentsFromRegisters() {
-    for (Argument argument : ImmutableSet.copyOf(usedRegisters.values())) {
-      if (!isArgumentUsedLater(argument)) {
-        removeArgumentFromRegister(argument);
-      }
-    }
-  }
-
-  private void removeNeverAgainUsedArgumentsFromStack() {
-    // we skip the first element that represents the backuped stack pointer that the don't want to remove
-    List<Argument> removeArgs =
-        assignedStackSlots
-            .stream()
-            .skip(1)
-            .filter(Optional::isPresent)
-            .map(Optional::get)
-            .filter(a -> !isArgumentUsedLater(a))
-            .collect(Collectors.toList());
-    removeArgs.forEach(this::removeArgumentFromStack);
-  }
-
-  private boolean isArgumentUsedLater(Argument argument) {
-    return argument.instructionRelations.isEmpty()
-        || currentInstructionNumber < argument.instructionRelations.getLastInstructionNumber();
-  }
-
   private void putArgumentOnStack(Argument argument) {
     if (!hasStackSlotAssigned(argument)) {
       currentStackDepth += 8; //argument.width.sizeInBytes;
@@ -177,49 +93,6 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
     }
   }
 
-  private void putParameterOnStack(ParamLocation param) {
-    if (!hasStackSlotAssigned(param)) {
-      int offset = (param.paramNumber + 2) * 8;
-      StackSlot slot = new StackSlot(param.width, offset);
-      slot.setComment(param.getComment());
-      argumentStackSlots.put(param, slot);
-      usedStackSlots.put(slot, param);
-      assignedStackSlots.add(Optional.of(slot));
-    }
-  }
-
-  private void removeArgumentFromStack(Argument argument) {
-    if (hasStackSlotAssigned(argument)) {
-      final StackSlot slot = argumentStackSlots.get(argument);
-      argumentStackSlots.remove(argument);
-      assignedStackSlots.replaceAll(
-          s -> s.isPresent() && s.get().equals(slot) ? Optional.empty() : s);
-      usedStackSlots.remove(slot);
-      resizeStack();
-    }
-  }
-
-  private void resizeStack() {
-    for (int i = assignedStackSlots.size() - 1; i >= 0; i--) {
-      Optional<StackSlot> s = assignedStackSlots.get(i);
-      if (s.isPresent()) {
-        maxStackDepth = -s.get().offset + s.get().width.sizeInBytes;
-        break;
-      } else {
-        assignedStackSlots.remove(i);
-      }
-    }
-  }
-
-  private Register chooseRegisterToEvict() {
-    Argument evictedArgument = sortedArgumentsInRegisters.last();
-    return argumentsInRegisters.get(evictedArgument);
-  }
-
-  private boolean needsToEvictRegister() {
-    return freeRegisters.isEmpty();
-  }
-
   public LinearCodeSegment process() {
     List<LinearCodeSegment.InstructionOrString> ret = new ArrayList<>();
     for (LinearCodeSegment.InstructionOrString instructionOrString : code) {
@@ -231,7 +104,6 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
               .forEach(ret::add);
         }
         Instruction instruction = instructionOrString.instruction.get();
-        currentInstructionNumber = instruction.getNumberInSegment();
         currentInstruction = instruction;
         List<Instruction> replacement = instruction.accept(this);
         replacement.stream().map(LinearCodeSegment.InstructionOrString::new).forEach(ret::add);
@@ -534,73 +406,5 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
               .firm(store.firm())
               .com(String.format("Store into %s", destination));
         });
-  }
-
-  private String getInformation() {
-    StringBuilder builder = new StringBuilder();
-    builder.append("Stack:\n").append(getStackInfo()).append("\n");
-    builder.append("Registers:\n").append(getRegisterInfo());
-    return builder.toString();
-  }
-
-  private String getStackInfo() {
-    return assignedStackSlots
-        .stream()
-        .map(
-            o -> {
-              if (o.isPresent()) {
-                return String.format(
-                    "  %s -> %s", o.get().offset, usedStackSlots.get(o.get()).getComment());
-              } else {
-                return "  Empty";
-              }
-            })
-        .collect(Collectors.joining("\n"));
-  }
-
-  private String getRegisterInfo() {
-    return sortedArgumentsInRegisters
-        .stream()
-        .map(a -> String.format("  %s -> %s", argumentsInRegisters.get(a), a.getComment()))
-        .collect(Collectors.joining("\n"));
-  }
-
-  /**
-   * Checks that all registers in the free set aren't currently in use and that all usable registers
-   * are either used or free.
-   *
-   * @throws RuntimeException if this isn't the case
-   */
-  private void simpleRegisterIntegrityCheck() {
-    String prefix = "";
-    if (currentInstruction != null) {
-      prefix = currentInstruction.toGNUAssembler() + ": ";
-    }
-    List<Register> incorrectRegisters =
-        seq(freeRegisters).retainAll(usedRegisters.keySet()).collect(Collectors.toList());
-    if (incorrectRegisters.size() > 0) {
-      throw new RuntimeException(
-          prefix
-              + "Registers "
-              + incorrectRegisters.stream().map(Object::toString).collect(Collectors.joining(", "))
-              + " are free and used at the same time");
-    }
-    incorrectRegisters =
-        seq(Register.usableRegisters)
-            .removeAll(freeRegisters)
-            .removeAll(usedRegisters.keySet())
-            .collect(Collectors.toList());
-    if (incorrectRegisters.size() > 0) {
-      throw new RuntimeException(
-          prefix
-              + "Registers "
-              + incorrectRegisters.stream().map(Object::toString).collect(Collectors.joining(", "))
-              + " are neither free nor used");
-    }
-    incorrectRegisters = seq(this.freeRegisters).filter(x -> x == null).toList();
-    if (incorrectRegisters.size() > 0) {
-      throw new RuntimeException(
-          prefix + "null in free registers: freeregisters = " + freeRegisters);
-    }
   }
 }

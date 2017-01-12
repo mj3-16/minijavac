@@ -30,9 +30,6 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
   private Optional<Jmp> unconditionalJump;
   private final List<Instruction> phiBHelperInstructions;
 
-  /** This should by used after the assembler generation has been finished. */
-  private List<Instruction> instructions;
-
   public CodeBlock(String label) {
     this.label = label;
     this.blockStartInstructions = new ArrayList<>();
@@ -55,18 +52,6 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
             .map(Instruction::toGNUAssembler)
             .collect(Collectors.joining(System.lineSeparator())));
     return builder.toString();
-  }
-
-  public int size() {
-    return blockStartInstructions.size()
-        + normalInstructions.size()
-        + phiHelperInstructions.size()
-        + cmpOrJmpSupportInstructions.size()
-        + (compareInstruction.isPresent() ? 1 : 0)
-        + conditionalJumps.size()
-        + (unconditionalJump.isPresent() ? 1 : 0)
-        + afterCompareInstructions.size()
-        + phiBHelperInstructions.size();
   }
 
   @NotNull
@@ -114,10 +99,6 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
     afterCompareInstructions.add(modify(instruction));
   }
 
-  public List<Instruction> getAfterCompareInstructions() {
-    return Collections.unmodifiableList(afterCompareInstructions);
-  }
-
   /**
    * Prepends the instructions to the normal instructions
    *
@@ -132,18 +113,6 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
 
   public boolean hasCompare() {
     return compareInstruction.isPresent();
-  }
-
-  public boolean hasUnconditionalJump() {
-    return unconditionalJump.isPresent();
-  }
-
-  public Optional<Cmp> getCompare() {
-    return compareInstruction;
-  }
-
-  public Optional<Jmp> getUnconditionalJump() {
-    return unconditionalJump;
   }
 
   public void setCompare(Cmp cmp) {
@@ -174,16 +143,8 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
     phiBHelperInstructions.add(modify(instruction));
   }
 
-  public List<Jmp> getConditionalJumps() {
-    return Collections.unmodifiableList(conditionalJumps);
-  }
-
   public void addBlockStartInstruction(Instruction instruction) {
     blockStartInstructions.add(modify(instruction));
-  }
-
-  public List<Instruction> getBlockStartInstructions() {
-    return Collections.unmodifiableList(blockStartInstructions);
   }
 
   @Override
@@ -194,9 +155,5 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
   private <T extends Instruction> T modify(T instruction) {
     instruction.setParentBlock(this);
     return instruction;
-  }
-
-  public boolean isEmpty() {
-    return size() == 0;
   }
 }

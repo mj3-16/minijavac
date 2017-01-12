@@ -683,9 +683,8 @@ public class IREmitter
     while ((c = p.getInputStream().read()) != -1) {
       System.out.print(Character.toString((char) c));
     }
-    int res = -1;
     try {
-      res = p.waitFor();
+      p.waitFor();
     } catch (Throwable t) {
     }
   }

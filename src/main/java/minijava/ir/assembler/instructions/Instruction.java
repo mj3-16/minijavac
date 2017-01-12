@@ -240,20 +240,12 @@ public abstract class Instruction implements GNUAssemblerConvertible, Comparable
     this.parentBlock = Optional.of(codeBlock);
   }
 
-  public CodeBlock getParentBlock() {
-    return parentBlock.get();
-  }
-
   public void setNumberInSegment(int number) {
     this.numberInSegment = Optional.of(number);
   }
 
   public int getNumberInSegment() {
     return numberInSegment.get();
-  }
-
-  public boolean isMetaInstruction() {
-    return getType().category == Category.META;
   }
 
   public abstract List<Argument> getArguments();
