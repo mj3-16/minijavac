@@ -53,14 +53,23 @@ project(':mjtest') {
     task all(type: Exec, dependsOn: installDist) {
         commandLine 'python3', './mjt.py', 'all', '../run', '--ci_testing', '--parallel'
     }
+    task lexer(type: Exec, dependsOn: installDist) {
+        commandLine 'python3', './mjt.py', 'lexer', '../run', '--ci_testing', '--parallel'
+    }
+    task syntax(type: Exec, dependsOn: installDist) {
+        commandLine 'python3', './mjt.py', 'syntax', '../run', '--ci_testing', '--parallel'
+    }
+    task ast(type: Exec, dependsOn: installDist) {
+        commandLine 'python3', './mjt.py', 'ast', '../run', '--ci_testing', '--parallel'
+    }
+    task semantic(type: Exec, dependsOn: installDist) {
+        commandLine 'python3', './mjt.py', 'semantic', '../run', '--ci_testing', '--parallel'
+    }
     task compileFirm(type: Exec, dependsOn: installDist) {
         commandLine 'python3', './mjt.py', 'compile-firm', '../run', '--ci_testing', '--parallel'
     }
-    task exec(type: Exec, dependsOn: installDist) {
-        commandLine 'python3', './mjt.py', 'exec', '../run', '--ci_testing', '--parallel'
-    }
-    task failing(type: Exec, dependsOn: installDist) {
-        commandLine 'python3', './mjt.py', 'all', '../run', '--ci_testing', '--parallel', '--only_incorrect_tests'
+    task compile(type: Exec, dependsOn: installDist) {
+        commandLine 'python3', './mjt.py', 'compile', '../run', '--ci_testing', '--parallel'
     }
 }
 tasks.check.dependsOn 'mjtest:all'
