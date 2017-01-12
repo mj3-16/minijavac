@@ -24,7 +24,6 @@ import firm.nodes.Start;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
-import minijava.Cli;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
 import org.jooq.lambda.tuple.Tuple2;
@@ -48,16 +47,12 @@ public class Inliner extends BaseOptimizer {
   }
 
   private boolean inlineCandidates() {
-    Cli.dumpGraphIfNeeded(graph, "before-inlining");
     boolean hasChanged = false;
     for (Call call : callsToInline) {
-      System.out.println(callee(call));
-      Cli.dumpGraphIfNeeded(graph, "before-inlining-" + callee(call));
+      //System.out.println("Inlining " + callee(call) + " into " + graph);
       inline(call);
       hasChanged = true;
     }
-    Cli.dumpGraphIfNeeded(graph, "after-inlining");
-
     return hasChanged;
   }
 
@@ -233,11 +228,11 @@ public class Inliner extends BaseOptimizer {
     if (calleeInfo.diverges) {
       // We could potentially inline this, but it won't bring any benefit, as the diverging loop
       // dominates the method call overhead.
-      // In case we do want this though, we have to keep_alive(end.getPred(1).ptr);
+      // In case we do want this though, we have to graph.keepAlive(end.getPred(1));
       return;
     }
-    if (calleeInfo.size > 2000) {
-      // This should be sufficiently high so that the call overhead isn't noticable
+    if (calleeInfo.size > 1000) {
+      // This should be sufficiently high so that the call overhead isn't noticeable
       // (generally, imagine an if/else...).
       return;
     }

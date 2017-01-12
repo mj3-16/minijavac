@@ -200,7 +200,7 @@ public class Cli {
             | phiOptimizer.optimize(graph)) ;
         dumpGraphIfNeeded(graph, "before-control-flow-optimizations");
         while (controlFlowOptimizer.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
-        dumpGraphIfNeeded(graph, "after-constant-control-flow");
+        //dumpGraphIfNeeded(graph, "after-constant-control-flow");
         while (phiBElimination.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
       }
 
@@ -212,6 +212,7 @@ public class Cli {
         hasChanged |= inliner.optimize(graph);
         unreachableCodeRemover.optimize(graph);
         metrics.updateGraphInfo(graph);
+        Cli.dumpGraphIfNeeded(graph, "after-inlining");
       }
       if (!hasChanged) {
         break;

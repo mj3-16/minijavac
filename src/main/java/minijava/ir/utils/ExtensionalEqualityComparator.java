@@ -5,6 +5,7 @@ import com.sun.jna.Pointer;
 import firm.Mode;
 import firm.TargetValue;
 import firm.bindings.binding_irnode;
+import firm.nodes.Cmp;
 import firm.nodes.Const;
 import firm.nodes.Node;
 import firm.nodes.NodeVisitor;
@@ -99,21 +100,18 @@ public class ExtensionalEqualityComparator implements Comparator<Node> {
     public void visit(Const node) {
       TargetValue a = node.getTarval();
       TargetValue b = ((Const) other).getTarval();
-      if (a.equals(b)) {
-        cmp = 0;
+      if (node.getMode().equals(Mode.getb())) {
+        cmp = a.equals(TargetValue.getBFalse()) ? -1 : 1;
       } else {
-        if (node.getMode().equals(Mode.getIs())) {
-          cmp = a.asInt() - b.asInt();
-        } else if (node.getMode().equals(Mode.getP())) {
-          cmp = (int) Math.signum(a.asLong() - b.asLong());
-        } else if (node.getMode().equals(Mode.getb())) {
-          cmp = a.equals(TargetValue.getBFalse()) ? -1 : 1;
-        } else if (node.getMode().equals(Mode.getBu())) {
-          cmp = a.asInt() == 0 ? -1 : 1;
-        } else {
-          assert false;
-        }
+        // We can't easily get p64 mode, so being optimistic here is the best thing to do
+        cmp = (int) Math.signum(a.asLong() - b.asLong());
       }
+    }
+
+    @Override
+    public void visit(Cmp node) {
+      Cmp otherCmp = (Cmp) other;
+      cmp = node.getRelation().compareTo(otherCmp.getRelation());
     }
 
     @Override
