@@ -176,46 +176,49 @@ public class Cli {
   }
 
   private void optimize() {
-    outputGraphsIfNeeded("--before-optimizations");
+    outputGraphsIfNeeded("before-optimizations");
     Optimizer constantFolder = new ConstantFolder();
     Optimizer controlFlowOptimizer = new ConstantControlFlowOptimizer();
     Optimizer unreachableCodeRemover = new UnreachableCodeRemover();
+    Optimizer expressionNormalizer = new ExpressionNormalizer();
     Optimizer algebraicSimplifier = new AlgebraicSimplifier();
     Optimizer commonSubexpressionElimination = new CommonSubexpressionElimination();
     Optimizer phiOptimizer = new PhiOptimizer();
     Optimizer phiBElimination = new PhiBElimination();
     while (true) {
       for (Graph graph : firm.Program.getGraphs()) {
-        //Dump.dumpGraph(graph, "before-simplification");
+        Dump.dumpGraph(graph, "before-simplification");
         while (constantFolder.optimize(graph)
+            | expressionNormalizer.optimize(graph)
             | algebraicSimplifier.optimize(graph)
             | commonSubexpressionElimination.optimize(graph)
             | phiOptimizer.optimize(graph)) ;
-        //Dump.dumpGraph(graph, "before-control-flow-optimizations");
+        Dump.dumpGraph(graph, "before-control-flow-optimizations");
         while (controlFlowOptimizer.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
         while (phiBElimination.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
       }
 
       // Here comes the interprocedural stuff... This is method is really turning into a mess
+      boolean hasChanged = false;
       ProgramMetrics metrics = ProgramMetrics.analyse(firm.Program.getGraphs());
       Optimizer inliner = new Inliner(metrics);
-      boolean hasChanged = false;
       for (Graph graph : firm.Program.getGraphs()) {
         hasChanged |= inliner.optimize(graph);
         unreachableCodeRemover.optimize(graph);
+        metrics.updateGraphInfo(graph);
       }
       if (!hasChanged) {
         break;
       }
     }
-    outputGraphsIfNeeded("--after-optimizations");
+    outputGraphsIfNeeded("after-optimizations");
   }
 
   private void runFirm(InputStream in) throws IOException {
     Program ast = new Parser(new Lexer(in)).parse();
     ast.acceptVisitor(new SemanticAnalyzer());
     ast.acceptVisitor(new IREmitter());
-    outputGraphsIfNeeded("--finished");
+    outputGraphsIfNeeded("finished");
     IREmitter.compileAndRun("a.out", shouldProduceDebuggableBinary());
   }
 

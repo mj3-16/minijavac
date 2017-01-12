@@ -4,7 +4,17 @@ import firm.BackEdges;
 import firm.Graph;
 import firm.Mode;
 import firm.TargetValue;
-import firm.nodes.*;
+import firm.bindings.binding_ircons;
+import firm.nodes.Bad;
+import firm.nodes.Block;
+import firm.nodes.Cond;
+import firm.nodes.Const;
+import firm.nodes.Jmp;
+import firm.nodes.Node;
+import firm.nodes.NodeVisitor;
+import firm.nodes.Proj;
+import minijava.ir.Dominance;
+import minijava.ir.utils.GraphUtils;
 import minijava.ir.utils.NodeUtils;
 
 /**
@@ -34,13 +44,28 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
     if (node.getSelector() instanceof Const) {
       TargetValue condition = ((Const) node.getSelector()).getTarval();
       NodeUtils.CondProjs projs = NodeUtils.determineProjectionNodes(node);
-      hasChanged = true;
+
+      Node delete, alwaysTake;
       if (condition.equals(TargetValue.getBTrue())) {
-        Graph.exchange(projs.true_, graph.newJmp(node.getBlock()));
-        Graph.exchange(projs.false_, graph.newBad(Mode.getANY()));
+        delete = projs.false_;
+        alwaysTake = projs.true_;
       } else {
-        Graph.exchange(projs.false_, graph.newJmp(node.getBlock()));
-        Graph.exchange(projs.true_, graph.newBad(Mode.getANY()));
+        delete = projs.true_;
+        alwaysTake = projs.false_;
+      }
+
+      Block block = (Block) node.getBlock();
+      boolean endWasDominated = Dominance.dominates(block, graph.getEndBlock());
+
+      hasChanged = true;
+      Graph.exchange(alwaysTake, graph.newJmp(node.getBlock()));
+      Graph.exchange(delete, graph.newBad(Mode.getANY()));
+
+      boolean endConnectedToStart = GraphUtils.areConnected(graph.getEnd(), graph.getStart());
+
+      if (endWasDominated && !endConnectedToStart) {
+        // We just cut loose the last edge to the end block, meaning this is some kind of endless loop.
+        binding_ircons.keep_alive(block.ptr);
       }
     }
   }

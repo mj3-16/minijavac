@@ -7,6 +7,7 @@ import firm.Mode;
 import firm.nodes.*;
 import java.util.*;
 import minijava.ir.Dominance;
+import minijava.ir.utils.ExtensionalEqualityComparator;
 import org.jooq.lambda.Seq;
 
 /**
@@ -324,28 +325,8 @@ public class CommonSubexpressionElimination extends NodeVisitor.Default implemen
       if (!(obj instanceof HashedNode)) {
         return false;
       }
-      // We have to careful that this doesn't produce false positives!
-      // Otherwise we might change the semantics.
-      return similar(this.node, ((HashedNode) obj).node);
-    }
-
-    private static boolean similar(Node a, Node b) {
-      if (a.equals(b)) {
-        return true;
-      }
-      if (!a.getOpCode().equals(b.getOpCode())) {
-        return false;
-      }
-      if (a.getPredCount() != b.getPredCount()) {
-        return false;
-      }
-      int n = a.getPredCount();
-      for (int i = 0; i < n; ++i) {
-        if (!similar(a.getPred(i), b.getPred(i))) {
-          return false;
-        }
-      }
-      return true;
+      return ExtensionalEqualityComparator.INSTANCE.compare(this.node, ((HashedNode) obj).node)
+          == 0;
     }
 
     @Override

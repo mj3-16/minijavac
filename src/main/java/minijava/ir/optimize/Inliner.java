@@ -27,7 +27,6 @@ import java.util.Set;
 import java.util.function.Consumer;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
-import org.jooq.lambda.Seq;
 import org.jooq.lambda.tuple.Tuple2;
 
 public class Inliner extends BaseOptimizer {
@@ -125,10 +124,12 @@ public class Inliner extends BaseOptimizer {
       }
       Graph.exchange(ret, graph.newJmp(ret.getBlock()));
     }
-    Phi[] phis =
-        Seq.of(phiPreds)
-            .map(preds -> graph.newPhi(endBlock, preds, preds[0].getMode()))
-            .toArray(Phi[]::new);
+
+    Phi[] phis = new Phi[phiPreds.length];
+    for (int i = 0; i < phis.length; ++i) {
+      Mode mode = i == 0 ? Mode.getM() : mt.getResType(i - 1).getMode();
+      phis[i] = (Phi) graph.newPhi(endBlock, phiPreds[i], mode);
+    }
 
     FirmUtils.withBackEdges(
         graph,
@@ -221,6 +222,12 @@ public class Inliner extends BaseOptimizer {
     ProgramMetrics.GraphInfo calleeInfo = metrics.graphInfos.get(callee(call));
     if (!calleeInfo.calls.isEmpty()) {
       // We only inline if the callee itself doesn't call any other functions for now
+      return;
+    }
+    if (calleeInfo.diverges) {
+      // We could potentially inline this, but it won't bring any benefit, as the diverging loop
+      // dominates the method call overhead.
+      // In case we do want this though, we have to keep_alive(end.getPred(1).ptr);
       return;
     }
     callsToInline.add(call);

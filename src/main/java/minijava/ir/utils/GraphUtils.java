@@ -16,10 +16,7 @@ public class GraphUtils {
   public static Tuple2<Start, End> copyGraph(Graph from, Graph to) {
     CopyWorker worker = new CopyWorker(to);
     return FirmUtils.withoutBackEdges(
-        to,
-        () -> {
-          return tuple(worker.copyNode(from.getStart()), worker.copyNode(from.getEnd()));
-        });
+        to, () -> tuple(worker.copyNode(from.getStart()), worker.copyNode(from.getEnd())));
   }
 
   private static class CopyWorker {
@@ -47,6 +44,20 @@ public class GraphUtils {
       }
       return copy;
     }
+  }
+
+  public static boolean areConnected(Node source, Node target) {
+    final boolean[] connected = {false};
+    Consumer<Node> visitor =
+        n -> {
+          if (n.equals(target)) {
+            connected[0] = true;
+          }
+        };
+
+    walkFromNodeDepthFirst(source, visitor, n -> {});
+
+    return connected[0];
   }
 
   /**

@@ -3,6 +3,7 @@ package minijava.ir.optimize;
 import firm.Graph;
 import firm.nodes.Address;
 import firm.nodes.Call;
+import firm.nodes.End;
 import firm.nodes.NodeVisitor;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -15,23 +16,39 @@ public class ProgramMetrics {
   public static ProgramMetrics analyse(Iterable<Graph> graphs) {
     ProgramMetrics metrics = new ProgramMetrics();
     for (Graph graph : graphs) {
-      GraphWalker walker = new GraphWalker();
-      graph.walk(walker);
-      metrics.graphInfos.put(graph, walker.resultSummary());
+      metrics.updateGraphInfo(graph);
     }
     return metrics;
   }
 
+  public void updateGraphInfo(Graph graph) {
+    GraphWalker walker = new GraphWalker();
+    graph.walk(walker);
+    graphInfos.put(graph, walker.resultSummary());
+  }
+
   public static class GraphInfo {
     public final Set<Graph> calls;
+    public final boolean diverges;
 
-    public GraphInfo(Set<Graph> calls) {
+    public GraphInfo(Set<Graph> calls, boolean diverges) {
       this.calls = calls;
+      this.diverges = diverges;
     }
   }
 
   private static class GraphWalker extends NodeVisitor.Default {
     private final Set<Graph> calls = new HashSet<>();
+    private boolean diverges = true;
+
+    @Override
+    public void visit(End node) {
+      // The only possible (optional) predecessors for an end node are a Phi[loop] node at index 0, indicating
+      // a possibly diverging loop, and a to-be-kept-alive block at index 1.
+      //
+      // If a graph certainly diverges, its end node will have both predecessors (possibly more, I don't know).
+      diverges = node.getPredCount() >= 2;
+    }
 
     @Override
     public void visit(Call node) {
@@ -45,7 +62,7 @@ public class ProgramMetrics {
     }
 
     public GraphInfo resultSummary() {
-      return new GraphInfo(calls);
+      return new GraphInfo(calls, diverges);
     }
   }
 }
