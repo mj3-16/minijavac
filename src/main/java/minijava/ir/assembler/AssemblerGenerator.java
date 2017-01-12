@@ -227,16 +227,6 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     }
   }
 
-  private boolean hasTypeLongWidth(Type type) {
-    return type instanceof PrimitiveType && !(type.getMode().equals(Types.PTR_TYPE.getMode()));
-  }
-
-  private Argument getOnlyArgument(Node node) {
-    List<Argument> args = allocator.getArguments(node);
-    assert args.size() == 1;
-    return args.get(0);
-  }
-
   @Override
   public void visit(Block node) {
     CodeBlock codeBlock = getCodeBlock(node);
@@ -337,11 +327,6 @@ public class AssemblerGenerator extends NodeVisitor.Default {
         predCodeBlock.setDefaultUnconditionalJump((Jmp) new Jmp(codeBlock).firm(pred));
       }
     }
-  }
-
-  private boolean hasCmpBooleanArguments(firm.nodes.Cmp cmp) {
-    return cmp.getRight().getMode().equals(Types.BOOLEAN_TYPE.getMode())
-        || cmp.getLeft().getMode().equals(Types.BOOLEAN_TYPE.getMode());
   }
 
   @Override

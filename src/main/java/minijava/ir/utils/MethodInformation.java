@@ -9,7 +9,6 @@ import firm.nodes.Call;
 /** Information about a method entity in a more accessible object than the Graph object */
 public class MethodInformation {
 
-  public final Entity entity;
   public final MethodType type;
   public final int paramNumber;
   public final String name;
@@ -17,7 +16,6 @@ public class MethodInformation {
   public final boolean hasReturnValue;
 
   public MethodInformation(Entity entity) {
-    this.entity = entity;
     this.type = (MethodType) entity.getType();
     this.paramNumber = type.getNParams();
     this.name = entity.getIdent().toString();

@@ -45,19 +45,6 @@ public class Method extends Node implements Definition {
     this(isStatic, false, returnType, name, parameters, body, range);
   }
 
-  public Method(
-      boolean isStatic,
-      boolean isNative,
-      Type returnType,
-      String name,
-      List<LocalVariable> parameters,
-      Block body,
-      SourceRange range,
-      Ref<Class> definingClass) {
-    this(isNative, isStatic, returnType, name, parameters, body, range);
-    this.definingClass = definingClass;
-  }
-
   @Override
   public String name() {
     return this.name;

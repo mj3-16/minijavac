@@ -13,11 +13,6 @@ public class Field extends Node implements Definition {
     this.name = name;
   }
 
-  public Field(Type type, String name, SourceRange range, Ref<Class> definingClass) {
-    this(type, name, range);
-    this.definingClass = definingClass;
-  }
-
   @Override
   public String name() {
     return this.name;

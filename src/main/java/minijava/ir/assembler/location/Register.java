@@ -153,13 +153,6 @@ public class Register extends Location {
     return registerMap.get(registerName);
   }
 
-  public static Width minWidth(Register first, Register second) {
-    if (first.width.ordinal() < second.width.ordinal()) {
-      return first.width;
-    }
-    return second.width;
-  }
-
   @Override
   public int hashCode() {
     return registerClassId;
