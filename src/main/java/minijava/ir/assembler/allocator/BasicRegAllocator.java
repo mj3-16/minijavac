@@ -166,7 +166,6 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
   private void putArgumentOnStack(Argument argument) {
     if (!hasStackSlotAssigned(argument)) {
       currentStackDepth += 8; //argument.width.sizeInBytes;
-      System.out.println(currentStackDepth);
       StackSlot slot = new StackSlot(argument.width, -currentStackDepth);
       slot.setComment(argument.getComment());
       argumentStackSlots.put(argument, slot);
