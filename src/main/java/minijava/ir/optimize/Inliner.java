@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
+import minijava.ir.utils.NodeUtils;
 import org.jooq.lambda.tuple.Tuple2;
 
 public class Inliner extends BaseOptimizer {
@@ -170,7 +171,7 @@ public class Inliner extends BaseOptimizer {
               // In case of Projs (e.g. conditional jumps), we also want to move the Cond node.
               // This is so we don't have to generate spill instructions for values of mode b.
               // Otherwise the FloatIn transformation should do this.
-              FirmUtils.asProj(edge.node).ifPresent(proj -> toVisit.add(proj.getPred()));
+              NodeUtils.asProj(edge.node).ifPresent(proj -> toVisit.add(proj.getPred()));
             }
           }
 

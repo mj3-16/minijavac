@@ -103,20 +103,4 @@ public class GraphUtils {
       }
     }
   }
-
-  private static void walkDFHelper(
-      Node node, Consumer<Node> onDiscover, Consumer<Node> onFinish, HashSet<Node> grey) {
-    if (grey.contains(node)) {
-      return;
-    }
-    grey.add(node);
-    onDiscover.accept(node);
-    if (node.getBlock() != null) {
-      walkDFHelper(node.getBlock(), onDiscover, onFinish, grey);
-    }
-    for (Node pred : node.getPreds()) {
-      walkDFHelper(pred, onDiscover, onFinish, grey);
-    }
-    onFinish.accept(node);
-  }
 }

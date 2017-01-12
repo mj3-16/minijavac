@@ -1,29 +1,18 @@
 package minijava.ir.utils;
 
-import static firm.bindings.binding_irnode.ir_opcode.iro_Proj;
-
 import firm.BackEdges;
 import firm.Graph;
 import firm.Mode;
 import firm.Relation;
 import firm.nodes.Node;
 import firm.nodes.Phi;
-import firm.nodes.Proj;
 import java.util.HashSet;
-import java.util.Optional;
 import java.util.Set;
 import java.util.Stack;
 import java.util.function.Supplier;
 import minijava.ir.assembler.location.Register;
 
 public class FirmUtils {
-
-  public static Optional<Proj> asProj(Node node) {
-    if (node.getOpCode().equals(iro_Proj)) {
-      return Optional.of((Proj) node);
-    }
-    return Optional.empty();
-  }
 
   public static boolean isPhiProneToLostCopies(Phi phi) {
     // Assumption: a phi is error prone if a circle in the graph exists that

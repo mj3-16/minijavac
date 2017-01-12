@@ -1,13 +1,10 @@
 package minijava.ir.utils;
 
 import static firm.bindings.binding_irnode.ir_opcode.iro_Const;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Jmp;
 import static firm.bindings.binding_irnode.ir_opcode.iro_Proj;
 import static org.jooq.lambda.Seq.seq;
 
 import firm.BackEdges;
-import firm.Mode;
-import firm.nodes.Block;
 import firm.nodes.Cond;
 import firm.nodes.Const;
 import firm.nodes.Node;
@@ -18,6 +15,10 @@ import java.util.Optional;
 public class NodeUtils {
   public static Optional<Const> asConst(Node node) {
     return node.getOpCode().equals(iro_Const) ? Optional.of((Const) node) : Optional.empty();
+  }
+
+  public static Optional<Proj> asProj(Node node) {
+    return node.getOpCode().equals(iro_Proj) ? Optional.of((Proj) node) : Optional.empty();
   }
 
   public static Optional<CondProjs> determineProjectionNodes(Cond node) {
@@ -43,12 +44,5 @@ public class NodeUtils {
       this.true_ = true_;
       this.false_ = false_;
     }
-  }
-
-  public static Optional<Block> jumpTarget(Node node) {
-    assert node.getOpCode().equals(iro_Jmp)
-        || (node.getOpCode().equals(iro_Proj) && node.getMode().equals(Mode.getX()));
-    return FirmUtils.withBackEdges(
-        node.getGraph(), () -> seq(BackEdges.getOuts(node)).map(be -> (Block) be.node).findFirst());
   }
 }
