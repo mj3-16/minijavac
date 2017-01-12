@@ -7,6 +7,8 @@ import firm.nodes.*;
 /**
  * Performs various optimizations special to Phi nodes. Currently, there are transformations for
  *
+ * <p>- Optimizing Phi-of-Phis within the same block
+ *
  * <p>- Identifying constant inputs to Phi nodes based on control flow
  */
 public class PhiOptimizer extends BaseOptimizer {
@@ -21,7 +23,27 @@ public class PhiOptimizer extends BaseOptimizer {
 
   @Override
   public void visit(Phi node) {
+    followPhiNodesInSameBlock(node);
     findControlFlowDependentConstants(node);
+  }
+
+  private void followPhiNodesInSameBlock(Phi node) {
+    int n = node.getPredCount();
+    for (int i = 0; i < n; ++i) {
+      if (!(node.getPred(i) instanceof Phi)) {
+        continue;
+      }
+      Phi phi = (Phi) node.getPred(i);
+      if (phi.equals(node) || phi.equals(phi.getPred(i))) {
+        continue;
+      }
+      boolean bothPhisInSameBlock = phi.getBlock().equals(node.getBlock());
+      if (!bothPhisInSameBlock) {
+        continue;
+      }
+      node.setPred(i, phi.getPred(i));
+      hasChanged = true;
+    }
   }
 
   private void findControlFlowDependentConstants(Phi node) {
