@@ -168,15 +168,14 @@ public class Cli {
   }
 
   public static void dumpGraphsIfNeeded(String appendix) {
-    if (shouldPrintGraphs()) {
-      for (Graph g : firm.Program.getGraphs()) {
-        Dump.dumpGraph(g, appendix);
-      }
+    for (Graph g : firm.Program.getGraphs()) {
+      dumpGraphIfNeeded(g, appendix);
     }
   }
 
   public static void dumpGraphIfNeeded(Graph g, String appendix) {
     if (shouldPrintGraphs()) {
+      g.check();
       Dump.dumpGraph(g, appendix);
     }
   }
@@ -201,6 +200,7 @@ public class Cli {
             | phiOptimizer.optimize(graph)) ;
         dumpGraphIfNeeded(graph, "before-control-flow-optimizations");
         while (controlFlowOptimizer.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
+        dumpGraphIfNeeded(graph, "after-constant-control-flow");
         while (phiBElimination.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
       }
 

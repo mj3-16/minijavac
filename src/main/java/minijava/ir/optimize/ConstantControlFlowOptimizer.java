@@ -4,7 +4,6 @@ import firm.BackEdges;
 import firm.Graph;
 import firm.Mode;
 import firm.TargetValue;
-import firm.bindings.binding_ircons;
 import firm.nodes.Bad;
 import firm.nodes.Block;
 import firm.nodes.Cond;
@@ -73,7 +72,7 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
 
       if (endWasDominated && !endConnectedToStart) {
         // We just cut loose the last edge to the end block, meaning this is some kind of endless loop.
-        binding_ircons.keep_alive(block.ptr);
+        graph.keepAlive(block);
       }
     }
   }

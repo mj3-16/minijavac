@@ -24,6 +24,7 @@ import firm.nodes.Start;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
+import minijava.Cli;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
 import org.jooq.lambda.tuple.Tuple2;
@@ -47,13 +48,15 @@ public class Inliner extends BaseOptimizer {
   }
 
   private boolean inlineCandidates() {
-    //Cli.dumpGraphIfNeeded(graph, "before-inlining");
+    Cli.dumpGraphIfNeeded(graph, "before-inlining");
     boolean hasChanged = false;
     for (Call call : callsToInline) {
+      System.out.println(callee(call));
+      Cli.dumpGraphIfNeeded(graph, "before-inlining-" + callee(call));
       inline(call);
       hasChanged = true;
     }
-    //Cli.dumpGraphIfNeeded(graph, "after-inlining");
+    Cli.dumpGraphIfNeeded(graph, "after-inlining");
 
     return hasChanged;
   }
@@ -176,12 +179,21 @@ public class Inliner extends BaseOptimizer {
             }
           }
 
+          Set<Node> visited = new HashSet<>();
           while (!toVisit.isEmpty()) {
             Node move = seq(toVisit).findAny().get();
             toVisit.remove(move);
-            if (toMove.contains(move)) {
+            if (visited.contains(move)) {
               continue;
             }
+            visited.add(move);
+
+            if (move.getOpCode().equals(iro_Phi)) {
+              // We may not move Phis, as they are tied to their block.
+              // That's not even bad, because we also don't have to move any successors.
+              continue;
+            }
+
             toMove.add(move);
             toVisit.addAll(
                 seq(BackEdges.getOuts(move))
