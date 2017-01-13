@@ -175,7 +175,6 @@ public class Cli {
 
   public static void dumpGraphIfNeeded(Graph g, String appendix) {
     if (shouldPrintGraphs()) {
-      System.out.println(appendix);
       g.check();
       Dump.dumpGraph(g, appendix);
     }
@@ -201,14 +200,13 @@ public class Cli {
             | phiOptimizer.optimize(graph)) ;
         dumpGraphIfNeeded(graph, "before-control-flow-optimizations");
         while (controlFlowOptimizer.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
-        dumpGraphIfNeeded(graph, "after-constant-control-flow");
+        //dumpGraphIfNeeded(graph, "after-constant-control-flow");
         while (phiBElimination.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
       }
 
       // Here comes the interprocedural stuff... This is method is really turning into a mess
       boolean hasChanged = false;
       ProgramMetrics metrics = ProgramMetrics.analyse(firm.Program.getGraphs());
-      dumpGraphsIfNeeded("before-inlining");
       Optimizer inliner = new Inliner(metrics);
       for (Graph graph : firm.Program.getGraphs()) {
         hasChanged |= inliner.optimize(graph);
