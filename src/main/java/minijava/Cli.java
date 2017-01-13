@@ -183,6 +183,7 @@ public class Cli {
   private void optimize() {
     dumpGraphsIfNeeded("before-optimizations");
     Optimizer constantFolder = new ConstantFolder();
+    Optimizer floatInTransformation = new FloatInTransformation();
     Optimizer controlFlowOptimizer = new ConstantControlFlowOptimizer();
     Optimizer unreachableCodeRemover = new UnreachableCodeRemover();
     Optimizer expressionNormalizer = new ExpressionNormalizer();
@@ -196,6 +197,7 @@ public class Cli {
         while (constantFolder.optimize(graph)
             | expressionNormalizer.optimize(graph)
             | algebraicSimplifier.optimize(graph)
+            | floatInTransformation.optimize(graph)
             | commonSubexpressionElimination.optimize(graph)
             | phiOptimizer.optimize(graph)) ;
         dumpGraphIfNeeded(graph, "before-control-flow-optimizations");
