@@ -148,7 +148,7 @@ public class Cli {
     if (!optimizationsTurnedOff()) {
       optimize();
     }
-    outputGraphsIfNeeded("--finished");
+    dumpGraphsIfNeeded("--finished");
     IREmitter.compile("a.out", shouldProduceDebuggableBinary());
   }
 
@@ -157,7 +157,7 @@ public class Cli {
     return value != null && value.equals("0");
   }
 
-  public static boolean shouldPrintGraphs() {
+  private static boolean shouldPrintGraphs() {
     String value = System.getenv("MJ_GRAPH");
     return value != null && value.equals("1");
   }
@@ -167,16 +167,21 @@ public class Cli {
     return value != null && value.equals("1");
   }
 
-  private void outputGraphsIfNeeded(String appendix) {
+  public static void dumpGraphsIfNeeded(String appendix) {
+    for (Graph g : firm.Program.getGraphs()) {
+      dumpGraphIfNeeded(g, appendix);
+    }
+  }
+
+  public static void dumpGraphIfNeeded(Graph g, String appendix) {
     if (shouldPrintGraphs()) {
-      for (Graph g : firm.Program.getGraphs()) {
-        Dump.dumpGraph(g, appendix);
-      }
+      g.check();
+      Dump.dumpGraph(g, appendix);
     }
   }
 
   private void optimize() {
-    outputGraphsIfNeeded("--before-optimizations");
+    dumpGraphsIfNeeded("before-optimizations");
     Optimizer constantFolder = new ConstantFolder();
     Optimizer controlFlowOptimizer = new ConstantControlFlowOptimizer();
     Optimizer unreachableCodeRemover = new UnreachableCodeRemover();
@@ -185,25 +190,42 @@ public class Cli {
     Optimizer commonSubexpressionElimination = new CommonSubexpressionElimination();
     Optimizer phiOptimizer = new PhiOptimizer();
     Optimizer phiBElimination = new PhiBElimination();
-    for (Graph graph : firm.Program.getGraphs()) {
-      //Dump.dumpGraph(graph, "before-simplification");
-      while (constantFolder.optimize(graph)
-          | expressionNormalizer.optimize(graph)
-          | algebraicSimplifier.optimize(graph)
-          | commonSubexpressionElimination.optimize(graph)
-          | phiOptimizer.optimize(graph)) ;
-      //Dump.dumpGraph(graph, "before-control-flow-optimizations");
-      while (controlFlowOptimizer.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
-      while (phiBElimination.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
+    while (true) {
+      for (Graph graph : firm.Program.getGraphs()) {
+        dumpGraphIfNeeded(graph, "before-simplification");
+        while (constantFolder.optimize(graph)
+            | expressionNormalizer.optimize(graph)
+            | algebraicSimplifier.optimize(graph)
+            | commonSubexpressionElimination.optimize(graph)
+            | phiOptimizer.optimize(graph)) ;
+        dumpGraphIfNeeded(graph, "before-control-flow-optimizations");
+        while (controlFlowOptimizer.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
+        //dumpGraphIfNeeded(graph, "after-constant-control-flow");
+        while (phiBElimination.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
+      }
+
+      // Here comes the interprocedural stuff... This is method is really turning into a mess
+      boolean hasChanged = false;
+      ProgramMetrics metrics = ProgramMetrics.analyse(firm.Program.getGraphs());
+      Optimizer inliner = new Inliner(metrics);
+      for (Graph graph : firm.Program.getGraphs()) {
+        hasChanged |= inliner.optimize(graph);
+        unreachableCodeRemover.optimize(graph);
+        metrics.updateGraphInfo(graph);
+        Cli.dumpGraphIfNeeded(graph, "after-inlining");
+      }
+      if (!hasChanged) {
+        break;
+      }
     }
-    outputGraphsIfNeeded("--after-optimizations");
+    dumpGraphsIfNeeded("after-optimizations");
   }
 
   private void runFirm(InputStream in) throws IOException {
     Program ast = new Parser(new Lexer(in)).parse();
     ast.acceptVisitor(new SemanticAnalyzer());
     ast.acceptVisitor(new IREmitter());
-    outputGraphsIfNeeded("--finished");
+    dumpGraphsIfNeeded("finished");
     IREmitter.compileAndRun("a.out", shouldProduceDebuggableBinary());
   }
 
@@ -220,8 +242,8 @@ public class Cli {
     if (!optimizationsTurnedOff()) {
       optimize();
     }
-    outputGraphsIfNeeded("--finished");
-    Tuple2<AssemblerFile, AssemblerFile> preAsmAndAsmFile = AssemblerFile.createForGraphs();
+    dumpGraphsIfNeeded("--finished");
+    Tuple2<AssemblerFile, AssemblerFile> preAsmAndAsmFile = AssemblerFile.createForProgram();
     AssemblerFile preAsmFile = preAsmAndAsmFile.v1;
     if (!preAsmOut.isPresent()) {
       preAsmOut = Optional.of(System.err);

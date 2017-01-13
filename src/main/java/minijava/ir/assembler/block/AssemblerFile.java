@@ -125,7 +125,7 @@ public class AssemblerFile implements GNUAssemblerConvertible, Collection<Segmen
   }
 
   /** @return (pre asm, real asm) */
-  public static Tuple2<AssemblerFile, AssemblerFile> createForGraphs() {
+  public static Tuple2<AssemblerFile, AssemblerFile> createForProgram() {
     AssemblerFile preAsmFile = new AssemblerFile();
     AssemblerFile file = new AssemblerFile();
     for (Graph graph : Program.getGraphs()) {

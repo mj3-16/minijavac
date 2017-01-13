@@ -1,7 +1,7 @@
 package minijava.ir.optimize;
 
 import static firm.bindings.binding_irnode.ir_opcode.iro_Minus;
-import static minijava.ir.NodeUtils.asConst;
+import static minijava.ir.utils.NodeUtils.asConst;
 
 import firm.Graph;
 import firm.Mode;

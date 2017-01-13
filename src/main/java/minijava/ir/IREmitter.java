@@ -81,9 +81,7 @@ public class IREmitter
     m.body.acceptVisitor(this);
 
     finishGraphAndHandleFallThrough(m);
-    if (Cli.shouldPrintGraphs()) {
-      Dump.dumpGraph(graph, "--after-construction");
-    }
+    Cli.dumpGraphIfNeeded(graph, "after-construction");
     graph.check();
   }
 
