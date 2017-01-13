@@ -15,6 +15,7 @@ import firm.nodes.Phi;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import minijava.ir.Dominance;
 import minijava.ir.utils.NodeUtils;
 import minijava.ir.utils.NodeUtils.CondProjs;
@@ -57,15 +58,37 @@ public class PhiBElimination extends BaseOptimizer {
 
   @Override
   public void visit(Cond node) {
-    if (node.getSelector() instanceof Phi) {
-      if (!node.getBlock().equals(node.getSelector().getBlock())) {
-        // The actual match and the phi are in different blocks, so we can't perform this
-        // transformation.
-        return;
-      }
-
-      redirectConstantControlFlow(node);
+    if (!(node.getSelector() instanceof Phi)) {
+      return;
     }
+
+    if (!node.getBlock().equals(node.getSelector().getBlock())) {
+      // The actual match and the phi are in different blocks, so we can't perform this
+      // transformation.
+      return;
+    }
+
+    // This transformation is only really safe if the currentBlock doesn't do anything besides
+    // this constant matching. This means there shouldn't be any other nodes in this block
+    // apart from phis, the cond and its projs.
+    Set<Node> nodesInBlock = NodeUtils.getNodesInBlock((Block) node.getBlock());
+    nodesInBlock.removeAll(seq(nodesInBlock).ofType(Phi.class).toList());
+    nodesInBlock.remove(node);
+    NodeUtils.determineProjectionNodes(node)
+        .ifPresent(
+            projs -> {
+              nodesInBlock.remove(projs.false_);
+              nodesInBlock.remove(projs.true_);
+            });
+
+    if (!nodesInBlock.isEmpty()) {
+      // This didn't fire last time I checked, so we should catch everything despite these
+      // strong assumption
+      //throw new Error("missed opportunity in node " + node + ". " + Iterables.toString(nodesInBlock));
+      return;
+    }
+
+    redirectConstantControlFlow(node);
   }
 
   private void redirectConstantControlFlow(Cond node) {

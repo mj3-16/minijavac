@@ -41,11 +41,15 @@ public class FloatInTransformation extends NodeVisitor.Default implements Optimi
 
   @Override
   public boolean optimize(Graph graph) {
-    hasChanged = false;
     //Cli.dumpGraphIfNeeded(graph, "before-float-in");
-    GraphUtils.walkFromNodeDepthFirst(graph.getEnd(), n -> {}, n -> n.accept(this));
+    boolean hasChangedAtAll = false;
+    do {
+      hasChanged = false;
+      GraphUtils.walkFromNodeDepthFirst(graph.getEnd(), n -> {}, n -> n.accept(this));
+      hasChangedAtAll |= hasChanged;
+    } while (hasChanged);
     //Cli.dumpGraphIfNeeded(graph, "after-float-in");
-    return hasChanged;
+    return hasChangedAtAll;
   }
 
   @Override

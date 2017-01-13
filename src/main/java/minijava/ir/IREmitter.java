@@ -300,20 +300,20 @@ public class IREmitter
   private Node assign(Expression lval, Expression rhs) {
     // This is ugly, as we have to calculate the address of the expression of lval.
     if (lval instanceof Expression.Variable) {
+      Node value = rhs.acceptVisitor(this);
       Expression.Variable use = (Expression.Variable) lval;
       int idx = getLocalVarIndex(use.var.def);
-      Node value = rhs.acceptVisitor(this);
       construction.setVariable(idx, convbToBu(value));
       return value;
     } else if (lval instanceof Expression.FieldAccess) {
+      Node value = rhs.acceptVisitor(this);
       Expression.FieldAccess access = (Expression.FieldAccess) lval;
       Node address = calculateOffsetForAccess(access);
-      Node value = rhs.acceptVisitor(this);
       return store(address, value);
     } else if (lval instanceof Expression.ArrayAccess) {
+      Node value = rhs.acceptVisitor(this);
       Expression.ArrayAccess access = (Expression.ArrayAccess) lval;
       Node address = calculateOffsetOfAccess(access);
-      Node value = rhs.acceptVisitor(this);
       return store(address, value);
     }
     assert false;
