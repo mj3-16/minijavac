@@ -27,6 +27,10 @@ import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
 import org.jooq.lambda.tuple.Tuple2;
 
+/**
+ * Floats definitions as near as possible to their uses, to lower register pressure and enable
+ * common subexpression elimination to kick in once more.
+ */
 public class FloatInTransformation extends NodeVisitor.Default implements Optimizer {
 
   /**
@@ -35,7 +39,15 @@ public class FloatInTransformation extends NodeVisitor.Default implements Optimi
    */
   private static final Set<ir_opcode> DONT_OPTIMIZE =
       Sets.newHashSet(
-          iro_Block, iro_Phi, iro_Address, iro_Const, iro_Jmp, iro_Start, iro_End, iro_Anchor);
+          iro_Block,
+          iro_Phi,
+          iro_Address,
+          iro_Const,
+          iro_Jmp,
+          iro_Start,
+          iro_End,
+          iro_Anchor,
+          iro_Proj);
 
   private boolean hasChanged;
 
@@ -54,12 +66,8 @@ public class FloatInTransformation extends NodeVisitor.Default implements Optimi
 
   @Override
   public void defaultVisit(Node n) {
-    boolean dontOptimize = DONT_OPTIMIZE.contains(n.getOpCode());
-    boolean isControlFlow = n.getMode().equals(Mode.getX());
-    boolean isProjOfStartNode =
-        n.getOpCode().equals(iro_Proj) && n.getPred(0).getOpCode().equals(iro_Start);
 
-    if (dontOptimize || isControlFlow || isProjOfStartNode) {
+    if (DONT_OPTIMIZE.contains(n.getOpCode()) || n.getMode().equals(Mode.getX())) {
       return;
     }
 
