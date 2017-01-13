@@ -16,7 +16,6 @@ public class Set extends UnaryInstruction {
 
   @Override
   protected String toGNUAssemblerWoComments() {
-    String asm = getType().asm;
     return String.format(
         "%s%s %s", getType().asm, relationToInstructionSuffix(relation), arg.toGNUAssembler());
   }

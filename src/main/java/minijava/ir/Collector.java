@@ -66,7 +66,7 @@ class Collector implements Program.Visitor<Void> {
    */
   private Entity createEntity(Method m) {
     if (m.isStatic) {
-      return createMainMethod(m);
+      return createMainMethod();
     }
     ClassType definingClass = classTypes.get(m.definingClass.def);
     ArrayList<Type> parameterTypes = new ArrayList<>();
@@ -92,7 +92,7 @@ class Collector implements Program.Visitor<Void> {
     return methodEnt;
   }
 
-  private Entity createMainMethod(Method m) {
+  private Entity createMainMethod() {
     MethodType type = new MethodType(0, 0);
     SegmentType global = firm.Program.getGlobalType();
     Entity mainEnt = new Entity(global, "main", type);
