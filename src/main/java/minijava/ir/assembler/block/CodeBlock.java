@@ -54,6 +54,18 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
     return builder.toString();
   }
 
+  public int size() {
+    return blockStartInstructions.size()
+        + normalInstructions.size()
+        + phiHelperInstructions.size()
+        + cmpOrJmpSupportInstructions.size()
+        + (compareInstruction.isPresent() ? 1 : 0)
+        + conditionalJumps.size()
+        + (unconditionalJump.isPresent() ? 1 : 0)
+        + afterCompareInstructions.size()
+        + phiBHelperInstructions.size();
+  }
+
   @NotNull
   @Override
   public Iterator<Instruction> iterator() {
@@ -82,7 +94,7 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
    */
   public boolean add(Instruction instruction) {
     checkArgument(!instruction.isJmpOrCmpLike(), instruction);
-    return normalInstructions.add(modify(instruction));
+    return normalInstructions.add(instruction);
   }
 
   /**
@@ -92,11 +104,19 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
    * <p>Use with care!
    */
   public void addToCmpOrJmpSupportInstructions(Instruction instruction) {
-    cmpOrJmpSupportInstructions.add(modify(instruction));
+    cmpOrJmpSupportInstructions.add(instruction);
   }
 
   public void addToAfterCompareInstructions(Instruction instruction) {
-    afterCompareInstructions.add(modify(instruction));
+    afterCompareInstructions.add(instruction);
+  }
+
+  public List<Instruction> getAfterCompareInstructions() {
+    return Collections.unmodifiableList(afterCompareInstructions);
+  }
+
+  public boolean addAll(@NotNull Collection<? extends Instruction> c) {
+    throw new UnsupportedOperationException();
   }
 
   /**
@@ -107,7 +127,7 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
   public void prepend(Instruction... instructions) {
     for (int i = instructions.length - 1; i >= 0; i--) {
       checkArgument(!instructions[i].isJmpOrCmpLike(), instructions[i]);
-      normalInstructions.add(0, modify(instructions[i]));
+      normalInstructions.add(0, instructions[i]);
     }
   }
 
@@ -115,8 +135,20 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
     return compareInstruction.isPresent();
   }
 
+  public boolean hasUnconditionalJump() {
+    return unconditionalJump.isPresent();
+  }
+
+  public Optional<Cmp> getCompare() {
+    return compareInstruction;
+  }
+
+  public Optional<Jmp> getUnconditionalJump() {
+    return unconditionalJump;
+  }
+
   public void setCompare(Cmp cmp) {
-    compareInstruction = Optional.of(modify(cmp));
+    compareInstruction = Optional.of(cmp);
   }
 
   public void setUnconditionalJump(Jmp jmp) {
@@ -126,34 +158,37 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
 
   public void setDefaultUnconditionalJump(Jmp jmp) {
     if (!unconditionalJump.isPresent()) {
-      unconditionalJump = Optional.of(modify(jmp));
+      unconditionalJump = Optional.of(jmp);
     }
   }
 
   public void addConditionalJump(Jmp jmp) {
     checkArgument(jmp.getType() != Instruction.Type.JMP, jmp);
-    conditionalJumps.add(modify(jmp));
+    conditionalJumps.add(jmp);
   }
 
   public void addPhiHelperInstruction(Instruction instruction) {
-    phiHelperInstructions.add(modify(instruction));
+    phiHelperInstructions.add(instruction);
   }
 
   public void addPhiBHelperInstruction(Instruction instruction) {
-    phiBHelperInstructions.add(modify(instruction));
+    phiBHelperInstructions.add(instruction);
+  }
+
+  public List<Jmp> getConditionalJumps() {
+    return Collections.unmodifiableList(conditionalJumps);
   }
 
   public void addBlockStartInstruction(Instruction instruction) {
-    blockStartInstructions.add(modify(instruction));
+    blockStartInstructions.add(instruction);
+  }
+
+  public List<Instruction> getBlockStartInstructions() {
+    return Collections.unmodifiableList(blockStartInstructions);
   }
 
   @Override
   public String toString() {
     return label;
-  }
-
-  private <T extends Instruction> T modify(T instruction) {
-    instruction.setParentBlock(this);
-    return instruction;
   }
 }

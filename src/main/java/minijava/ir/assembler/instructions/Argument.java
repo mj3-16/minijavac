@@ -31,8 +31,35 @@ public abstract class Argument implements GNUAssemblerConvertible {
       instructions.add(instruction);
     }
 
+    public Instruction getFirstInstruction() {
+      return firstInstruction;
+    }
+
+    public Instruction getLastInstruction() {
+      return lastInstruction;
+    }
+
     public boolean isEmpty() {
       return instructions.isEmpty();
+    }
+
+    public Optional<Instruction> nextUsedInInstruction(Instruction currentInstruction) {
+      int curNum = currentInstruction.getNumberInSegment();
+      if (isEmpty()
+          || curNum <= firstInstruction.getNumberInSegment()
+          || curNum >= lastInstruction.getNumberInSegment()) {
+        return Optional.empty();
+      }
+      for (Instruction instruction : instructions) {
+        if (instruction.getNumberInSegment() > curNum) {
+          return Optional.of(instruction);
+        }
+      }
+      throw new RuntimeException();
+    }
+
+    public int getLastInstructionNumber() {
+      return lastInstruction.getNumberInSegment();
     }
   }
 
@@ -50,5 +77,9 @@ public abstract class Argument implements GNUAssemblerConvertible {
 
   public String getComment() {
     return "";
+  }
+
+  public boolean isUsed() {
+    return !instructionRelations.isEmpty();
   }
 }
