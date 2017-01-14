@@ -2,6 +2,7 @@ package minijava.ir.assembler.instructions;
 
 import java.util.*;
 import minijava.ir.assembler.GNUAssemblerConvertible;
+import minijava.ir.assembler.block.CodeBlock;
 import minijava.ir.assembler.location.Register;
 
 /** Argument for an assembler instruction */
@@ -13,53 +14,58 @@ public abstract class Argument implements GNUAssemblerConvertible {
    */
   public static class InstructionRelations {
 
-    private Instruction firstInstruction;
-    private Instruction lastInstruction;
+    private Map<CodeBlock, List<Instruction>> instructionsInBlocks = new HashMap<>();
 
     /** The instructions are implicitly sorted ascending by their number in the code block */
     private List<Instruction> instructions = new ArrayList<>();
 
     public void addRelation(Instruction instruction) {
-      if (firstInstruction == null
-          || instruction.getNumberInSegment() < firstInstruction.getNumberInSegment()) {
-        firstInstruction = instruction;
-      }
-      if (lastInstruction == null
-          || instruction.getNumberInSegment() > lastInstruction.getNumberInSegment()) {
-        lastInstruction = instruction;
-      }
       instructions.add(instruction);
-    }
-
-    public Instruction getFirstInstruction() {
-      return firstInstruction;
-    }
-
-    public Instruction getLastInstruction() {
-      return lastInstruction;
+      if (!instructionsInBlocks.containsKey(instruction.getParentBlock())) {
+        instructionsInBlocks.put(instruction.getParentBlock(), new ArrayList<>());
+      }
+      instructionsInBlocks.get(instruction.getParentBlock()).add(instruction);
     }
 
     public boolean isEmpty() {
       return instructions.isEmpty();
     }
 
-    public Optional<Instruction> nextUsedInInstruction(Instruction currentInstruction) {
-      int curNum = currentInstruction.getNumberInSegment();
-      if (isEmpty()
-          || curNum <= firstInstruction.getNumberInSegment()
-          || curNum >= lastInstruction.getNumberInSegment()) {
-        return Optional.empty();
-      }
-      for (Instruction instruction : instructions) {
-        if (instruction.getNumberInSegment() > curNum) {
-          return Optional.of(instruction);
-        }
-      }
-      throw new RuntimeException();
+    /** Number of code blocks the argument is used in. */
+    public int getNumberOfBlockUsages() {
+      return instructionsInBlocks.size();
     }
 
-    public int getLastInstructionNumber() {
-      return lastInstruction.getNumberInSegment();
+    public int getNumberOfUsagesInBlock(CodeBlock block) {
+      if (instructionsInBlocks.containsKey(block)) {
+        return instructionsInBlocks.get(block).size();
+      }
+      return 0;
+    }
+
+    public boolean isUsedLaterInBlock(CodeBlock block, Instruction currentInstruction) {
+      if (instructionsInBlocks.containsKey(block)) {
+        List<Instruction> instructions = instructionsInBlocks.get(block);
+        return instructions.get(instructions.size() - 1).getNumberInSegment()
+            > currentInstruction.getNumberInSegment();
+      }
+      return false;
+    }
+
+    /**
+     * Returns the next usage of the argument. It returns the current instruction if the current
+     * instruction uses the argument.
+     */
+    public Optional<Instruction> getNextUsageInBlock(Instruction currentInstruction) {
+      CodeBlock block = currentInstruction.getParentBlock();
+      if (instructionsInBlocks.containsKey(block)) {
+        for (Instruction instruction : instructionsInBlocks.get(block)) {
+          if (instruction.getNumberInSegment() >= instruction.getNumberInSegment()) {
+            return Optional.of(instruction);
+          }
+        }
+      }
+      return Optional.empty();
     }
   }
 

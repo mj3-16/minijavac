@@ -2,6 +2,7 @@ package minijava.ir.assembler;
 
 import static minijava.ir.utils.FirmUtils.modeToWidth;
 
+import com.google.common.collect.ImmutableList;
 import com.sun.jna.Platform;
 import firm.*;
 import firm.nodes.*;
@@ -123,9 +124,13 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     assert args.size() == 2;
     Argument firstArg = args.get(0);
     Argument secondArg = args.get(1);
-    block.add(new Evict(Register.EAX, Register.EBX, Register.EDX));
+    List<Register> usedRegisters = ImmutableList.of(Register.EAX, Register.EBX, Register.EDX);
+    block.add(new Evict(usedRegisters));
+    block.add(new DisableRegisterUsage(usedRegisters));
     Register secondArgIm = Register.EBX;
-    block.add(new Mov(secondArg, secondArgIm.ofWidth(secondArg.width)));
+    block.add(
+        new Mov(secondArg, secondArgIm.ofWidth(secondArg.width))
+            .com(String.format("Copy second argument %s", secondArg)));
     block.add(
         new Mov(firstArg, Register.EAX.ofWidth(firstArg.width))
             .com("copy the first argument (the dividend) into the EAX register"));
@@ -134,7 +139,10 @@ public class AssemblerGenerator extends NodeVisitor.Default {
         new Div(secondArgIm)
             .com("the quotient is now in the EAX register and the remainder in the EDX register")
             .firm(node));
-    block.add(new Mov(isDiv ? Register.EAX : Register.EDX, res));
+    block.add(
+        new Mov(isDiv ? Register.EAX : Register.EDX, res)
+            .com(String.format("Move result into %s", res)));
+    block.add(new EnableRegisterUsage(usedRegisters));
   }
 
   @Override

@@ -42,7 +42,9 @@ public abstract class Instruction implements GNUAssemblerConvertible, Comparable
     META_CALL(Category.META, "meta_call"),
     META_LOAD(Category.META, "meta_load"),
     META_STORE(Category.META, "meta_store"),
-    META_FRAME_ALLOC(Category.META, "frame_alloc");
+    META_FRAME_ALLOC(Category.META, "frame_alloc"),
+    DISABLE_REGISTER_USAGE(Category.META, "disable_register_usage"),
+    ENABLE_REGISTER_USAGE(Category.META, "enable_register_usage");
 
     public final Category category;
     /** GNU Assembler name (without argument width appendix) */

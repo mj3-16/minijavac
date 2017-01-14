@@ -13,9 +13,13 @@ public class LinearCodeSegment extends Segment
 
   private final List<InstructionOrString> instructionsAndStrings;
   private final List<String> comments;
+  public final List<CodeBlock> codeBlocks;
 
   public LinearCodeSegment(
-      List<InstructionOrString> instructionsAndStrings, List<String> comments) {
+      List<CodeBlock> codeBlocks,
+      List<InstructionOrString> instructionsAndStrings,
+      List<String> comments) {
+    this.codeBlocks = codeBlocks;
     this.instructionsAndStrings = instructionsAndStrings;
     this.comments = comments;
   }
@@ -27,6 +31,7 @@ public class LinearCodeSegment extends Segment
       arr.add(new InstructionOrString(block.label + ":"));
       i++;
       for (Instruction instruction : block) {
+        instruction.setParentBlock(block);
         instruction.setNumberInSegment(i);
         instruction.setUsedByRelations();
         i++;
@@ -35,7 +40,7 @@ public class LinearCodeSegment extends Segment
       i++;
       seq(block).map(InstructionOrString::new).forEach(arr::add);
     }
-    return new LinearCodeSegment(arr, codeSegment.getComments());
+    return new LinearCodeSegment(codeSegment.getBlocks(), arr, codeSegment.getComments());
   }
 
   @Override

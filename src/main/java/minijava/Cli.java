@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Optional;
 import minijava.ast.Program;
 import minijava.ir.IREmitter;
+import minijava.ir.assembler.allocator.OnTheFlyRegAllocator;
 import minijava.ir.assembler.block.AssemblerFile;
 import minijava.ir.optimize.*;
 import minijava.ir.utils.CompileUtils;
@@ -243,7 +244,8 @@ public class Cli {
       optimize();
     }
     dumpGraphsIfNeeded("--finished");
-    Tuple2<AssemblerFile, AssemblerFile> preAsmAndAsmFile = AssemblerFile.createForProgram();
+    Tuple2<AssemblerFile, AssemblerFile> preAsmAndAsmFile =
+        AssemblerFile.createForProgram(OnTheFlyRegAllocator::new);
     AssemblerFile preAsmFile = preAsmAndAsmFile.v1;
     if (!preAsmOut.isPresent()) {
       preAsmOut = Optional.of(System.err);

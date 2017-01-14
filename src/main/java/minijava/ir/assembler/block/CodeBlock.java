@@ -191,4 +191,12 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
   public String toString() {
     return label;
   }
+
+  public List<LinearCodeSegment.InstructionOrString> getAllLines() {
+    List<LinearCodeSegment.InstructionOrString> arr = new ArrayList<>();
+    arr.add(new LinearCodeSegment.InstructionOrString(label + ":"));
+    arr.add(new LinearCodeSegment.InstructionOrString(""));
+    seq(this).map(LinearCodeSegment.InstructionOrString::new).forEach(arr::add);
+    return arr;
+  }
 }
