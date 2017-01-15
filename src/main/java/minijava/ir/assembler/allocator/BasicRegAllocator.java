@@ -5,7 +5,7 @@ import java.util.*;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import minijava.ir.assembler.SimpleNodeAllocator;
+import minijava.ir.assembler.NodeAllocator;
 import minijava.ir.assembler.block.LinearCodeSegment;
 import minijava.ir.assembler.instructions.*;
 import minijava.ir.assembler.location.*;
@@ -16,10 +16,8 @@ import minijava.ir.assembler.location.*;
  *
  * <p>It's pretty slow (stores everything on the stack) but works well.
  */
-public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> {
-
-  protected final SimpleNodeAllocator nodeAllocator;
-  protected final LinearCodeSegment code;
+public class BasicRegAllocator extends AbstractRegAllocator
+    implements InstructionVisitor<List<Instruction>> {
 
   private Map<Argument, StackSlot> argumentStackSlots;
   private Map<StackSlot, Argument> usedStackSlots;
@@ -34,9 +32,8 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
   private int currentStackDepth;
   private Instruction currentInstruction;
 
-  public BasicRegAllocator(LinearCodeSegment code, SimpleNodeAllocator nodeAllocator) {
-    this.code = code;
-    this.nodeAllocator = nodeAllocator;
+  public BasicRegAllocator(LinearCodeSegment code, NodeAllocator nodeAllocator) {
+    super(code, nodeAllocator);
     this.maxStackDepth = 0;
     this.currentStackDepth = 0;
     this.assignedStackSlots = new ArrayList<>();
@@ -61,7 +58,6 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
       ParamLocation param = nodeAllocator.paramLocations.get(i);
       putArgumentOnStack(param);
       Register paramReg = Register.methodArgumentQuadRegisters.get(i).ofWidth(param.width);
-      ;
       instructions.add(
           new Mov(paramReg, (Location) getCurrentLocation(param))
               .com(String.format("Copy %d. parameter on the stack", i)));
@@ -118,7 +114,7 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
         }
       }
     }
-    return new LinearCodeSegment(ret, code.getComments());
+    return new LinearCodeSegment(code.codeBlocks, ret, code.getComments());
   }
 
   private boolean hasStackSlotAssigned(Argument argument) {
@@ -406,5 +402,15 @@ public class BasicRegAllocator implements InstructionVisitor<List<Instruction>> 
               .firm(store.firm())
               .com(String.format("Store into %s", destination));
         });
+  }
+
+  @Override
+  public List<Instruction> visit(DisableRegisterUsage disableRegisterUsage) {
+    return ImmutableList.of();
+  }
+
+  @Override
+  public List<Instruction> visit(EnableRegisterUsage enableRegisterUsage) {
+    return ImmutableList.of();
   }
 }

@@ -6,7 +6,7 @@ import java.util.*;
 /** Location in a register */
 public class Register extends Location {
 
-  public static enum Width {
+  public enum Width {
     Byte("b", 1),
     /** 32 bit */
     Long("l", 4),
@@ -79,7 +79,7 @@ public class Register extends Location {
     List<Register> regs = new ArrayList<>();
     for (String[] byteLongAndQuadName : byteLongAndQuadNames) {
       String quad = byteLongAndQuadName[2];
-      if (!quad.equals("rbp") && !quad.equals("rsp") && !quad.equals("rax")) {
+      if (!quad.equals("rbp") && !quad.equals("rsp")) {
         regs.add(get(quad));
       }
     }

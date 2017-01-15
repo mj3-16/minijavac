@@ -17,7 +17,7 @@ import org.jetbrains.annotations.Nullable;
  *
  * <p>These {@link NodeLocation}s should be replaced later by a register allocator
  */
-public class SimpleNodeAllocator {
+public class NodeAllocator {
 
   private int currentLocationId;
   private Graph graph;
@@ -25,7 +25,7 @@ public class SimpleNodeAllocator {
   public final List<ParamLocation> paramLocations;
   private Map<Node, NodeLocation> assignedLocations;
 
-  public SimpleNodeAllocator(Graph graph) {
+  public NodeAllocator(Graph graph) {
     this.currentLocationId = 0;
     this.graph = graph;
     this.info = new MethodInformation(graph);
