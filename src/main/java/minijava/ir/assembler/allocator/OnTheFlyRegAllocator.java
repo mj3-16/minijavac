@@ -74,11 +74,12 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     this.freeRegisters =
         seq(usableRegisters).removeAll(usedRegisters.keySet()).collect(Collectors.toSet());
   }
-
+  /*
+   * Populates the stack with all NodeArguments used in this method that are used in more than one block.
+   * This will result in a pretty large stack at the advantage of being simple
+   */
   private List<Instruction> prepopulateStack() {
     List<Instruction> instructions = new ArrayList<>();
-    // we populate the stack with all NodeArguments used in this method
-    // this will result in a pretty large stack at the advantage of being simple
     // we first populate the stack with the parameters
     for (int i = 0;
         i
@@ -93,7 +94,10 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     for (LinearCodeSegment.InstructionOrString instructionOrString : code) {
       if (instructionOrString.instruction.isPresent()) {
         for (Argument arg : instructionOrString.instruction.get().getArguments()) {
-          if (arg instanceof NodeLocation && !(arg instanceof ParamLocation)) {
+          if (arg instanceof NodeLocation
+              && !(arg instanceof ParamLocation)
+              && arg.instructionRelations.getNumberOfBlockUsages() != 1) {
+            // we can omit all constants, registers that are only used in one block
             putArgumentOnStack(arg);
           }
         }
@@ -127,7 +131,11 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     }
   }
 
-  private void removeNeverAgainUsedArgumentsFromStack() {
+  /**
+   * Removes all values from the stack that are only used in the current block and not from any
+   * following instruction.
+   */
+  private void removeObsoleteArgumentsFromStack() {
     // we skip the first element that represents the backuped stack pointer that the don't want to remove
     List<Argument> removeArgs =
         assignedStackSlots
@@ -240,7 +248,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
           //System.err.println(currentInstruction);
           //System.err.println(getInformation());
           if (!currentInstruction.isMetaInstruction()) {
-            //removeNeverAgainUsedArgumentsFromStack();
+            removeObsoleteArgumentsFromStack();
             //removeNeverAgainUsedArgumentsFromRegisters();
           }
         } else {
@@ -284,6 +292,11 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     return visitBinaryInstruction(binop, binop.left, binop.right, instrCreator, true);
   }
 
+  /**
+   * Like {@link OnTheFlyRegAllocator::visitBinaryInstruction} but ignores the previous value of the
+   * right argument. This behaviour optimizes Mov and Load instructions as they overwrite the value
+   * of the right argument anyway.
+   */
   private List<Instruction> visitMovLikeBinaryInstruction(
       Instruction instruction,
       Argument left,
