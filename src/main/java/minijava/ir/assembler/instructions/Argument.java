@@ -43,7 +43,8 @@ public abstract class Argument implements GNUAssemblerConvertible {
       return 0;
     }
 
-    public boolean isUsedLaterInBlock(CodeBlock block, Instruction currentInstruction) {
+    public boolean isUsedLaterInBlockOfInstruction(Instruction currentInstruction) {
+      CodeBlock block = currentInstruction.getParentBlock();
       if (instructionsInBlocks.containsKey(block)) {
         List<Instruction> instructions = instructionsInBlocks.get(block);
         return instructions.get(instructions.size() - 1).getNumberInSegment()

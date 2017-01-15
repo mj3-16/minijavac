@@ -18,10 +18,8 @@ import minijava.ir.utils.MethodInformation;
 import org.jooq.lambda.tuple.Tuple2;
 
 /**
- * This is a basic implementation of a register allocator, that allocates {@link NodeLocation}
- * instances in registers and the heap.
- *
- * <p>It's pretty slow (stores everything on the stack) but works well.
+ * Implementation of an on-the-fly register allocator. The resulting code uses the processor
+ * registers much more than the {@link BasicRegAllocator}.
  */
 public class OnTheFlyRegAllocator extends AbstractRegAllocator
     implements InstructionVisitor<List<Instruction>> {
@@ -123,12 +121,15 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     this.freeRegisters.add(reg);
   }
 
-  private void removeNeverAgainUsedArgumentsFromRegisters() {
-    for (Argument argument : ImmutableSet.copyOf(usedRegisters.values())) {
-      if (!isArgumentUsedInOtherBlock(argument)) {
-        removeArgumentFromRegister(argument);
-      }
-    }
+  /**
+   * Removes all values from the registers that are only used in the current block and not from any
+   * following instruction.
+   */
+  private void removeObsoleteArgumentsFromRegisters() {
+    ImmutableSet.copyOf(usedRegisters.values())
+        .stream()
+        .filter(this::isArgumentObsolete)
+        .forEach(this::removeArgumentFromRegister);
   }
 
   /**
@@ -143,13 +144,18 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
             .skip(1)
             .filter(Optional::isPresent)
             .map(Optional::get)
-            .filter(a -> !isArgumentUsedInOtherBlock(a))
+            .filter(this::isArgumentObsolete)
             .collect(Collectors.toList());
     removeArgs.forEach(this::removeArgumentFromStack);
   }
 
-  private boolean isArgumentUsedInOtherBlock(Argument argument) {
-    return argument.instructionRelations.getNumberOfBlockUsages() > 1;
+  /**
+   * Is the passed argument only used in the current block and not after the current instruction?
+   */
+  private boolean isArgumentObsolete(Argument argument) {
+    Argument.InstructionRelations relations = argument.instructionRelations;
+    return relations.getNumberOfBlockUsages() == 1
+        && !relations.isUsedLaterInBlockOfInstruction(currentInstruction);
   }
 
   private void putArgumentOnStack(Argument argument) {
@@ -248,8 +254,9 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
           //System.err.println(currentInstruction);
           //System.err.println(getInformation());
           if (!currentInstruction.isMetaInstruction()) {
+            // meta instructions can do weird stuff, therefore we don't remove any arguments from registers or stacks for them
             removeObsoleteArgumentsFromStack();
-            //removeNeverAgainUsedArgumentsFromRegisters();
+            removeObsoleteArgumentsFromRegisters();
           }
         } else {
           ret.add(instructionOrString);
