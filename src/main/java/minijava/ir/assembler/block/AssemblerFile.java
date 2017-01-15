@@ -7,8 +7,11 @@ import java.util.*;
 import minijava.ir.NameMangler;
 import minijava.ir.assembler.AssemblerGenerator;
 import minijava.ir.assembler.GNUAssemblerConvertible;
-import minijava.ir.assembler.allocator.BasicRegAllocator;
+import minijava.ir.assembler.NodeAllocator;
+import minijava.ir.assembler.allocator.AbstractRegAllocator;
+import minijava.ir.utils.MethodInformation;
 import org.jetbrains.annotations.NotNull;
+import org.jooq.lambda.function.Function3;
 import org.jooq.lambda.tuple.Tuple2;
 
 /** List of segments that are combined to an assembler file */
@@ -59,7 +62,7 @@ public class AssemblerFile implements GNUAssemblerConvertible, Collection<Segmen
   @NotNull
   @Override
   public <T> T[] toArray(@NotNull T[] a) {
-    return segments.<T>toArray(a);
+    return segments.toArray(a);
   }
 
   @Override
@@ -125,7 +128,9 @@ public class AssemblerFile implements GNUAssemblerConvertible, Collection<Segmen
   }
 
   /** @return (pre asm, real asm) */
-  public static Tuple2<AssemblerFile, AssemblerFile> createForProgram() {
+  public static Tuple2<AssemblerFile, AssemblerFile> createForProgram(
+      Function3<MethodInformation, LinearCodeSegment, NodeAllocator, AbstractRegAllocator>
+          regAllocatorConstructor) {
     AssemblerFile preAsmFile = new AssemblerFile();
     AssemblerFile file = new AssemblerFile();
     for (Graph graph : Program.getGraphs()) {
@@ -134,7 +139,9 @@ public class AssemblerFile implements GNUAssemblerConvertible, Collection<Segmen
       preAsmFile.add(segment);
       LinearCodeSegment linCode = LinearCodeSegment.fromCodeSegment(segment);
       try {
-        BasicRegAllocator allocator = new BasicRegAllocator(linCode, asmGenerator.getAllocator());
+        AbstractRegAllocator allocator =
+            regAllocatorConstructor.apply(
+                new MethodInformation(graph), linCode, asmGenerator.getAllocator());
         LinearCodeSegment ret = allocator.process();
         file.add(ret);
       } catch (NullPointerException ex) {

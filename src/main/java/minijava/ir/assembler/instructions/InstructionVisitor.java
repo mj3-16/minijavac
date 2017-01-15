@@ -49,4 +49,8 @@ public interface InstructionVisitor<T> {
   T visit(MetaLoad load);
 
   T visit(MetaStore store);
+
+  T visit(DisableRegisterUsage disableRegisterUsage);
+
+  T visit(EnableRegisterUsage enableRegisterUsage);
 }
