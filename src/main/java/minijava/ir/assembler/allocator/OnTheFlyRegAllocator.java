@@ -281,7 +281,15 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
 
   private List<Instruction> visitBinaryInstruction(
       BinaryInstruction binop, BiFunction<Argument, Register, Instruction> instrCreator) {
-    return visitBinaryInstruction(binop, binop.left, binop.right, instrCreator);
+    return visitBinaryInstruction(binop, binop.left, binop.right, instrCreator, true);
+  }
+
+  private List<Instruction> visitMovLikeBinaryInstruction(
+      Instruction instruction,
+      Argument left,
+      Argument right,
+      BiFunction<Argument, Register, Instruction> instrCreator) {
+    return visitBinaryInstruction(instruction, left, right, instrCreator, false);
   }
 
   /**
@@ -291,18 +299,22 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
    * @param left the left argument of the instruction
    * @param right the right argument of the instruction
    * @param instrCreator function that creates the actual instruction for two register arguments
+   * @param loadRightValue load the value of the right argument in the result register, set to false
+   *     for mov like instructions
    * @return
    */
   private List<Instruction> visitBinaryInstruction(
       Instruction instruction,
       Argument left,
       Argument right,
-      BiFunction<Argument, Register, Instruction> instrCreator) {
+      BiFunction<Argument, Register, Instruction> instrCreator,
+      boolean loadRightValue) {
     Tuple2<Optional<List<Instruction>>, Register> spillAndRegLeft = null;
     if (!(left instanceof ConstArgument)) {
       spillAndRegLeft = getRegisterForArgument(left);
     }
-    Tuple2<Optional<List<Instruction>>, Register> spillAndRegRight = getRegisterForArgument(right);
+    Tuple2<Optional<List<Instruction>>, Register> spillAndRegRight =
+        getRegisterForArgument(right, loadRightValue);
     List<Instruction> instructions = new ArrayList<>();
     Argument leftArgument = left;
     if (spillAndRegLeft != null) {
@@ -479,13 +491,13 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
 
   @Override
   public List<Instruction> visit(Mov mov) {
-    return visitBinaryInstruction(mov, mov.source, mov.destination, Mov::new);
+    return visitMovLikeBinaryInstruction(mov, mov.source, mov.destination, Mov::new);
   }
 
   @Override
   public List<Instruction> visit(MovFromSmallerToGreater mov) {
     //mov.com("bla");
-    return visitBinaryInstruction(
+    return visitMovLikeBinaryInstruction(
         mov,
         mov.source,
         mov.destination,
@@ -530,7 +542,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
 
   @Override
   public List<Instruction> visit(MetaLoad load) {
-    return visitBinaryInstruction(
+    return visitMovLikeBinaryInstruction(
         load,
         load.source.address,
         load.destination,
@@ -551,7 +563,8 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
           return new Mov(l, destination)
               .firm(store.firm())
               .com(String.format("Store into %s", destination));
-        });
+        },
+        true);
   }
 
   @Override
