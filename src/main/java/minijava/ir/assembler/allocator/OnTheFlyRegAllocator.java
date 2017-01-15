@@ -3,7 +3,6 @@ package minijava.ir.assembler.allocator;
 import static org.jooq.lambda.Seq.seq;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 import java.util.*;
 import java.util.Set;
 import java.util.function.BiFunction;
@@ -44,7 +43,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
 
   public OnTheFlyRegAllocator(
       MethodInformation methodInfo, LinearCodeSegment code, NodeAllocator nodeAllocator) {
-    super(methodInfo, code, nodeAllocator);
+    super(code, nodeAllocator);
     this.usableRegisters = new ArrayList<>();
     this.usableRegisters.addAll(Register.usableRegisters);
     this.maxStackDepth = 0;
@@ -128,17 +127,6 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
   }
 
   /**
-   * Removes all values from the registers that are only used in the current block and not from any
-   * following instruction.
-   */
-  private void removeObsoleteArgumentsFromRegisters() {
-    ImmutableSet.copyOf(usedRegisters.values())
-        .stream()
-        .filter(this::isArgumentObsolete)
-        .forEach(this::removeArgumentFromRegister);
-  }
-
-  /**
    * Removes all values from the stack that are only used in the current block and not from any
    * following instruction.
    */
@@ -156,12 +144,14 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
   }
 
   /**
-   * Is the passed argument only used in the current block and not after the current instruction?
+   * Is the passed argument not used in instructions that might follow the current instruction in an
+   * execution?
    */
   private boolean isArgumentObsolete(Argument argument) {
     Argument.InstructionRelations relations = argument.instructionRelations;
-    return relations.getNumberOfBlockUsages() == 1
-        && !relations.isUsedLaterInBlockOfInstruction(currentInstruction);
+    return (relations.getNumberOfBlockUsages() == 1
+            && !relations.isUsedLaterInBlockOfInstruction(currentInstruction))
+        || relations.isUsedAfterInstruction(currentInstruction);
   }
 
   private void putArgumentOnStack(Argument argument) {
@@ -218,8 +208,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
       if (!currentInstruction.getArguments().contains(argument)) {
         // we shouldn't evict registers that contain arguments that the current instruction uses
         if (isArgumentObsolete(argument)) {
-          // we can definitely use "spill" registers that are obsolete (not used in the following instructions
-          // in the current block)
+          // we can definitely use "spill" registers that are obsolete (not used in the following instructions)
           evictedArgument = argument;
           break;
         }
@@ -724,7 +713,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
    *
    * <ul>
    *   <li>it's a constant value
-   *   <li>it isn't used at a later time (via number in segment)
+   *   <li>it's value didn't change
    * </ul>
    *
    * It doesn't remove the register or the value from any data structure, but creates a stack

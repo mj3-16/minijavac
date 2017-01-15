@@ -9,7 +9,6 @@ import minijava.ir.assembler.NodeAllocator;
 import minijava.ir.assembler.block.LinearCodeSegment;
 import minijava.ir.assembler.instructions.*;
 import minijava.ir.assembler.location.*;
-import minijava.ir.utils.MethodInformation;
 
 /**
  * This is a basic implementation of a register allocator, that allocates {@link
@@ -33,9 +32,8 @@ public class BasicRegAllocator extends AbstractRegAllocator
   private int currentStackDepth;
   private Instruction currentInstruction;
 
-  public BasicRegAllocator(
-      MethodInformation info, LinearCodeSegment code, NodeAllocator nodeAllocator) {
-    super(info, code, nodeAllocator);
+  public BasicRegAllocator(LinearCodeSegment code, NodeAllocator nodeAllocator) {
+    super(code, nodeAllocator);
     this.maxStackDepth = 0;
     this.currentStackDepth = 0;
     this.assignedStackSlots = new ArrayList<>();
