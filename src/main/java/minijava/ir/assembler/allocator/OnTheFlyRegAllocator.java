@@ -454,7 +454,11 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
   public List<Instruction> visit(MetaCall metaCall) {
     List<Register> argRegs = Register.methodArgumentQuadRegisters;
     List<Instruction> instructions = new ArrayList<>();
-    instructions.addAll(new Evict(Register.usableRegisters).accept(this));
+    // we evict all argument passing registers
+    Register.methodArgumentQuadRegisters
+        .stream()
+        .map(this::evictFromRegister)
+        .forEach(o -> o.ifPresent(instructions::add));
     // move the register passed argument into the registers
     for (int i = 0; i < Math.min(argRegs.size(), metaCall.methodInfo.paramNumber); i++) {
       Argument arg = metaCall.args.get(i);
@@ -466,6 +470,11 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
           new Mov(getCurrentLocation(arg), argRegs.get(i).ofWidth(arg.width))
               .com(String.format("Move %d.th param into register", i)));
     }
+    // we have than to evict all other registers
+    seq(Register.usableRegisters)
+        .removeAll(Register.methodArgumentQuadRegisters)
+        .map(this::evictFromRegister)
+        .forEach(o -> o.ifPresent(instructions::add));
     // the 64 ABI requires the stack to aligned to 16 bytes
     instructions.add(new Push(Register.STACK_POINTER).com("Save old stack pointer"));
     int stackAlignmentDecrement = 0;
@@ -692,7 +701,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
   }
 
   private Optional<Instruction> evictFromRegister(Register register, boolean forceSpill) {
-    if (forceSpill || usedRegisters.containsKey(register)) {
+    if (usedRegisters.containsKey(register)) {
       Argument arg = usedRegisters.get(register);
       Optional<Instruction> spill =
           genSpillRegisterInstruction(register.ofWidth(arg.width), forceSpill);
