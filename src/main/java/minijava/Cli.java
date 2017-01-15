@@ -184,6 +184,7 @@ public class Cli {
   private void optimize() {
     dumpGraphsIfNeeded("before-optimizations");
     Optimizer constantFolder = new ConstantFolder();
+    Optimizer floatInTransformation = new FloatInTransformation();
     Optimizer controlFlowOptimizer = new ConstantControlFlowOptimizer();
     Optimizer unreachableCodeRemover = new UnreachableCodeRemover();
     Optimizer expressionNormalizer = new ExpressionNormalizer();
@@ -203,6 +204,8 @@ public class Cli {
         while (controlFlowOptimizer.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
         //dumpGraphIfNeeded(graph, "after-constant-control-flow");
         while (phiBElimination.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
+        while (floatInTransformation.optimize(graph)
+            | commonSubexpressionElimination.optimize(graph)) ;
       }
 
       // Here comes the interprocedural stuff... This is method is really turning into a mess

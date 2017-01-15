@@ -7,7 +7,10 @@ import firm.nodes.*;
 /**
  * Performs various optimizations special to Phi nodes. Currently, there are transformations for
  *
- * <p>- Identifying constant inputs to Phi nodes based on control flow
+ * <ul>
+ *   <li>Identifying constant inputs to Phi nodes based on control flow
+ *   <li>Removing Phi nodes with only a single predecessor
+ * </ul>
  */
 public class PhiOptimizer extends BaseOptimizer {
 
@@ -26,7 +29,7 @@ public class PhiOptimizer extends BaseOptimizer {
   }
 
   private void removeSinglePredPhi(Phi node) {
-    // If a block only has a single predecessor, the predecessor's block is the direct dominator.
+    // If a block only has a single predecessor, the predecessor's block is the immediate dominator.
     // We can freely use any values from that block, including the predecessor itself, with which we replace the Phi.
     if (node.getPredCount() == 1) {
       Graph.exchange(node, node.getPred(0));
