@@ -207,9 +207,28 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
 
   private Register chooseRegisterToEvict() {
     Argument evictedArgument = null;
+    int nextUsingInstructionMax = -1;
     for (Argument argument : argumentsInRegisters.keySet()) {
       if (!currentInstruction.getArguments().contains(argument)) {
-        evictedArgument = argument;
+        // we shouldn't evict registers that contain arguments that the current instruction uses
+        if (isArgumentObsolete(argument)) {
+          // we can definitely use "spill" registers that are obsolete (not used in the following instructions in the current block)
+          evictedArgument = argument;
+          break;
+        }
+        int nextUsingInstruction =
+            argument
+                .instructionRelations
+                .getNextUsageInBlock(currentInstruction)
+                .map(Instruction::getNumberInSegment)
+                .orElse(Integer.MAX_VALUE);
+        if (nextUsingInstruction > nextUsingInstructionMax) {
+          evictedArgument = argument;
+          nextUsingInstructionMax = nextUsingInstruction;
+          if (nextUsingInstruction == Integer.MAX_VALUE) {
+            break;
+          }
+        }
       }
     }
     assert evictedArgument != null;
@@ -256,7 +275,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
           if (!currentInstruction.isMetaInstruction()) {
             // meta instructions can do weird stuff, therefore we don't remove any arguments from registers or stacks for them
             removeObsoleteArgumentsFromStack();
-            removeObsoleteArgumentsFromRegisters();
+            //removeObsoleteArgumentsFromRegisters();
           }
         } else {
           ret.add(instructionOrString);
