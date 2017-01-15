@@ -197,7 +197,6 @@ public class Cli {
         boolean hasChangedAtAll;
         do {
           hasChangedAtAll = false;
-          System.out.println("blu");
           dumpGraphIfNeeded(graph, "before-simplification");
 
           while (constantFolder.optimize(graph)
@@ -219,8 +218,7 @@ public class Cli {
             hasChangedAtAll = true;
           }
 
-          while (floatInTransformation.optimize(graph)
-              | commonSubexpressionElimination.optimize(graph)) {
+          while (floatInTransformation.optimize(graph)) {
             hasChangedAtAll = true;
           }
         } while (hasChangedAtAll);
