@@ -87,6 +87,11 @@ public class LinearCodeSegment extends Segment
       }
       return stringConverter.apply(string.get());
     }
+
+    @Override
+    public String toString() {
+      return map(i -> String.format("[Instruction %s]", i), s -> String.format("[%s]", s));
+    }
   }
   /*
     public void replaceInstruction(Instruction oldInstruction, List<Instruction> replacement) {

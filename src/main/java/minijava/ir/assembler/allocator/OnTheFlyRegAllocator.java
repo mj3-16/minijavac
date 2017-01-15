@@ -229,7 +229,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
           }
           if (currentInstruction.getType().category == Instruction.Category.JMP) {
             if (!evictedInBlock) {
-              visit(new Evict(Register.usableRegisters))
+              visit(new Evict(seq(usedRegisters.keySet()).toList()))
                   .forEach(x -> ret.add(new LinearCodeSegment.InstructionOrString(x)));
             }
             evictedInBlock = true;
@@ -246,6 +246,10 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
         } else {
           ret.add(instructionOrString);
         }
+      }
+      if (!evictedInBlock) {
+        visit(new Evict(seq(usedRegisters.keySet()).toList()))
+            .forEach(x -> ret.add(new LinearCodeSegment.InstructionOrString(x)));
       }
     }
     for (int i = 0; i < ret.size(); i++) {
@@ -280,6 +284,15 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     return visitBinaryInstruction(binop, binop.left, binop.right, instrCreator);
   }
 
+  /**
+   * Processes binary instructions
+   *
+   * @param instruction the instruction for tagging of the resulting instruction
+   * @param left the left argument of the instruction
+   * @param right the right argument of the instruction
+   * @param instrCreator function that creates the actual instruction for two register arguments
+   * @return
+   */
   private List<Instruction> visitBinaryInstruction(
       Instruction instruction,
       Argument left,
@@ -454,7 +467,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     if (metaCall.methodInfo.hasReturnValue) {
       Location ret = metaCall.result.get();
       Tuple2<Optional<List<Instruction>>, Register> registerForArgument =
-          getRegisterForArgument(ret);
+          getRegisterForArgument(ret, false);
       registerForArgument.v1.ifPresent(instructions::addAll);
       putArgumentIntoRegister(ret, registerForArgument.v2);
       // now we move the return value from the %rax register into the return value's location
@@ -680,7 +693,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     StackSlot spillSlot = argumentStackSlots.get(argument);
     Instruction spillInstruction =
         new Mov(register.ofWidth(argument.width), spillSlot)
-            .com(String.format("Evict %s to %s", register, spillSlot));
+            .com(String.format("Evict %s to %s (%s)", register, spillSlot, argument));
     return Optional.of(spillInstruction);
   }
 
@@ -694,6 +707,20 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
    * @return (optional spill and reload instructions, register the argument is placed in)
    */
   private Tuple2<Optional<List<Instruction>>, Register> getRegisterForArgument(Argument argument) {
+    return getRegisterForArgument(argument, true);
+  }
+
+  /**
+   * Returns the register that is assigned to the passed argument
+   *
+   * <p>Attention the argument shouldn't be a constant. Use constants directly as an instruction
+   * argument
+   *
+   * @param restoreValue restore the old value of the argument in the register if possible
+   * @return (optional spill and reload instructions, register the argument is placed in)
+   */
+  private Tuple2<Optional<List<Instruction>>, Register> getRegisterForArgument(
+      Argument argument, boolean restoreValue) {
     if (argument instanceof Register) {
       // a valid register was already passed as an argument
       return new Tuple2<Optional<List<Instruction>>, Register>(
@@ -729,7 +756,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
       // the only instance where this seems to happen is for Cmp instructions
       currentPlace = argument;
     }
-    if (currentPlace != null) {
+    if (currentPlace != null && restoreValue) {
       instructions.add(
           new Mov(currentPlace, register).com(String.format("Move %s into register", argument)));
     }

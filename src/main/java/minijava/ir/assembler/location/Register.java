@@ -79,7 +79,7 @@ public class Register extends Location {
     List<Register> regs = new ArrayList<>();
     for (String[] byteLongAndQuadName : byteLongAndQuadNames) {
       String quad = byteLongAndQuadName[2];
-      if (!quad.equals("rbp") && !quad.equals("rsp") && !quad.equals("rax")) {
+      if (!quad.equals("rbp") && !quad.equals("rsp")) {
         regs.add(get(quad));
       }
     }
