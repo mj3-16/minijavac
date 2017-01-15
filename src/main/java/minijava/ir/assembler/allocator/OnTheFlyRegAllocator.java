@@ -39,6 +39,8 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
   private int currentStackDepth;
   private Instruction currentInstruction;
   private List<Register> usableRegisters;
+  /** Registers that contain value that should be written back if spilled. */
+  private Set<Register> registersToSpill;
 
   public OnTheFlyRegAllocator(
       MethodInformation methodInfo, LinearCodeSegment code, SimpleNodeAllocator nodeAllocator) {
@@ -53,6 +55,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     this.usedStackSlots = new HashMap<>();
     this.freeRegisters = new HashSet<>();
     this.argumentsInRegisters = new HashMap<>();
+    this.registersToSpill = new HashSet<>();
     // setup the method parameters
     List<Register> argRegs = Register.methodArgumentQuadRegisters;
     for (int i = 0; i < Math.min(argRegs.size(), methodInfo.paramNumber); i++) {
@@ -60,6 +63,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
       if (location.isUsed()) {
         // we can omit unused parameters
         putArgumentIntoRegister(location, argRegs.get(i));
+        registersToSpill.add(argRegs.get(i));
       }
     }
     // put a pseudo element on the stack as we can't use the 0. stack slot (we backup the old frame pointer there)
@@ -112,6 +116,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     if (freeRegisters.contains(register)) {
       freeRegisters.remove(register);
     }
+    registersToSpill.remove(register);
   }
 
   private void removeArgumentFromRegister(Argument argument) {
@@ -119,6 +124,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     this.usedRegisters.remove(reg);
     this.argumentsInRegisters.remove(argument);
     this.freeRegisters.add(reg);
+    registersToSpill.remove(reg);
   }
 
   /**
@@ -212,7 +218,14 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
       if (!currentInstruction.getArguments().contains(argument)) {
         // we shouldn't evict registers that contain arguments that the current instruction uses
         if (isArgumentObsolete(argument)) {
-          // we can definitely use "spill" registers that are obsolete (not used in the following instructions in the current block)
+          // we can definitely use "spill" registers that are obsolete (not used in the following instructions
+          // in the current block)
+          evictedArgument = argument;
+          break;
+        }
+        if (!registersToSpill.contains(argumentsInRegisters.get(argument))) {
+          // we can also cheaply use a register that has content that didn't change
+          // (compared to it's original value from the stack…)
           evictedArgument = argument;
           break;
         }
@@ -363,6 +376,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     spillAndRegRight.v1.ifPresent(instructions::addAll);
     instructions.add(
         instrCreator.apply(leftArgument, spillAndRegRight.v2).firmAndComments(instruction));
+    registersToSpill.add(spillAndRegRight.v2);
     return instructions;
   }
 
@@ -372,6 +386,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     List<Instruction> instructions = new ArrayList<>();
     spillAndReg.v1.ifPresent(instructions::addAll);
     instructions.add(instrCreator.apply(spillAndReg.v2).firmAndComments(instruction));
+    registersToSpill.add(spillAndReg.v2);
     return instructions;
   }
 
@@ -524,6 +539,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
       // now we move the return value from the %rax register into the return value's location
       instructions.addAll(
           visit(new Mov(Register.RETURN_REGISTER.ofWidth(ret.width), registerForArgument.v2)));
+      registersToSpill.add(registerForArgument.v2);
     }
     return instructions;
   }
@@ -732,7 +748,8 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
   private Optional<Instruction> genSpillRegisterInstruction(
       Register register, boolean forceSpilling) {
     Argument argument = usedRegisters.get(register);
-    if (!forceSpilling && (argument instanceof ConstArgument)) {
+    if (!forceSpilling
+        && (argument instanceof ConstArgument || !registersToSpill.contains(register))) {
       // we don't have to do anything (see method comment)
       return Optional.empty();
     }
