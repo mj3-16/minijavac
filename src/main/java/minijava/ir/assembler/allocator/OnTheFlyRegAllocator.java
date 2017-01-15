@@ -203,38 +203,49 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
 
   private Register chooseRegisterToEvict() {
     Argument evictedArgument = null;
-    int nextUsingInstructionMax = -1;
-    for (Argument argument : argumentsInRegisters.keySet()) {
-      if (!currentInstruction.getArguments().contains(argument)) {
-        // we shouldn't evict registers that contain arguments that the current instruction uses
-        if (isArgumentObsolete(argument)) {
-          // we can definitely use "spill" registers that are obsolete (not used in the following instructions)
-          evictedArgument = argument;
-          break;
-        }
-        if (!registersToSpill.contains(argumentsInRegisters.get(argument))) {
-          // we can also cheaply use a register that has content that didn't change
-          // (compared to it's original value from the stack…)
-          evictedArgument = argument;
-          break;
-        }
-        int nextUsingInstruction =
-            argument
-                .instructionRelations
-                .getNextUsageInBlock(currentInstruction)
-                .map(Instruction::getNumberInSegment)
-                .orElse(Integer.MAX_VALUE);
-        if (nextUsingInstruction > nextUsingInstructionMax) {
-          evictedArgument = argument;
-          nextUsingInstructionMax = nextUsingInstruction;
-          if (nextUsingInstruction == Integer.MAX_VALUE) {
-            break;
-          }
-        }
-      }
-    }
+    evictedArgument =
+        seq(argumentsInRegisters.keySet())
+            .filter(a -> !currentInstruction.getArguments().contains(a))
+            .sorted(this::gradeArgumentToEvict)
+            .reverse()
+            .findAny()
+            .get();
     assert evictedArgument != null;
     return argumentsInRegisters.get(evictedArgument);
+  }
+
+  /**
+   * Assign's an argument (that should be located in a register) a score from -1 (don't evict it)
+   * and 0 (evicting it is costly) to MAX_INT (evicting is cheap) It favors arguments that lie in
+   * registers not used for method calling.
+   */
+  private int gradeArgumentToEvict(Argument argument) {
+    if (currentInstruction.getArguments().contains(argument)) {
+      // we shouldn't evict registers that contain arguments that the current instruction uses
+      return -1;
+    }
+    int grade = 0;
+    if (isArgumentObsolete(argument)) {
+      // we can definitely use "spill" registers that are obsolete (not used in the following instructions)
+      grade = 200;
+    }
+    if (!registersToSpill.contains(argumentsInRegisters.get(argument))) {
+      // we can also cheaply use a register that has content that didn't change
+      // (compared to it's original value from the stack…)
+      grade = (grade + 1) * 2;
+    }
+    grade +=
+        argument
+            .instructionRelations
+            .getNextUsageInBlock(currentInstruction)
+            .map(Instruction::getNumberInSegment)
+            .orElse(100);
+    Register reg = argumentsInRegisters.get(argument);
+    if (!Register.methodArgumentQuadRegisters.contains(reg)) {
+      // we prefer register that aren't method arguments registers as this speeds up method calling
+      grade += 50;
+    }
+    return grade;
   }
 
   private boolean needsToEvictRegister() {
@@ -732,7 +743,9 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
       Register register, boolean forceSpilling) {
     Argument argument = usedRegisters.get(register);
     if (!forceSpilling
-        && (argument instanceof ConstArgument || !registersToSpill.contains(register))) {
+        && (argument instanceof ConstArgument
+            || !registersToSpill.contains(register)
+            || !isArgumentObsolete(argument))) {
       // we don't have to do anything (see method comment)
       return Optional.empty();
     }
@@ -794,7 +807,12 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
       removeArgumentFromRegister(priorArgument);
     } else {
       // we have enough registers
-      register = seq(freeRegisters.iterator()).findFirst().get().ofWidth(width);
+      Optional<Register> nonMethodArgRegister =
+          seq(freeRegisters).removeAll(Register.methodArgumentQuadRegisters).findFirst();
+      register =
+          nonMethodArgRegister
+              .orElseGet(() -> seq(freeRegisters.iterator()).findFirst().get())
+              .ofWidth(width);
       freeRegisters.remove(register);
     }
     putArgumentIntoRegister(argument, register);
