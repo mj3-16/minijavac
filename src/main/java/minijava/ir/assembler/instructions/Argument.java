@@ -14,10 +14,16 @@ public abstract class Argument implements GNUAssemblerConvertible {
    */
   public static class InstructionRelations {
 
+    private final Argument argument;
+
     private Map<CodeBlock, List<Instruction>> instructionsInBlocks = new HashMap<>();
 
     /** The instructions are implicitly sorted ascending by their number in the code block */
     private List<Instruction> instructions = new ArrayList<>();
+
+    public InstructionRelations(Argument argument) {
+      this.argument = argument;
+    }
 
     public void addRelation(Instruction instruction) {
       instructions.add(instruction);
@@ -36,13 +42,6 @@ public abstract class Argument implements GNUAssemblerConvertible {
       return instructionsInBlocks.size();
     }
 
-    public int getNumberOfUsagesInBlock(CodeBlock block) {
-      if (instructionsInBlocks.containsKey(block)) {
-        return instructionsInBlocks.get(block).size();
-      }
-      return 0;
-    }
-
     public boolean isUsedLaterInBlockOfInstruction(Instruction currentInstruction) {
       CodeBlock block = currentInstruction.getParentBlock();
       if (instructionsInBlocks.containsKey(block)) {
@@ -51,6 +50,15 @@ public abstract class Argument implements GNUAssemblerConvertible {
             > currentInstruction.getNumberInSegment();
       }
       return false;
+    }
+
+    public boolean isUsedInFollowingBlocks(CodeBlock block) {
+      return block.getArgumentsUsedByFollowingBlocks().contains(argument);
+    }
+
+    public boolean isUsedAfterInstruction(Instruction instruction) {
+      return isUsedLaterInBlockOfInstruction(instruction)
+          || isUsedInFollowingBlocks(instruction.getParentBlock());
     }
 
     /**
@@ -76,7 +84,7 @@ public abstract class Argument implements GNUAssemblerConvertible {
     this.width = width;
   }
 
-  public final InstructionRelations instructionRelations = new InstructionRelations();
+  public final InstructionRelations instructionRelations = new InstructionRelations(this);
 
   public void addUsedByRelation(Instruction instruction) {
     instructionRelations.addRelation(instruction);

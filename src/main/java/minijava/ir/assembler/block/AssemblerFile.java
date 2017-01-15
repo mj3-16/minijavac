@@ -7,7 +7,7 @@ import java.util.*;
 import minijava.ir.NameMangler;
 import minijava.ir.assembler.AssemblerGenerator;
 import minijava.ir.assembler.GNUAssemblerConvertible;
-import minijava.ir.assembler.SimpleNodeAllocator;
+import minijava.ir.assembler.NodeAllocator;
 import minijava.ir.assembler.allocator.AbstractRegAllocator;
 import minijava.ir.utils.MethodInformation;
 import org.jetbrains.annotations.NotNull;
@@ -62,7 +62,7 @@ public class AssemblerFile implements GNUAssemblerConvertible, Collection<Segmen
   @NotNull
   @Override
   public <T> T[] toArray(@NotNull T[] a) {
-    return segments.<T>toArray(a);
+    return segments.toArray(a);
   }
 
   @Override
@@ -129,7 +129,7 @@ public class AssemblerFile implements GNUAssemblerConvertible, Collection<Segmen
 
   /** @return (pre asm, real asm) */
   public static Tuple2<AssemblerFile, AssemblerFile> createForProgram(
-      Function3<MethodInformation, LinearCodeSegment, SimpleNodeAllocator, AbstractRegAllocator>
+      Function3<MethodInformation, LinearCodeSegment, NodeAllocator, AbstractRegAllocator>
           regAllocatorConstructor) {
     AssemblerFile preAsmFile = new AssemblerFile();
     AssemblerFile file = new AssemblerFile();

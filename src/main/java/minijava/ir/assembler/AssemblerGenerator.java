@@ -39,7 +39,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
 
   private final Graph graph;
   private final MethodInformation info;
-  private final SimpleNodeAllocator allocator;
+  private final NodeAllocator allocator;
   private CodeSegment segment;
   private Map<Integer, CodeBlock> blocksToCodeBlocks;
   private static Map<Phi, Boolean> isPhiProneToLostCopies;
@@ -47,7 +47,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
   public AssemblerGenerator(Graph graph) {
     this.graph = graph;
     this.info = new MethodInformation(graph);
-    this.allocator = new SimpleNodeAllocator(graph);
+    this.allocator = new NodeAllocator(graph);
     isPhiProneToLostCopies = new HashMap<>();
   }
 
@@ -453,7 +453,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     return isPhiProneToLostCopies.get(phi);
   }
 
-  public SimpleNodeAllocator getAllocator() {
+  public NodeAllocator getAllocator() {
     return allocator;
   }
 }

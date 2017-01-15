@@ -5,7 +5,7 @@ import java.util.*;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import minijava.ir.assembler.SimpleNodeAllocator;
+import minijava.ir.assembler.NodeAllocator;
 import minijava.ir.assembler.block.LinearCodeSegment;
 import minijava.ir.assembler.instructions.*;
 import minijava.ir.assembler.location.*;
@@ -34,7 +34,7 @@ public class BasicRegAllocator extends AbstractRegAllocator
   private Instruction currentInstruction;
 
   public BasicRegAllocator(
-      MethodInformation info, LinearCodeSegment code, SimpleNodeAllocator nodeAllocator) {
+      MethodInformation info, LinearCodeSegment code, NodeAllocator nodeAllocator) {
     super(info, code, nodeAllocator);
     this.maxStackDepth = 0;
     this.currentStackDepth = 0;
@@ -60,7 +60,6 @@ public class BasicRegAllocator extends AbstractRegAllocator
       ParamLocation param = nodeAllocator.paramLocations.get(i);
       putArgumentOnStack(param);
       Register paramReg = Register.methodArgumentQuadRegisters.get(i).ofWidth(param.width);
-      ;
       instructions.add(
           new Mov(paramReg, (Location) getCurrentLocation(param))
               .com(String.format("Copy %d. parameter on the stack", i)));

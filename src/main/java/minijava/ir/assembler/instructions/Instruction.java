@@ -17,7 +17,7 @@ import org.jetbrains.annotations.NotNull;
 /** Models an assembler instruction */
 public abstract class Instruction implements GNUAssemblerConvertible, Comparable<Instruction> {
 
-  public static enum Type {
+  public enum Type {
     ADD("add", true),
     SUB("sub", true),
     MUL("imul", true),
@@ -72,7 +72,7 @@ public abstract class Instruction implements GNUAssemblerConvertible, Comparable
   }
 
   /** Enum that helps to separate jmp and cmp like instructions from the rest */
-  public static enum Category {
+  public enum Category {
     JMP,
     CMP,
     AFTER_CMP,

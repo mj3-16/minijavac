@@ -7,6 +7,7 @@ import com.google.common.collect.Iterators;
 import java.util.*;
 import java.util.stream.Collectors;
 import minijava.ir.assembler.GNUAssemblerConvertible;
+import minijava.ir.assembler.instructions.Argument;
 import minijava.ir.assembler.instructions.Cmp;
 import minijava.ir.assembler.instructions.Instruction;
 import minijava.ir.assembler.instructions.Jmp;
@@ -16,6 +17,37 @@ import org.jetbrains.annotations.NotNull;
  * A list of assembler instructions with a label, optional cmp support, cmp and jmp instructions.
  */
 public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction> {
+
+  public static class FollowingBlockInfo {
+    public final CodeBlock block;
+    /**
+     * Number of instructions between the end of the current block (outer block) and the start of
+     * this block.
+     */
+    public final int instructionsBetween;
+
+    public FollowingBlockInfo(CodeBlock block, int instructionsBetween) {
+      this.block = block;
+      this.instructionsBetween = instructionsBetween;
+    }
+
+    @Override
+    public String toString() {
+      return String.format("(Block %s %s)", block, instructionsBetween);
+    }
+
+    @Override
+    public int hashCode() {
+      return block.hashCode() ^ instructionsBetween;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+      return obj instanceof FollowingBlockInfo
+          && ((FollowingBlockInfo) obj).instructionsBetween == instructionsBetween
+          && ((FollowingBlockInfo) obj).block.equals(block);
+    }
+  }
 
   public final String label;
   private final List<Instruction> blockStartInstructions;
@@ -29,6 +61,11 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
   private List<Jmp> conditionalJumps;
   private Optional<Jmp> unconditionalJump;
   private final List<Instruction> phiBHelperInstructions;
+  /** Blocks that can follow the current block in an execution. */
+  private Set<FollowingBlockInfo> followingBlocks;
+
+  private Map<CodeBlock, Integer> distanceToFollowingBlocks;
+  private Set<Argument> argumentsUsedByFollowingBlocks;
 
   public CodeBlock(String label) {
     this.label = label;
@@ -41,6 +78,7 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
     this.conditionalJumps = new ArrayList<>();
     this.unconditionalJump = Optional.empty();
     this.afterCompareInstructions = new ArrayList<>();
+    this.followingBlocks = null;
   }
 
   @Override
@@ -111,14 +149,6 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
     afterCompareInstructions.add(instruction);
   }
 
-  public List<Instruction> getAfterCompareInstructions() {
-    return Collections.unmodifiableList(afterCompareInstructions);
-  }
-
-  public boolean addAll(@NotNull Collection<? extends Instruction> c) {
-    throw new UnsupportedOperationException();
-  }
-
   /**
    * Prepends the instructions to the normal instructions
    *
@@ -133,18 +163,6 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
 
   public boolean hasCompare() {
     return compareInstruction.isPresent();
-  }
-
-  public boolean hasUnconditionalJump() {
-    return unconditionalJump.isPresent();
-  }
-
-  public Optional<Cmp> getCompare() {
-    return compareInstruction;
-  }
-
-  public Optional<Jmp> getUnconditionalJump() {
-    return unconditionalJump;
   }
 
   public void setCompare(Cmp cmp) {
@@ -175,16 +193,8 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
     phiBHelperInstructions.add(instruction);
   }
 
-  public List<Jmp> getConditionalJumps() {
-    return Collections.unmodifiableList(conditionalJumps);
-  }
-
   public void addBlockStartInstruction(Instruction instruction) {
     blockStartInstructions.add(instruction);
-  }
-
-  public List<Instruction> getBlockStartInstructions() {
-    return Collections.unmodifiableList(blockStartInstructions);
   }
 
   @Override
@@ -198,5 +208,64 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
     arr.add(new LinearCodeSegment.InstructionOrString(""));
     seq(this).map(LinearCodeSegment.InstructionOrString::new).forEach(arr::add);
     return arr;
+  }
+
+  /**
+   * Call this method after the generation of a all code blocks finished to update to initialize the
+   * set of following blocks. TODO: improve perfomance (if it matters)
+   */
+  public void initFollowingBlocks() {
+    // we just do a depth first search
+    followingBlocks = new HashSet<>();
+    distanceToFollowingBlocks = new HashMap<>();
+    Stack<FollowingBlockInfo> workList = new Stack<>();
+    // we add the current block to the work list
+    workList.push(new FollowingBlockInfo(this, 0));
+    while (!workList.isEmpty()) {
+      FollowingBlockInfo item = workList.pop();
+      int distanceOfEndToCurrentBlock = item.instructionsBetween + item.block.size();
+      for (CodeBlock adjacentBlock : item.block.getJumpedToBlocks()) {
+        if (!distanceToFollowingBlocks.containsKey(adjacentBlock)) {
+          FollowingBlockInfo info =
+              new FollowingBlockInfo(adjacentBlock, distanceOfEndToCurrentBlock);
+          followingBlocks.add(info);
+          distanceToFollowingBlocks.put(adjacentBlock, distanceOfEndToCurrentBlock);
+          workList.add(info);
+        }
+      }
+    }
+    followingBlocks = Collections.unmodifiableSet(followingBlocks);
+    distanceToFollowingBlocks = Collections.unmodifiableMap(distanceToFollowingBlocks);
+  }
+
+  /**
+   * Initializes the set of arguments used by the following blocks. Attention: the {@link
+   * CodeBlock::initFollowingBlocks} should be executed before this method.
+   */
+  public void initArgumentsUsedByFollowingBlocks() {
+    assert followingBlocks != null;
+    this.argumentsUsedByFollowingBlocks = new HashSet<>();
+    for (FollowingBlockInfo followingBlock : followingBlocks) {
+      for (Instruction followingInstruction : followingBlock.block) {
+        this.argumentsUsedByFollowingBlocks.addAll(followingInstruction.getArguments());
+      }
+    }
+    this.argumentsUsedByFollowingBlocks =
+        Collections.unmodifiableSet(argumentsUsedByFollowingBlocks);
+  }
+
+  /**
+   * Returns a list of blocks that this block might jump to (i.e. all blocks that can directly
+   * follow this block in an execution).
+   */
+  public List<CodeBlock> getJumpedToBlocks() {
+    List<CodeBlock> blocks = new ArrayList<>();
+    conditionalJumps.forEach(j -> blocks.add(j.nextBlock));
+    unconditionalJump.ifPresent(j -> blocks.add(j.nextBlock));
+    return Collections.unmodifiableList(blocks);
+  }
+
+  public Set<Argument> getArgumentsUsedByFollowingBlocks() {
+    return argumentsUsedByFollowingBlocks;
   }
 }

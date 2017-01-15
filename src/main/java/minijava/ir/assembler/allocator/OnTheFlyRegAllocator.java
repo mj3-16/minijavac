@@ -9,7 +9,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import minijava.ir.assembler.SimpleNodeAllocator;
+import minijava.ir.assembler.NodeAllocator;
 import minijava.ir.assembler.block.CodeBlock;
 import minijava.ir.assembler.block.LinearCodeSegment;
 import minijava.ir.assembler.instructions.*;
@@ -43,7 +43,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
   private Set<Register> registersToSpill;
 
   public OnTheFlyRegAllocator(
-      MethodInformation methodInfo, LinearCodeSegment code, SimpleNodeAllocator nodeAllocator) {
+      MethodInformation methodInfo, LinearCodeSegment code, NodeAllocator nodeAllocator) {
     super(methodInfo, code, nodeAllocator);
     this.usableRegisters = new ArrayList<>();
     this.usableRegisters.addAll(Register.usableRegisters);
@@ -246,13 +246,6 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     }
     assert evictedArgument != null;
     return argumentsInRegisters.get(evictedArgument);
-  }
-
-  private Register chooseRegister() {
-    if (argumentsInRegisters.isEmpty()) {
-      return usableRegisters.get(0);
-    }
-    return chooseRegisterToEvict();
   }
 
   private boolean needsToEvictRegister() {
@@ -719,14 +712,6 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
       return spill;
     }
     return Optional.empty();
-  }
-
-  private List<Instruction> genSpillRegistersInstructions(List<Register> registers) {
-    List<Instruction> ret = new ArrayList<>();
-    for (Register register : registers) {
-      genSpillRegisterInstruction(register).ifPresent(ret::add);
-    }
-    return ret;
   }
 
   private Optional<Instruction> genSpillRegisterInstruction(Register register) {

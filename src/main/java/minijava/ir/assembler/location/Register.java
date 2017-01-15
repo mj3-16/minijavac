@@ -6,7 +6,7 @@ import java.util.*;
 /** Location in a register */
 public class Register extends Location {
 
-  public static enum Width {
+  public enum Width {
     Byte("b", 1),
     /** 32 bit */
     Long("l", 4),

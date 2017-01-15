@@ -20,7 +20,7 @@ public class EnableRegisterUsage extends Instruction {
 
   @Override
   public Type getType() {
-    return Type.DISABLE_REGISTER_USAGE;
+    return Type.ENABLE_REGISTER_USAGE;
   }
 
   @Override
