@@ -17,7 +17,7 @@ import org.jetbrains.annotations.NotNull;
 /** Models an assembler instruction */
 public abstract class Instruction implements GNUAssemblerConvertible, Comparable<Instruction> {
 
-  public static enum Type {
+  public enum Type {
     ADD("add", true),
     SUB("sub", true),
     MUL("imul", true),
@@ -42,7 +42,9 @@ public abstract class Instruction implements GNUAssemblerConvertible, Comparable
     META_CALL(Category.META, "meta_call"),
     META_LOAD(Category.META, "meta_load"),
     META_STORE(Category.META, "meta_store"),
-    META_FRAME_ALLOC(Category.META, "frame_alloc");
+    META_FRAME_ALLOC(Category.META, "frame_alloc"),
+    DISABLE_REGISTER_USAGE(Category.META, "disable_register_usage"),
+    ENABLE_REGISTER_USAGE(Category.META, "enable_register_usage");
 
     public final Category category;
     /** GNU Assembler name (without argument width appendix) */
@@ -70,7 +72,7 @@ public abstract class Instruction implements GNUAssemblerConvertible, Comparable
   }
 
   /** Enum that helps to separate jmp and cmp like instructions from the rest */
-  public static enum Category {
+  public enum Category {
     JMP,
     CMP,
     AFTER_CMP,
@@ -240,12 +242,20 @@ public abstract class Instruction implements GNUAssemblerConvertible, Comparable
     this.parentBlock = Optional.of(codeBlock);
   }
 
+  public CodeBlock getParentBlock() {
+    return parentBlock.get();
+  }
+
   public void setNumberInSegment(int number) {
     this.numberInSegment = Optional.of(number);
   }
 
   public int getNumberInSegment() {
     return numberInSegment.get();
+  }
+
+  public boolean isMetaInstruction() {
+    return getType().category == Category.META;
   }
 
   public abstract List<Argument> getArguments();

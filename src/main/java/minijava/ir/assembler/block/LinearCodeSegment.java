@@ -13,9 +13,13 @@ public class LinearCodeSegment extends Segment
 
   private final List<InstructionOrString> instructionsAndStrings;
   private final List<String> comments;
+  public final List<CodeBlock> codeBlocks;
 
   public LinearCodeSegment(
-      List<InstructionOrString> instructionsAndStrings, List<String> comments) {
+      List<CodeBlock> codeBlocks,
+      List<InstructionOrString> instructionsAndStrings,
+      List<String> comments) {
+    this.codeBlocks = codeBlocks;
     this.instructionsAndStrings = instructionsAndStrings;
     this.comments = comments;
   }
@@ -27,6 +31,7 @@ public class LinearCodeSegment extends Segment
       arr.add(new InstructionOrString(block.label + ":"));
       i++;
       for (Instruction instruction : block) {
+        instruction.setParentBlock(block);
         instruction.setNumberInSegment(i);
         instruction.setUsedByRelations();
         i++;
@@ -34,8 +39,10 @@ public class LinearCodeSegment extends Segment
       arr.add(new InstructionOrString(""));
       i++;
       seq(block).map(InstructionOrString::new).forEach(arr::add);
+      block.initFollowingBlocks();
+      block.initArgumentsUsedByFollowingBlocks();
     }
-    return new LinearCodeSegment(arr, codeSegment.getComments());
+    return new LinearCodeSegment(codeSegment.getBlocks(), arr, codeSegment.getComments());
   }
 
   @Override
@@ -82,36 +89,13 @@ public class LinearCodeSegment extends Segment
       }
       return stringConverter.apply(string.get());
     }
+
+    @Override
+    public String toString() {
+      return map(i -> String.format("[Instruction %s]", i), s -> String.format("[%s]", s));
+    }
   }
-  /*
-    public void replaceInstruction(Instruction oldInstruction, List<Instruction> replacement) {
-      for (int i = oldInstruction.getNumberInSegment();
-          i < oldInstruction.getNumberInSegment() + replacement.size();
-          i++) {
-        Instruction instruction = replacement.get(i - oldInstruction.getNumberInSegment());
-        instruction.setNumberInSegment(oldInstruction.getNumberInSegment());
-        instructionsAndStrings.set(i, new InstructionOrString(instruction));
-      }
-    }
 
-    public void placeAfter(Instruction instruction, List<Instruction> newInstructions) {
-      List<Instruction> instrs = new ArrayList<>();
-      instrs.add(instruction);
-      instrs.addAll(newInstructions);
-      replaceInstruction(instruction, instrs);
-    }
-
-    public void placeBefore(Instruction instruction, List<Instruction> newInstructions) {
-      List<Instruction> instrs = new ArrayList<>();
-      instrs.addAll(newInstructions);
-      instrs.add(instruction);
-      replaceInstruction(instruction, instrs);
-    }
-
-    public void appendToEnd(List<Instruction> instructions) {
-      placeAfter(instructions.get(instructions.size() - 1), instructions);
-    }
-  */
   public List<String> getComments() {
     return Collections.unmodifiableList(comments);
   }
