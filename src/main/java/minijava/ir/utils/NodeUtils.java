@@ -5,11 +5,13 @@ import static firm.bindings.binding_irnode.ir_opcode.iro_Proj;
 import static org.jooq.lambda.Seq.seq;
 
 import firm.BackEdges;
+import firm.nodes.Block;
 import firm.nodes.Cond;
 import firm.nodes.Const;
 import firm.nodes.Node;
 import firm.nodes.Proj;
 import java.util.Optional;
+import java.util.Set;
 
 /** For lack of a better name */
 public class NodeUtils {
@@ -44,5 +46,11 @@ public class NodeUtils {
       this.true_ = true_;
       this.false_ = false_;
     }
+  }
+
+  public static Set<Node> getNodesInBlock(Block block) {
+    return FirmUtils.withBackEdges(
+        block.getGraph(),
+        () -> seq(BackEdges.getOuts(block)).filter(be -> be.pos == -1).map(be -> be.node).toSet());
   }
 }
