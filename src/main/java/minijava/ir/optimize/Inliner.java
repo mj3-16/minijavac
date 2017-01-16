@@ -151,12 +151,6 @@ public class Inliner extends BaseOptimizer {
     Set<Node> toMove = getNodesToMove(call);
 
     for (Node move : toMove) {
-      if (move.getOpCode().equals(iro_Phi)) {
-        // We don't move phi nodes, as they are tied to the block.
-        // This case only happens in loops, where the PHi depends on the result of the call
-        // and a value of the last iteration.
-        continue;
-      }
       move.setBlock(newBlock);
     }
 
