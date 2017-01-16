@@ -148,11 +148,26 @@ public class Inliner extends BaseOptimizer {
   private Block moveDependenciesIntoNewBlock(Call call) {
     Jmp jmp = (Jmp) graph.newJmp(call.getBlock());
     Block newBlock = (Block) graph.newBlock(new Node[] {jmp});
-    Set<Node> toMove = new HashSet<>();
+    Set<Node> toMove = getNodesToMove(call);
 
-    FirmUtils.withBackEdges(
+    for (Node move : toMove) {
+      if (move.getOpCode().equals(iro_Phi)) {
+        // We don't move phi nodes, as they are tied to the block.
+        // This case only happens in loops, where the PHi depends on the result of the call
+        // and a value of the last iteration.
+        continue;
+      }
+      move.setBlock(newBlock);
+    }
+
+    return newBlock;
+  }
+
+  private Set<Node> getNodesToMove(Call call) {
+    return FirmUtils.withBackEdges(
         graph,
         () -> {
+          Set<Node> toMove = new HashSet<>();
           Set<Node> toVisit = new HashSet<>();
 
           // the successors of the node itself should be checked
@@ -199,19 +214,8 @@ public class Inliner extends BaseOptimizer {
                     .toList());
           }
           toMove.remove(call); // The node itself should remain in the old block
+          return toMove;
         });
-
-    for (Node move : toMove) {
-      if (move.getOpCode().equals(iro_Phi)) {
-        // We don't move phi nodes, as they are tied to the block.
-        // This case only happens in loops, where the PHi depends on the result of the call
-        // and a value of the last iteration.
-        continue;
-      }
-      move.setBlock(newBlock);
-    }
-
-    return newBlock;
   }
 
   @Override
