@@ -145,25 +145,25 @@ public class Inliner extends BaseOptimizer {
     afterCallBlock.setPred(0, graph.newJmp(endBlock));
   }
 
-  private Block moveDependenciesIntoNewBlock(Node node) {
-    Jmp jmp = (Jmp) node.getGraph().newJmp(node.getBlock());
-    Block newBlock = (Block) node.getGraph().newBlock(new Node[] {jmp});
+  private Block moveDependenciesIntoNewBlock(Call call) {
+    Jmp jmp = (Jmp) graph.newJmp(call.getBlock());
+    Block newBlock = (Block) graph.newBlock(new Node[] {jmp});
     Set<Node> toMove = new HashSet<>();
 
     FirmUtils.withBackEdges(
-        node.getGraph(),
+        graph,
         () -> {
           Set<Node> toVisit = new HashSet<>();
 
           // the successors of the node itself should be checked
-          toVisit.add(node);
+          toVisit.add(call);
 
-          for (BackEdges.Edge edge : BackEdges.getOuts(node.getBlock())) {
+          for (BackEdges.Edge edge : BackEdges.getOuts(call.getBlock())) {
             // ... as well as any control flow nodes.
             boolean controlFlowNode = edge.node.getMode().equals(Mode.getX());
 
             // Seems unnecessary, but this filters out keep edges
-            boolean sameBlock = edge.node.getBlock().equals(node.getBlock());
+            boolean sameBlock = edge.node.getBlock().equals(call.getBlock());
 
             if (controlFlowNode && sameBlock) {
               toVisit.add(edge.node);
@@ -195,10 +195,10 @@ public class Inliner extends BaseOptimizer {
                 seq(BackEdges.getOuts(move))
                     .map(be -> be.node)
                     .filter(n -> !toMove.contains(n))
-                    .filter(n -> node.getBlock().equals(n.getBlock()))
+                    .filter(n -> call.getBlock().equals(n.getBlock()))
                     .toList());
           }
-          toMove.remove(node); // The node itself should remain in the old block
+          toMove.remove(call); // The node itself should remain in the old block
         });
 
     for (Node move : toMove) {
