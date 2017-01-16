@@ -167,20 +167,20 @@ public class Inliner extends BaseOptimizer {
           // the successors of the node itself should be checked
           toVisit.add(call);
 
-          for (BackEdges.Edge edge : BackEdges.getOuts(call.getBlock())) {
+          for (Node node : NodeUtils.getNodesInBlock((Block) call.getBlock())) {
             // ... as well as any control flow nodes.
-            boolean controlFlowNode = edge.node.getMode().equals(Mode.getX());
+            boolean controlFlowNode = node.getMode().equals(Mode.getX());
 
             // Seems unnecessary, but this filters out keep edges
-            boolean sameBlock = edge.node.getBlock().equals(call.getBlock());
+            boolean sameBlock = node.getBlock().equals(call.getBlock());
 
             if (controlFlowNode && sameBlock) {
-              toVisit.add(edge.node);
+              toVisit.add(node);
 
               // In case of Projs (e.g. conditional jumps), we also want to move the Cond node.
               // This is so we don't have to generate spill instructions for values of mode b.
               // Otherwise the FloatIn transformation should do this.
-              NodeUtils.asProj(edge.node).ifPresent(proj -> toVisit.add(proj.getPred()));
+              NodeUtils.asProj(node).ifPresent(proj -> toVisit.add(proj.getPred()));
             }
           }
 
