@@ -194,18 +194,34 @@ public class Cli {
     Optimizer phiBElimination = new PhiBElimination();
     while (true) {
       for (Graph graph : firm.Program.getGraphs()) {
-        dumpGraphIfNeeded(graph, "before-simplification");
-        while (constantFolder.optimize(graph)
-            | expressionNormalizer.optimize(graph)
-            | algebraicSimplifier.optimize(graph)
-            | commonSubexpressionElimination.optimize(graph)
-            | phiOptimizer.optimize(graph)) ;
-        dumpGraphIfNeeded(graph, "before-control-flow-optimizations");
-        while (controlFlowOptimizer.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
-        //dumpGraphIfNeeded(graph, "after-constant-control-flow");
-        while (phiBElimination.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
-        while (floatInTransformation.optimize(graph)
-            | commonSubexpressionElimination.optimize(graph)) ;
+        boolean hasChangedAtAll;
+        do {
+          hasChangedAtAll = false;
+          dumpGraphIfNeeded(graph, "before-simplification");
+
+          while (constantFolder.optimize(graph)
+              | expressionNormalizer.optimize(graph)
+              | algebraicSimplifier.optimize(graph)
+              | commonSubexpressionElimination.optimize(graph)
+              | phiOptimizer.optimize(graph)) {
+            hasChangedAtAll = true;
+          }
+
+          dumpGraphIfNeeded(graph, "before-control-flow-optimizations");
+
+          while (controlFlowOptimizer.optimize(graph) | unreachableCodeRemover.optimize(graph)) {
+            hasChangedAtAll = true;
+          }
+
+          //dumpGraphIfNeeded(graph, "after-constant-control-flow");
+          while (phiBElimination.optimize(graph) | unreachableCodeRemover.optimize(graph)) {
+            hasChangedAtAll = true;
+          }
+
+          while (floatInTransformation.optimize(graph)) {
+            hasChangedAtAll = true;
+          }
+        } while (hasChangedAtAll);
       }
 
       // Here comes the interprocedural stuff... This is method is really turning into a mess
