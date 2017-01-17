@@ -17,17 +17,24 @@ public interface Optimizer {
     Optimizer phiOptimizer = new PhiOptimizer();
     while (true) {
       for (Graph graph : firm.Program.getGraphs()) {
-        Cli.dumpGraphIfNeeded(graph, "before-simplification");
-        while (constantFolder.optimize(graph)
-            | expressionNormalizer.optimize(graph)
-            | algebraicSimplifier.optimize(graph)
-            | commonSubexpressionElimination.optimize(graph)
-            | phiOptimizer.optimize(graph)) ;
-        Cli.dumpGraphIfNeeded(graph, "before-control-flow-optimizations");
-        while (controlFlowOptimizer.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
-        //dumpGraphIfNeeded(graph, "after-constant-control-flow");
-        while (floatInTransformation.optimize(graph)
-            | commonSubexpressionElimination.optimize(graph)) ;
+        boolean hasChanged;
+        do {
+          hasChanged = false;
+          Cli.dumpGraphIfNeeded(graph, "before-simplification");
+          while (constantFolder.optimize(graph)
+              | expressionNormalizer.optimize(graph)
+              | algebraicSimplifier.optimize(graph)
+              | commonSubexpressionElimination.optimize(graph)
+              | floatInTransformation.optimize(graph)
+              | phiOptimizer.optimize(graph)) {
+            hasChanged = true;
+          }
+          Cli.dumpGraphIfNeeded(graph, "before-control-flow-optimizations");
+          while (controlFlowOptimizer.optimize(graph) | unreachableCodeRemover.optimize(graph)) {
+            hasChanged = true;
+          }
+          //dumpGraphIfNeeded(graph, "after-constant-control-flow");
+        } while (hasChanged);
       }
 
       // Here comes the interprocedural stuff... This is method is really turning into a mess
