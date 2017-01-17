@@ -147,7 +147,7 @@ public class Cli {
     ast.acceptVisitor(new SemanticLinter());
     ast.acceptVisitor(new IREmitter());
     if (!optimizationsTurnedOff()) {
-      optimize();
+      Optimizer.optimize();
     }
     dumpGraphsIfNeeded("--finished");
     IREmitter.compile("a.out", shouldProduceDebuggableBinary());
@@ -181,48 +181,6 @@ public class Cli {
     }
   }
 
-  private void optimize() {
-    dumpGraphsIfNeeded("before-optimizations");
-    Optimizer constantFolder = new ConstantFolder();
-    Optimizer floatInTransformation = new FloatInTransformation();
-    Optimizer controlFlowOptimizer = new ConstantControlFlowOptimizer();
-    Optimizer unreachableCodeRemover = new UnreachableCodeRemover();
-    Optimizer expressionNormalizer = new ExpressionNormalizer();
-    Optimizer algebraicSimplifier = new AlgebraicSimplifier();
-    Optimizer commonSubexpressionElimination = new CommonSubexpressionElimination();
-    Optimizer phiOptimizer = new PhiOptimizer();
-    while (true) {
-      for (Graph graph : firm.Program.getGraphs()) {
-        dumpGraphIfNeeded(graph, "before-simplification");
-        while (constantFolder.optimize(graph)
-            | expressionNormalizer.optimize(graph)
-            | algebraicSimplifier.optimize(graph)
-            | commonSubexpressionElimination.optimize(graph)
-            | phiOptimizer.optimize(graph)) ;
-        dumpGraphIfNeeded(graph, "before-control-flow-optimizations");
-        while (controlFlowOptimizer.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
-        //dumpGraphIfNeeded(graph, "after-constant-control-flow");
-        while (floatInTransformation.optimize(graph)
-            | commonSubexpressionElimination.optimize(graph)) ;
-      }
-
-      // Here comes the interprocedural stuff... This is method is really turning into a mess
-      boolean hasChanged = false;
-      ProgramMetrics metrics = ProgramMetrics.analyse(firm.Program.getGraphs());
-      Optimizer inliner = new Inliner(metrics);
-      for (Graph graph : firm.Program.getGraphs()) {
-        hasChanged |= inliner.optimize(graph);
-        unreachableCodeRemover.optimize(graph);
-        metrics.updateGraphInfo(graph);
-        Cli.dumpGraphIfNeeded(graph, "after-inlining");
-      }
-      if (!hasChanged) {
-        break;
-      }
-    }
-    dumpGraphsIfNeeded("after-optimizations");
-  }
-
   private void runFirm(InputStream in) throws IOException {
     Program ast = new Parser(new Lexer(in)).parse();
     ast.acceptVisitor(new SemanticAnalyzer());
@@ -242,7 +200,7 @@ public class Cli {
     ast.acceptVisitor(new SemanticLinter());
     ast.acceptVisitor(new IREmitter());
     if (!optimizationsTurnedOff()) {
-      optimize();
+      Optimizer.optimize();
     }
     dumpGraphsIfNeeded("--finished");
     Tuple2<AssemblerFile, AssemblerFile> preAsmAndAsmFile =
