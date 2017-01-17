@@ -281,11 +281,18 @@ public class AssemblerGenerator extends NodeVisitor.Default {
           // we should have a Phi b node here
           Phi bPhi = (Phi) cond.getSelector();
           Location res = allocator.getLocation(bPhi);
+          Block bPhiBlock = (Block) bPhi.getBlock();
+          java.util.Set<Block> moreThanOncePredBlocks = blocksThatAreMoreOnceAPredBlock(bPhiBlock);
           for (int i = 0; i < bPhi.getPredCount(); i++) {
             Node inputNode = bPhi.getPred(i);
             // the i.th block belongs to the i.th input edge of the phi node
             Block block = (Block) bPhi.getBlock().getPred(i).getBlock();
             CodeBlock inputCodeBlock = getCodeBlock(block);
+
+            boolean afterCondJumps =
+                shouldPlacePhiHelperAfterCondJumps(
+                    moreThanOncePredBlocks, (Block) bPhi.getBlock(), i);
+
             if (inputNode instanceof firm.nodes.Cmp) {
               if (!inputCodeBlock.hasCompare()) {
                 // we have to add one
@@ -297,14 +304,23 @@ public class AssemblerGenerator extends NodeVisitor.Default {
                 // swap its arguments, GNU assembler...
                 inputCodeBlock.setCompare((Cmp) new Cmp(leftArg, rightArg).firm(cmp));
               }
+              List<Instruction> phiBHelperInstructions = new ArrayList<>();
               // zero the result location
-              inputCodeBlock.addToAfterCompareInstructions(
-                  new Mov(new ConstArgument(res.width, 0), res));
+              phiBHelperInstructions.add(new Mov(new ConstArgument(res.width, 0), res));
               // set the value to one if condition did hold true
-              inputCodeBlock.addToAfterCompareInstructions(
+              phiBHelperInstructions.add(
                   new Set(((firm.nodes.Cmp) inputNode).getRelation(), res).firm(bPhi));
+              phiBHelperInstructions.forEach(
+                  afterCondJumps
+                      ? inputCodeBlock::addToAfterCompareInstructions
+                      : inputCodeBlock::addAfterConditionalJumpsInstruction);
             } else {
-              inputCodeBlock.add(new Mov(allocator.getAsArgument(inputNode), res).firm(bPhi));
+              Instruction bPhiMov = new Mov(allocator.getAsArgument(inputNode), res).firm(bPhi);
+              if (afterCondJumps) {
+                inputCodeBlock.addAfterConditionalJumpsInstruction(bPhiMov);
+              } else {
+                inputCodeBlock.add(bPhiMov);
+              }
             }
           }
           // we compare the phi's value with 1 (== true)
@@ -370,12 +386,15 @@ public class AssemblerGenerator extends NodeVisitor.Default {
       phisBlock.addBlockStartInstruction(new Mov(tmpLocation, res));
     }
     Block block = (Block) node.getBlock();
+    java.util.Set<Block> moreThanOncePredBlocks = blocksThatAreMoreOnceAPredBlock(block);
     for (int i = 0; i < block.getPredCount(); i++) {
-      // the i.th block belongs to the i.th input edge of the phi node
-      Node inputNode = node.getPred(i);
       // we get the correct block be taking the predecessors of the block of the phi node
       Block inputBlock = (Block) block.getPred(i).getBlock();
       CodeBlock inputCodeBlock = getCodeBlock(inputBlock);
+      // we should decide whether we want to place the phi helper instruction before or after the conditional jumps
+      boolean afterCondJumps = shouldPlacePhiHelperAfterCondJumps(moreThanOncePredBlocks, block, i);
+      // the i.th block belongs to the i.th input edge of the phi node
+      Node inputNode = node.getPred(i);
       Argument arg = allocator.getAsArgument(inputNode);
       // we store the argument in a register
       Instruction phiMov;
@@ -393,19 +412,58 @@ public class AssemblerGenerator extends NodeVisitor.Default {
         NodeLocation intermediateLoc =
             new NodeLocation(modeToWidth(Types.BOOLEAN_TYPE.getMode()), allocator.genLocationId());
         intermediateLoc.setComment("0");
-        inputCodeBlock.addPhiBHelperInstruction(
+        List<Instruction> phiBHelperInstructions = new ArrayList<>();
+        phiBHelperInstructions.add(
             new Mov(new ConstArgument(intermediateLoc.width, 0), intermediateLoc).firm(node));
         // than we have to use the set instruction to set the registers value to one if the condition is true
         // important note: we can only set the lowest 8 bit of the intermediate register
-        inputCodeBlock.addPhiBHelperInstruction(
+        phiBHelperInstructions.add(
             new Set(((firm.nodes.Cmp) inputNode).getRelation(), intermediateLoc).firm(inputNode));
         // we copy the intermediate value to its final destination
-        inputCodeBlock.addPhiBHelperInstruction(phiMov);
+        phiBHelperInstructions.add(phiMov);
+        phiBHelperInstructions.forEach(
+            afterCondJumps
+                ? inputCodeBlock::addPhiBHelperInstruction
+                : inputCodeBlock::addAfterConditionalJumpsInstruction);
       } else {
         // compares don't matter and therefore we copy the value before the (possible) comparison takes place
-        inputCodeBlock.addPhiHelperInstruction(phiMov);
+        if (afterCondJumps) {
+          inputCodeBlock.addAfterConditionalJumpsInstruction(phiMov);
+        } else {
+          inputCodeBlock.addPhiHelperInstruction(phiMov);
+        }
       }
     }
+  }
+
+  private java.util.Set<Block> blocksThatAreMoreOnceAPredBlock(Block baseBlock) {
+    Map<Block, Integer> blockAsPredCount = new HashMap<>();
+    for (Node predNode : baseBlock.getPreds()) {
+      if (predNode instanceof Proj) {
+        blockAsPredCount.put(
+            (Block) predNode.getBlock(), blockAsPredCount.getOrDefault(predNode.getBlock(), 0) + 1);
+      }
+    }
+    java.util.Set<Block> moreThanOnce =
+        blockAsPredCount
+            .keySet()
+            .stream()
+            .filter(block -> blockAsPredCount.get(block) > 1)
+            .collect(Collectors.toSet());
+    return moreThanOnce;
+  }
+
+  private boolean shouldPlacePhiHelperAfterCondJumps(
+      java.util.Set<Block> moreThanOncePredBlocks, Block baseBlock, int predIndex) {
+    Node pred = baseBlock.getPred(predIndex);
+    if (moreThanOncePredBlocks.contains((Block) pred.getBlock())) {
+      // we're only concerned with blocks that are a predecessor of the current block with at least two different (Proj) nodes
+      if (pred instanceof Proj) {
+        return ((Proj) pred).getNum() == Cond.pnFalse;
+      }
+    }
+    // don't change the behavior of unaffected phis
+    return false;
   }
 
   @Override

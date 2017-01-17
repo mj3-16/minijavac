@@ -256,7 +256,6 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     List<LinearCodeSegment.InstructionOrString> ret = new ArrayList<>();
     for (CodeBlock codeBlock : code.codeBlocks) {
       // process each code block
-      boolean evictedInBlock = false;
       for (LinearCodeSegment.InstructionOrString instructionOrString : codeBlock.getAllLines()) {
         if (instructionOrString.instruction.isPresent()) {
           currentInstruction = instructionOrString.instruction.get();
@@ -267,11 +266,8 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
                 .forEach(ret::add);
           }
           if (currentInstruction.getType().category == Instruction.Category.JMP) {
-            if (!evictedInBlock) {
-              visit(new Evict(seq(usedRegisters.keySet()).toList()))
-                  .forEach(x -> ret.add(new LinearCodeSegment.InstructionOrString(x)));
-            }
-            evictedInBlock = true;
+            visit(new Evict(seq(usedRegisters.keySet()).toList()))
+                .forEach(x -> ret.add(new LinearCodeSegment.InstructionOrString(x)));
           }
           List<Instruction> replacement = currentInstruction.accept(this);
           replacement.stream().map(LinearCodeSegment.InstructionOrString::new).forEach(ret::add);
@@ -287,10 +283,8 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
           ret.add(instructionOrString);
         }
       }
-      if (!evictedInBlock) {
-        visit(new Evict(seq(usedRegisters.keySet()).toList()))
-            .forEach(x -> ret.add(new LinearCodeSegment.InstructionOrString(x)));
-      }
+      visit(new Evict(seq(usedRegisters.keySet()).toList()))
+          .forEach(x -> ret.add(new LinearCodeSegment.InstructionOrString(x)));
     }
     for (int i = 0; i < ret.size(); i++) {
       if (ret.get(i).instruction.isPresent()) {

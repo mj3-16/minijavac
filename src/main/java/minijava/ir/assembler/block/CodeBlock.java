@@ -61,6 +61,7 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
   private List<Jmp> conditionalJumps;
   private Optional<Jmp> unconditionalJump;
   private final List<Instruction> phiBHelperInstructions;
+  private final List<Instruction> afterConditionalJumpsInstructions;
   /** Blocks that can follow the current block in an execution. */
   private Set<FollowingBlockInfo> followingBlocks;
 
@@ -78,6 +79,7 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
     this.conditionalJumps = new ArrayList<>();
     this.unconditionalJump = Optional.empty();
     this.afterCompareInstructions = new ArrayList<>();
+    this.afterConditionalJumpsInstructions = new ArrayList<>();
     this.followingBlocks = null;
   }
 
@@ -101,7 +103,8 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
         + conditionalJumps.size()
         + (unconditionalJump.isPresent() ? 1 : 0)
         + afterCompareInstructions.size()
-        + phiBHelperInstructions.size();
+        + phiBHelperInstructions.size()
+        + afterConditionalJumpsInstructions.size();
   }
 
   @NotNull
@@ -114,6 +117,7 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
     }
     others.addAll(afterCompareInstructions);
     others.addAll(conditionalJumps);
+    others.addAll(afterConditionalJumpsInstructions);
     unconditionalJump.ifPresent(others::add);
     List<Instruction> tmpIt = hasCompare() ? new ArrayList<>() : phiBHelperInstructions;
     return Iterators.concat(
@@ -195,6 +199,10 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
 
   public void addBlockStartInstruction(Instruction instruction) {
     blockStartInstructions.add(instruction);
+  }
+
+  public void addAfterConditionalJumpsInstruction(Instruction instruction) {
+    afterConditionalJumpsInstructions.add(instruction);
   }
 
   @Override
