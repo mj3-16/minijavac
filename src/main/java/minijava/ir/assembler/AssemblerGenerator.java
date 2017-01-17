@@ -9,7 +9,6 @@ import firm.nodes.*;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
-import minijava.ir.Types;
 import minijava.ir.assembler.block.CodeBlock;
 import minijava.ir.assembler.block.CodeSegment;
 import minijava.ir.assembler.instructions.*;
@@ -21,6 +20,7 @@ import minijava.ir.assembler.instructions.Mul;
 import minijava.ir.assembler.instructions.Set;
 import minijava.ir.assembler.instructions.Sub;
 import minijava.ir.assembler.location.*;
+import minijava.ir.emit.Types;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.MethodInformation;
 

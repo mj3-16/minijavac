@@ -1,4 +1,4 @@
-package minijava.ir;
+package minijava.ir.emit;
 
 import minijava.ast.Block;
 import minijava.ast.BlockStatement;

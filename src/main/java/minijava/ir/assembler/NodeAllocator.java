@@ -5,10 +5,10 @@ import static minijava.ir.utils.FirmUtils.modeToWidth;
 import firm.*;
 import firm.nodes.*;
 import java.util.*;
-import minijava.ir.Types;
 import minijava.ir.assembler.instructions.Argument;
 import minijava.ir.assembler.instructions.ConstArgument;
 import minijava.ir.assembler.location.*;
+import minijava.ir.emit.Types;
 import minijava.ir.utils.MethodInformation;
 import org.jetbrains.annotations.Nullable;
 

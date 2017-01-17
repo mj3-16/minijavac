@@ -1,10 +1,11 @@
-package minijava.ir;
+package minijava.ir.emit;
 
 import firm.*;
 import firm.Program;
 import firm.Type;
 import minijava.ast.*;
 import minijava.ast.Class;
+import minijava.ir.InitFirm;
 
 public class Types {
 

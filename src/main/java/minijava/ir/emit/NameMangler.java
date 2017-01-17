@@ -1,4 +1,4 @@
-package minijava.ir;
+package minijava.ir.emit;
 
 import com.sun.jna.Platform;
 import firm.*;

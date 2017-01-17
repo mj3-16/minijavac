@@ -16,9 +16,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import minijava.ast.Program;
-import minijava.ir.IREmitter;
 import minijava.ir.assembler.allocator.OnTheFlyRegAllocator;
 import minijava.ir.assembler.block.AssemblerFile;
+import minijava.ir.emit.IREmitter;
 import minijava.ir.optimize.*;
 import minijava.ir.utils.CompileUtils;
 import minijava.lexer.Lexer;
@@ -191,7 +191,6 @@ public class Cli {
     Optimizer algebraicSimplifier = new AlgebraicSimplifier();
     Optimizer commonSubexpressionElimination = new CommonSubexpressionElimination();
     Optimizer phiOptimizer = new PhiOptimizer();
-    Optimizer phiBElimination = new PhiBElimination();
     while (true) {
       for (Graph graph : firm.Program.getGraphs()) {
         dumpGraphIfNeeded(graph, "before-simplification");
@@ -203,7 +202,6 @@ public class Cli {
         dumpGraphIfNeeded(graph, "before-control-flow-optimizations");
         while (controlFlowOptimizer.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
         //dumpGraphIfNeeded(graph, "after-constant-control-flow");
-        while (phiBElimination.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
         while (floatInTransformation.optimize(graph)
             | commonSubexpressionElimination.optimize(graph)) ;
       }

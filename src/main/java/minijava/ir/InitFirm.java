@@ -22,5 +22,5 @@ public class InitFirm {
   private InitFirm() {}
 
   /** Does nothing, but can be used to trigger the static initializer */
-  static void init() {}
+  public static void init() {}
 }
