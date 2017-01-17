@@ -21,7 +21,8 @@ public interface Optimizer {
         do {
           hasChanged = false;
           Cli.dumpGraphIfNeeded(graph, "before-simplification");
-          while (constantFolder.optimize(graph)
+          while (unreachableCodeRemover.optimize(graph)
+              | constantFolder.optimize(graph)
               | expressionNormalizer.optimize(graph)
               | algebraicSimplifier.optimize(graph)
               | commonSubexpressionElimination.optimize(graph)
