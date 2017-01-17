@@ -145,33 +145,42 @@ public class Inliner extends BaseOptimizer {
     afterCallBlock.setPred(0, graph.newJmp(endBlock));
   }
 
-  private Block moveDependenciesIntoNewBlock(Node node) {
-    Jmp jmp = (Jmp) node.getGraph().newJmp(node.getBlock());
-    Block newBlock = (Block) node.getGraph().newBlock(new Node[] {jmp});
-    Set<Node> toMove = new HashSet<>();
+  private Block moveDependenciesIntoNewBlock(Call call) {
+    Jmp jmp = (Jmp) graph.newJmp(call.getBlock());
+    Block newBlock = (Block) graph.newBlock(new Node[] {jmp});
+    Set<Node> toMove = getNodesToMove(call);
 
-    FirmUtils.withBackEdges(
-        node.getGraph(),
+    for (Node move : toMove) {
+      move.setBlock(newBlock);
+    }
+
+    return newBlock;
+  }
+
+  private Set<Node> getNodesToMove(Call call) {
+    return FirmUtils.withBackEdges(
+        graph,
         () -> {
+          Set<Node> toMove = new HashSet<>();
           Set<Node> toVisit = new HashSet<>();
 
           // the successors of the node itself should be checked
-          toVisit.add(node);
+          toVisit.add(call);
 
-          for (BackEdges.Edge edge : BackEdges.getOuts(node.getBlock())) {
+          for (Node node : NodeUtils.getNodesInBlock((Block) call.getBlock())) {
             // ... as well as any control flow nodes.
-            boolean controlFlowNode = edge.node.getMode().equals(Mode.getX());
+            boolean controlFlowNode = node.getMode().equals(Mode.getX());
 
             // Seems unnecessary, but this filters out keep edges
-            boolean sameBlock = edge.node.getBlock().equals(node.getBlock());
+            boolean sameBlock = node.getBlock().equals(call.getBlock());
 
             if (controlFlowNode && sameBlock) {
-              toVisit.add(edge.node);
+              toVisit.add(node);
 
               // In case of Projs (e.g. conditional jumps), we also want to move the Cond node.
               // This is so we don't have to generate spill instructions for values of mode b.
               // Otherwise the FloatIn transformation should do this.
-              NodeUtils.asProj(edge.node).ifPresent(proj -> toVisit.add(proj.getPred()));
+              NodeUtils.asProj(node).ifPresent(proj -> toVisit.add(proj.getPred()));
             }
           }
 
@@ -195,23 +204,12 @@ public class Inliner extends BaseOptimizer {
                 seq(BackEdges.getOuts(move))
                     .map(be -> be.node)
                     .filter(n -> !toMove.contains(n))
-                    .filter(n -> node.getBlock().equals(n.getBlock()))
+                    .filter(n -> call.getBlock().equals(n.getBlock()))
                     .toList());
           }
-          toMove.remove(node); // The node itself should remain in the old block
+          toMove.remove(call); // The node itself should remain in the old block
+          return toMove;
         });
-
-    for (Node move : toMove) {
-      if (move.getOpCode().equals(iro_Phi)) {
-        // We don't move phi nodes, as they are tied to the block.
-        // This case only happens in loops, where the PHi depends on the result of the call
-        // and a value of the last iteration.
-        continue;
-      }
-      move.setBlock(newBlock);
-    }
-
-    return newBlock;
   }
 
   @Override

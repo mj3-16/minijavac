@@ -16,6 +16,11 @@ import java.util.function.Consumer;
 import org.jooq.lambda.tuple.Tuple2;
 
 public class GraphUtils {
+
+  /**
+   * Copies all nodes from graph {@code from} into the graph {@code to}, reconstructs the edges
+   * between the copied nodes and returns the copied Start node and the copied End node.
+   */
   public static Tuple2<Start, End> copyGraph(Graph from, Graph to) {
     CopyWorker worker = new CopyWorker(to);
     return FirmUtils.withoutBackEdges(
