@@ -15,7 +15,6 @@ public interface Optimizer {
     Optimizer algebraicSimplifier = new AlgebraicSimplifier();
     Optimizer commonSubexpressionElimination = new CommonSubexpressionElimination();
     Optimizer phiOptimizer = new PhiOptimizer();
-    Optimizer phiBElimination = new PhiBElimination();
     while (true) {
       for (Graph graph : firm.Program.getGraphs()) {
         Cli.dumpGraphIfNeeded(graph, "before-simplification");
@@ -27,7 +26,6 @@ public interface Optimizer {
         Cli.dumpGraphIfNeeded(graph, "before-control-flow-optimizations");
         while (controlFlowOptimizer.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
         //dumpGraphIfNeeded(graph, "after-constant-control-flow");
-        while (phiBElimination.optimize(graph) | unreachableCodeRemover.optimize(graph)) ;
         while (floatInTransformation.optimize(graph)
             | commonSubexpressionElimination.optimize(graph)) ;
       }

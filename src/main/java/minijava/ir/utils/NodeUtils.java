@@ -23,7 +23,7 @@ public class NodeUtils {
     return node.getOpCode().equals(iro_Proj) ? Optional.of((Proj) node) : Optional.empty();
   }
 
-  public static Optional<CondProjs> determineProjectionNodes(Cond node) {
+  public static Optional<ProjPair> determineProjectionNodes(Cond node) {
     Proj[] projs =
         seq(BackEdges.getOuts(node)).map(be -> be.node).ofType(Proj.class).toArray(Proj[]::new);
 
@@ -32,19 +32,9 @@ public class NodeUtils {
     }
 
     if (projs[0].getNum() == Cond.pnTrue) {
-      return Optional.of(new CondProjs(projs[0], projs[1]));
+      return Optional.of(new ProjPair(projs[0], projs[1]));
     } else {
-      return Optional.of(new CondProjs(projs[1], projs[0]));
-    }
-  }
-
-  public static class CondProjs {
-    public final Proj true_;
-    public final Proj false_;
-
-    CondProjs(Proj true_, Proj false_) {
-      this.true_ = true_;
-      this.false_ = false_;
+      return Optional.of(new ProjPair(projs[1], projs[0]));
     }
   }
 

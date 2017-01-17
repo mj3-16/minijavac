@@ -1,31 +1,57 @@
-package minijava.ir;
-
-import static minijava.ir.Types.*;
+package minijava.ir.emit;
 
 import com.sun.jna.Pointer;
-import firm.*;
+import firm.ArrayType;
+import firm.Backend;
+import firm.ClassType;
+import firm.Construction;
+import firm.Entity;
+import firm.Graph;
+import firm.MethodType;
+import firm.Mode;
 import firm.Program;
+import firm.Relation;
+import firm.TargetValue;
 import firm.Type;
+import firm.Util;
 import firm.bindings.binding_ircons;
 import firm.bindings.binding_lowering;
-import firm.nodes.*;
 import firm.nodes.Block;
+import firm.nodes.Call;
+import firm.nodes.Cond;
+import firm.nodes.Div;
+import firm.nodes.Load;
+import firm.nodes.Mod;
+import firm.nodes.Node;
+import firm.nodes.Proj;
+import firm.nodes.Store;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.function.BiFunction;
 import minijava.Cli;
-import minijava.ast.*;
+import minijava.ast.BlockStatement;
 import minijava.ast.Class;
+import minijava.ast.Expression;
+import minijava.ast.Field;
+import minijava.ast.LocalVariable;
+import minijava.ast.Method;
+import minijava.ast.Ref;
+import minijava.ast.Statement;
+import minijava.ir.InitFirm;
 import minijava.ir.utils.CompileUtils;
 import minijava.util.SourceRange;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jooq.lambda.Seq;
 import org.jooq.lambda.function.Function4;
 
 /** Emits an intermediate representation for a given minijava Program. */
 public class IREmitter
     implements minijava.ast.Program.Visitor<Void>,
         minijava.ast.Block.Visitor<Void>,
-        Expression.Visitor<Node>,
+        Expression.Visitor<ExpressionIR>,
         BlockStatement.Visitor<Void> {
 
   private final IdentityHashMap<Class, ClassType> classTypes = new IdentityHashMap<>();
@@ -115,7 +141,7 @@ public class IREmitter
     // We rely on this when accessing this.
     assert thisIdx == 0;
     construction.setVariable(
-        thisIdx, construction.newProj(args, storageType(fakeThisType).getMode(), thisIdx));
+        thisIdx, construction.newProj(args, Types.storageType(fakeThisType).getMode(), thisIdx));
 
     for (LocalVariable p : that.parameters) {
       // we just made this connection in the loop above
@@ -123,7 +149,7 @@ public class IREmitter
       // Also note that we are never trying to access this or the
       int idx = getLocalVarIndex(p);
       // Where is this documented anyway? SimpleIf seems to be the only reference...
-      Node param = construction.newProj(args, storageType(p.type).getMode(), idx);
+      Node param = construction.newProj(args, Types.storageType(p.type).getMode(), idx);
       construction.setVariable(idx, param);
     }
   }
@@ -169,10 +195,9 @@ public class IREmitter
     firm.nodes.Block afterElse = construction.newBlock();
     firm.nodes.Block falseBlock = that.else_.isPresent() ? construction.newBlock() : afterElse;
 
-    Node condition = that.condition.acceptVisitor(this);
-    Node cond = construction.newCond(condition);
-    trueBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnTrue));
-    falseBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnFalse));
+    ControlFlowProjs condition = that.condition.acceptVisitor(this).asControlFlow();
+    condition.true_.forEach(trueBlock::addPred);
+    condition.false_.forEach(falseBlock::addPred);
 
     // code in true block
     trueBlock.mature();
@@ -219,10 +244,9 @@ public class IREmitter
     conditionBlock.addPred(endStart);
     construction.setCurrentBlock(conditionBlock);
     construction.getCurrentMem(); // See the slides, we need those PhiM nodes
-    Node condition = that.condition.acceptVisitor(this);
-    Node cond = construction.newCond(condition);
-    bodyBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnTrue));
-    endBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnFalse));
+    ControlFlowProjs condition = that.condition.acceptVisitor(this).asControlFlow();
+    condition.true_.forEach(bodyBlock::addPred);
+    condition.false_.forEach(endBlock::addPred);
     bodyBlock.mature();
     endBlock.mature();
 
@@ -245,7 +269,7 @@ public class IREmitter
   public Void visitReturn(Statement.Return that) {
     Node[] retVals = {};
     if (that.expression.isPresent()) {
-      retVals = new Node[] {convbToBu(that.expression.get().acceptVisitor(this))};
+      retVals = new Node[] {convControlFlowToBu(that.expression.get().acceptVisitor(this))};
     }
 
     Node ret = construction.newReturn(construction.getCurrentMem(), retVals);
@@ -258,7 +282,7 @@ public class IREmitter
     return null;
   }
 
-  public Node visitBinaryOperator(Expression.BinaryOperator that) {
+  public ExpressionIR visitBinaryOperator(Expression.BinaryOperator that) {
     switch (that.op) {
       case ASSIGN:
         return assign(that.left, that.right);
@@ -287,7 +311,7 @@ public class IREmitter
       case EQ:
         return compareWithRelation(that, Relation.Equal);
       case NEQ:
-        return booleanNot(compareWithRelation(that, Relation.Equal));
+        return compareWithRelation(that, Relation.LessGreater);
       default:
         throw new UnsupportedOperationException();
     }
@@ -297,37 +321,37 @@ public class IREmitter
    * Stores the value of `rhs` into the address of `lval`. `lval` must be an expression which has an
    * address for that, e.g. be an lval.
    */
-  private Node assign(Expression lval, Expression rhs) {
+  private ExpressionIR assign(Expression lval, Expression rhs) {
     // This is ugly, as we have to calculate the address of the expression of lval.
     if (lval instanceof Expression.Variable) {
-      Node value = rhs.acceptVisitor(this);
       Expression.Variable use = (Expression.Variable) lval;
       int idx = getLocalVarIndex(use.var.def);
-      construction.setVariable(idx, convbToBu(value));
+      ExpressionIR value = rhs.acceptVisitor(this);
+      construction.setVariable(idx, convControlFlowToBu(value));
       return value;
     } else if (lval instanceof Expression.FieldAccess) {
-      Node value = rhs.acceptVisitor(this);
       Expression.FieldAccess access = (Expression.FieldAccess) lval;
       Node address = calculateOffsetForAccess(access);
+      ExpressionIR value = rhs.acceptVisitor(this);
       return store(address, value);
     } else if (lval instanceof Expression.ArrayAccess) {
-      Node value = rhs.acceptVisitor(this);
       Expression.ArrayAccess access = (Expression.ArrayAccess) lval;
       Node address = calculateOffsetOfAccess(access);
+      ExpressionIR value = rhs.acceptVisitor(this);
       return store(address, value);
     }
     assert false;
     throw new UnsupportedOperationException("This should be caught in semantic analysis.");
   }
 
-  private Node divOrMod(
+  private ExpressionIR divOrMod(
       Expression.BinaryOperator that,
       Function4<Node, Node, Node, binding_ircons.op_pin_state, Node> newOp) {
     // A `div` or `mod` operation results in an element of the divmod tuple in memory
     // We convert the values from int to long, to prevent the INT_MIN / -1 exception
     // This shouldn't make any difference performance wise on 64 bit systems
-    Node leftConv = construction.newConv(that.left.acceptVisitor(this), Mode.getLs());
-    Node rightConv = construction.newConv(that.right.acceptVisitor(this), Mode.getLs());
+    Node leftConv = construction.newConv(that.left.acceptVisitor(this).asValue(), Mode.getLs());
+    Node rightConv = construction.newConv(that.right.acceptVisitor(this).asValue(), Mode.getLs());
     Node divOrMod =
         newOp.apply(
             construction.getCurrentMem(),
@@ -338,92 +362,99 @@ public class IREmitter
     assert Div.pnRes == Mod.pnRes;
     Node retProj = construction.newProj(divOrMod, Mode.getLs(), Div.pnRes);
     // Convert it back to int
-    return construction.newConv(retProj, Mode.getIs());
+    return ExpressionIR.fromValue(construction.newConv(retProj, Mode.getIs()));
   }
 
-  private Node arithmeticOperator(Expression.BinaryOperator that, BiFunction<Node, Node, Node> op) {
-    return op.apply(that.left.acceptVisitor(this), that.right.acceptVisitor(this));
+  private ExpressionIR arithmeticOperator(
+      Expression.BinaryOperator that, BiFunction<Node, Node, Node> op) {
+    Node left = that.left.acceptVisitor(this).asValue();
+    Node right = that.right.acceptVisitor(this).asValue();
+    return ExpressionIR.fromValue(op.apply(left, right));
   }
 
-  private Node shortciruit(Expression.BinaryOperator that) {
-    Block endBlock = construction.newBlock();
+  private ExpressionIR shortciruit(Expression.BinaryOperator that) {
+    ControlFlowProjs left = that.left.acceptVisitor(this).asControlFlow();
+    construction.getCurrentMem();
+
     Block rightBlock = construction.newBlock();
-
-    Node left = that.left.acceptVisitor(this);
-    Node cond = construction.newCond(left);
-
     if (that.op == Expression.BinOp.AND) {
-      // We shortcircuit if the left expression is False
-      endBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnFalse));
-      rightBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnTrue));
+      left.true_.forEach(rightBlock::addPred);
     } else {
       assert that.op == Expression.BinOp.OR;
-      // We shortcircuit if the left expression is True
-      endBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnTrue));
-      rightBlock.addPred(construction.newProj(cond, Mode.getX(), Cond.pnFalse));
+      left.false_.forEach(rightBlock::addPred);
     }
     rightBlock.mature();
 
     construction.setCurrentBlock(rightBlock);
-    Node leftMem = construction.getCurrentMem();
-    Node right = that.right.acceptVisitor(this);
-    Node rightMem = construction.getCurrentMem();
+    ControlFlowProjs right = that.right.acceptVisitor(this).asControlFlow();
+    ControlFlowProjs result =
+        that.op == Expression.BinOp.AND
+            ? right.addFalseJmps(left.false_) // We shortcircuit if the left expression is False
+            : right.addTrueJmps(left.true_); // We shortcircuit if the left expression is True
 
-    endBlock.addPred(construction.newJmp());
-    endBlock.mature();
-    construction.setCurrentBlock(endBlock);
-
-    // The return value is either the value of the left expression or
-    // that of the right, depending on control flow.
-    construction.setCurrentMem(construction.newPhi(new Node[] {leftMem, rightMem}, Mode.getM()));
-    return construction.newPhi(new Node[] {left, right}, Mode.getb());
+    return ExpressionIR.fromControlFlow(result);
   }
 
-  private Node compareWithRelation(Expression.BinaryOperator binOp, Relation relation) {
-    Node lhs = binOp.left.acceptVisitor(this);
-    Node rhs = binOp.right.acceptVisitor(this);
-    return construction.newCmp(convbToBu(lhs), convbToBu(rhs), relation);
+  private ExpressionIR compareWithRelation(Expression.BinaryOperator binOp, Relation relation) {
+    // We immediately convert the control flow to a byte. This will make one additional jmp,
+    // but will never duplicate code/evaluated expressions.
+    // E.g.: (this != that) == (expensive() == 5) will first evaluate the lhs, convert it to a byte
+    // value (1 jmp), then do the same for the rhs (2 jmps), and finally will compare both bytes
+    // and convert that into control flow accordingly (3 jmps).
+    // In theory we could evaluate `this`, `that`, `expensive()` and `5` in this block, then
+    // make the `!=` comparison. Then we duplicate the right `==` comparison into both target branches,
+    // after which we have switched up preds.
+    // As this is rather complicated, we leave it open for the optimizer as a reeeeeally low priority.
+    Node lhs = convControlFlowToBu(binOp.left.acceptVisitor(this));
+    Node rhs = convControlFlowToBu(binOp.right.acceptVisitor(this));
+    return convbToControlFlow(construction.newCmp(lhs, rhs, relation));
   }
 
-  private Node booleanNot(Node expression) {
-    Node trueNode = construction.newConst(TargetValue.getBTrue());
-    Node falseNode = construction.newConst(TargetValue.getBFalse());
-    return construction.newMux(expression, trueNode, falseNode);
+  private ControlFlowProjs booleanNot(ControlFlowProjs expression) {
+    return new ControlFlowProjs(expression.false_, expression.true_);
   }
 
   @Override
-  public Node visitUnaryOperator(Expression.UnaryOperator that) {
+  public ExpressionIR visitUnaryOperator(Expression.UnaryOperator that) {
     if (that.op == Expression.UnOp.NEGATE && that.expression instanceof Expression.IntegerLiteral) {
       // treat this case special in case the integer literal is 2147483648 (doesn't fit in int)
       int lit = Integer.parseInt("-" + ((Expression.IntegerLiteral) that.expression).literal);
-      return construction.newConst(lit, storageType(minijava.ast.Type.INT).getMode());
+      Node node = construction.newConst(lit, Types.storageType(minijava.ast.Type.INT).getMode());
+      return ExpressionIR.fromValue(node);
     }
-    Node expression = that.expression.acceptVisitor(this);
+    ExpressionIR expression = that.expression.acceptVisitor(this);
     // This can never produce an lval (an assignable expression)
     switch (that.op) {
       case NEGATE:
-        return construction.newMinus(expression);
+        return ExpressionIR.fromValue(construction.newMinus(expression.asValue()));
       case NOT:
-        return booleanNot(expression);
+        return ExpressionIR.fromControlFlow(booleanNot(expression.asControlFlow()));
       default:
         throw new UnsupportedOperationException();
     }
   }
 
   @Override
-  public Node visitMethodCall(Expression.MethodCall that) {
+  public ExpressionIR visitMethodCall(Expression.MethodCall that) {
     if (that.self.type == minijava.ast.Type.SYSTEM_OUT) {
-      if (that.method.name().equals("println")) {
-        return callFunction(PRINT_INT, new Node[] {that.arguments.get(0).acceptVisitor(this)});
-      }
-      if (that.method.name().equals("write")) {
-        return callFunction(WRITE_INT, new Node[] {that.arguments.get(0).acceptVisitor(this)});
-      } else if (that.method.name().equals("flush")) {
-        return callFunction(FLUSH, new Node[] {});
+      switch (that.method.name()) {
+        case "println":
+          return callFunction(
+              Types.PRINT_INT, new Node[] {that.arguments.get(0).acceptVisitor(this).asValue()});
+        case "write":
+          return callFunction(
+              Types.WRITE_INT, new Node[] {that.arguments.get(0).acceptVisitor(this).asValue()});
+        case "flush":
+          return callFunction(Types.FLUSH, new Node[] {});
+        default:
+          throw new UnsupportedOperationException("System.out." + that.method.name());
       }
     } else if (that.self.type == minijava.ast.Type.SYSTEM_IN) {
       if (that.method.name.equals("read")) {
-        return unpackCallResult(callFunction(READ_INT, new Node[] {}), INT_TYPE.getMode());
+        return unpackCallResult(
+            callFunction(Types.READ_INT, new Node[] {}), Types.INT_TYPE.getMode());
+      } else {
+        throw new UnsupportedOperationException("System.in." + that.method.name());
       }
     }
 
@@ -432,22 +463,22 @@ public class IREmitter
     List<Node> args = new ArrayList<>(that.arguments.size() + 1);
     // first argument is always this (static calls are disallowed)
     // this == that.self (X at `X.METHOD()`)
-    Node thisVar = that.self.acceptVisitor(this);
+    Node thisVar = that.self.acceptVisitor(this).asValue();
     args.add(thisVar);
     for (Expression a : that.arguments) {
-      args.add(convbToBu(a.acceptVisitor(this)));
+      args.add(convControlFlowToBu(a.acceptVisitor(this)));
     }
 
-    Node call = callFunction(method, args.toArray(new Node[0]));
+    ExpressionIR call = callFunction(method, args.toArray(new Node[0]));
     minijava.ast.Type returnType = that.method.def.returnType;
     if (!returnType.equals(minijava.ast.Type.VOID)) {
-      return unpackCallResult(call, storageType(returnType).getMode());
+      return unpackCallResult(call, Types.storageType(returnType).getMode());
     }
     return call;
   }
 
   @Nullable
-  private Node callFunction(Entity func, Node[] args) {
+  private ExpressionIR callFunction(Entity func, Node[] args) {
     // A call node expects an address that it can call
     Node funcAddress = construction.newAddress(func);
     // the last argument is (according to the documentation) the type of the called procedure
@@ -456,62 +487,63 @@ public class IREmitter
     // Set a new memory dependency for the result
     construction.setCurrentMem(construction.newProj(call, Mode.getM(), Call.pnM));
     // unpacking the result needs to be done separately with `unpackCallResult`
-    return call;
+    return ExpressionIR.fromValue(call);
   }
 
-  private Node unpackCallResult(Node call, Mode mode) {
+  private ExpressionIR unpackCallResult(ExpressionIR call, Mode mode) {
     // a method returns a tuple
-    Node resultTuple = construction.newProj(call, Mode.getT(), Call.pnTResult);
+    Node resultTuple = construction.newProj(call.asValue(), Mode.getT(), Call.pnTResult);
     // at index 0 this tuple contains the result
-    return convBuTob(construction.newProj(resultTuple, mode, 0));
+    return convBuToControlFlow(construction.newProj(resultTuple, mode, 0));
   }
 
   @Override
-  public Node visitFieldAccess(Expression.FieldAccess that) {
+  public ExpressionIR visitFieldAccess(Expression.FieldAccess that) {
     // This produces an lval
     Node absOffset = calculateOffsetForAccess(that);
 
     // We store val at the absOffset
 
-    return load(absOffset, storageType(that.type).getMode());
+    return load(absOffset, Types.storageType(that.type).getMode());
   }
 
   private Node calculateOffsetForAccess(Expression.FieldAccess that) {
-    Node self = that.self.acceptVisitor(this);
+    Node self = that.self.acceptVisitor(this).asValue();
     Entity field = fields.get(that.field.def);
     return construction.newMember(self, field);
   }
 
   @Override
-  public Node visitArrayAccess(Expression.ArrayAccess that) {
+  public ExpressionIR visitArrayAccess(Expression.ArrayAccess that) {
     Node address = calculateOffsetOfAccess(that);
 
     // We store val at the absOffset
 
     // Now just dereference the computed offset
-    return load(address, storageType(that.type).getMode());
+    return load(address, Types.storageType(that.type).getMode());
   }
 
   private Node calculateOffsetOfAccess(Expression.ArrayAccess that) {
-    Node array = that.array.acceptVisitor(this);
-    Node index = that.index.acceptVisitor(this);
-    return construction.newSel(array, index, new ArrayType(storageType(that.type), 0));
+    Node array = that.array.acceptVisitor(this).asValue();
+    Node index = that.index.acceptVisitor(this).asValue();
+    return construction.newSel(array, index, new ArrayType(Types.storageType(that.type), 0));
   }
 
-  private Node store(Node address, Node value) {
-    Node store = construction.newStore(construction.getCurrentMem(), address, convbToBu(value));
+  private ExpressionIR store(Node address, ExpressionIR value) {
+    Node asValue = convControlFlowToBu(value);
+    Node store = construction.newStore(construction.getCurrentMem(), address, asValue);
     construction.setCurrentMem(construction.newProj(store, Mode.getM(), Store.pnM));
     return value;
   }
 
-  private Node load(Node address, Mode mode) {
+  private ExpressionIR load(Node address, Mode mode) {
     Node load = construction.newLoad(construction.getCurrentMem(), address, mode);
     construction.setCurrentMem(construction.newProj(load, Mode.getM(), Load.pnM));
-    return convBuTob(construction.newProj(load, mode, Load.pnRes));
+    return convBuToControlFlow(construction.newProj(load, mode, Load.pnRes));
   }
 
   @Override
-  public Node visitNewObject(Expression.NewObject that) {
+  public ExpressionIR visitNewObject(Expression.NewObject that) {
     Type type = classTypes.get(that.type.basicType.def); // Only class types can be new allocated
     Node num = construction.newConst(1, Mode.getP());
     Node size = construction.newSize(Mode.getIs(), type);
@@ -519,19 +551,19 @@ public class IREmitter
   }
 
   @Override
-  public Node visitNewArray(Expression.NewArray that) {
+  public ExpressionIR visitNewArray(Expression.NewArray that) {
     // The number of array elements (the name clash is real)
-    Node num = that.size.acceptVisitor(this);
+    Node num = that.size.acceptVisitor(this).asValue();
     // The size of each array element. We can't just visit NewArray.elementType
     // because this will do the wrong thing for classes, namely returning the size of the
     // class. But in the class case we rather want to allocate an array of references.
     // The access mode is really what we want to query here.
-    Type elementType = storageType(that.elementType);
+    Type elementType = Types.storageType(that.elementType);
     Node size = construction.newSize(Mode.getIs(), elementType);
     return calloc(num, size);
   }
 
-  private Node calloc(Node num, Node size) {
+  private ExpressionIR calloc(Node num, Node size) {
     // calloc takes two parameters, for the number of elements and the size of each element.
     // both are of type size_t, so calloc expects them to be word sized. The best approximation
     // is to use the pointer (P) mode.
@@ -539,60 +571,85 @@ public class IREmitter
     // that here the element size is called size may be confusing, but whatever, I warned you.
     Node numNode = construction.newConv(num, Mode.getP());
     Node sizeNode = construction.newConv(size, Mode.getP());
-    Node call = callFunction(CALLOC, new Node[] {numNode, sizeNode});
+    ExpressionIR call = callFunction(Types.CALLOC, new Node[] {numNode, sizeNode});
     return unpackCallResult(call, Mode.getP());
   }
 
   @Override
-  public Node visitVariable(Expression.Variable that) {
-    Mode mode = storageType(that.type).getMode();
+  public ExpressionIR visitVariable(Expression.Variable that) {
+    Mode mode = Types.storageType(that.type).getMode();
     // This will allocate a new index if necessary.
     int idx = getLocalVarIndex(that.var.def);
-    return convBuTob(construction.getVariable(idx, mode));
+    return convBuToControlFlow(construction.getVariable(idx, mode));
   }
 
   /**
-   * Converts a node of mode b to one of mode Bu, by converting the False case to 0 and the True
-   * case to 1.
+   * Converts control flow ExpressionIR to Bu, by converting the False case to 0 and the True case
+   * to 1.
    */
-  private Node convbToBu(Node expression) {
-    if (expression.getMode().equals(Mode.getb())) {
+  private Node convControlFlowToBu(ExpressionIR expression) {
+    if (expression.isControlFlow()) {
+      ControlFlowProjs projs = expression.asControlFlow();
+      Block newBlock = construction.newBlock();
+      projs.false_.forEach(newBlock::addPred);
+      projs.true_.forEach(newBlock::addPred);
+      newBlock.mature();
+
+      construction.setCurrentBlock(newBlock);
       Node zero = construction.newConst(0, Mode.getBu());
       Node one = construction.newConst(1, Mode.getBu());
-      return construction.newMux(expression, zero, one);
+      Node[] phiPreds =
+          Seq.generate(zero)
+              .limit(projs.false_.size())
+              .append(Seq.generate(one).limit(projs.true_.size()))
+              .toArray(Node[]::new);
+      return construction.newPhi(phiPreds, Mode.getBu());
     }
-    return expression;
+    return expression.asValue();
   }
 
-  /** Converts a node of mode Bu to one of mode b, by val > 0. */
-  private Node convBuTob(Node expression) {
+  /** Converts a node of mode Bu to control flow by a comparison and a conditional jump. */
+  private ExpressionIR convBuToControlFlow(Node expression) {
     if (expression.getMode().equals(Mode.getBu())) {
-      Node one = construction.newConst(1, Mode.getBu());
-      return construction.newCmp(expression, one, Relation.Equal);
+      Node zero = construction.newConst(0, Mode.getBu());
+      Node cmp = construction.newCmp(expression, zero, Relation.LessGreater);
+      return convbToControlFlow(cmp);
     }
-    return expression;
+    return ExpressionIR.fromValue(expression);
+  }
+
+  @NotNull
+  private ExpressionIR convbToControlFlow(Node node) {
+    assert node.getMode().equals(Mode.getb());
+    Node cond = construction.newCond(node);
+    Proj false_ = (Proj) construction.newProj(cond, Mode.getX(), Cond.pnFalse);
+    Proj true_ = (Proj) construction.newProj(cond, Mode.getX(), Cond.pnTrue);
+    return ExpressionIR.fromControlFlow(true_, false_);
   }
 
   @Override
-  public Node visitBooleanLiteral(Expression.BooleanLiteral that) {
-    return construction.newConst(that.literal ? TargetValue.getBTrue() : TargetValue.getBFalse());
+  public ExpressionIR visitBooleanLiteral(Expression.BooleanLiteral that) {
+    Node sel =
+        construction.newConst(that.literal ? TargetValue.getBTrue() : TargetValue.getBFalse());
+    return convbToControlFlow(sel);
   }
 
   @Override
-  public Node visitIntegerLiteral(Expression.IntegerLiteral that) {
+  public ExpressionIR visitIntegerLiteral(Expression.IntegerLiteral that) {
     // We handled the 0x80000000 case while visiting the unary minus
     int lit = Integer.parseInt(that.literal);
-    return construction.newConst(lit, storageType(minijava.ast.Type.INT).getMode());
+    Node node = construction.newConst(lit, Types.storageType(minijava.ast.Type.INT).getMode());
+    return ExpressionIR.fromValue(node);
   }
 
   @Override
-  public Node visitReferenceTypeLiteral(Expression.ReferenceTypeLiteral that) {
+  public ExpressionIR visitReferenceTypeLiteral(Expression.ReferenceTypeLiteral that) {
     switch (that.name()) {
       case "this":
         // access parameter 0 as a pointer, that's where this is to be found
-        return construction.getVariable(0, Mode.getP());
+        return ExpressionIR.fromValue(construction.getVariable(0, Mode.getP()));
       case "null":
-        return construction.newConst(0, Mode.getP());
+        return ExpressionIR.fromValue(construction.newConst(0, Mode.getP()));
       case "System.out":
         // we should have catched this earlier, in the resepective MethodCall.
         assert false;
@@ -606,8 +663,8 @@ public class IREmitter
   public Void visitVariable(BlockStatement.Variable that) {
     int idx = getLocalVarIndex(that);
     if (that.rhs.isPresent()) {
-      Node rhs = that.rhs.get().acceptVisitor(this);
-      construction.setVariable(idx, convbToBu(rhs));
+      ExpressionIR rhs = that.rhs.get().acceptVisitor(this);
+      construction.setVariable(idx, convControlFlowToBu(rhs));
     }
 
     return null;

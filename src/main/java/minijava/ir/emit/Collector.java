@@ -1,6 +1,4 @@
-package minijava.ir;
-
-import static minijava.ir.Types.*;
+package minijava.ir.emit;
 
 import firm.*;
 import firm.Type;
@@ -37,7 +35,7 @@ class Collector implements Program.Visitor<Void> {
       if (decl.fields.size() == 0) {
         // We have to prevent class types of length 0, so we insert an unreachable field.
         String unusableFieldName = "0padding"; // unusable because of digit prefix
-        Entity fieldEnt = new Entity(classType, unusableFieldName, BOOLEAN_TYPE);
+        Entity fieldEnt = new Entity(classType, unusableFieldName, Types.BOOLEAN_TYPE);
         fieldEnt.setLdIdent(NameMangler.mangleInstanceFieldName(decl.name(), unusableFieldName));
       }
       for (Method m : decl.methods) {
@@ -53,7 +51,7 @@ class Collector implements Program.Visitor<Void> {
   }
 
   private Entity createEntity(Field f) {
-    Type type = storageType(f.type);
+    Type type = Types.storageType(f.type);
     ClassType definingClass = classTypes.get(f.definingClass.def);
     Entity fieldEnt = new Entity(definingClass, f.name(), type);
     fieldEnt.setLdIdent(NameMangler.mangleInstanceFieldName(definingClass.getName(), f.name()));
@@ -75,13 +73,13 @@ class Collector implements Program.Visitor<Void> {
     parameterTypes.add(ptrTo(definingClass));
     for (LocalVariable p : m.parameters) {
       // In the body, we need to refer to local variables by index, so we save that mapping.
-      parameterTypes.add(storageType(p.type));
+      parameterTypes.add(Types.storageType(p.type));
     }
 
     // The visitor returns null if that.returnType was void.
     Type[] returnTypes = {};
     if (!m.returnType.equals(minijava.ast.Type.VOID)) {
-      returnTypes = new Type[] {storageType(m.returnType)};
+      returnTypes = new Type[] {Types.storageType(m.returnType)};
     }
 
     Type methodType = new MethodType(parameterTypes.toArray(new Type[0]), returnTypes);

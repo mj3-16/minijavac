@@ -121,6 +121,8 @@ public class FirmUtils {
         return "le";
       case Equal:
         return "e";
+      case LessGreater:
+        return "ne";
       default:
         throw new RuntimeException();
     }
