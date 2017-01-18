@@ -68,6 +68,14 @@ public class GraphUtils {
     return connected[0];
   }
 
+  public static void walkPostOrder(Graph graph, Consumer<Node> visitNode) {
+    walkFromNodeDepthFirst(graph.getEnd(), n -> {}, visitNode);
+  }
+
+  public static void walkPreOrder(Graph graph, Consumer<Node> visitNode) {
+    walkFromNodeDepthFirst(graph.getEnd(), visitNode, n -> {});
+  }
+
   /**
    * Walks all graph nodes reachable via predecessor edges from {@param seed} and calls {@param
    * onDiscover} and {@param onFinish} in preorder resp. postorder.
