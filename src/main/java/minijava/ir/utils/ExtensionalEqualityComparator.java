@@ -5,10 +5,12 @@ import com.sun.jna.Pointer;
 import firm.Mode;
 import firm.TargetValue;
 import firm.bindings.binding_irnode;
+import firm.bindings.binding_irnode.ir_opcode;
 import firm.nodes.Cmp;
 import firm.nodes.Const;
 import firm.nodes.Node;
 import firm.nodes.NodeVisitor;
+import firm.nodes.Phi;
 import firm.nodes.Proj;
 import java.util.Comparator;
 
@@ -47,6 +49,10 @@ public class ExtensionalEqualityComparator implements Comparator<Node> {
 
     Comparator<Node> predComparator =
         (a, b) -> {
+          if (a.getOpCode() == ir_opcode.iro_Phi) {
+            // We have to break loops here before we may access the preds.
+            return a.getNr() - b.getNr();
+          }
           int cmp = 0;
           int n = a.getPredCount();
           for (int i = 0; i < n; ++i) {
@@ -117,6 +123,11 @@ public class ExtensionalEqualityComparator implements Comparator<Node> {
     @Override
     public void visit(Proj node) {
       cmp = node.getNum() - ((Proj) other).getNum();
+    }
+
+    @Override
+    public void visit(Phi node) {
+      cmp = node.getNr() - other.getNr();
     }
   }
 }
