@@ -35,7 +35,7 @@ public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements
     this.graph = graph;
     hasChanged = false;
     BackEdges.enable(graph);
-    graph.walkTopological(this);
+    GraphUtils.walkPostOrder(graph, n -> n.accept(this));
     BackEdges.disable(graph);
     return hasChanged;
   }
