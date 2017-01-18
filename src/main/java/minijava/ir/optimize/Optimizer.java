@@ -52,6 +52,9 @@ public interface Optimizer {
             .dependsOn(controlFlowOptimizer, floatInTransformation)
             .build();
 
+    ProgramMetrics metrics = ProgramMetrics.analyse(firm.Program.getGraphs());
+    Optimizer inliner = new LeafInliner(metrics);
+    boolean switchedToMaxNodesInliner = false;
     while (true) {
       for (Graph graph : firm.Program.getGraphs()) {
         perGraphFramework.optimizeUntilFixedpoint(graph);
@@ -59,15 +62,17 @@ public interface Optimizer {
 
       // Here comes the interprocedural stuff... This is method is really turning into a mess
       boolean hasChanged = false;
-      ProgramMetrics metrics = ProgramMetrics.analyse(firm.Program.getGraphs());
-      Optimizer inliner = new LeafInliner(metrics);
       for (Graph graph : firm.Program.getGraphs()) {
         hasChanged |= inliner.optimize(graph);
         unreachableCodeRemover.optimize(graph);
         Cli.dumpGraphIfNeeded(graph, "after-inlining");
       }
       if (!hasChanged) {
-        break;
+        if (switchedToMaxNodesInliner) {
+          break;
+        }
+        switchedToMaxNodesInliner = true;
+        inliner = new MaxNodesInliner(metrics);
       }
     }
     Cli.dumpGraphsIfNeeded("after-optimizations");
