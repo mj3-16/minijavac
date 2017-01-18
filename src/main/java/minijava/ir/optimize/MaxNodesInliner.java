@@ -11,7 +11,7 @@ import firm.nodes.*;
  */
 public class MaxNodesInliner extends Inliner {
 
-  static final int MAX_SIZE = 10000;
+  static final int MAX_SIZE = 1000;
 
   public MaxNodesInliner(ProgramMetrics metrics) {
     super(metrics);
