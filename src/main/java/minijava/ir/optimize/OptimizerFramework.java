@@ -82,7 +82,7 @@ public class OptimizerFramework {
       for (int i = 0; i < inverted.length; ++i) {
         Optimizer current = idToOptimizer[i];
         inverted[i] =
-            Seq.range(0, edges.size())
+            Seq.range(0, inverted.length)
                 .filter(
                     j ->
                         seq(edges.get(idToOptimizer[j]))

@@ -19,7 +19,7 @@ public interface Optimizer {
     OptimizerFramework perGraphFramework =
         new OptimizerFramework.Builder()
             .add(unreachableCodeRemover)
-            .dependsOn(controlFlowOptimizer /*, jmpBlockRemover*/)
+            .dependsOn(controlFlowOptimizer, jmpBlockRemover)
             .add(constantFolder)
             .dependsOn(algebraicSimplifier, phiOptimizer, controlFlowOptimizer)
             .add(expressionNormalizer)
@@ -48,7 +48,8 @@ public interface Optimizer {
             .dependsOn(controlFlowOptimizer)
             .add(controlFlowOptimizer)
             .dependsOn(constantFolder, algebraicSimplifier)
-            //.add(jmpBlockRemover).dependsOn(controlFlowOptimizer, floatInTransformation)
+            .add(jmpBlockRemover)
+            .dependsOn(controlFlowOptimizer, floatInTransformation)
             .build();
 
     while (true) {
