@@ -10,32 +10,50 @@ public interface Optimizer {
     Optimizer constantFolder = new ConstantFolder();
     Optimizer floatInTransformation = new FloatInTransformation();
     Optimizer controlFlowOptimizer = new ConstantControlFlowOptimizer();
+    Optimizer jmpBlockRemover = new JmpBlockRemover();
     Optimizer unreachableCodeRemover = new UnreachableCodeRemover();
     Optimizer expressionNormalizer = new ExpressionNormalizer();
     Optimizer algebraicSimplifier = new AlgebraicSimplifier();
     Optimizer commonSubexpressionElimination = new CommonSubexpressionElimination();
     Optimizer phiOptimizer = new PhiOptimizer();
+    OptimizerFramework perGraphFramework =
+        new OptimizerFramework.Builder()
+            .add(unreachableCodeRemover)
+            .dependsOn(controlFlowOptimizer /*, jmpBlockRemover*/)
+            .add(constantFolder)
+            .dependsOn(algebraicSimplifier, phiOptimizer, controlFlowOptimizer)
+            .add(expressionNormalizer)
+            .dependsOn(
+                constantFolder,
+                algebraicSimplifier,
+                phiOptimizer,
+                commonSubexpressionElimination,
+                controlFlowOptimizer)
+            .add(algebraicSimplifier)
+            .dependsOn(constantFolder, phiOptimizer, controlFlowOptimizer)
+            .add(commonSubexpressionElimination)
+            .dependsOn(
+                constantFolder,
+                expressionNormalizer,
+                algebraicSimplifier,
+                phiOptimizer,
+                controlFlowOptimizer)
+            .add(floatInTransformation)
+            .dependsOn(
+                commonSubexpressionElimination,
+                algebraicSimplifier,
+                phiOptimizer,
+                controlFlowOptimizer)
+            .add(phiOptimizer)
+            .dependsOn(controlFlowOptimizer)
+            .add(controlFlowOptimizer)
+            .dependsOn(constantFolder, algebraicSimplifier)
+            //.add(jmpBlockRemover).dependsOn(controlFlowOptimizer, floatInTransformation)
+            .build();
+
     while (true) {
       for (Graph graph : firm.Program.getGraphs()) {
-        boolean hasChanged;
-        do {
-          hasChanged = false;
-          Cli.dumpGraphIfNeeded(graph, "before-simplification");
-          while (unreachableCodeRemover.optimize(graph)
-              | constantFolder.optimize(graph)
-              | expressionNormalizer.optimize(graph)
-              | algebraicSimplifier.optimize(graph)
-              | commonSubexpressionElimination.optimize(graph)
-              | floatInTransformation.optimize(graph)
-              | phiOptimizer.optimize(graph)) {
-            hasChanged = true;
-          }
-          Cli.dumpGraphIfNeeded(graph, "before-control-flow-optimizations");
-          while (controlFlowOptimizer.optimize(graph) | unreachableCodeRemover.optimize(graph)) {
-            hasChanged = true;
-          }
-          //dumpGraphIfNeeded(graph, "after-constant-control-flow");
-        } while (hasChanged);
+        perGraphFramework.optimizeUntilFixedpoint(graph);
       }
 
       // Here comes the interprocedural stuff... This is method is really turning into a mess

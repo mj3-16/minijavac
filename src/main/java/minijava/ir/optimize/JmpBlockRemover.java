@@ -5,7 +5,6 @@ import static org.jooq.lambda.Seq.seq;
 import com.google.common.collect.Iterables;
 import firm.BackEdges;
 import firm.Graph;
-import firm.Mode;
 import firm.nodes.Block;
 import firm.nodes.Jmp;
 import firm.nodes.Node;
@@ -20,14 +19,14 @@ public class JmpBlockRemover extends BaseOptimizer {
     this.graph = graph;
     this.hasChanged = false;
     BackEdges.enable(graph);
-    graph.walkTopological(this);
+    graph.walkPostorder(this);
     BackEdges.disable(graph);
     return hasChanged;
   }
 
   @Override
   public void visit(Block block) {
-    if (!hasChanged && isJmpBlock(block) && hasOnePredecessor(block)) {
+    if (isJmpBlock(block) && hasOnePredecessor(block)) {
       hasChanged = true;
       remove(block);
     }
@@ -57,10 +56,6 @@ public class JmpBlockRemover extends BaseOptimizer {
     jmpTargetNewPredecessors[jmpToTargetEdge.pos] = jmpBlockPredecessor;
     Node newJmpTarget = graph.newBlock(jmpTargetNewPredecessors);
     Graph.exchange(jmpTarget, newJmpTarget);
-
-    Node bad = graph.newBad(Mode.getANY());
-    for (int i = 0; i < block.getPredCount(); i++) {
-      block.setPred(i, bad);
-    }
+    Graph.killNode(block);
   }
 }
