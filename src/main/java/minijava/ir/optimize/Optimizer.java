@@ -60,11 +60,10 @@ public interface Optimizer {
       // Here comes the interprocedural stuff... This is method is really turning into a mess
       boolean hasChanged = false;
       ProgramMetrics metrics = ProgramMetrics.analyse(firm.Program.getGraphs());
-      Optimizer inliner = new Inliner(metrics);
+      Optimizer inliner = new LeafInliner(metrics);
       for (Graph graph : firm.Program.getGraphs()) {
         hasChanged |= inliner.optimize(graph);
         unreachableCodeRemover.optimize(graph);
-        metrics.updateGraphInfo(graph);
         Cli.dumpGraphIfNeeded(graph, "after-inlining");
       }
       if (!hasChanged) {
