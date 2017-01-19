@@ -5,6 +5,7 @@ import static org.jooq.lambda.Seq.seq;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import minijava.ir.assembler.instructions.Argument;
 import minijava.ir.assembler.instructions.Instruction;
 
 /** Like {@link CodeSegment} but linearised. */
@@ -98,5 +99,15 @@ public class LinearCodeSegment extends Segment
 
   public List<String> getComments() {
     return Collections.unmodifiableList(comments);
+  }
+
+  public Set<Argument> getUsedArguments() {
+    Set<Argument> usedArguments = new HashSet<>();
+    for (LinearCodeSegment.InstructionOrString instructionOrString : this) {
+      if (instructionOrString.instruction.isPresent()) {
+        usedArguments.addAll(instructionOrString.instruction.get().getArguments());
+      }
+    }
+    return usedArguments;
   }
 }
