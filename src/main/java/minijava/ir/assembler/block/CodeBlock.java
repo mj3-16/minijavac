@@ -4,6 +4,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static org.jooq.lambda.Seq.seq;
 
 import com.google.common.collect.Iterators;
+import firm.nodes.Block;
 import java.util.*;
 import java.util.stream.Collectors;
 import minijava.ir.assembler.GNUAssemblerConvertible;
@@ -50,6 +51,7 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
   }
 
   public final String label;
+  public final Block firmBlock;
   private final List<Instruction> blockStartInstructions;
   private final List<Instruction> normalInstructions;
   private final List<Instruction> phiHelperInstructions;
@@ -68,8 +70,9 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
   private Map<CodeBlock, Integer> distanceToFollowingBlocks;
   private Set<Argument> argumentsUsedByFollowingBlocks;
 
-  public CodeBlock(String label) {
+  public CodeBlock(String label, Block firmBlock) {
     this.label = label;
+    this.firmBlock = firmBlock;
     this.blockStartInstructions = new ArrayList<>();
     this.normalInstructions = new ArrayList<>();
     this.phiHelperInstructions = new ArrayList<>();

@@ -4,7 +4,10 @@ import static minijava.ir.utils.FirmUtils.modeToWidth;
 
 import com.google.common.collect.ImmutableList;
 import com.sun.jna.Platform;
-import firm.*;
+import firm.BackEdges;
+import firm.Graph;
+import firm.Mode;
+import firm.Relation;
 import firm.nodes.*;
 import java.util.*;
 import java.util.function.BiFunction;
@@ -19,10 +22,14 @@ import minijava.ir.assembler.instructions.Jmp;
 import minijava.ir.assembler.instructions.Mul;
 import minijava.ir.assembler.instructions.Set;
 import minijava.ir.assembler.instructions.Sub;
-import minijava.ir.assembler.location.*;
+import minijava.ir.assembler.location.Location;
+import minijava.ir.assembler.location.MemoryNodeLocation;
+import minijava.ir.assembler.location.NodeLocation;
+import minijava.ir.assembler.location.Register;
 import minijava.ir.emit.Types;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.MethodInformation;
+import minijava.ir.utils.TopologicalBlockCollector;
 
 /**
  * Generates GNU assembler for a graph
@@ -55,18 +62,23 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     blocksToCodeBlocks = new HashMap<>();
     segment = new CodeSegment(new ArrayList<>(), new ArrayList<>());
     segment.addComment(String.format("Code segment for method %s", info.name));
-    blocksToCodeBlocks = new HashMap<>();
     BackEdges.enable(graph);
+    initCodeBlocks();
     graph.walkTopological(this);
     prependStartBlockWithPrologue();
     return segment;
   }
 
-  private CodeBlock getCodeBlock(Block block) {
-    if (!blocksToCodeBlocks.containsKey(block.getNr())) {
-      blocksToCodeBlocks.put(block.getNr(), new CodeBlock(getLabelForBlock(block)));
+  private void initCodeBlocks() {
+    blocksToCodeBlocks = new HashMap<>();
+    for (Block block : new TopologicalBlockCollector().getBlocksInTopologicalOrder(graph)) {
+      blocksToCodeBlocks.put(block.getNr(), new CodeBlock(getLabelForBlock(block), block));
       segment.addBlock(blocksToCodeBlocks.get(block.getNr()));
     }
+  }
+
+  private CodeBlock getCodeBlock(Block block) {
+    assert blocksToCodeBlocks.containsKey(block.getNr());
     return blocksToCodeBlocks.get(block.getNr());
   }
 
