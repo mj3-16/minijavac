@@ -1,6 +1,10 @@
 package minijava.ir.optimize;
 
+import com.google.common.util.concurrent.Runnables;
 import firm.Graph;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import minijava.Cli;
 
 public interface Optimizer {
@@ -54,7 +58,9 @@ public interface Optimizer {
 
     ProgramMetrics metrics = ProgramMetrics.analyse(firm.Program.getGraphs());
     Inliner inliner = new Inliner(metrics, true);
-    while (true) {
+    ScheduledFuture<?> timer =
+        Executors.newScheduledThreadPool(1).schedule(Runnables.doNothing(), 9, TimeUnit.MINUTES);
+    while (!timer.isDone()) {
       for (Graph graph : firm.Program.getGraphs()) {
         perGraphFramework.optimizeUntilFixedpoint(graph);
       }
