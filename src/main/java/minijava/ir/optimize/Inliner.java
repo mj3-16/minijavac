@@ -64,8 +64,7 @@ public class Inliner extends BaseOptimizer {
     for (Call call : callsToInline) {
       int methodSize = metrics.graphInfos.get(call.getGraph()).size;
       int newGraphSize = methodSize + size;
-      if (onlyLeafs && (methodSize < MAX_LEAF_SIZE_TO_ALWAYS_INLINE || newGraphSize < MAX_NODES)
-          || (!onlyLeafs && newGraphSize < MAX_NODES)) {
+      if (onlyLeafs && methodSize < MAX_LEAF_SIZE_TO_ALWAYS_INLINE || newGraphSize < MAX_NODES) {
         inline(call);
         hasChanged = true;
         size = newGraphSize;
