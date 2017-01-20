@@ -11,7 +11,7 @@ import firm.nodes.Phi;
  * Performs various optimizations special to Phi nodes. Currently, there are transformations for
  *
  * <ul>
- *   <li>Removing Phi nodes where all predecessor are the same.
+ *   <li>Removing Phi nodes where all predecessors are the same.
  * </ul>
  */
 public class PhiOptimizer extends BaseOptimizer {
