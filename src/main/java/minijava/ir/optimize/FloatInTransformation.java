@@ -52,7 +52,8 @@ public class FloatInTransformation extends BaseOptimizer {
   public boolean optimize(Graph graph) {
     //Cli.dumpGraphIfNeeded(graph, "before-float-in");
     this.graph = graph;
-    return fixedPointIteration(GraphUtils.postOrder(graph));
+    // Not sure if we really need more than one pass here, but better be safe.
+    return fixedPointIteration(GraphUtils.reversePostOrder(graph));
     //Cli.dumpGraphIfNeeded(graph, "after-float-in");
   }
 

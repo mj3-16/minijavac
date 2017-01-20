@@ -43,6 +43,7 @@ public class Inliner extends BaseOptimizer {
   public boolean optimize(Graph graph) {
     this.graph = graph;
     this.callsToInline.clear();
+    // Not sure if we really need more than one pass here, but better be safe.
     fixedPointIteration(GraphUtils.postOrder(graph));
     return inlineCandidates();
   }

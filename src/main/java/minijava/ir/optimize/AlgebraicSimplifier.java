@@ -43,16 +43,9 @@ public class AlgebraicSimplifier extends BaseOptimizer {
   @Override
   public boolean optimize(Graph graph) {
     this.graph = graph;
-    int i = 0;
-    boolean hasChangedAtAll = false;
-    do {
-      hasChanged = false;
-      GraphUtils.postOrder(graph).forEach(this::visit);
-      hasChangedAtAll |= hasChanged;
-      i++;
-    } while (hasChanged);
-    assert i <= 2;
-    return hasChangedAtAll;
+    hasChanged = false;
+    GraphUtils.postOrder(graph).forEach(this::visit);
+    return hasChanged;
   }
 
   @Override
