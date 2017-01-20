@@ -2,6 +2,7 @@ package minijava.ir.optimize;
 
 import static org.jooq.lambda.Seq.seq;
 
+import com.google.common.collect.Sets;
 import firm.BackEdges;
 import firm.Graph;
 import firm.Mode;
@@ -11,16 +12,17 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
 
-public class ConstantFolder extends NodeVisitor.Default implements Optimizer {
+public class ConstantFolder extends BaseOptimizer {
 
+  private static final Set<Mode> HANDLED_MODES =
+      Sets.newHashSet(Mode.getBu(), Mode.getb(), Mode.getIs(), Mode.getLs());
   private Map<Node, TargetValue> latticeMap;
-  private Graph graph;
-  private boolean hasChanged;
 
   @Override
   public boolean optimize(Graph graph) {
@@ -31,15 +33,7 @@ public class ConstantFolder extends NodeVisitor.Default implements Optimizer {
         () -> {
           do {
             hasChanged = false;
-            GraphUtils.walkPostOrder(
-                graph,
-                n -> {
-                  if (n.getMode().equals(Mode.getM())) {
-                    // Constant folding does not make sense for side-effects
-                    return;
-                  }
-                  n.accept(this);
-                });
+            GraphUtils.walkPostOrder(graph, this::visit);
           } while (hasChanged);
           return replaceConstants();
         });
@@ -268,7 +262,11 @@ public class ConstantFolder extends NodeVisitor.Default implements Optimizer {
 
   @Override
   public void visit(Proj node) {
-    visitUnaryOperation(Function.identity(), node, node.getPred());
+    if (HANDLED_MODES.contains(node.getMode())) {
+      visitUnaryOperation(Function.identity(), node, node.getPred());
+    } else {
+      updateValue(node, TargetValue.getBad());
+    }
   }
 
   @Override

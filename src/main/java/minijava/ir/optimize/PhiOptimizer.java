@@ -6,6 +6,7 @@ import static org.jooq.lambda.Seq.seq;
 import firm.Graph;
 import firm.nodes.Node;
 import firm.nodes.Phi;
+import minijava.ir.utils.GraphUtils;
 
 /**
  * Performs various optimizations special to Phi nodes. Currently, there are transformations for
@@ -20,7 +21,7 @@ public class PhiOptimizer extends BaseOptimizer {
   public boolean optimize(Graph graph) {
     this.graph = graph;
     this.hasChanged = false;
-    graph.walkTopological(this);
+    GraphUtils.walkPostOrder(graph, this::visit);
     return hasChanged;
   }
 

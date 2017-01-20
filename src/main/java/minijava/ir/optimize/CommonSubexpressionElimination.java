@@ -8,6 +8,7 @@ import firm.nodes.*;
 import java.util.*;
 import minijava.ir.Dominance;
 import minijava.ir.utils.ExtensionalEqualityComparator;
+import minijava.ir.utils.GraphUtils;
 import org.jooq.lambda.Seq;
 
 /**
@@ -22,7 +23,7 @@ import org.jooq.lambda.Seq;
  * fashion. With that information in place, we can substitute all similar nodes by their dominance
  * root after path compression (yielding a forest of star graphs).
  */
-public class CommonSubexpressionElimination extends NodeVisitor.Default implements Optimizer {
+public class CommonSubexpressionElimination extends BaseOptimizer {
 
   /**
    * We cache HashedNode instances for Nodes we already encountered. This also breaks cycles in the
@@ -43,7 +44,7 @@ public class CommonSubexpressionElimination extends NodeVisitor.Default implemen
     this.hashes.clear();
     this.similarNodes.clear();
     // One postorder traversal should be enough, as we don't handle Phi nodes and thus cycles.
-    graph.walkPostorder(this);
+    GraphUtils.walkPostOrder(graph, this::visit);
     return transform();
   }
 

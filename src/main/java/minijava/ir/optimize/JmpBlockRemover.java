@@ -8,23 +8,19 @@ import firm.Graph;
 import firm.nodes.Block;
 import firm.nodes.Jmp;
 import firm.nodes.Node;
-import firm.nodes.NodeVisitor;
 import java.util.List;
 import java.util.stream.Collectors;
 import minijava.ir.utils.GraphUtils;
 
 /** Removes {@link Block} nodes that contain a single {@link Jmp} node and nothing else. */
-public class JmpBlockRemover extends NodeVisitor.Default implements Optimizer {
-
-  private Graph graph;
-  private boolean hasChanged;
+public class JmpBlockRemover extends BaseOptimizer {
 
   @Override
   public boolean optimize(Graph graph) {
     this.graph = graph;
     this.hasChanged = false;
     BackEdges.enable(graph);
-    GraphUtils.walkReversePostOrder(graph, n -> n.accept(this));
+    GraphUtils.walkReversePostOrder(graph, this::visit);
     BackEdges.disable(graph);
     return hasChanged;
   }
