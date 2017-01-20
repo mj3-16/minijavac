@@ -6,12 +6,7 @@ import firm.Graph;
 import firm.nodes.End;
 import firm.nodes.Node;
 import firm.nodes.Start;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 import org.jooq.lambda.tuple.Tuple2;
 
@@ -73,18 +68,22 @@ public class GraphUtils {
    * things that change control flow. You can assume (except for back edges) that the nodes are
    * untouched when visited, e.g. predecessors are exactly the same as when the walk was started.
    */
-  public static void walkReversePostOrder(Graph graph, Consumer<Node> visitNode) {
+  public static ArrayDeque<Node> reversePostOrder(Graph graph) {
     ArrayDeque<Node> stack = new ArrayDeque<>();
-    walkPostOrder(graph, stack::addFirst);
-    stack.forEach(visitNode);
+    walkFromNodeDepthFirst(graph.getEnd(), n -> {}, stack::addFirst);
+    return stack;
   }
 
-  public static void walkPostOrder(Graph graph, Consumer<Node> visitNode) {
-    walkFromNodeDepthFirst(graph.getEnd(), n -> {}, visitNode);
+  public static ArrayList<Node> postOrder(Graph graph) {
+    ArrayList<Node> ret = new ArrayList<>();
+    walkFromNodeDepthFirst(graph.getEnd(), n -> {}, ret::add);
+    return ret;
   }
 
-  public static void walkPreOrder(Graph graph, Consumer<Node> visitNode) {
-    walkFromNodeDepthFirst(graph.getEnd(), visitNode, n -> {});
+  public static ArrayList<Node> preOrder(Graph graph) {
+    ArrayList<Node> ret = new ArrayList<>();
+    walkFromNodeDepthFirst(graph.getEnd(), ret::add, n -> {});
+    return ret;
   }
 
   /**

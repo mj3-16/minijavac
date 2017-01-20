@@ -28,15 +28,8 @@ public class ConstantFolder extends BaseOptimizer {
   public boolean optimize(Graph graph) {
     this.latticeMap = new HashMap<>();
     this.graph = graph;
-    return FirmUtils.withBackEdges(
-        graph,
-        () -> {
-          do {
-            hasChanged = false;
-            GraphUtils.walkPostOrder(graph, this::visit);
-          } while (hasChanged);
-          return replaceConstants();
-        });
+    fixedPointIteration(GraphUtils.postOrder(graph));
+    return FirmUtils.withBackEdges(graph, this::replaceConstants);
   }
 
   private boolean replaceConstants() {

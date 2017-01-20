@@ -51,14 +51,9 @@ public class FloatInTransformation extends BaseOptimizer {
   @Override
   public boolean optimize(Graph graph) {
     //Cli.dumpGraphIfNeeded(graph, "before-float-in");
-    boolean hasChangedAtAll = false;
-    do {
-      hasChanged = false;
-      GraphUtils.walkPostOrder(graph, this::visit);
-      hasChangedAtAll |= hasChanged;
-    } while (hasChanged);
+    this.graph = graph;
+    return fixedPointIteration(GraphUtils.postOrder(graph));
     //Cli.dumpGraphIfNeeded(graph, "after-float-in");
-    return hasChangedAtAll;
   }
 
   @Override
