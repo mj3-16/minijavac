@@ -52,6 +52,8 @@ public interface Optimizer {
             .dependsOn(controlFlowOptimizer, floatInTransformation)
             .build();
 
+    ProgramMetrics metrics = ProgramMetrics.analyse(firm.Program.getGraphs());
+    Inliner inliner = new Inliner(metrics, true);
     while (true) {
       for (Graph graph : firm.Program.getGraphs()) {
         perGraphFramework.optimizeUntilFixedpoint(graph);
@@ -59,16 +61,17 @@ public interface Optimizer {
 
       // Here comes the interprocedural stuff... This is method is really turning into a mess
       boolean hasChanged = false;
-      ProgramMetrics metrics = ProgramMetrics.analyse(firm.Program.getGraphs());
-      Optimizer inliner = new Inliner(metrics);
       for (Graph graph : firm.Program.getGraphs()) {
         hasChanged |= inliner.optimize(graph);
         unreachableCodeRemover.optimize(graph);
-        metrics.updateGraphInfo(graph);
         Cli.dumpGraphIfNeeded(graph, "after-inlining");
       }
       if (!hasChanged) {
-        break;
+        if (inliner.onlyLeafs) {
+          inliner = new Inliner(metrics, false);
+        } else {
+          break;
+        }
       }
     }
     Cli.dumpGraphsIfNeeded("after-optimizations");

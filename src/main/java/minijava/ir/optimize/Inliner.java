@@ -32,27 +32,43 @@ import org.jooq.lambda.tuple.Tuple2;
 public class Inliner extends BaseOptimizer {
   private static final Set<ir_opcode> ALWAYS_IN_START_BLOCK =
       Sets.newHashSet(iro_Const, iro_Address);
+  private static final int MAX_NODES = 1000;
+  /**
+   * Specifies the maximal number of nodes a leaf method can have to always be inlined, regardless
+   * of whether the graph already has more than {@link #MAX_NODES} nodes or not.
+   */
+  private static final int MAX_LEAF_SIZE_TO_ALWAYS_INLINE = 80;
+
   private final ProgramMetrics metrics;
   private final Set<Call> callsToInline = new HashSet<>();
 
-  public Inliner(ProgramMetrics metrics) {
+  public final boolean onlyLeafs;
+
+  public Inliner(ProgramMetrics metrics, boolean onlyLeafs) {
     this.metrics = metrics;
+    this.onlyLeafs = onlyLeafs;
   }
 
   @Override
   public boolean optimize(Graph graph) {
     this.graph = graph;
     this.callsToInline.clear();
+    metrics.updateGraphInfo(graph);
     fixedPointIteration();
     return inlineCandidates();
   }
 
   private boolean inlineCandidates() {
     boolean hasChanged = false;
+    int size = metrics.graphInfos.get(graph).size;
     for (Call call : callsToInline) {
-      //System.out.println("Inlining " + callee(call) + " into " + graph);
-      inline(call);
-      hasChanged = true;
+      int methodSize = metrics.graphInfos.get(call.getGraph()).size;
+      int newGraphSize = methodSize + size;
+      if (onlyLeafs && methodSize < MAX_LEAF_SIZE_TO_ALWAYS_INLINE || newGraphSize < MAX_NODES) {
+        inline(call);
+        hasChanged = true;
+        size = newGraphSize;
+      }
     }
     return hasChanged;
   }
@@ -220,7 +236,7 @@ public class Inliner extends BaseOptimizer {
       return;
     }
     ProgramMetrics.GraphInfo calleeInfo = metrics.graphInfos.get(callee(call));
-    if (!calleeInfo.calls.isEmpty()) {
+    if (onlyLeafs && !calleeInfo.calls.isEmpty()) {
       // We only inline if the callee itself doesn't call any other functions for now
       return;
     }
