@@ -68,6 +68,17 @@ public class GraphUtils {
     return connected[0];
   }
 
+  /**
+   * Computes a topological sorting on the predecessor (!) graph. This is the right traversal for
+   * things that change control flow. You can assume (except for back edges) that the nodes are
+   * untouched when visited, e.g. predecessors are exactly the same as when the walk was started.
+   */
+  public static void walkReversePostOrder(Graph graph, Consumer<Node> visitNode) {
+    ArrayDeque<Node> stack = new ArrayDeque<>();
+    walkPostOrder(graph, stack::addFirst);
+    stack.forEach(visitNode);
+  }
+
   public static void walkPostOrder(Graph graph, Consumer<Node> visitNode) {
     walkFromNodeDepthFirst(graph.getEnd(), n -> {}, visitNode);
   }

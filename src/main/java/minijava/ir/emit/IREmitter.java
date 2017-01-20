@@ -360,7 +360,10 @@ public class IREmitter
             binding_ircons.op_pin_state.op_pin_state_pinned);
     // Fetch the result from memory
     assert Div.pnRes == Mod.pnRes;
+    assert Div.pnM == Mod.pnM;
     Node retProj = construction.newProj(divOrMod, Mode.getLs(), Div.pnRes);
+    // Division by zero might overflow, which is a side effect we have to track.
+    construction.setCurrentMem(construction.newProj(divOrMod, Mode.getM(), Div.pnM));
     // Convert it back to int
     return ExpressionIR.fromValue(construction.newConv(retProj, Mode.getIs()));
   }
