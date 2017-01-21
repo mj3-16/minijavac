@@ -28,7 +28,6 @@ public class Inliner extends BaseOptimizer {
    */
   private static final int MAX_LEAF_SIZE_TO_ALWAYS_INLINE = 80;
 
->>>>>>> master
   private final ProgramMetrics metrics;
   private final Set<Call> callsToInline = new HashSet<>();
 
