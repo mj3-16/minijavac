@@ -1,7 +1,6 @@
 package minijava.ir.optimize;
 
 import firm.Graph;
-import firm.Mode;
 import firm.TargetValue;
 import firm.nodes.Bad;
 import firm.nodes.Block;
@@ -58,7 +57,7 @@ public class ConstantControlFlowOptimizer extends BaseOptimizer {
 
       hasChanged = true;
       Graph.exchange(alwaysTake, graph.newJmp(node.getBlock()));
-      Graph.exchange(delete, graph.newBad(Mode.getANY()));
+      Graph.killNode(delete);
 
       boolean endConnectedToStart = GraphUtils.areConnected(graph.getEnd(), graph.getStart());
 
