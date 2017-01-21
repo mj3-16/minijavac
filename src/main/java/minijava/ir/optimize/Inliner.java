@@ -1,26 +1,15 @@
 package minijava.ir.optimize;
 
-import static firm.bindings.binding_irnode.ir_opcode.iro_Address;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Const;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Phi;
+import static firm.bindings.binding_irnode.ir_opcode.*;
 import static org.jooq.lambda.Seq.seq;
 
-import com.google.common.collect.Sets;
+import com.google.common.collect.ImmutableSet;
 import firm.BackEdges;
 import firm.Graph;
 import firm.MethodType;
 import firm.Mode;
 import firm.bindings.binding_irnode.ir_opcode;
-import firm.nodes.Address;
-import firm.nodes.Block;
-import firm.nodes.Call;
-import firm.nodes.End;
-import firm.nodes.Jmp;
-import firm.nodes.Node;
-import firm.nodes.Phi;
-import firm.nodes.Proj;
-import firm.nodes.Return;
-import firm.nodes.Start;
+import firm.nodes.*;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -31,7 +20,7 @@ import org.jooq.lambda.tuple.Tuple2;
 
 public class Inliner extends BaseOptimizer {
   private static final Set<ir_opcode> ALWAYS_IN_START_BLOCK =
-      Sets.newHashSet(iro_Const, iro_Address);
+      ImmutableSet.of(iro_Const, iro_Address);
   private final ProgramMetrics metrics;
   private final Set<Call> callsToInline = new HashSet<>();
 

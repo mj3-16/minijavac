@@ -2,7 +2,7 @@ package minijava.ir.optimize;
 
 import static org.jooq.lambda.Seq.seq;
 
-import com.google.common.collect.Sets;
+import com.google.common.collect.ImmutableSet;
 import firm.BackEdges;
 import firm.Graph;
 import firm.Mode;
@@ -21,7 +21,7 @@ import minijava.ir.utils.GraphUtils;
 public class ConstantFolder extends BaseOptimizer {
 
   private static final Set<Mode> HANDLED_MODES =
-      Sets.newHashSet(Mode.getBu(), Mode.getb(), Mode.getIs(), Mode.getLs());
+      ImmutableSet.of(Mode.getBu(), Mode.getb(), Mode.getIs(), Mode.getLs());
   private Map<Node, TargetValue> latticeMap;
 
   @Override
