@@ -1,6 +1,10 @@
 package minijava.ir.optimize;
 
+import com.google.common.util.concurrent.Runnables;
 import firm.Graph;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import minijava.Cli;
 
 public interface Optimizer {
@@ -52,23 +56,28 @@ public interface Optimizer {
             .dependsOn(controlFlowOptimizer, floatInTransformation)
             .build();
 
-    while (true) {
+    ProgramMetrics metrics = ProgramMetrics.analyse(firm.Program.getGraphs());
+    Inliner inliner = new Inliner(metrics, true);
+    ScheduledFuture<?> timer =
+        Executors.newScheduledThreadPool(1).schedule(Runnables.doNothing(), 9, TimeUnit.MINUTES);
+    while (!timer.isDone()) {
       for (Graph graph : firm.Program.getGraphs()) {
         perGraphFramework.optimizeUntilFixedpoint(graph);
       }
 
       // Here comes the interprocedural stuff... This is method is really turning into a mess
       boolean hasChanged = false;
-      ProgramMetrics metrics = ProgramMetrics.analyse(firm.Program.getGraphs());
-      Optimizer inliner = new Inliner(metrics);
       for (Graph graph : firm.Program.getGraphs()) {
         hasChanged |= inliner.optimize(graph);
         unreachableCodeRemover.optimize(graph);
-        metrics.updateGraphInfo(graph);
         Cli.dumpGraphIfNeeded(graph, "after-inlining");
       }
       if (!hasChanged) {
-        break;
+        if (inliner.onlyLeafs) {
+          inliner = new Inliner(metrics, false);
+        } else {
+          break;
+        }
       }
     }
     Cli.dumpGraphsIfNeeded("after-optimizations");
