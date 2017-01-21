@@ -3,7 +3,13 @@ package minijava.ir.optimize;
 import firm.Graph;
 import firm.Mode;
 import firm.TargetValue;
-import firm.nodes.*;
+import firm.nodes.Bad;
+import firm.nodes.Block;
+import firm.nodes.Cond;
+import firm.nodes.Const;
+import firm.nodes.Jmp;
+import firm.nodes.Node;
+import firm.nodes.Proj;
 import java.util.Optional;
 import minijava.ir.Dominance;
 import minijava.ir.utils.GraphUtils;
@@ -23,8 +29,7 @@ public class ConstantControlFlowOptimizer extends BaseOptimizer {
   public boolean optimize(Graph graph) {
     this.graph = graph;
     hasChanged = false;
-    fixedPointIteration(GraphUtils.reversePostOrder(graph));
-    return hasChanged;
+    return fixedPointIteration(GraphUtils.reversePostOrder(graph));
   }
 
   @Override
