@@ -1,17 +1,9 @@
 package minijava.ir.optimize;
 
-import static firm.bindings.binding_irnode.ir_opcode.iro_Address;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Anchor;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Block;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Const;
-import static firm.bindings.binding_irnode.ir_opcode.iro_End;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Jmp;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Phi;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Proj;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Start;
+import static firm.bindings.binding_irnode.ir_opcode.*;
 import static org.jooq.lambda.Seq.seq;
 
-import com.google.common.collect.Sets;
+import com.google.common.collect.ImmutableSet;
 import firm.BackEdges;
 import firm.Graph;
 import firm.Mode;
@@ -37,7 +29,7 @@ public class FloatInTransformation extends BaseOptimizer {
    * Const need to stay in the start block.
    */
   private static final Set<ir_opcode> DONT_OPTIMIZE =
-      Sets.newHashSet(
+      ImmutableSet.of(
           iro_Block,
           iro_Phi,
           iro_Address,
