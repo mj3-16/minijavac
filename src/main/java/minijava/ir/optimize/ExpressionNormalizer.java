@@ -7,18 +7,18 @@ import firm.Graph;
 import firm.nodes.*;
 import java.util.List;
 import minijava.ir.utils.ExtensionalEqualityComparator;
+import minijava.ir.utils.GraphUtils;
 
 /**
  * Orders all operands to a commutative/(anti-)symmetric operator as prescribed by {@link
  * minijava.ir.utils.ExtensionalEqualityComparator}.
  */
-public class ExpressionNormalizer extends NodeVisitor.Default implements Optimizer {
-  private boolean hasChanged;
+public class ExpressionNormalizer extends BaseOptimizer {
 
   @Override
   public boolean optimize(Graph graph) {
     hasChanged = false;
-    graph.walkPostorder(this);
+    GraphUtils.walkPostOrder(graph, this::visit);
     return hasChanged;
   }
 

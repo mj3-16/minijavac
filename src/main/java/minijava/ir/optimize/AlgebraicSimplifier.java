@@ -34,12 +34,10 @@ import java.util.*;
  *   <li>TODO: Integral domain axioms: Distributivity
  * </ul>
  */
-public class AlgebraicSimplifier extends NodeVisitor.Default implements Optimizer {
+public class AlgebraicSimplifier extends BaseOptimizer {
 
   private static final Group ADD = new AddGroup();
   private static final Monoid MUL = new MulMonoid();
-  private Graph graph;
-  private boolean hasChanged;
 
   @Override
   public boolean optimize(Graph graph) {

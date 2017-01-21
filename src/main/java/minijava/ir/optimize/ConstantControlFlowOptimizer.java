@@ -10,7 +10,6 @@ import firm.nodes.Cond;
 import firm.nodes.Const;
 import firm.nodes.Jmp;
 import firm.nodes.Node;
-import firm.nodes.NodeVisitor;
 import firm.nodes.Proj;
 import java.util.Optional;
 import minijava.ir.Dominance;
@@ -25,17 +24,14 @@ import minijava.ir.utils.ProjPair;
  * <p>The {@link Proj} node that is no longer relevant is replaced with a {@link Bad} node. A
  * subsequent run of an {@link Optimizer} that removes such nodes is required.
  */
-public class ConstantControlFlowOptimizer extends NodeVisitor.Default implements Optimizer {
-
-  private Graph graph;
-  private boolean hasChanged;
+public class ConstantControlFlowOptimizer extends BaseOptimizer {
 
   @Override
   public boolean optimize(Graph graph) {
     this.graph = graph;
     hasChanged = false;
     BackEdges.enable(graph);
-    GraphUtils.walkPostOrder(graph, n -> n.accept(this));
+    GraphUtils.walkPostOrder(graph, this::visit);
     BackEdges.disable(graph);
     return hasChanged;
   }

@@ -1,43 +1,49 @@
 package minijava.ir.optimize;
 
-import com.google.common.collect.Iterables;
+import static org.jooq.lambda.Seq.seq;
+
+import com.google.common.collect.ImmutableSet;
 import firm.BackEdges;
 import firm.Graph;
+import firm.Mode;
 import firm.TargetValue;
 import firm.nodes.*;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.stream.StreamSupport;
+import minijava.ir.utils.FirmUtils;
+import minijava.ir.utils.GraphUtils;
 
 public class ConstantFolder extends BaseOptimizer {
 
+  private static final Set<Mode> HANDLED_MODES =
+      ImmutableSet.of(Mode.getBu(), Mode.getb(), Mode.getIs(), Mode.getLs());
   private Map<Node, TargetValue> latticeMap;
-
-  private TargetValue previousValue;
-  private TargetValue newValue;
-  private NodeVisitor phiStrategy;
 
   @Override
   public boolean optimize(Graph graph) {
     this.latticeMap = new HashMap<>();
     this.graph = graph;
-    BackEdges.enable(graph);
-    phiStrategy = new SupremumStrategy();
-    fixedPointIteration();
-    phiStrategy = new EqualAndConstantStrategy();
-    fixedPointIteration();
-    boolean changed = replaceConstants();
-    BackEdges.disable(graph);
-    return changed;
+    return FirmUtils.withBackEdges(
+        graph,
+        () -> {
+          do {
+            hasChanged = false;
+            GraphUtils.walkPostOrder(graph, this::visit);
+          } while (hasChanged);
+          return replaceConstants();
+        });
   }
 
   private boolean replaceConstants() {
     boolean nodesChanged = false;
     for (Entry<Node, TargetValue> e : latticeMap.entrySet()) {
       if (!(e.getKey() instanceof Const) && e.getValue().isConstant()) {
+        redirectMem(e.getKey());
         Node constant = graph.newConst(e.getValue());
         Graph.exchange(e.getKey(), constant);
         nodesChanged = true;
@@ -46,21 +52,60 @@ public class ConstantFolder extends BaseOptimizer {
     return nodesChanged;
   }
 
+  /**
+   * Div and Mod have side effects (e.g. division by zero) which are modeled with memory edges. When
+   * constant fold these, we also have to redirect the memory edges.
+   */
+  private void redirectMem(Node node) {
+    Optional<Node> mem = getInputMem(node);
+    Optional<Proj> memProj = getOutputMemProj(node);
+    if (mem.isPresent() && memProj.isPresent()) {
+      for (BackEdges.Edge be : BackEdges.getOuts(memProj.get())) {
+        be.node.setPred(be.pos, mem.get());
+      }
+    }
+  }
+
+  private Optional<Node> getInputMem(Node node) {
+    switch (node.getOpCode()) {
+      case iro_Div:
+        return Optional.of(((Div) node).getMem());
+      case iro_Mod:
+        return Optional.of(((Mod) node).getMem());
+      default:
+        return Optional.empty();
+    }
+  }
+
+  private Optional<Proj> getOutputMemProj(Node node) {
+    return seq(BackEdges.getOuts(node))
+        .map(be -> be.node)
+        .filter(n -> n.getMode().equals(Mode.getM()))
+        .ofType(Proj.class)
+        .findFirst();
+  }
+
+  private TargetValue getValue(Node n) {
+    return latticeMap.getOrDefault(n, TargetValue.getUnknown());
+  }
+
   private boolean isUnknown(Node n) {
-    TargetValue value = latticeMap.get(n);
-    return value == null || value.equals(TargetValue.getUnknown());
+    return getValue(n).equals(TargetValue.getUnknown());
   }
 
   private boolean isConstant(Node n) {
-    TargetValue value = latticeMap.get(n);
-    return value != null && value.isConstant();
+    return getValue(n).isConstant();
+  }
+
+  private boolean isBad(Node n) {
+    return getValue(n).equals(TargetValue.getBad());
   }
 
   /**
    * @param operation Describes how to calculate the constant value of {@code node}, if both {@code
    *     left} and {@code right} are constant. The inputs to this function are the constant values
    *     of {@code left} and {@code right}.
-   * @param node {@link Add}, {@link And}, {@link Div}, ...
+   * @param node {@link Add}, {@link And}, {@link Mul}, ...
    * @param left the left child of {@code node}
    * @param right the right child of {@code node}
    */
@@ -69,22 +114,33 @@ public class ConstantFolder extends BaseOptimizer {
       Node node,
       Node left,
       Node right) {
-    if (isUnknown(left) || isUnknown(right)) {
-      newValue = TargetValue.getUnknown();
-    } else if (isConstant(left) && isConstant(right)) {
-      TargetValue lhs = latticeMap.get(left);
-      TargetValue rhs = latticeMap.get(right);
-      newValue = operation.apply(lhs, rhs);
-    } else {
-      newValue = TargetValue.getBad();
-    }
-    previousValue = latticeMap.put(node, newValue);
-    hasChanged = detectChange();
+    visitBinaryOperationOptional(operation.andThen(Optional::of), node, left, right);
   }
 
-  private boolean detectChange() {
-    return (previousValue == null && !newValue.equals(TargetValue.getUnknown()))
-        || (previousValue != null && !newValue.equals(previousValue));
+  /**
+   * A more specific overload, the {@param operation} of which also allows to return
+   * Optional.empty() in case the result could not be calculated (e.g. division by zero).
+   */
+  private void visitBinaryOperationOptional(
+      BiFunction<TargetValue, TargetValue, Optional<TargetValue>> operation,
+      Node node,
+      Node left,
+      Node right) {
+    if (isBad(left) || isBad(right)) {
+      updateValue(node, TargetValue.getBad());
+    } else if (isUnknown(left) || isUnknown(right)) {
+      updateValue(node, TargetValue.getUnknown());
+    } else {
+      assert isConstant(left) && isConstant(right);
+      TargetValue lhs = getValue(left);
+      TargetValue rhs = getValue(right);
+      updateValue(node, operation.apply(lhs, rhs).orElse(TargetValue.getBad()));
+    }
+  }
+
+  @Override
+  public void defaultVisit(Node n) {
+    updateValue(n, TargetValue.getBad());
   }
 
   @Override
@@ -101,7 +157,6 @@ public class ConstantFolder extends BaseOptimizer {
   public void visit(Cmp node) {
     visitBinaryOperation(
         (lhs, rhs) -> {
-          // TODO: not sure how contains works, write tests for this!
           if (lhs.compare(rhs).contains(node.getRelation())) {
             return TargetValue.getBTrue();
           } else {
@@ -115,9 +170,7 @@ public class ConstantFolder extends BaseOptimizer {
 
   @Override
   public void visit(Const node) {
-    newValue = node.getTarval();
-    previousValue = latticeMap.put(node, newValue);
-    hasChanged = detectChange();
+    updateValue(node, node.getTarval());
   }
 
   @Override
@@ -127,7 +180,16 @@ public class ConstantFolder extends BaseOptimizer {
 
   @Override
   public void visit(Div node) {
-    visitBinaryOperation((lhs, rhs) -> lhs.div(rhs), node, node.getLeft(), node.getRight());
+    visitBinaryOperationOptional(
+        (lhs, rhs) -> {
+          if (rhs.isNull()) {
+            return Optional.empty();
+          }
+          return Optional.of(lhs.div(rhs));
+        },
+        node,
+        node.getLeft(),
+        node.getRight());
   }
 
   @Override
@@ -143,21 +205,35 @@ public class ConstantFolder extends BaseOptimizer {
    */
   private void visitUnaryOperation(
       Function<TargetValue, TargetValue> operation, Node node, Node child) {
-    if (isUnknown(child)) {
-      newValue = TargetValue.getUnknown();
+    if (isBad(child)) {
+      updateValue(node, TargetValue.getBad());
+    } else if (isUnknown(child)) {
+      updateValue(node, TargetValue.getUnknown());
     } else if (isConstant(child)) {
-      TargetValue value = latticeMap.get(child);
-      newValue = operation.apply(value);
-    } else {
-      newValue = TargetValue.getBad();
+      updateValue(node, operation.apply(getValue(child)));
     }
-    previousValue = latticeMap.put(node, newValue);
-    hasChanged = detectChange();
+  }
+
+  private void updateValue(Node node, TargetValue newValue) {
+    TargetValue previousValue = latticeMap.put(node, newValue);
+    if (previousValue == null) {
+      previousValue = TargetValue.getUnknown();
+    }
+    hasChanged |= !newValue.equals(previousValue);
   }
 
   @Override
   public void visit(Mod node) {
-    visitBinaryOperation((lhs, rhs) -> lhs.mod(rhs), node, node.getLeft(), node.getRight());
+    visitBinaryOperationOptional(
+        (lhs, rhs) -> {
+          if (rhs.isNull()) {
+            return Optional.empty();
+          }
+          return Optional.of(lhs.mod(rhs));
+        },
+        node,
+        node.getLeft(),
+        node.getRight());
   }
 
   @Override
@@ -177,12 +253,20 @@ public class ConstantFolder extends BaseOptimizer {
 
   @Override
   public void visit(Phi node) {
-    phiStrategy.visit(node);
+    TargetValue newValue =
+        seq(node.getPreds())
+            .map(this::getValue)
+            .reduce(TargetValue.getUnknown(), ConstantFolder::supremum);
+    updateValue(node, newValue);
   }
 
   @Override
   public void visit(Proj node) {
-    visitUnaryOperation(Function.identity(), node, node.getPred());
+    if (HANDLED_MODES.contains(node.getMode())) {
+      visitUnaryOperation(Function.identity(), node, node.getPred());
+    } else {
+      updateValue(node, TargetValue.getBad());
+    }
   }
 
   @Override
@@ -205,18 +289,6 @@ public class ConstantFolder extends BaseOptimizer {
     visitBinaryOperation((lhs, rhs) -> lhs.sub(rhs), node, node.getLeft(), node.getRight());
   }
 
-  private class SupremumStrategy extends NodeVisitor.Default {
-    @Override
-    public void visit(Phi node) {
-      newValue =
-          StreamSupport.stream(node.getPreds().spliterator(), false)
-              .map(n -> latticeMap.getOrDefault(n, TargetValue.getUnknown()))
-              .reduce(TargetValue.getUnknown(), (a, b) -> supremum(a, b));
-      previousValue = latticeMap.put(node, newValue);
-      hasChanged = detectChange();
-    }
-  }
-
   private static TargetValue supremum(TargetValue a, TargetValue b) {
     if (a.equals(b)) {
       return a; // or b
@@ -228,31 +300,5 @@ public class ConstantFolder extends BaseOptimizer {
       return a;
     }
     return TargetValue.getBad();
-  }
-
-  private class EqualAndConstantStrategy extends NodeVisitor.Default {
-    @Override
-    public void visit(Phi node) {
-      Node first = Iterables.getFirst(node.getPreds(), null);
-      if (first == null) {
-        // Phi node has no inputs
-        newValue = TargetValue.getBad();
-      } else {
-        // Phi node has at least 'first' as input
-        TargetValue firstValue = latticeMap.getOrDefault(first, TargetValue.getUnknown());
-        boolean allInputsAreEqual =
-            StreamSupport.stream(node.getPreds().spliterator(), false)
-                .skip(1)
-                .map(n -> latticeMap.getOrDefault(n, TargetValue.getUnknown()))
-                .allMatch(value -> value.equals(firstValue));
-        if (allInputsAreEqual && firstValue.isConstant()) {
-          newValue = firstValue;
-        } else {
-          newValue = TargetValue.getBad();
-        }
-      }
-      previousValue = latticeMap.put(node, newValue);
-      hasChanged = detectChange();
-    }
   }
 }

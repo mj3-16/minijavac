@@ -10,6 +10,7 @@ import firm.nodes.Jmp;
 import firm.nodes.Node;
 import java.util.List;
 import java.util.stream.Collectors;
+import minijava.ir.utils.GraphUtils;
 
 /** Removes {@link Block} nodes that contain a single {@link Jmp} node and nothing else. */
 public class JmpBlockRemover extends BaseOptimizer {
@@ -19,7 +20,7 @@ public class JmpBlockRemover extends BaseOptimizer {
     this.graph = graph;
     this.hasChanged = false;
     BackEdges.enable(graph);
-    graph.walkPostorder(this);
+    GraphUtils.walkReversePostOrder(graph, this::visit);
     BackEdges.disable(graph);
     return hasChanged;
   }

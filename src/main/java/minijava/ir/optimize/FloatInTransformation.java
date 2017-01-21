@@ -1,24 +1,15 @@
 package minijava.ir.optimize;
 
-import static firm.bindings.binding_irnode.ir_opcode.iro_Address;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Anchor;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Block;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Const;
-import static firm.bindings.binding_irnode.ir_opcode.iro_End;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Jmp;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Phi;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Proj;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Start;
+import static firm.bindings.binding_irnode.ir_opcode.*;
 import static org.jooq.lambda.Seq.seq;
 
-import com.google.common.collect.Sets;
+import com.google.common.collect.ImmutableSet;
 import firm.BackEdges;
 import firm.Graph;
 import firm.Mode;
 import firm.bindings.binding_irnode.ir_opcode;
 import firm.nodes.Block;
 import firm.nodes.Node;
-import firm.nodes.NodeVisitor;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -31,14 +22,14 @@ import org.jooq.lambda.tuple.Tuple2;
  * Floats definitions as near as possible to their uses, to lower register pressure and enable
  * common subexpression elimination to kick in once more.
  */
-public class FloatInTransformation extends NodeVisitor.Default implements Optimizer {
+public class FloatInTransformation extends BaseOptimizer {
 
   /**
    * Blocks can't be moved to another block, Phis are inherently tied to their block, Address and
    * Const need to stay in the start block.
    */
   private static final Set<ir_opcode> DONT_OPTIMIZE =
-      Sets.newHashSet(
+      ImmutableSet.of(
           iro_Block,
           iro_Phi,
           iro_Address,
@@ -49,15 +40,13 @@ public class FloatInTransformation extends NodeVisitor.Default implements Optimi
           iro_Anchor,
           iro_Proj);
 
-  private boolean hasChanged;
-
   @Override
   public boolean optimize(Graph graph) {
     //Cli.dumpGraphIfNeeded(graph, "before-float-in");
     boolean hasChangedAtAll = false;
     do {
       hasChanged = false;
-      GraphUtils.walkFromNodeDepthFirst(graph.getEnd(), n -> {}, n -> n.accept(this));
+      GraphUtils.walkPostOrder(graph, this::visit);
       hasChangedAtAll |= hasChanged;
     } while (hasChanged);
     //Cli.dumpGraphIfNeeded(graph, "after-float-in");

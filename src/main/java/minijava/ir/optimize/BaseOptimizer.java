@@ -32,4 +32,9 @@ public abstract class BaseOptimizer extends NodeVisitor.Default implements Optim
       }
     }
   }
+
+  /** Just a helper method, Node.accept(NodeVisitor) flipped. */
+  protected void visit(Node node) {
+    node.accept(this);
+  }
 }
