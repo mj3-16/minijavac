@@ -82,6 +82,8 @@ dependencies {
     compile 'com.intellij:annotations:5.1'
     compile 'org.jooq:jool:0.9.9'
     compile 'org.pcollections:pcollections:2.1.2'
+    compile 'org.slf4j:slf4j-api:1.7.22'
+    compile 'org.slf4j:slf4j-simple:1.7.22'
     testCompile 'com.github.npathai:hamcrest-optional:1.0'
     testCompile 'com.pholser:junit-quickcheck-core:0.6.1'
     testCompile 'com.pholser:junit-quickcheck-generators:0.6.1'

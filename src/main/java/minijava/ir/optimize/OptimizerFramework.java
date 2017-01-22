@@ -2,6 +2,7 @@ package minijava.ir.optimize;
 
 import static org.jooq.lambda.Seq.seq;
 
+import com.google.common.collect.Iterables;
 import firm.Graph;
 import java.util.List;
 import java.util.SortedSet;
@@ -14,8 +15,11 @@ import org.pcollections.PMap;
 import org.pcollections.PSet;
 import org.pcollections.PVector;
 import org.pcollections.TreePVector;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class OptimizerFramework {
+  private static final Logger LOGGER = LoggerFactory.getLogger("OptimizerFramework");
   private final Optimizer[] idToOptimizers;
   private final List<Integer>[] referrers;
 
@@ -35,15 +39,16 @@ public class OptimizerFramework {
       toVisit.remove(next);
 
       Optimizer chosenOptimizer = idToOptimizers[next];
-      //      System.out.println(chosenOptimizer.getClass().getSimpleName());
+      LOGGER.debug(chosenOptimizer.getClass().getSimpleName());
       Cli.dumpGraphIfNeeded(graph, "before-" + chosenOptimizer.getClass().getSimpleName());
       if (chosenOptimizer.optimize(graph)) {
         // The optimizer changed something, so we enqueue all dependent optimizers
-        //        System.out.println(
-        //            " ... changed. Bumping "
-        //                + Iterables.toString(
-        //                    seq(referrers[next]).map(i -> idToOptimizers[i].getClass().getSimpleName())));
-        toVisit.addAll(referrers[next]);
+        List<Integer> needRerun = referrers[next];
+        LOGGER.debug(
+            " ... changed. Bumping "
+                + Iterables.toString(
+                    seq(needRerun).map(i -> idToOptimizers[i].getClass().getSimpleName())));
+        toVisit.addAll(needRerun);
       }
     }
   }
