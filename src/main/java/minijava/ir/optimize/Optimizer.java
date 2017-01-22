@@ -20,9 +20,12 @@ public interface Optimizer {
     Optimizer algebraicSimplifier = new AlgebraicSimplifier();
     Optimizer commonSubexpressionElimination = new CommonSubexpressionElimination();
     Optimizer phiOptimizer = new PhiOptimizer();
+    Optimizer criticalEdgeDetector = new CriticalEdgeDetector();
     OptimizerFramework perGraphFramework =
         new OptimizerFramework.Builder()
             .add(unreachableCodeRemover)
+            .dependsOn(controlFlowOptimizer, jmpBlockRemover)
+            .add(criticalEdgeDetector)
             .dependsOn(controlFlowOptimizer, jmpBlockRemover)
             .add(constantFolder)
             .dependsOn(algebraicSimplifier, phiOptimizer, controlFlowOptimizer)

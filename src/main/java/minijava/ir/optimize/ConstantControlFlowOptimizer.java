@@ -1,6 +1,7 @@
 package minijava.ir.optimize;
 
 import firm.Graph;
+import firm.Mode;
 import firm.TargetValue;
 import firm.nodes.Bad;
 import firm.nodes.Block;
@@ -57,7 +58,8 @@ public class ConstantControlFlowOptimizer extends BaseOptimizer {
 
       hasChanged = true;
       Graph.exchange(alwaysTake, graph.newJmp(node.getBlock()));
-      Graph.killNode(delete);
+      // Using Graph.killNode introduces a loop somewhere... I wonder why.
+      Graph.exchange(delete, graph.newBad(Mode.getANY()));
 
       boolean endConnectedToStart = GraphUtils.areConnected(graph.getEnd(), graph.getStart());
 

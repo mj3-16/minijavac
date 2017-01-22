@@ -1,5 +1,7 @@
 package minijava.ir.emit;
 
+import static org.jooq.lambda.Seq.seq;
+
 import com.sun.jna.Pointer;
 import firm.ArrayType;
 import firm.Backend;
@@ -16,15 +18,7 @@ import firm.Type;
 import firm.Util;
 import firm.bindings.binding_ircons;
 import firm.bindings.binding_lowering;
-import firm.nodes.Block;
-import firm.nodes.Call;
-import firm.nodes.Cond;
-import firm.nodes.Div;
-import firm.nodes.Load;
-import firm.nodes.Mod;
-import firm.nodes.Node;
-import firm.nodes.Proj;
-import firm.nodes.Store;
+import firm.nodes.*;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -44,7 +38,6 @@ import minijava.ir.utils.CompileUtils;
 import minijava.util.SourceRange;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jooq.lambda.Seq;
 import org.jooq.lambda.function.Function4;
 
 /** Emits an intermediate representation for a given minijava Program. */
@@ -191,16 +184,12 @@ public class IREmitter
 
   @Override
   public Void visitIf(Statement.If that) {
-    firm.nodes.Block trueBlock = construction.newBlock();
-    firm.nodes.Block afterElse = construction.newBlock();
-    firm.nodes.Block falseBlock = that.else_.isPresent() ? construction.newBlock() : afterElse;
-
     ControlFlowProjs condition = that.condition.acceptVisitor(this).asControlFlow();
-    condition.true_.forEach(trueBlock::addPred);
-    condition.false_.forEach(falseBlock::addPred);
+    Block afterElse = construction.newBlock();
+    Block trueBlock = newLandingBlock(condition.true_);
+    Block falseBlock = newLandingBlock(condition.false_);
 
     // code in true block
-    trueBlock.mature();
     construction.setCurrentBlock(trueBlock);
     that.then.acceptVisitor(this);
 
@@ -211,18 +200,34 @@ public class IREmitter
     }
 
     // code in false block
-    if (that.else_.isPresent()) {
-      falseBlock.mature();
-      construction.setCurrentBlock(falseBlock);
-      that.else_.get().acceptVisitor(this);
-      if (!construction.isUnreachable()) {
-        afterElse.addPred(construction.newJmp());
-      }
+    construction.setCurrentBlock(falseBlock);
+    that.else_.ifPresent(statement -> statement.acceptVisitor(this));
+    if (!construction.isUnreachable()) {
+      afterElse.addPred(construction.newJmp());
     }
 
     construction.setCurrentBlock(afterElse);
-    afterElse.mature(); // Should we really do this?
+    afterElse.mature();
     return null;
+  }
+
+  private Jmp newJmpBlock(Node pred) {
+    Block block = construction.newBlock();
+    block.addPred(pred);
+    block.mature();
+    construction.setCurrentBlock(block);
+    return (Jmp) construction.newJmp();
+  }
+
+  /**
+   * This constructs a new block with the given predecessors, while avoiding hideous critical edges
+   * through inserting intermediate jump blocks as needed.
+   */
+  private Block newLandingBlock(Iterable<? extends Node> preds) {
+    Block landingBlock = construction.newBlock();
+    seq(preds).map(this::newJmpBlock).forEach(landingBlock::addPred);
+    landingBlock.mature();
+    return landingBlock;
   }
 
   @Override
@@ -236,19 +241,15 @@ public class IREmitter
   public Void visitWhile(Statement.While that) {
     Node endStart = construction.newJmp();
 
-    firm.nodes.Block conditionBlock = construction.newBlock();
-    firm.nodes.Block bodyBlock = construction.newBlock();
-    firm.nodes.Block endBlock = construction.newBlock();
+    Block conditionBlock = construction.newBlock();
 
     // code for the condition
     conditionBlock.addPred(endStart);
     construction.setCurrentBlock(conditionBlock);
     construction.getCurrentMem(); // See the slides, we need those PhiM nodes
     ControlFlowProjs condition = that.condition.acceptVisitor(this).asControlFlow();
-    condition.true_.forEach(bodyBlock::addPred);
-    condition.false_.forEach(endBlock::addPred);
-    bodyBlock.mature();
-    endBlock.mature();
+    Block bodyBlock = newLandingBlock(condition.true_);
+    Block endBlock = newLandingBlock(condition.false_);
 
     // code in body
     construction.setCurrentBlock(bodyBlock);
@@ -379,14 +380,13 @@ public class IREmitter
     ControlFlowProjs left = that.left.acceptVisitor(this).asControlFlow();
     construction.getCurrentMem();
 
-    Block rightBlock = construction.newBlock();
+    Block rightBlock;
     if (that.op == Expression.BinOp.AND) {
-      left.true_.forEach(rightBlock::addPred);
+      rightBlock = newLandingBlock(left.true_);
     } else {
       assert that.op == Expression.BinOp.OR;
-      left.false_.forEach(rightBlock::addPred);
+      rightBlock = newLandingBlock(left.false_);
     }
-    rightBlock.mature();
 
     construction.setCurrentBlock(rightBlock);
     ControlFlowProjs right = that.right.acceptVisitor(this).asControlFlow();
@@ -593,20 +593,27 @@ public class IREmitter
   private Node convControlFlowToBu(ExpressionIR expression) {
     if (expression.isControlFlow()) {
       ControlFlowProjs projs = expression.asControlFlow();
+      Block trueBlock = construction.newBlock();
+      Block falseBlock = construction.newBlock();
       Block newBlock = construction.newBlock();
-      projs.false_.forEach(newBlock::addPred);
-      projs.true_.forEach(newBlock::addPred);
+
+      // We need these intermediate blocks because we might introduce critical edges.
+      // Some later step (Codegen probably) could optimize unnecessary jumps away.
+      seq(projs.false_).map(this::newJmpBlock).forEach(falseBlock::addPred);
+      seq(projs.true_).map(this::newJmpBlock).forEach(trueBlock::addPred);
+      falseBlock.mature();
+      trueBlock.mature();
+
+      construction.setCurrentBlock(falseBlock);
+      newBlock.addPred(construction.newJmp());
+      construction.setCurrentBlock(trueBlock);
+      newBlock.addPred(construction.newJmp());
       newBlock.mature();
 
       construction.setCurrentBlock(newBlock);
       Node zero = construction.newConst(0, Mode.getBu());
       Node one = construction.newConst(1, Mode.getBu());
-      Node[] phiPreds =
-          Seq.generate(zero)
-              .limit(projs.false_.size())
-              .append(Seq.generate(one).limit(projs.true_.size()))
-              .toArray(Node[]::new);
-      return construction.newPhi(phiPreds, Mode.getBu());
+      return construction.newPhi(new Node[] {zero, one}, Mode.getBu());
     }
     return expression.asValue();
   }

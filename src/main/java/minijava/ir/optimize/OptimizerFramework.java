@@ -2,7 +2,6 @@ package minijava.ir.optimize;
 
 import static org.jooq.lambda.Seq.seq;
 
-import com.google.common.collect.Iterables;
 import firm.Graph;
 import java.util.List;
 import java.util.SortedSet;
@@ -36,14 +35,14 @@ public class OptimizerFramework {
       toVisit.remove(next);
 
       Optimizer chosenOptimizer = idToOptimizers[next];
-      System.out.println(chosenOptimizer.getClass().getSimpleName());
+      //      System.out.println(chosenOptimizer.getClass().getSimpleName());
       Cli.dumpGraphIfNeeded(graph, "before-" + chosenOptimizer.getClass().getSimpleName());
       if (chosenOptimizer.optimize(graph)) {
         // The optimizer changed something, so we enqueue all dependent optimizers
-        System.out.println(
-            " ... changed. Bumping "
-                + Iterables.toString(
-                    seq(referrers[next]).map(i -> idToOptimizers[i].getClass().getSimpleName())));
+        //        System.out.println(
+        //            " ... changed. Bumping "
+        //                + Iterables.toString(
+        //                    seq(referrers[next]).map(i -> idToOptimizers[i].getClass().getSimpleName())));
         toVisit.addAll(referrers[next]);
       }
     }
