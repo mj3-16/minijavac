@@ -1,5 +1,7 @@
 package minijava.ir.optimize;
 
+import static firm.bindings.binding_irnode.ir_opcode.iro_Deleted;
+
 import firm.BackEdges;
 import firm.Graph;
 import firm.nodes.Node;
@@ -29,6 +31,9 @@ public abstract class BaseOptimizer extends NodeVisitor.Default implements Optim
           Worklist worklist = new Worklist(initialWorklist);
           while (!worklist.isEmpty()) {
             Node n = worklist.dequeue();
+            if (n.getOpCode() == iro_Deleted) {
+              continue;
+            }
             hasChanged = false;
             n.accept(this);
             if (hasChanged) {
