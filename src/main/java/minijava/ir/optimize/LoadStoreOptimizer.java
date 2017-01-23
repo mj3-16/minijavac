@@ -6,6 +6,7 @@ import firm.Mode;
 import firm.nodes.*;
 import minijava.ir.Dominance;
 import minijava.ir.utils.GraphUtils;
+import minijava.ir.utils.NodeUtils;
 
 public class LoadStoreOptimizer extends BaseOptimizer {
 
@@ -32,11 +33,16 @@ public class LoadStoreOptimizer extends BaseOptimizer {
         }
 
         hasChanged = true;
+
         for (BackEdges.Edge be : BackEdges.getOuts(node)) {
           // Let the Projs point to the previous load
           be.node.setPred(be.pos, previousLoad);
           be.node.setBlock(previousLoad.getBlock());
         }
+        // There must never be more than one Proj for each Num (e.g. M, Res, etc.),
+        // so we merge them.
+        NodeUtils.mergeProjsWithNum(previousLoad, Load.pnM);
+        NodeUtils.mergeProjsWithNum(previousLoad, Load.pnRes);
         Graph.killNode(node);
         break;
       case iro_Store:
@@ -56,6 +62,7 @@ public class LoadStoreOptimizer extends BaseOptimizer {
             Graph.exchange(be.node, previousStore.getValue());
           }
         }
+        NodeUtils.mergeProjsWithNum(previousStore, Store.pnM);
         Graph.killNode(node);
         break;
       default:
@@ -80,7 +87,6 @@ public class LoadStoreOptimizer extends BaseOptimizer {
         if (killsOldValue) {
           Graph.killNode(previousStore);
         }
-
         break;
       default:
         break;

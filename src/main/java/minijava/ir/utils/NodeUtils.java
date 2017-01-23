@@ -6,12 +6,15 @@ import static org.jooq.lambda.Seq.zipWithIndex;
 
 import com.google.common.collect.ImmutableSet;
 import firm.BackEdges;
+import firm.Graph;
 import firm.bindings.binding_irnode;
 import firm.nodes.Block;
 import firm.nodes.Cond;
 import firm.nodes.Const;
 import firm.nodes.Node;
 import firm.nodes.Proj;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.jooq.lambda.Seq;
@@ -72,5 +75,34 @@ public class NodeUtils {
     e.node = node;
     e.pos = pos;
     return e;
+  }
+
+  /**
+   * There may only ever be one Proj per Num (e.g. M, Res, True, False, etc.). This helper will go
+   * through all reverse preds of every Proj with Num num and point them to one desiganted survivor
+   * proj.
+   *
+   * @param node The node where there might be duplicate projs
+   * @param num The num of the Projs to merge.
+   */
+  public static void mergeProjsWithNum(Node node, int num) {
+    List<Proj> projs = new ArrayList<>();
+    for (BackEdges.Edge be : BackEdges.getOuts(node)) {
+      asProj(be.node)
+          .ifPresent(
+              proj -> {
+                if (proj.getNum() == num) {
+                  projs.add(proj);
+                }
+              });
+    }
+    // this will do the right thing in case there aren't any projs as well as when there are 1 or more.
+    for (Proj proj : seq(projs).skip(1)) {
+      Proj survivor = projs.get(0);
+      for (BackEdges.Edge be : BackEdges.getOuts(proj)) {
+        be.node.setPred(be.pos, survivor);
+      }
+      Graph.killNode(proj);
+    }
   }
 }
