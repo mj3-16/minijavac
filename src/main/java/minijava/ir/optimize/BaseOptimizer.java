@@ -4,6 +4,8 @@ import firm.BackEdges;
 import firm.Graph;
 import firm.nodes.Node;
 import firm.nodes.NodeVisitor;
+import java.util.Collection;
+import minijava.ir.utils.FirmUtils;
 
 public abstract class BaseOptimizer extends NodeVisitor.Default implements Optimizer {
 
@@ -11,7 +13,7 @@ public abstract class BaseOptimizer extends NodeVisitor.Default implements Optim
   protected boolean hasChanged;
 
   /**
-   * Implements the work-list algorithm.
+   * Implements the work-list algorithm, starting with the provided initial worklist.
    *
    * <p>Nodes in the work-list are processed by calling {@link Node#accept(NodeVisitor)
    * node.accept(this)}. In order for the data-flow analyses to be successful, implementations of
@@ -19,18 +21,25 @@ public abstract class BaseOptimizer extends NodeVisitor.Default implements Optim
    * overwritten {@code visit(Node)} methods, if the outputs of the node's transfer function differ
    * from the outputs of the previous visiting.
    */
-  protected void fixedPointIteration() {
-    Worklist worklist = Worklist.fillTopological(graph);
-    while (!worklist.isEmpty()) {
-      Node n = worklist.removeFirst();
-      hasChanged = false;
-      n.accept(this);
-      if (hasChanged) {
-        for (BackEdges.Edge e : BackEdges.getOuts(n)) {
-          worklist.addFirst(e.node);
-        }
-      }
-    }
+  protected boolean fixedPointIteration(Collection<Node> initialWorklist) {
+    return FirmUtils.withBackEdges(
+        graph,
+        () -> {
+          boolean hasChangedInAnyVisit = false;
+          Worklist worklist = new Worklist(initialWorklist);
+          while (!worklist.isEmpty()) {
+            Node n = worklist.dequeue();
+            hasChanged = false;
+            n.accept(this);
+            if (hasChanged) {
+              for (BackEdges.Edge e : BackEdges.getOuts(n)) {
+                worklist.enqueue(e.node);
+              }
+              hasChangedInAnyVisit = true;
+            }
+          }
+          return hasChangedInAnyVisit;
+        });
   }
 
   /** Just a helper method, Node.accept(NodeVisitor) flipped. */

@@ -10,6 +10,7 @@ import firm.nodes.Jmp;
 import firm.nodes.Node;
 import java.util.List;
 import java.util.stream.Collectors;
+import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
 
 /** Removes {@link Block} nodes that contain a single {@link Jmp} node and nothing else. */
@@ -19,9 +20,7 @@ public class JmpBlockRemover extends BaseOptimizer {
   public boolean optimize(Graph graph) {
     this.graph = graph;
     this.hasChanged = false;
-    BackEdges.enable(graph);
-    GraphUtils.walkReversePostOrder(graph, this::visit);
-    BackEdges.disable(graph);
+    FirmUtils.withBackEdges(graph, () -> GraphUtils.reversePostOrder(graph).forEach(this::visit));
     return hasChanged;
   }
 
@@ -52,11 +51,8 @@ public class JmpBlockRemover extends BaseOptimizer {
     Jmp jmp = (Jmp) nodesInBlock(block).get(0);
     BackEdges.Edge jmpToTargetEdge = Iterables.getOnlyElement(BackEdges.getOuts(jmp));
     Block jmpTarget = (Block) jmpToTargetEdge.node;
-    Node[] jmpTargetNewPredecessors = Iterables.toArray(jmpTarget.getPreds(), Node.class);
     Node jmpBlockPredecessor = Iterables.getOnlyElement(block.getPreds());
-    jmpTargetNewPredecessors[jmpToTargetEdge.pos] = jmpBlockPredecessor;
-    Node newJmpTarget = graph.newBlock(jmpTargetNewPredecessors);
-    Graph.exchange(jmpTarget, newJmpTarget);
+    jmpTarget.setPred(jmpToTargetEdge.pos, jmpBlockPredecessor);
     Graph.killNode(block);
   }
 }

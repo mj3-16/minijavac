@@ -1,43 +1,37 @@
 package minijava.ir.optimize;
 
-import firm.Graph;
 import firm.nodes.Node;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.NoSuchElementException;
+import java.util.*;
 
 class Worklist {
-  private final Deque<Node> queue = new ArrayDeque<>();
+  /** We use this Set for prevent duplicate nodes in the queue. */
+  private final Set<Node> queueSet;
 
-  private Worklist() {}
+  private final Deque<Node> queue;
 
-  /**
-   * Creates a new {@code Worklist}, initialized with the nodes of {@code graph} in topological
-   * order.
-   */
-  static Worklist fillTopological(Graph graph) {
-    Worklist w = new Worklist();
-    graph.walkTopological(new ConsumingNodeVisitor(w::addLast));
-    return w;
+  Worklist(Collection<Node> initialWorklist) {
+    queue = new ArrayDeque<>(initialWorklist);
+    queueSet = new HashSet<>(initialWorklist);
   }
 
-  /** Inserts the specified element at the end of this work list. */
-  void addLast(Node n) {
-    queue.addLast(n);
-  }
-
-  /** Inserts the specified element at the front this work list. */
-  void addFirst(Node n) {
+  /** Enqueues the specified element if it's not a duplicate. */
+  void enqueue(Node n) {
+    if (queueSet.contains(n)) {
+      return;
+    }
+    queueSet.add(n);
     queue.addFirst(n);
   }
 
   /**
-   * Retrieves and removes the head of this work list.
+   * Dequeues the next item of the work list.
    *
    * @throws NoSuchElementException if this work list is empty
    */
-  Node removeFirst() {
-    return queue.removeFirst();
+  Node dequeue() {
+    Node n = queue.removeFirst();
+    queueSet.remove(n);
+    return n;
   }
 
   /** Returns true if this work list contains no elements. */

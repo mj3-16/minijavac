@@ -21,7 +21,7 @@ public class PhiOptimizer extends BaseOptimizer {
   public boolean optimize(Graph graph) {
     this.graph = graph;
     this.hasChanged = false;
-    GraphUtils.walkPostOrder(graph, this::visit);
+    GraphUtils.postOrder(graph).forEach(this::visit);
     return hasChanged;
   }
 

@@ -8,6 +8,7 @@ import firm.Mode;
 import firm.TargetValue;
 import firm.nodes.*;
 import java.util.*;
+import minijava.ir.utils.GraphUtils;
 
 /**
  * Performs scalar optimization based on some algebraic identities. Assumes that expressions are
@@ -42,13 +43,9 @@ public class AlgebraicSimplifier extends BaseOptimizer {
   @Override
   public boolean optimize(Graph graph) {
     this.graph = graph;
-    boolean hasChangedAtAll = false;
-    do {
-      hasChanged = false;
-      graph.walkPostorder(this);
-      hasChangedAtAll |= hasChanged;
-    } while (hasChanged);
-    return hasChangedAtAll;
+    hasChanged = false;
+    GraphUtils.postOrder(graph).forEach(this::visit);
+    return hasChanged;
   }
 
   @Override
