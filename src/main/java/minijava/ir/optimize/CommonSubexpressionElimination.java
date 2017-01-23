@@ -3,7 +3,6 @@ package minijava.ir.optimize;
 import static org.jooq.lambda.Seq.seq;
 
 import firm.Graph;
-import firm.Mode;
 import firm.nodes.*;
 import java.util.*;
 import minijava.ir.Dominance;
@@ -139,6 +138,12 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
   }
 
   @Override
+  public void defaultVisit(Node node) {
+    // This is a safe default, as a nodes hash should be quite unique.
+    hashWithSalt(node.hashCode()).ifPresent(hash -> updateHashMapping(node, hash));
+  }
+
+  @Override
   public void visit(Add node) {
     binaryNode(node);
   }
@@ -153,11 +158,6 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
   @Override
   public void visit(And node) {
     binaryNode(node);
-  }
-
-  @Override
-  public void visit(Call node) {
-    naryNode(node);
   }
 
   @Override
@@ -215,16 +215,7 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
   }
 
   @Override
-  public void visit(Phi node) {
-    // Don't handle these at all for now, because of back edges and other nastiness.
-  }
-
-  @Override
   public void visit(Proj node) {
-    if (node.getMode().equals(Mode.getX())) {
-      // We may not eliminate control flow
-      return;
-    }
     hashWithSalt(node.getOpCode().hashCode() ^ node.getNum(), node.getPred(0))
         .ifPresent(hash -> updateHashMapping(node, hash));
   }
@@ -249,11 +240,6 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
     binaryNode(node);
   }
 
-  @Override
-  public void visit(Start node) {
-    hashWithSalt(Start.class.hashCode()).ifPresent(hash -> updateHashMapping(node, hash));
-  }
-
   /**
    * Helper method called for all uninteresting (e.g. no relevant discerning state beyond their node
    * type and preds) unary nodes.
@@ -270,12 +256,6 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
   private void binaryNode(Node node) {
     hashWithSalt(node.getOpCode().hashCode(), node.getPred(0), node.getPred(1))
         .ifPresent(hash -> updateHashMapping(node, hash));
-  }
-
-  /** Exclusively used for call instructions, but could also be used for e.g. Tuples. */
-  private void naryNode(Node node) {
-    Node[] preds = seq(node.getPreds()).toArray(Node[]::new);
-    hashWithSalt(node.getOpCode().hashCode(), preds);
   }
 
   /**
