@@ -1,7 +1,6 @@
 package minijava.ir.optimize;
 
 import static org.jooq.lambda.Seq.seq;
-import static org.jooq.lambda.tuple.Tuple.tuple;
 
 import com.google.common.collect.Iterables;
 import firm.BackEdges;
@@ -15,7 +14,6 @@ import java.util.stream.Collectors;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
 import minijava.ir.utils.NodeUtils;
-import org.jooq.lambda.tuple.Tuple3;
 
 /** Removes {@link Block} nodes that contain a single {@link Jmp} node and nothing else. */
 public class JmpBlockRemover extends BaseOptimizer {
@@ -30,15 +28,15 @@ public class JmpBlockRemover extends BaseOptimizer {
 
   @Override
   public void visit(Block block) {
-    tryToIdentifyNewEdge(block)
+    tryToIdentifyRedirection(block)
         .ifPresent(
-            edge -> {
+            redirection -> {
               hasChanged = true;
-              remove(block, edge.v1, edge.v2, edge.v3);
+              remove(block, redirection);
             });
   }
 
-  private Optional<Tuple3<Node, Integer, Block>> tryToIdentifyNewEdge(Block block) {
+  private Optional<Redirection> tryToIdentifyRedirection(Block block) {
     List<Node> nodesInBlock = nodesInBlock(block);
     boolean isJmpBlock = nodesInBlock.size() == 1 && nodesInBlock.get(0) instanceof Jmp;
     if (!isJmpBlock) {
@@ -60,7 +58,7 @@ public class JmpBlockRemover extends BaseOptimizer {
       return Optional.empty();
     }
 
-    return Optional.of(tuple(jmpBlockPredecessor, jmpToTargetEdge.pos, jmpTarget));
+    return Optional.of(new Redirection(jmpBlockPredecessor, jmpTarget, jmpToTargetEdge.pos));
   }
 
   private List<Node> nodesInBlock(Block block) {
@@ -69,8 +67,20 @@ public class JmpBlockRemover extends BaseOptimizer {
 
   // This implementation is not capable of removing jmp-only blocks with more than one predecessor.
   // To implement this, the Phi nodes in the target block must also be adjusted.
-  private void remove(Block block, Node source, int predIndex, Block target) {
-    target.setPred(predIndex, source);
-    Graph.killNode(block);
+  private void remove(Block redirected, Redirection redirection) {
+    redirection.target.setPred(redirection.predIndex, redirection.source);
+    Graph.killNode(redirected);
+  }
+
+  private static class Redirection {
+    public final Node source;
+    public final Block target;
+    public final int predIndex;
+
+    private Redirection(Node source, Block target, int predIndex) {
+      this.source = source;
+      this.target = target;
+      this.predIndex = predIndex;
+    }
   }
 }
