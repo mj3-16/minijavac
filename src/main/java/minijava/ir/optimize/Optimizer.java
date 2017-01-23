@@ -20,11 +20,12 @@ public interface Optimizer {
     Optimizer algebraicSimplifier = new AlgebraicSimplifier();
     Optimizer commonSubexpressionElimination = new CommonSubexpressionElimination();
     Optimizer phiOptimizer = new PhiOptimizer();
+    Optimizer loadStoreOptimizer = new LoadStoreOptimizer();
     Optimizer criticalEdgeDetector = new CriticalEdgeDetector();
     OptimizerFramework perGraphFramework =
         new OptimizerFramework.Builder()
             .add(unreachableCodeRemover)
-            .dependsOn(controlFlowOptimizer, jmpBlockRemover)
+            .dependsOn(controlFlowOptimizer, jmpBlockRemover, loadStoreOptimizer)
             .add(criticalEdgeDetector)
             .dependsOn(controlFlowOptimizer, jmpBlockRemover)
             .add(constantFolder)
@@ -45,6 +46,8 @@ public interface Optimizer {
                 algebraicSimplifier,
                 phiOptimizer,
                 controlFlowOptimizer)
+            .add(loadStoreOptimizer)
+            .dependsOn(commonSubexpressionElimination, constantFolder, algebraicSimplifier)
             .add(floatInTransformation)
             .dependsOn(
                 commonSubexpressionElimination,
