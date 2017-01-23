@@ -58,6 +58,7 @@ public class ConstantControlFlowOptimizer extends BaseOptimizer {
 
       hasChanged = true;
       Graph.exchange(alwaysTake, graph.newJmp(node.getBlock()));
+      // Using Graph.killNode introduces a loop somewhere... I wonder why.
       Graph.exchange(delete, graph.newBad(Mode.getANY()));
 
       boolean endConnectedToStart = GraphUtils.areConnected(graph.getEnd(), graph.getStart());

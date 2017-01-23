@@ -28,6 +28,7 @@ import minijava.semantic.SemanticLinter;
 import minijava.token.Token;
 import minijava.util.PrettyPrinter;
 import org.jooq.lambda.tuple.Tuple2;
+import org.slf4j.impl.SimpleLogger;
 
 public class Cli {
 
@@ -63,6 +64,9 @@ public class Cli {
 
   int run(String... args) {
     Parameters params = Parameters.parse(args);
+    if (shouldPrintGraphs()) {
+      System.setProperty(SimpleLogger.DEFAULT_LOG_LEVEL_KEY, "DEBUG");
+    }
     if (!params.valid()) {
       err.println("Called as: " + String.join(" ", args));
       err.println(usage);
