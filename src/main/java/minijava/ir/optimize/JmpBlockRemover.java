@@ -1,6 +1,5 @@
 package minijava.ir.optimize;
 
-import static java.util.stream.Stream.empty;
 import static org.jooq.lambda.Seq.seq;
 import static org.jooq.lambda.tuple.Tuple.tuple;
 
