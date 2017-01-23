@@ -13,7 +13,7 @@ public abstract class BaseOptimizer extends NodeVisitor.Default implements Optim
   protected boolean hasChanged;
 
   /**
-   * Implements the work-list algorithm, populating the initial worklist by passing .
+   * Implements the work-list algorithm, starting with the provided initial worklist.
    *
    * <p>Nodes in the work-list are processed by calling {@link Node#accept(NodeVisitor)
    * node.accept(this)}. In order for the data-flow analyses to be successful, implementations of
@@ -25,7 +25,7 @@ public abstract class BaseOptimizer extends NodeVisitor.Default implements Optim
     return FirmUtils.withBackEdges(
         graph,
         () -> {
-          boolean hasChangedAtAll = false;
+          boolean hasChangedInAnyVisit = false;
           Worklist worklist = new Worklist(initialWorklist);
           while (!worklist.isEmpty()) {
             Node n = worklist.dequeue();
@@ -35,10 +35,10 @@ public abstract class BaseOptimizer extends NodeVisitor.Default implements Optim
               for (BackEdges.Edge e : BackEdges.getOuts(n)) {
                 worklist.enqueue(e.node);
               }
-              hasChangedAtAll = true;
+              hasChangedInAnyVisit = true;
             }
           }
-          return hasChangedAtAll;
+          return hasChangedInAnyVisit;
         });
   }
 
