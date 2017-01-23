@@ -44,4 +44,13 @@ public class Dominance {
     computeDoms(a.getGraph());
     return new Block(binding_irdom.ir_deepest_common_dominator(a.ptr, b.ptr));
   }
+
+  private static void computePostDoms(Graph graph) {
+    binding_irdom.compute_postdoms(graph.ptr);
+  }
+
+  public static boolean postDominates(Block dominator, Block dominated) {
+    computePostDoms(dominator.getGraph());
+    return binding_irdom.block_postdominates(dominator.ptr, dominated.ptr) != 0;
+  }
 }

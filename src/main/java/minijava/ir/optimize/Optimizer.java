@@ -29,22 +29,24 @@ public interface Optimizer {
             .add(criticalEdgeDetector)
             .dependsOn(controlFlowOptimizer, jmpBlockRemover)
             .add(constantFolder)
-            .dependsOn(algebraicSimplifier, phiOptimizer, controlFlowOptimizer)
+            .dependsOn(algebraicSimplifier, phiOptimizer, controlFlowOptimizer, loadStoreOptimizer)
             .add(expressionNormalizer)
             .dependsOn(
                 constantFolder,
                 algebraicSimplifier,
                 phiOptimizer,
                 commonSubexpressionElimination,
-                controlFlowOptimizer)
+                controlFlowOptimizer,
+                loadStoreOptimizer)
             .add(algebraicSimplifier)
-            .dependsOn(constantFolder, phiOptimizer, controlFlowOptimizer)
+            .dependsOn(constantFolder, phiOptimizer, controlFlowOptimizer, loadStoreOptimizer)
             .add(commonSubexpressionElimination)
             .dependsOn(
                 constantFolder,
                 expressionNormalizer,
                 algebraicSimplifier,
                 phiOptimizer,
+                loadStoreOptimizer,
                 controlFlowOptimizer)
             .add(loadStoreOptimizer)
             .dependsOn(commonSubexpressionElimination, constantFolder, algebraicSimplifier)
@@ -53,13 +55,14 @@ public interface Optimizer {
                 commonSubexpressionElimination,
                 algebraicSimplifier,
                 phiOptimizer,
+                loadStoreOptimizer,
                 controlFlowOptimizer)
             .add(phiOptimizer)
             .dependsOn(controlFlowOptimizer)
             .add(controlFlowOptimizer)
-            .dependsOn(constantFolder, algebraicSimplifier)
+            .dependsOn(constantFolder, algebraicSimplifier, loadStoreOptimizer)
             .add(jmpBlockRemover)
-            .dependsOn(controlFlowOptimizer, floatInTransformation)
+            .dependsOn(controlFlowOptimizer, floatInTransformation, loadStoreOptimizer)
             .build();
 
     ProgramMetrics metrics = ProgramMetrics.analyse(firm.Program.getGraphs());

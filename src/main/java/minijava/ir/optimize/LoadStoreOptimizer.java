@@ -4,7 +4,7 @@ import firm.BackEdges;
 import firm.Graph;
 import firm.Mode;
 import firm.nodes.*;
-import minijava.Cli;
+import minijava.ir.Dominance;
 import minijava.ir.utils.GraphUtils;
 
 public class LoadStoreOptimizer extends BaseOptimizer {
@@ -23,7 +23,6 @@ public class LoadStoreOptimizer extends BaseOptimizer {
 
   @Override
   public void visit(Load node) {
-    System.out.println(node);
     Node lastSideEffect = node.getMem().getPred(0);
     switch (lastSideEffect.getOpCode()) {
       case iro_Load:
@@ -36,6 +35,7 @@ public class LoadStoreOptimizer extends BaseOptimizer {
         for (BackEdges.Edge be : BackEdges.getOuts(node)) {
           // Let the Projs point to the previous load
           be.node.setPred(be.pos, previousLoad);
+          be.node.setBlock(previousLoad.getBlock());
         }
         Graph.killNode(node);
         break;
@@ -50,6 +50,7 @@ public class LoadStoreOptimizer extends BaseOptimizer {
           if (be.node.getMode().equals(Mode.getM())) {
             // Let this Proj M point to the Store instead
             be.node.setPred(be.pos, previousStore);
+            be.node.setBlock(previousStore.getBlock());
           } else {
             // And replace the data Projs by the stored value
             Graph.exchange(be.node, previousStore.getValue());
@@ -64,7 +65,6 @@ public class LoadStoreOptimizer extends BaseOptimizer {
 
   @Override
   public void visit(Store node) {
-    System.out.println(node);
     Node lastSideEffect = node.getMem().getPred(0);
     switch (lastSideEffect.getOpCode()) {
       case iro_Store:
@@ -74,11 +74,13 @@ public class LoadStoreOptimizer extends BaseOptimizer {
         }
 
         hasChanged = true;
-        System.out.println(previousStore);
-        System.out.println(previousStore.getMem());
         node.setMem(previousStore.getMem());
-        Cli.dumpGraphIfNeeded(graph, "sdflkj");
-        Graph.killNode(previousStore);
+        boolean killsOldValue =
+            Dominance.postDominates((Block) node.getBlock(), (Block) previousStore.getBlock());
+        if (killsOldValue) {
+          Graph.killNode(previousStore);
+        }
+
         break;
       default:
         break;
