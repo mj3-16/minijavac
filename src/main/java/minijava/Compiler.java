@@ -185,6 +185,10 @@ public class Compiler {
       }
     }
     Util.lowerSels();
+    // lowering Member and Sel nodes might result in constant expressions like this + (4 * 2).
+    // This shouldn't take long to rectify.
+    ConstantFolder constantFolder = new ConstantFolder();
+    Program.getGraphs().forEach(constantFolder::optimize);
   }
 
   /** Copied from the jFirm repo's Lower class */
