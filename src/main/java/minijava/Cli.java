@@ -10,24 +10,22 @@ import com.google.common.io.ByteStreams;
 import com.google.common.primitives.Booleans;
 import firm.Dump;
 import firm.Graph;
-import java.io.*;
-import java.nio.file.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.FileSystem;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import minijava.Compiler.Backend;
 import minijava.ast.Program;
-import minijava.ir.assembler.allocator.OnTheFlyRegAllocator;
-import minijava.ir.assembler.block.AssemblerFile;
-import minijava.ir.emit.IREmitter;
-import minijava.ir.optimize.*;
-import minijava.ir.utils.CompileUtils;
 import minijava.lexer.Lexer;
-import minijava.parser.Parser;
-import minijava.semantic.SemanticAnalyzer;
-import minijava.semantic.SemanticLinter;
 import minijava.token.Token;
-import minijava.util.PrettyPrinter;
-import org.jooq.lambda.tuple.Tuple2;
 import org.slf4j.impl.SimpleLogger;
 
 public class Cli {
@@ -125,36 +123,29 @@ public class Cli {
   }
 
   private void lextest(InputStream in) {
-    Lexer lexer = new Lexer(in);
+    Lexer lexer = Compiler.lex(in);
     seq(lexer).map(Token::toString).forEach(out::println);
   }
 
   private void parsetest(InputStream in) {
-    Lexer lexer = new Lexer(in);
-    new Parser(lexer).parse();
+    Compiler.lexAndParse(in);
   }
 
   private void printAst(InputStream in) {
-    Program ast = new Parser(new Lexer(in)).parse();
-    out.print(ast.acceptVisitor(new PrettyPrinter()));
+    Program ast = Compiler.lexAndParse(in);
+    out.print(Compiler.prettyPrint(ast));
   }
 
   private void check(InputStream in) {
-    Program ast = new Parser(new Lexer(in)).parse();
-    ast.acceptVisitor(new SemanticAnalyzer());
-    ast.acceptVisitor(new SemanticLinter());
+    Program ast = Compiler.lexAndParse(in);
+    Compiler.checkSemantics(ast);
+    Compiler.verifySemanticAnnotations(ast);
   }
 
+  /** Compiles (with/out optimizations) with the firm backend. */
   private void compileFirm(InputStream in) throws IOException {
-    Program ast = new Parser(new Lexer(in)).parse();
-    ast.acceptVisitor(new SemanticAnalyzer());
-    ast.acceptVisitor(new SemanticLinter());
-    ast.acceptVisitor(new IREmitter());
-    if (!optimizationsTurnedOff()) {
-      Optimizer.optimize();
-    }
-    dumpGraphsIfNeeded("--finished");
-    IREmitter.compile("a.out", shouldProduceDebuggableBinary());
+    Compiler.produceFirmIR(in, !optimizationsTurnedOff());
+    Compiler.compile(Backend.FIRM, "a.out", shouldProduceDebuggableBinary());
   }
 
   private boolean optimizationsTurnedOff() {
@@ -186,52 +177,31 @@ public class Cli {
   }
 
   private void runFirm(InputStream in) throws IOException {
-    Program ast = new Parser(new Lexer(in)).parse();
-    ast.acceptVisitor(new SemanticAnalyzer());
-    ast.acceptVisitor(new IREmitter());
-    dumpGraphsIfNeeded("finished");
-    IREmitter.compileAndRun("a.out", shouldProduceDebuggableBinary());
+    Compiler.produceFirmIR(in, false);
+    Compiler.compile(Backend.FIRM, "a.out", shouldProduceDebuggableBinary());
+    runCompiledProgram("a.out");
+  }
+
+  private void runCompiledProgram(String outFile) throws IOException {
+    Process p = Runtime.getRuntime().exec("./" + outFile);
+    int c;
+    while ((c = p.getInputStream().read()) != -1) {
+      System.out.print(Character.toString((char) c));
+    }
+    try {
+      p.waitFor();
+    } catch (Throwable t) {
+    }
   }
 
   private void printAsm(InputStream in) throws IOException {
-    printAsm(in, Optional.empty(), out);
-  }
-
-  private void printAsm(InputStream in, Optional<PrintStream> preAsmOut, PrintStream out)
-      throws IOException {
-    Program ast = new Parser(new Lexer(in)).parse();
-    ast.acceptVisitor(new SemanticAnalyzer());
-    ast.acceptVisitor(new SemanticLinter());
-    ast.acceptVisitor(new IREmitter());
-    if (!optimizationsTurnedOff()) {
-      Optimizer.optimize();
-    }
-    dumpGraphsIfNeeded("--finished");
-    Tuple2<AssemblerFile, AssemblerFile> preAsmAndAsmFile =
-        AssemblerFile.createForProgram(OnTheFlyRegAllocator::new);
-    AssemblerFile preAsmFile = preAsmAndAsmFile.v1;
-    if (!preAsmOut.isPresent()) {
-      preAsmOut = Optional.of(System.err);
-    }
-    preAsmOut.ifPresent(o -> o.println(preAsmFile.toGNUAssembler()));
-    AssemblerFile file = preAsmAndAsmFile.v2;
-    if (System.getenv().containsKey("MJ_FILENAME")) {
-      preAsmFile.setFileName(System.getenv("MJ_FILENAME"));
-      file.setFileName(System.getenv("MJ_FILENAME"));
-    }
-    out.println(file.toGNUAssembler());
+    Compiler.produceFirmIR(in, !optimizationsTurnedOff());
+    Compiler.Backend.OWN.printAsm(out, Optional.empty());
   }
 
   private void compile(InputStream in) throws IOException {
-    File file = new File("a.out.s");
-    file.createNewFile();
-    File preAsmFile = new File("a.out.pre");
-    preAsmFile.createNewFile();
-    printAsm(
-        in,
-        Optional.of(new PrintStream(new FileOutputStream(preAsmFile))),
-        new PrintStream(new FileOutputStream(file)));
-    CompileUtils.compileAssemblerFile("a.out.s", "a.out", shouldProduceDebuggableBinary());
+    Compiler.produceFirmIR(in, !optimizationsTurnedOff());
+    Compiler.compile(Backend.OWN, "a.out", shouldProduceDebuggableBinary());
   }
 
   private static class Parameters {
