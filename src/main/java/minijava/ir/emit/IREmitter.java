@@ -2,24 +2,26 @@ package minijava.ir.emit;
 
 import static org.jooq.lambda.Seq.seq;
 
-import com.sun.jna.Pointer;
 import firm.ArrayType;
-import firm.Backend;
 import firm.ClassType;
 import firm.Construction;
 import firm.Entity;
 import firm.Graph;
-import firm.MethodType;
 import firm.Mode;
-import firm.Program;
 import firm.Relation;
 import firm.TargetValue;
 import firm.Type;
-import firm.Util;
 import firm.bindings.binding_ircons;
-import firm.bindings.binding_lowering;
-import firm.nodes.*;
-import java.io.IOException;
+import firm.nodes.Block;
+import firm.nodes.Call;
+import firm.nodes.Cond;
+import firm.nodes.Div;
+import firm.nodes.Jmp;
+import firm.nodes.Load;
+import firm.nodes.Mod;
+import firm.nodes.Node;
+import firm.nodes.Proj;
+import firm.nodes.Store;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -34,7 +36,6 @@ import minijava.ast.Method;
 import minijava.ast.Ref;
 import minijava.ast.Statement;
 import minijava.ir.InitFirm;
-import minijava.ir.utils.CompileUtils;
 import minijava.util.SourceRange;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -77,7 +78,6 @@ public class IREmitter
     for (Class klass : that.declarations) {
       klass.methods.forEach(this::emitBody);
     }
-    lower();
     return null;
   }
 
@@ -697,60 +697,6 @@ public class IREmitter
       int free = localVarIndexes.size();
       localVarIndexes.put(var, free);
       return free;
-    }
-  }
-
-  private static void lower() {
-    for (Type type : Program.getTypes()) {
-      if (type instanceof ClassType) {
-        lowerClass((ClassType) type);
-      }
-    }
-    for (Graph g : Program.getGraphs()) {
-      // Passing NULL as the callback will lower all Mux nodes
-      // TODO: Move this into jFirm
-      binding_lowering.lower_mux(g.ptr, Pointer.NULL);
-    }
-    Util.lowerSels();
-  }
-
-  /** Copied from the jFirm repo's Lower class */
-  private static void lowerClass(ClassType cls) {
-    for (int m = 0; m < cls.getNMembers(); /* nothing */ ) {
-      Entity member = cls.getMember(m);
-      Type type = member.getType();
-      if (!(type instanceof MethodType)) {
-        ++m;
-        continue;
-      }
-
-      /* methods get implemented outside the class, move the entity */
-      member.setOwner(Program.getGlobalType());
-    }
-  }
-
-  public static void compile(String outFile, boolean produceDebuggableBinary) throws IOException {
-    /* use the amd64 backend */
-    Backend.option("isa=amd64");
-    /* transform to x86 assembler */
-    String outAsmFile = String.format("%s.s", outFile);
-    Backend.createAssembler(outAsmFile, "<builtin>");
-    /* assembler */
-
-    CompileUtils.compileAssemblerFile(outAsmFile, outFile, produceDebuggableBinary);
-  }
-
-  public static void compileAndRun(String outFile, boolean produceDebuggableBinary)
-      throws IOException {
-    compile(outFile, produceDebuggableBinary);
-    Process p = Runtime.getRuntime().exec("./" + outFile);
-    int c;
-    while ((c = p.getInputStream().read()) != -1) {
-      System.out.print(Character.toString((char) c));
-    }
-    try {
-      p.waitFor();
-    } catch (Throwable t) {
     }
   }
 }
