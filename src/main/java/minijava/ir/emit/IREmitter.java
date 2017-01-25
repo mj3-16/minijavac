@@ -1,5 +1,6 @@
 package minijava.ir.emit;
 
+import static firm.bindings.binding_irgraph.ir_resources_t.IR_RESOURCE_IRN_LINK;
 import static org.jooq.lambda.Seq.seq;
 
 import firm.ArrayType;
@@ -7,7 +8,9 @@ import firm.ClassType;
 import firm.Construction;
 import firm.Entity;
 import firm.Graph;
+import firm.MethodType;
 import firm.Mode;
+import firm.Program;
 import firm.Relation;
 import firm.TargetValue;
 import firm.Type;
@@ -36,9 +39,10 @@ import minijava.ast.Method;
 import minijava.ast.Ref;
 import minijava.ast.Statement;
 import minijava.ir.InitFirm;
+import minijava.ir.utils.GraphUtils;
+import minijava.ir.utils.NodeUtils;
 import minijava.util.SourceRange;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.jooq.lambda.function.Function4;
 
 /** Emits an intermediate representation for a given minijava Program. */
@@ -78,6 +82,11 @@ public class IREmitter
     for (Class klass : that.declarations) {
       klass.methods.forEach(this::emitBody);
     }
+    for (Type type : Program.getTypes()) {
+      if (type instanceof ClassType) {
+        lowerClass((ClassType) type);
+      }
+    }
     return null;
   }
 
@@ -89,6 +98,7 @@ public class IREmitter
     // It's more like 2 additional parameters to the visitor.
 
     graph = constructEmptyGraphFromPrototype(m);
+    GraphUtils.reserveResource(graph, IR_RESOURCE_IRN_LINK);
     construction = new Construction(graph);
 
     localVarIndexes.clear();
@@ -442,20 +452,22 @@ public class IREmitter
     if (that.self.type == minijava.ast.Type.SYSTEM_OUT) {
       switch (that.method.name()) {
         case "println":
-          return callFunction(
+          callFunction(
               Types.PRINT_INT, new Node[] {that.arguments.get(0).acceptVisitor(this).asValue()});
+          return null;
         case "write":
-          return callFunction(
+          callFunction(
               Types.WRITE_INT, new Node[] {that.arguments.get(0).acceptVisitor(this).asValue()});
+          return null;
         case "flush":
-          return callFunction(Types.FLUSH, new Node[] {});
+          callFunction(Types.FLUSH, new Node[] {});
+          return null;
         default:
           throw new UnsupportedOperationException("System.out." + that.method.name());
       }
     } else if (that.self.type == minijava.ast.Type.SYSTEM_IN) {
       if (that.method.name.equals("read")) {
-        return unpackCallResult(
-            callFunction(Types.READ_INT, new Node[] {}), Types.INT_TYPE.getMode());
+        return unpackCallResult(callFunction(Types.READ_INT, new Node[] {}), Types.INT_TYPE);
       } else {
         throw new UnsupportedOperationException("System.in." + that.method.name());
       }
@@ -472,16 +484,15 @@ public class IREmitter
       args.add(convControlFlowToBu(a.acceptVisitor(this)));
     }
 
-    ExpressionIR call = callFunction(method, args.toArray(new Node[0]));
+    Node call = callFunction(method, args.toArray(new Node[0]));
     minijava.ast.Type returnType = that.method.def.returnType;
     if (!returnType.equals(minijava.ast.Type.VOID)) {
-      return unpackCallResult(call, Types.storageType(returnType).getMode());
+      return unpackCallResult(call, Types.storageType(returnType));
     }
-    return call;
+    return null;
   }
 
-  @Nullable
-  private ExpressionIR callFunction(Entity func, Node[] args) {
+  private Node callFunction(Entity func, Node[] args) {
     // A call node expects an address that it can call
     Node funcAddress = construction.newAddress(func);
     // the last argument is (according to the documentation) the type of the called procedure
@@ -490,14 +501,16 @@ public class IREmitter
     // Set a new memory dependency for the result
     construction.setCurrentMem(construction.newProj(call, Mode.getM(), Call.pnM));
     // unpacking the result needs to be done separately with `unpackCallResult`
-    return ExpressionIR.fromValue(call);
+    return call;
   }
 
-  private ExpressionIR unpackCallResult(ExpressionIR call, Mode mode) {
+  private ExpressionIR unpackCallResult(Node call, Type storageType) {
     // a method returns a tuple
-    Node resultTuple = construction.newProj(call.asValue(), Mode.getT(), Call.pnTResult);
+    Node resultTuple = construction.newProj(call, Mode.getT(), Call.pnTResult);
     // at index 0 this tuple contains the result
-    return convBuToControlFlow(construction.newProj(resultTuple, mode, 0));
+    Node result = construction.newProj(resultTuple, storageType.getMode(), 0);
+    NodeUtils.setLink(result, storageType.ptr);
+    return convBuToControlFlow(result);
   }
 
   @Override
@@ -529,7 +542,8 @@ public class IREmitter
   private Node calculateOffsetOfAccess(Expression.ArrayAccess that) {
     Node array = that.array.acceptVisitor(this).asValue();
     Node index = that.index.acceptVisitor(this).asValue();
-    return construction.newSel(array, index, new ArrayType(Types.storageType(that.type), 0));
+    Type elementType = Types.storageType(that.type);
+    return construction.newSel(array, index, new ArrayType(elementType, 0));
   }
 
   private ExpressionIR store(Node address, ExpressionIR value) {
@@ -550,7 +564,7 @@ public class IREmitter
     Type type = classTypes.get(that.type.basicType.def); // Only class types can be new allocated
     Node num = construction.newConst(1, Mode.getP());
     Node size = construction.newSize(Mode.getIs(), type);
-    return calloc(num, size);
+    return calloc(num, size, Types.storageType(that.type));
   }
 
   @Override
@@ -563,19 +577,19 @@ public class IREmitter
     // The access mode is really what we want to query here.
     Type elementType = Types.storageType(that.elementType);
     Node size = construction.newSize(Mode.getIs(), elementType);
-    return calloc(num, size);
+    return calloc(num, size, Types.storageType(that.type));
   }
 
-  private ExpressionIR calloc(Node num, Node size) {
+  private ExpressionIR calloc(Node num, Node size, Type storageType) {
     // calloc takes two parameters, for the number of elements and the size of each element.
     // both are of type size_t, so calloc expects them to be word sized. The best approximation
     // is to use the pointer (P) mode.
     // The fact that we called the array length size (which is parameter num to calloc) and
     // that here the element size is called size may be confusing, but whatever, I warned you.
     Node numNode = construction.newConv(num, Mode.getP());
-    Node sizeNode = construction.newConv(size, Mode.getP());
-    ExpressionIR call = callFunction(Types.CALLOC, new Node[] {numNode, sizeNode});
-    return unpackCallResult(call, Mode.getP());
+    Node castSize = construction.newConv(size, Mode.getP());
+    Node call = callFunction(Types.CALLOC, new Node[] {numNode, castSize});
+    return unpackCallResult(call, storageType);
   }
 
   @Override
@@ -697,6 +711,21 @@ public class IREmitter
       int free = localVarIndexes.size();
       localVarIndexes.put(var, free);
       return free;
+    }
+  }
+
+  /** Copied from the jFirm repo's Lower class */
+  private static void lowerClass(ClassType cls) {
+    for (int m = 0; m < cls.getNMembers(); /* nothing */ ) {
+      Entity member = cls.getMember(m);
+      Type type = member.getType();
+      if (!(type instanceof MethodType)) {
+        ++m;
+        continue;
+      }
+
+      /* methods get implemented outside the class, move the entity */
+      member.setOwner(Program.getGlobalType());
     }
   }
 }

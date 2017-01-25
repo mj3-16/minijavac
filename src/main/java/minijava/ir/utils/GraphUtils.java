@@ -3,10 +3,18 @@ package minijava.ir.utils;
 import static org.jooq.lambda.tuple.Tuple.tuple;
 
 import firm.Graph;
+import firm.bindings.binding_irgraph;
+import firm.bindings.binding_irgraph.ir_resources_t;
 import firm.nodes.End;
 import firm.nodes.Node;
 import firm.nodes.Start;
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import org.jooq.lambda.tuple.Tuple2;
 
@@ -125,5 +133,13 @@ public class GraphUtils {
         onFinish.accept(node);
       }
     }
+  }
+
+  public static void freeResource(Graph g, ir_resources_t resource) {
+    binding_irgraph.ir_free_resources(g.ptr, resource.val);
+  }
+
+  public static void reserveResource(Graph g, ir_resources_t resource) {
+    binding_irgraph.ir_reserve_resources(g.ptr, resource.val);
   }
 }

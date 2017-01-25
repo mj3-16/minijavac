@@ -2,16 +2,19 @@ package minijava.ir.utils;
 
 import com.google.common.base.Objects;
 import com.sun.jna.Pointer;
+import firm.ArrayType;
 import firm.Mode;
 import firm.TargetValue;
 import firm.bindings.binding_irnode;
 import firm.bindings.binding_irnode.ir_opcode;
 import firm.nodes.Cmp;
 import firm.nodes.Const;
+import firm.nodes.Member;
 import firm.nodes.Node;
 import firm.nodes.NodeVisitor;
 import firm.nodes.Phi;
 import firm.nodes.Proj;
+import firm.nodes.Sel;
 import java.util.Comparator;
 
 /**
@@ -112,6 +115,21 @@ public class ExtensionalEqualityComparator implements Comparator<Node> {
         // We can't easily get p64 mode, so being optimistic here is the best thing to do
         cmp = (int) Math.signum(a.asLong() - b.asLong());
       }
+    }
+
+    @Override
+    public void visit(Sel node) {
+      cmp = selectedElementSize(node) - selectedElementSize((Sel) other);
+    }
+
+    private int selectedElementSize(Sel node) {
+      ArrayType arrayType = (ArrayType) node.getType();
+      return arrayType.getElementType().getSize();
+    }
+
+    @Override
+    public void visit(Member node) {
+      cmp = node.getEntity().getOffset() - ((Member) other).getEntity().getOffset();
     }
 
     @Override

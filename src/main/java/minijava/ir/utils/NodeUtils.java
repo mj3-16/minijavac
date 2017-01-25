@@ -1,10 +1,14 @@
 package minijava.ir.utils;
 
-import static firm.bindings.binding_irnode.ir_opcode.*;
+import static firm.bindings.binding_irnode.ir_opcode.iro_Const;
+import static firm.bindings.binding_irnode.ir_opcode.iro_Jmp;
+import static firm.bindings.binding_irnode.ir_opcode.iro_Proj;
+import static firm.bindings.binding_irnode.ir_opcode.iro_Return;
 import static org.jooq.lambda.Seq.seq;
 import static org.jooq.lambda.Seq.zipWithIndex;
 
 import com.google.common.collect.ImmutableSet;
+import com.sun.jna.Pointer;
 import firm.BackEdges;
 import firm.Graph;
 import firm.bindings.binding_irnode;
@@ -104,5 +108,14 @@ public class NodeUtils {
       }
       Graph.killNode(proj);
     }
+  }
+
+  /** Make sure to have called GraphUtils.reserveResource(graph, IR_RESOURCE_IRN_LINK) before! */
+  public static void setLink(Node node, Pointer val) {
+    binding_irnode.set_irn_link(node.ptr, val);
+  }
+
+  public static Pointer getLink(Node node) {
+    return binding_irnode.get_irn_link(node.ptr);
   }
 }

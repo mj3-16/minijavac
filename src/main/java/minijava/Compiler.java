@@ -1,15 +1,12 @@
 package minijava;
 
+import static firm.bindings.binding_irgraph.ir_resources_t.IR_RESOURCE_IRN_LINK;
 import static minijava.Cli.dumpGraphsIfNeeded;
 
 import com.google.common.io.Files;
 import com.google.common.util.concurrent.Runnables;
-import firm.ClassType;
-import firm.Entity;
 import firm.Graph;
-import firm.MethodType;
 import firm.Program;
-import firm.Type;
 import firm.Util;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -40,6 +37,7 @@ import minijava.ir.optimize.OptimizerFramework;
 import minijava.ir.optimize.PhiOptimizer;
 import minijava.ir.optimize.ProgramMetrics;
 import minijava.ir.optimize.UnreachableCodeRemover;
+import minijava.ir.utils.GraphUtils;
 import minijava.lexer.Lexer;
 import minijava.parser.Parser;
 import minijava.semantic.SemanticAnalyzer;
@@ -179,31 +177,11 @@ public class Compiler {
   }
 
   private static void lower() {
-    for (Type type : Program.getTypes()) {
-      if (type instanceof ClassType) {
-        lowerClass((ClassType) type);
-      }
-    }
     Util.lowerSels();
     // lowering Member and Sel nodes might result in constant expressions like this + (4 * 2).
     // This shouldn't take long to rectify.
     ConstantFolder constantFolder = new ConstantFolder();
     Program.getGraphs().forEach(constantFolder::optimize);
-  }
-
-  /** Copied from the jFirm repo's Lower class */
-  private static void lowerClass(ClassType cls) {
-    for (int m = 0; m < cls.getNMembers(); /* nothing */ ) {
-      Entity member = cls.getMember(m);
-      Type type = member.getType();
-      if (!(type instanceof MethodType)) {
-        ++m;
-        continue;
-      }
-
-      /* methods get implemented outside the class, move the entity */
-      member.setOwner(Program.getGlobalType());
-    }
   }
 
   private static void assemble(
@@ -273,6 +251,7 @@ public class Compiler {
   public static class FirmBackend implements Backend {
     @Override
     public String lowerToAssembler(String outFile) throws IOException {
+      Program.getGraphs().forEach(g -> GraphUtils.freeResource(g, IR_RESOURCE_IRN_LINK));
       /* use the amd64 backend */
       firm.Backend.option("isa=amd64");
       /* transform to x86 assembler */
