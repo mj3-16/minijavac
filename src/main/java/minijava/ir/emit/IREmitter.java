@@ -3,7 +3,6 @@ package minijava.ir.emit;
 import static firm.bindings.binding_irgraph.ir_resources_t.IR_RESOURCE_IRN_LINK;
 import static org.jooq.lambda.Seq.seq;
 
-import firm.ArrayType;
 import firm.ClassType;
 import firm.Construction;
 import firm.Entity;
@@ -543,7 +542,7 @@ public class IREmitter
     Node array = that.array.acceptVisitor(this).asValue();
     Node index = that.index.acceptVisitor(this).asValue();
     Type elementType = Types.storageType(that.type);
-    return construction.newSel(array, index, new ArrayType(elementType, 0));
+    return construction.newSel(array, index, Types.arrayOf(elementType));
   }
 
   private ExpressionIR store(Node address, ExpressionIR value) {

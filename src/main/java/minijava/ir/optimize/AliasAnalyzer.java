@@ -49,7 +49,8 @@ public class AliasAnalyzer extends BaseOptimizer {
   @Override
   public boolean optimize(Graph graph) {
     this.graph = graph;
-    return fixedPointIteration(GraphUtils.topologicalOrder(graph));
+    boolean b = fixedPointIteration(GraphUtils.topologicalOrder(graph));
+    return b;
   }
 
   private Set<IndirectAccess> getPointsTo(Node node) {
@@ -70,7 +71,9 @@ public class AliasAnalyzer extends BaseOptimizer {
 
   private <T> void update(Map<Node, T> map, Node key, T newValue) {
     T oldValue = map.put(key, newValue);
-    hasChanged |= !oldValue.equals(newValue);
+    hasChanged |= oldValue == null || !oldValue.equals(newValue);
+    System.out.println("node = " + key);
+    System.out.println("value = " + newValue);
   }
 
   @Override
@@ -106,11 +109,10 @@ public class AliasAnalyzer extends BaseOptimizer {
   @Override
   public void visit(Sel node) {
     ArrayType arrayType = (ArrayType) node.getType();
-    Integer offset =
-        NodeUtils.asConst(node.getIndex()).map(i -> i.getTarval().asInt()).orElse(null);
+    int offset =
+        NodeUtils.asConst(node.getIndex()).map(i -> i.getTarval().asInt()).orElse(UNKNOWN_OFFSET);
 
     Set<IndirectAccess> ptrPointsTo = getPointsTo(node.getPtr());
-
     Set<IndirectAccess> offsetReferences =
         seq(ptrPointsTo)
             .filter(a -> a.isBaseReferencePointingTo(arrayType))
@@ -261,7 +263,7 @@ public class AliasAnalyzer extends BaseOptimizer {
     PointerType ptrType = (PointerType) referencedType;
     for (IndirectAccess ptrRef : ptrPointsTo) {
       memory =
-          memory.overChunk(
+          memory.modifyChunk(
               ptrRef.base,
               allocatedChunk -> {
                 PSet<Node> possibleValues =
@@ -302,6 +304,18 @@ public class AliasAnalyzer extends BaseOptimizer {
     }
 
     @Override
+    public String toString() {
+      return "IndirectAccess{"
+          + "base="
+          + base
+          + ", pointedToType="
+          + pointedToType
+          + ", offset="
+          + offset
+          + '}';
+    }
+
+    @Override
     public boolean equals(Object o) {
       if (this == o) {
         return true;
@@ -334,7 +348,7 @@ public class AliasAnalyzer extends BaseOptimizer {
       return EMPTY;
     }
 
-    public Memory overChunk(Node base, Function<Chunk, Chunk> modifier) {
+    public Memory modifyChunk(Node base, Function<Chunk, Chunk> modifier) {
       return new Memory(allocatedChunks.plus(base, modifier.apply(getChunk(base))));
     }
 
@@ -349,6 +363,28 @@ public class AliasAnalyzer extends BaseOptimizer {
         chunks = chunks.plus(entry.getKey(), oldValue.mergeWith(entry.getValue()));
       }
       return new Memory(chunks);
+    }
+
+    @Override
+    public String toString() {
+      return allocatedChunks.toString();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      Memory memory = (Memory) o;
+      return Objects.equals(allocatedChunks, memory.allocatedChunks);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(allocatedChunks);
     }
 
     public static class Chunk {
@@ -370,11 +406,11 @@ public class AliasAnalyzer extends BaseOptimizer {
               .foldLeft(HashTreePSet.empty(), MapPSet::plus);
         }
 
-        // The null key is special: It represents every possible offset. Consequently,
-        // we have to always merge with values at the null slot.
+        // The UNKNOWN_OFFSET is special: It represents every possible offset. Consequently,
+        // we have to always merge with values at the UNKNOWN_OFFSET slot.
         return slots
             .getOrDefault(offset, HashTreePSet.empty())
-            .plusAll(slots.getOrDefault(null, HashTreePSet.empty()));
+            .plusAll(slots.getOrDefault(UNKNOWN_OFFSET, HashTreePSet.empty()));
       }
 
       public Chunk setSlot(int offset, PSet<Node> value) {
@@ -395,6 +431,28 @@ public class AliasAnalyzer extends BaseOptimizer {
           slots = slots.plus(entry.getKey(), oldValue.plusAll(entry.getValue()));
         }
         return new Chunk(slots);
+      }
+
+      @Override
+      public String toString() {
+        return slots.toString();
+      }
+
+      @Override
+      public boolean equals(Object o) {
+        if (this == o) {
+          return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+          return false;
+        }
+        Chunk chunk = (Chunk) o;
+        return Objects.equals(slots, chunk.slots);
+      }
+
+      @Override
+      public int hashCode() {
+        return Objects.hash(slots);
       }
     }
   }

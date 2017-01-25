@@ -70,7 +70,7 @@ class Collector implements Program.Visitor<Void> {
     ArrayList<Type> parameterTypes = new ArrayList<>();
 
     // Add the this pointer. It's always parameter 0, so access will be trivial.
-    parameterTypes.add(ptrTo(definingClass));
+    parameterTypes.add(Types.pointerTo(definingClass));
     for (LocalVariable p : m.parameters) {
       // In the body, we need to refer to local variables by index, so we save that mapping.
       parameterTypes.add(Types.storageType(p.type));
@@ -96,9 +96,5 @@ class Collector implements Program.Visitor<Void> {
     Entity mainEnt = new Entity(global, "main", type);
     mainEnt.setLdIdent(NameMangler.mangledMainMethodName());
     return mainEnt;
-  }
-
-  private PointerType ptrTo(Type type) {
-    return new PointerType(type);
   }
 }

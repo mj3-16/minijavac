@@ -1,9 +1,16 @@
 package minijava.ir.emit;
 
-import firm.*;
+import firm.ArrayType;
+import firm.Entity;
+import firm.MethodType;
+import firm.Mode;
+import firm.PointerType;
+import firm.PrimitiveType;
 import firm.Program;
 import firm.Type;
-import minijava.ast.*;
+import java.util.HashMap;
+import java.util.Map;
+import minijava.ast.BuiltinType;
 import minijava.ast.Class;
 import minijava.ir.InitFirm;
 
@@ -22,6 +29,8 @@ public class Types {
   public static final Entity FLUSH;
   public static final MethodType READ_INT_TYPE;
   public static final Entity READ_INT;
+  private static final Map<Type, ArrayType> ARRAY_OF = new HashMap<>();
+  private static final Map<Type, PointerType> POINTER_TO = new HashMap<>();
 
   static {
     // If we consistently call InitFirm.init() throughout our code, we guarantee that
@@ -54,6 +63,16 @@ public class Types {
             Program.getGlobalType(), NameMangler.mangledReadIntMethodName(), Types.READ_INT_TYPE);
   }
 
+  /** Cashes array types, so that we can test for equality. */
+  static ArrayType arrayOf(Type type) {
+    return ARRAY_OF.computeIfAbsent(type, t -> new ArrayType(t, 0));
+  }
+
+  /** Cashes pointer types, so that we can test for equality. */
+  static PointerType pointerTo(Type type) {
+    return POINTER_TO.computeIfAbsent(type, PointerType::new);
+  }
+
   /**
    * Returns the type in which to store AST type @type@. Consider a @boolean b;@ declaration, that
    * should have BOOLEAN_TYPE, whereas @A a;@ for a reference type @A@ should return the type of the
@@ -79,7 +98,7 @@ public class Types {
         // We don't know the array statically, so just pass 0
         // of the number of elements (which is allowed according
         // to the docs)
-        type = new PointerType(new ArrayType(type, 0));
+        type = pointerTo(arrayOf(type));
       }
       return type;
     }

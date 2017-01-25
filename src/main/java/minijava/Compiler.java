@@ -115,8 +115,8 @@ public class Compiler {
                 phiOptimizer,
                 loadStoreOptimizer,
                 controlFlowOptimizer)
-            //.add(aliasAnalyzer)
-            //.dependsOn(constantFolder, algebraicSimplifier)
+            .add(aliasAnalyzer)
+            .dependsOn(constantFolder, algebraicSimplifier)
             .add(loadStoreOptimizer)
             .dependsOn(commonSubexpressionElimination, constantFolder, algebraicSimplifier)
             .add(floatInTransformation)
