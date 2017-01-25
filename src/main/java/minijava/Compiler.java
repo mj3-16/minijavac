@@ -23,6 +23,7 @@ import minijava.ir.assembler.allocator.OnTheFlyRegAllocator;
 import minijava.ir.assembler.block.AssemblerFile;
 import minijava.ir.emit.IREmitter;
 import minijava.ir.optimize.AlgebraicSimplifier;
+import minijava.ir.optimize.AliasAnalyzer;
 import minijava.ir.optimize.CommonSubexpressionElimination;
 import minijava.ir.optimize.ConstantControlFlowOptimizer;
 import minijava.ir.optimize.ConstantFolder;
@@ -85,6 +86,7 @@ public class Compiler {
     Optimizer algebraicSimplifier = new AlgebraicSimplifier();
     Optimizer commonSubexpressionElimination = new CommonSubexpressionElimination();
     Optimizer phiOptimizer = new PhiOptimizer();
+    Optimizer aliasAnalyzer = new AliasAnalyzer();
     Optimizer loadStoreOptimizer = new LoadStoreOptimizer();
     Optimizer criticalEdgeDetector = new CriticalEdgeDetector();
     OptimizerFramework perGraphFramework =
@@ -113,6 +115,8 @@ public class Compiler {
                 phiOptimizer,
                 loadStoreOptimizer,
                 controlFlowOptimizer)
+            //.add(aliasAnalyzer)
+            //.dependsOn(constantFolder, algebraicSimplifier)
             .add(loadStoreOptimizer)
             .dependsOn(commonSubexpressionElimination, constantFolder, algebraicSimplifier)
             .add(floatInTransformation)

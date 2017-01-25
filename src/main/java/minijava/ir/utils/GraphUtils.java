@@ -1,5 +1,7 @@
 package minijava.ir.utils;
 
+import static firm.bindings.binding_irnode.ir_opcode.iro_Block;
+import static firm.bindings.binding_irnode.ir_opcode.iro_Phi;
 import static org.jooq.lambda.tuple.Tuple.tuple;
 
 import firm.Graph;
@@ -72,25 +74,23 @@ public class GraphUtils {
   }
 
   /**
-   * Computes a topological sorting on the predecessor (!) graph. This is the right traversal for
+   * Computes a topological order on the predecessor (!) graph. This is the right traversal for
    * things that change control flow. You can assume (except for back edges) that the nodes are
    * untouched when visited, e.g. predecessors are exactly the same as when the walk was started.
    */
-  public static ArrayDeque<Node> reversePostOrder(Graph graph) {
+  public static ArrayDeque<Node> reverseTopologicalOrder(Graph graph) {
     ArrayDeque<Node> stack = new ArrayDeque<>();
-    walkFromNodeDepthFirst(graph.getEnd(), n -> {}, stack::addFirst);
+    walkFromNodeTopological(graph.getEnd(), stack::addFirst);
     return stack;
   }
 
-  public static ArrayList<Node> postOrder(Graph graph) {
+  /**
+   * This returns a topological order where loop headers are always visited before loop bodies. E.g.
+   * loops are broken at back edges.
+   */
+  public static ArrayList<Node> topologicalOrder(Graph graph) {
     ArrayList<Node> ret = new ArrayList<>();
-    walkFromNodeDepthFirst(graph.getEnd(), n -> {}, ret::add);
-    return ret;
-  }
-
-  public static ArrayList<Node> preOrder(Graph graph) {
-    ArrayList<Node> ret = new ArrayList<>();
-    walkFromNodeDepthFirst(graph.getEnd(), ret::add, n -> {});
+    walkFromNodeTopological(graph.getEnd(), ret::add);
     return ret;
   }
 
@@ -130,6 +130,47 @@ public class GraphUtils {
         }
       } else {
         // All children were visited! we can finish this node
+        onFinish.accept(node);
+      }
+    }
+  }
+
+  /** Walks a graph in topological order, beginning at a seed node. */
+  public static void walkFromNodeTopological(Node seed, Consumer<Node> onFinish) {
+    Deque<Tuple2<Node, Integer>> greyStack = new ArrayDeque<>();
+    Set<Node> discovered = new HashSet<>();
+    greyStack.addFirst(tuple(seed, -1));
+    while (!greyStack.isEmpty()) {
+      Tuple2<Node, Integer> nextGrey = greyStack.removeFirst();
+      Node node = nextGrey.v1;
+      int counter = nextGrey.v2;
+
+      // we only add this node to the discovered set when it's a loop breaker.
+      // This way, loops are always broken at what are back edges in the firm graph.
+      boolean isLoopBreaker = node.getOpCode() == iro_Block || node.getOpCode() == iro_Phi;
+
+      if (counter < 0) {
+        if (isLoopBreaker) {
+          // If it's not a loop breaker, we potentially visit it more than once.
+          // That's not bad however, since we only call the onFinish handler the
+          // first time we visited all preds.
+          discovered.add(node);
+        }
+        // next time only visit preds
+        greyStack.addFirst(tuple(node, 0));
+
+        if (node.getBlock() != null && !discovered.contains(node.getBlock())) {
+          greyStack.addFirst(tuple(node.getBlock(), -1));
+        }
+      } else if (counter < node.getPredCount()) {
+        // we have to visit all children first
+        greyStack.addFirst(tuple(node, counter + 1));
+        if (!discovered.contains(node.getPred(counter))) {
+          greyStack.addFirst(tuple(node.getPred(counter), -1));
+        }
+      } else if (isLoopBreaker || !discovered.contains(node)) {
+        // All children were visited! we can finish this node (but only once!)
+        discovered.add(node);
         onFinish.accept(node);
       }
     }

@@ -25,6 +25,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import minijava.ir.emit.Types;
+import minijava.ir.utils.GraphUtils;
 import minijava.ir.utils.NodeUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jooq.lambda.Seq;
@@ -47,7 +48,8 @@ public class AliasAnalyzer extends BaseOptimizer {
 
   @Override
   public boolean optimize(Graph graph) {
-    return false;
+    this.graph = graph;
+    return fixedPointIteration(GraphUtils.topologicalOrder(graph));
   }
 
   private Set<IndirectAccess> getPointsTo(Node node) {

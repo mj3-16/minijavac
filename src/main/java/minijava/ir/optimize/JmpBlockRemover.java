@@ -22,7 +22,8 @@ public class JmpBlockRemover extends BaseOptimizer {
   public boolean optimize(Graph graph) {
     this.graph = graph;
     this.hasChanged = false;
-    FirmUtils.withBackEdges(graph, () -> GraphUtils.reversePostOrder(graph).forEach(this::visit));
+    FirmUtils.withBackEdges(
+        graph, () -> GraphUtils.reverseTopologicalOrder(graph).forEach(this::visit));
     return hasChanged;
   }
 

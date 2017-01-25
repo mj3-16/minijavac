@@ -44,7 +44,7 @@ public class Inliner extends BaseOptimizer {
     this.callsToInline.clear();
     metrics.updateGraphInfo(graph);
     // Not sure if we really need more than one pass here, but better be safe.
-    fixedPointIteration(GraphUtils.postOrder(graph));
+    fixedPointIteration(GraphUtils.topologicalOrder(graph));
     return inlineCandidates();
   }
 
@@ -106,7 +106,7 @@ public class Inliner extends BaseOptimizer {
             Graph.exchange(proj, call.getPred(argIndex + 2));
           }
         };
-    GraphUtils.walkFromNodeDepthFirst(end, n -> {}, onFinish);
+    GraphUtils.walkFromNodeTopological(end, onFinish);
 
     // The End node has to replaced by Phis, one for the ret val, the other for M.
     // Other than that, we have to do pretty much the same Proj substitution at the call site

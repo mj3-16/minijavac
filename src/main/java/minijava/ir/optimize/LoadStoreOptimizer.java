@@ -13,7 +13,7 @@ public class LoadStoreOptimizer extends BaseOptimizer {
   @Override
   public boolean optimize(Graph graph) {
     this.graph = graph;
-    return fixedPointIteration(GraphUtils.reversePostOrder(graph));
+    return fixedPointIteration(GraphUtils.reverseTopologicalOrder(graph));
   }
 
   @Override

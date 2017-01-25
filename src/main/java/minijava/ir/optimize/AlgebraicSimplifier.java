@@ -44,7 +44,7 @@ public class AlgebraicSimplifier extends BaseOptimizer {
   public boolean optimize(Graph graph) {
     this.graph = graph;
     hasChanged = false;
-    GraphUtils.postOrder(graph).forEach(this::visit);
+    GraphUtils.topologicalOrder(graph).forEach(this::visit);
     return hasChanged;
   }
 
