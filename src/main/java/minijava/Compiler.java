@@ -216,8 +216,7 @@ public class Compiler {
       String assemblerFile, String outputFile, boolean produceDebuggableBinary) throws IOException {
     File runtime = getRuntimeFile();
 
-    boolean useGC =
-        System.getenv().containsKey("MJ_USE_GC") && System.getenv("MJ_USE_GC").equals("1");
+    boolean useGC = EnvironmentVariablesHandler.GC.useGC();
 
     String gccApp = "";
     if (useGC) {

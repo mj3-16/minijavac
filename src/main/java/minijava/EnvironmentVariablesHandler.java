@@ -34,4 +34,15 @@ public class EnvironmentVariablesHandler {
     String value = System.getenv(varName);
     return value != null && value.equals(varValue);
   }
+
+  private static boolean isEnvVarAvailable(String varName) {
+    return System.getenv().containsKey(varName);
+  }
+
+  private static String getEnvVarValue(String varName) {
+    if (isEnvVarAvailable(varName)) {
+      return System.getenv(varName);
+    }
+    return null;
+  }
 }
