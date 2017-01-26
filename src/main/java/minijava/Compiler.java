@@ -169,7 +169,6 @@ public class Compiler {
     if (optimize) {
       optimize();
     }
-    dumpGraphsIfNeeded("finished");
   }
 
   public static void compile(Backend backend, String outFile, boolean produceDebuggableBinary)

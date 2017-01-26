@@ -142,8 +142,11 @@ public class IREmitter
     int thisIdx = getLocalVarIndex(new LocalVariable(fakeThisType, null, SourceRange.FIRST_CHAR));
     // We rely on this when accessing this.
     assert thisIdx == 0;
+    Type fakeThisStorageType = storageType(fakeThisType);
     construction.setVariable(
-        thisIdx, construction.newProj(args, Types.storageType(fakeThisType).getMode(), thisIdx));
+        thisIdx, construction.newProj(args, fakeThisStorageType.getMode(), thisIdx));
+    NodeUtils.setLink(
+        construction.getVariable(thisIdx, fakeThisStorageType.getMode()), fakeThisStorageType.ptr);
 
     for (LocalVariable p : that.parameters) {
       // we just made this connection in the loop above
@@ -151,9 +154,15 @@ public class IREmitter
       // Also note that we are never trying to access this or the
       int idx = getLocalVarIndex(p);
       // Where is this documented anyway? SimpleIf seems to be the only reference...
-      Node param = construction.newProj(args, Types.storageType(p.type).getMode(), idx);
+      Type parameterType = storageType(p.type);
+      Node param = construction.newProj(args, parameterType.getMode(), idx);
+      NodeUtils.setLink(param, parameterType.ptr);
       construction.setVariable(idx, param);
     }
+  }
+
+  private Type storageType(minijava.ast.Type type) {
+    return Types.storageType(type, classTypes);
   }
 
   /** Finish the graph by adding possible return statements in the case of void */
@@ -373,7 +382,9 @@ public class IREmitter
     assert Div.pnM == Mod.pnM;
     Node retProj = construction.newProj(divOrMod, Mode.getLs(), Div.pnRes);
     // Division by zero might overflow, which is a side effect we have to track.
-    construction.setCurrentMem(construction.newProj(divOrMod, Mode.getM(), Div.pnM));
+    // However since we consider that undefined behavior, we can ignore the side effect.
+    // This is pretty much like unsafeInterleaveIO in Haskell works.
+    //construction.setCurrentMem(construction.newProj(divOrMod, Mode.getM(), Div.pnM));
     // Convert it back to int
     return ExpressionIR.fromValue(construction.newConv(retProj, Mode.getIs()));
   }
@@ -431,7 +442,7 @@ public class IREmitter
     if (that.op == Expression.UnOp.NEGATE && that.expression instanceof Expression.IntegerLiteral) {
       // treat this case special in case the integer literal is 2147483648 (doesn't fit in int)
       int lit = Integer.parseInt("-" + ((Expression.IntegerLiteral) that.expression).literal);
-      Node node = construction.newConst(lit, Types.storageType(minijava.ast.Type.INT).getMode());
+      Node node = construction.newConst(lit, storageType(minijava.ast.Type.INT).getMode());
       return ExpressionIR.fromValue(node);
     }
     ExpressionIR expression = that.expression.acceptVisitor(this);
@@ -486,7 +497,7 @@ public class IREmitter
     Node call = callFunction(method, args.toArray(new Node[0]));
     minijava.ast.Type returnType = that.method.def.returnType;
     if (!returnType.equals(minijava.ast.Type.VOID)) {
-      return unpackCallResult(call, Types.storageType(returnType));
+      return unpackCallResult(call, storageType(returnType));
     }
     return null;
   }
@@ -508,6 +519,7 @@ public class IREmitter
     Node resultTuple = construction.newProj(call, Mode.getT(), Call.pnTResult);
     // at index 0 this tuple contains the result
     Node result = construction.newProj(resultTuple, storageType.getMode(), 0);
+    // The precise storageType is needed for alias analyis.
     NodeUtils.setLink(result, storageType.ptr);
     return convBuToControlFlow(result);
   }
@@ -519,7 +531,7 @@ public class IREmitter
 
     // We store val at the absOffset
 
-    return load(absOffset, Types.storageType(that.type).getMode());
+    return load(absOffset, storageType(that.type).getMode());
   }
 
   private Node calculateOffsetForAccess(Expression.FieldAccess that) {
@@ -535,13 +547,13 @@ public class IREmitter
     // We store val at the absOffset
 
     // Now just dereference the computed offset
-    return load(address, Types.storageType(that.type).getMode());
+    return load(address, storageType(that.type).getMode());
   }
 
   private Node calculateOffsetOfAccess(Expression.ArrayAccess that) {
     Node array = that.array.acceptVisitor(this).asValue();
     Node index = that.index.acceptVisitor(this).asValue();
-    Type elementType = Types.storageType(that.type);
+    Type elementType = storageType(that.type);
     return construction.newSel(array, index, Types.arrayOf(elementType));
   }
 
@@ -563,7 +575,7 @@ public class IREmitter
     Type type = classTypes.get(that.type.basicType.def); // Only class types can be new allocated
     Node num = construction.newConst(1, Mode.getP());
     Node size = construction.newSize(Mode.getIs(), type);
-    return calloc(num, size, Types.storageType(that.type));
+    return calloc(num, size, storageType(that.type));
   }
 
   @Override
@@ -574,9 +586,9 @@ public class IREmitter
     // because this will do the wrong thing for classes, namely returning the size of the
     // class. But in the class case we rather want to allocate an array of references.
     // The access mode is really what we want to query here.
-    Type elementType = Types.storageType(that.elementType);
+    Type elementType = storageType(that.elementType);
     Node size = construction.newSize(Mode.getIs(), elementType);
-    return calloc(num, size, Types.storageType(that.type));
+    return calloc(num, size, storageType(that.type));
   }
 
   private ExpressionIR calloc(Node num, Node size, Type storageType) {
@@ -593,7 +605,7 @@ public class IREmitter
 
   @Override
   public ExpressionIR visitVariable(Expression.Variable that) {
-    Mode mode = Types.storageType(that.type).getMode();
+    Mode mode = storageType(that.type).getMode();
     // This will allocate a new index if necessary.
     int idx = getLocalVarIndex(that.var.def);
     return convBuToControlFlow(construction.getVariable(idx, mode));
@@ -661,7 +673,7 @@ public class IREmitter
   public ExpressionIR visitIntegerLiteral(Expression.IntegerLiteral that) {
     // We handled the 0x80000000 case while visiting the unary minus
     int lit = Integer.parseInt(that.literal);
-    Node node = construction.newConst(lit, Types.storageType(minijava.ast.Type.INT).getMode());
+    Node node = construction.newConst(lit, storageType(minijava.ast.Type.INT).getMode());
     return ExpressionIR.fromValue(node);
   }
 

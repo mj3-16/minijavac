@@ -1,14 +1,28 @@
 package minijava.ir.optimize;
 
+import static firm.bindings.binding_irnode.ir_opcode.iro_Call;
+import static firm.bindings.binding_irnode.ir_opcode.iro_Load;
+import static firm.bindings.binding_irnode.ir_opcode.iro_Phi;
+import static firm.bindings.binding_irnode.ir_opcode.iro_Proj;
+import static firm.bindings.binding_irnode.ir_opcode.iro_Start;
+import static firm.bindings.binding_irnode.ir_opcode.iro_Store;
+import static firm.bindings.binding_irnode.ir_opcode.iro_Sync;
 import static org.jooq.lambda.Seq.seq;
+import static org.jooq.lambda.tuple.Tuple.tuple;
 
-import com.google.common.collect.Sets;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import firm.ArrayType;
+import firm.BackEdges;
+import firm.BackEdges.Edge;
 import firm.ClassType;
+import firm.Entity;
 import firm.Graph;
+import firm.MethodType;
 import firm.Mode;
 import firm.PointerType;
 import firm.Type;
+import firm.bindings.binding_irnode.ir_opcode;
 import firm.nodes.Address;
 import firm.nodes.Call;
 import firm.nodes.Load;
@@ -18,13 +32,18 @@ import firm.nodes.Phi;
 import firm.nodes.Proj;
 import firm.nodes.Sel;
 import firm.nodes.Store;
+import firm.nodes.Sync;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import minijava.ir.emit.Types;
+import minijava.ir.utils.ExtensionalEqualityComparator;
+import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
 import minijava.ir.utils.NodeUtils;
 import org.jetbrains.annotations.NotNull;
@@ -49,8 +68,11 @@ public class AliasAnalyzer extends BaseOptimizer {
   @Override
   public boolean optimize(Graph graph) {
     this.graph = graph;
-    boolean b = fixedPointIteration(GraphUtils.topologicalOrder(graph));
-    return b;
+    fixedPointIteration(GraphUtils.topologicalOrder(graph));
+    LoadStoreAliasingTransformation transformation = new LoadStoreAliasingTransformation();
+    Boolean hasChanged = FirmUtils.withBackEdges(graph, transformation::transform);
+    System.out.println("-------------------------------");
+    return hasChanged;
   }
 
   private Set<IndirectAccess> getPointsTo(Node node) {
@@ -72,8 +94,15 @@ public class AliasAnalyzer extends BaseOptimizer {
   private <T> void update(Map<Node, T> map, Node key, T newValue) {
     T oldValue = map.put(key, newValue);
     hasChanged |= oldValue == null || !oldValue.equals(newValue);
-    System.out.println("node = " + key);
-    System.out.println("value = " + newValue);
+    System.out.println("-------------------------------");
+    System.out.println(key);
+    System.out.println(newValue);
+  }
+
+  private void bumpSuccessors() {
+    // For nodes like Call, Load and Store we have to bump successors, so that
+    // they pick up Memory changes.
+    hasChanged = true;
   }
 
   @Override
@@ -124,10 +153,17 @@ public class AliasAnalyzer extends BaseOptimizer {
 
   @Override
   public void visit(Call node) {
-    Address address = (Address) node.getPtr();
-    if (!address.getEntity().equals(Types.CALLOC)) {
-      throw new AssertionError("Call to " + address);
-    }
+    bumpSuccessors();
+  }
+
+  @Override
+  public void visit(Load node) {
+    bumpSuccessors();
+  }
+
+  @Override
+  public void visit(Store node) {
+    bumpSuccessors();
   }
 
   @Override
@@ -150,8 +186,61 @@ public class AliasAnalyzer extends BaseOptimizer {
 
   private void transferProjOnCall(Proj proj, Call call) {
     if (proj.getNum() == Call.pnM) {
-      updateMemory(proj, getMemory(call.getMem()));
+      Entity method = calledMethod(call);
+
+      // A called function may possibly taint all shared chunks, plus the any new chunks.
+      PSet<Node> taintedChunks =
+          seq(aliasesWithCallee(call))
+              .map(ia -> ia.base)
+              // We also add the returned chunk (which is always represented by the call) as tainted.
+              // If the called method is calloc however, we don't, since we know the result
+              // will point to a fresh memory block which nothing may possibly alias.
+              .append(isCalloc(method) ? Seq.empty() : Seq.of(call))
+              .foldLeft(HashTreePSet.empty(), MapPSet::plus);
+
+      Memory memory = getMemory(call.getMem());
+      for (Node tainted : taintedChunks) {
+        // Every tainted chunk can possibly alias any other tainted chunk.
+        // This is a conservative approximation of which we know isn't precise enough
+        // for e.g. calloc.
+        assert memory != null;
+        memory = memory.modifyChunk(tainted, chunk -> chunk.setSlot(UNKNOWN_OFFSET, taintedChunks));
+      }
+      updateMemory(proj, memory);
     }
+  }
+
+  @NotNull
+  private Set<IndirectAccess> aliasesWithCallee(Call call) {
+    Entity method = calledMethod(call);
+    MethodType mt = (MethodType) method.getType();
+    Set<IndirectAccess> sharedChunks = new HashSet<>();
+    for (int i = 0; i < mt.getNParams(); ++i) {
+      Node arg = call.getPred(i + 2);
+      Set<IndirectAccess> pointsTo = getPointsTo(arg);
+      Type paramType = mt.getParamType(i);
+      if (!contributesToAliasAnalysis(paramType)) {
+        continue;
+      }
+      PointerType ptrType = (PointerType) paramType;
+      seq(pointsTo)
+          .filter(ia -> ia.isBaseReferencePointingTo(ptrType.getPointsTo()))
+          .forEach(sharedChunks::add);
+    }
+    return sharedChunks;
+  }
+
+  /** If a value is not a pointer, it will not contribute any new alias insights. */
+  private static boolean contributesToAliasAnalysis(Type paramType) {
+    return paramType instanceof PointerType;
+  }
+
+  private static Entity calledMethod(Call call) {
+    return ((Address) call.getPtr()).getEntity();
+  }
+
+  private static boolean isCalloc(Entity method) {
+    return method.equals(Types.CALLOC);
   }
 
   private void transferProjOnProj(Proj proj, Proj pred) {
@@ -165,22 +254,36 @@ public class AliasAnalyzer extends BaseOptimizer {
     // assumption).
 
     Type storageType = Type.createWrapper(NodeUtils.getLink(proj));
-    if (!(storageType instanceof PointerType)) {
+    if (!(contributesToAliasAnalysis(storageType))) {
       // We are not interested in analyzing aliases to value types (as they are copied anways)
       return;
     }
 
     PointerType pointerType = (PointerType) storageType;
-    Node startOrCall = pred.getPred(); // This will serve as our base representant
-    IndirectAccess representant = new IndirectAccess(startOrCall, pointerType.getPointsTo(), 0);
-    updatePointsTo(proj, Sets.newHashSet(representant));
+    Node startOrCall = pred.getPred();
+    Set<IndirectAccess> newPointsTo = new HashSet<>();
+    // There's the case of functions with pointer arguments, which we mostly handle in visit(Call).
+    // Here we only need to add all aliases made visible to the called function via arguments to
+    // our points-to set.
+    if (startOrCall.getOpCode() == iro_Call) {
+      newPointsTo =
+          seq(aliasesWithCallee((Call) startOrCall))
+              .filter(ia -> ia.isBaseReferencePointingTo(pointerType.getPointsTo()))
+              .toSet();
+    }
+    // The startOrCall node will also serve as our new base representant.
+    // This implies that all function arguments alias each other and that all functions return
+    // a new alias class (plus any possible tainted argument aliases).
+    IndirectAccess newRepresentant = new IndirectAccess(startOrCall, pointerType.getPointsTo(), 0);
+    newPointsTo.add(newRepresentant);
+
+    updatePointsTo(proj, newPointsTo);
   }
 
   private void transferProjOnLoad(Proj proj, Load load) {
     if (proj.getNum() == Load.pnM) {
       // A load doesn't change memory
       updateMemory(proj, getMemory(load.getMem()));
-      memories.put(proj, memories.get(load.getMem()));
     } else if (proj.getNum() == Load.pnRes) {
       // ... but we can say something about the loaded value
       Set<IndirectAccess> pointsTo = getPointsTo(load.getPtr());
@@ -207,7 +310,7 @@ public class AliasAnalyzer extends BaseOptimizer {
   private static Set<IndirectAccess> followIndirectRefsInMemory(
       Set<IndirectAccess> pointsTo, Memory memory, Type referencedType) {
     Set<IndirectAccess> loadedRefs = new HashSet<>();
-    if (!(referencedType instanceof PointerType)) {
+    if (!contributesToAliasAnalysis(referencedType)) {
       // If the loaded type is not a pointer, it is uninteresting for the rest
       // of the analysis, as it can never be the argument to a Sel or Member.
       // Also it can never alias any other reference.
@@ -255,7 +358,7 @@ public class AliasAnalyzer extends BaseOptimizer {
       Set<IndirectAccess> ptrPointsTo,
       Set<IndirectAccess> valPointsTo,
       Type referencedType) {
-    if (!(referencedType instanceof PointerType)) {
+    if (!(contributesToAliasAnalysis(referencedType))) {
       // The stored value is not a reference, so it is uninteresting for the analysis.
       // Value types can't be aliased, after all!
       return memory;
@@ -454,6 +557,179 @@ public class AliasAnalyzer extends BaseOptimizer {
       public int hashCode() {
         return Objects.hash(slots);
       }
+    }
+  }
+
+  private class LoadStoreAliasingTransformation {
+    public boolean transform() {
+      // This works by following memory edges and reordering them when there is no alias.
+      boolean hasChanged = false;
+      Seq<Node> allSideEffectChains =
+          seq(graph.getEndBlock().getPreds()).flatMap(this::sideEffectChainBefore);
+      for (Node sideEffect : allSideEffectChains) {
+        // We got a Proj M. Now we try to redirect Mem edges of preds, always making sure we sync
+        // diverging paths.
+        if (!isLoadOrStore(sideEffect)) {
+          continue;
+        }
+
+        System.out.println(sideEffect);
+
+        // We assume that the Mem pred is at index 0 and that the ptr pred is at index 1
+        // That's at least the case for Load and Store.
+        Node ptr = sideEffect.getPred(1);
+        // Since we look at a load or store, there is at least a Start node further up in the
+        // side effect chain, so calling get() directly is safe.
+        //noinspection OptionalGetWithoutIsPresent
+        Node lastSideEffect = sideEffectChainBefore(sideEffect).findFirst().get();
+        if (isLoadOrStore(lastSideEffect)) {
+          Node predMem = lastSideEffect.getPred(0);
+          Node predPtr = lastSideEffect.getPred(1);
+          if (!mayAlias(ptr, predPtr)) {
+            // we can point the mem node to the pred's
+            redirectMem(sideEffect, predMem);
+            // We also have to
+            hasChanged = true;
+          }
+        }
+      }
+      return hasChanged;
+    }
+
+    private void redirectMem(Node sideEffect, Node newMem) {
+      Node oldMem = sideEffect.getPred(0);
+      // This is the easy part.
+      sideEffect.setPred(0, newMem);
+
+      // Now, we also have to insert and delete syncs.
+      // Consider this chain:
+      //    *
+      //    |
+      //    *
+      //    |
+      //    *   <-- we redirect this to the top node
+      //   /|
+      //  * *
+      //
+      //    *
+      //   / \
+      //  |   * <-- Now this would be a dangling side effect unreachable from End.
+      //   \        So we need to insert a Sync.
+      //    *
+      //   /|
+      //  * *
+      //
+      //    *
+      //   / \
+      //  *   *
+      //   \ /
+      //    *   <-- This is the new Sync node, with the original redirected node further up left.
+      //   /|
+      //  * *
+      //
+      // So we need to redirect all uses of the side effect's Proj to a fresh Sync node.
+
+      Proj projOnSideEffect =
+          Iterables.getOnlyElement(
+              seq(BackEdges.getOuts(sideEffect))
+                  .map(be -> be.node)
+                  .ofType(Proj.class)
+                  .filter(proj -> proj.getMode().equals(Mode.getM())));
+
+      // We have to fix up all usages of the Proj by inserting a Sync node.
+      // Redundant Sync nodes could be removed later, similar to Phi nodes.
+      List<Edge> usages = Lists.newArrayList(BackEdges.getOuts(projOnSideEffect));
+      Sync sync =
+          (Sync) graph.newSync(projOnSideEffect.getBlock(), new Node[] {projOnSideEffect, oldMem});
+      for (Edge be : usages) {
+        be.node.setPred(be.pos, sync);
+      }
+
+      removeSyncOnSync(sync);
+
+      System.out.println("-------------------------");
+      System.out.println("AliasAnalyzer.redirectMem");
+      System.out.println("sideEffect = " + sideEffect);
+      System.out.println("oldMem = " + oldMem);
+      System.out.println("newMem = " + newMem);
+      System.out.println("sync = " + sync);
+    }
+
+    private void removeSyncOnSync(Sync node) {
+      List<Edge> usages = Lists.newArrayList(BackEdges.getOuts(node));
+      boolean optimizationMakesSense =
+          usages.size() == 1 && usages.get(0).node.getOpCode() == iro_Sync;
+      if (!optimizationMakesSense) {
+        // We could in theory also do this if there was more than one usage.
+        // But then we'd have to deduplicate all preds to those Sync nodes, and
+        // checking for reachability is to complicated to be worth it.
+        // This still leaves room for improvement, e.g. This might still
+        // produce syncs obviously already depend on another Sync even without the
+        // explicit predecessor.
+        return;
+      }
+      Node successorSync = usages.get(0).node;
+      // Now we can just merge the predecessor sets (order is unimportant for Sync)
+      Node[] newPreds =
+          seq(node.getPreds())
+              .append(successorSync.getPreds())
+              .filter(n -> !n.equals(node)) // We no longer need to depend on the old Sync!
+              .distinct()
+              .sorted(ExtensionalEqualityComparator.INSTANCE)
+              .toArray(Node[]::new);
+
+      Node newSync = graph.newSync(successorSync.getBlock(), newPreds);
+      Graph.exchange(successorSync, newSync);
+    }
+
+    private boolean mayAlias(Node ptr1, Node ptr2) {
+      HashSet<IndirectAccess> commonPointers = new HashSet<>(getPointsTo(ptr1));
+      commonPointers.retainAll(getPointsTo(ptr2));
+      return !commonPointers.isEmpty();
+    }
+
+    /**
+     * Assumes that {@param node} itself is a side-effect. This effectively makes us not bother
+     * about the intermediate Projs.
+     */
+    private Seq<Node> sideEffectChainBefore(Node node) {
+      return Seq.unfold(
+          node,
+          last -> {
+            if (last.getOpCode() == iro_Start) {
+              return Optional.empty();
+            }
+
+            if (isPhiOrSync(last)) {
+              // We don't iterate any further, as these have two mem preds
+              // which doesn't make sense for our traversal.
+              return Optional.empty();
+            }
+
+            Node someMemNode = last.getPred(0);
+            assert someMemNode.getMode().equals(Mode.getM());
+
+            if (isPhiOrSync(someMemNode)) {
+              return Optional.of(tuple(someMemNode, someMemNode));
+            }
+
+            if (someMemNode.getOpCode() == iro_Proj) {
+              Node pred = ((Proj) someMemNode).getPred();
+              return Optional.of(tuple(pred, pred));
+            }
+
+            throw new AssertionError(
+                "Intermediate memory nodes should be either Phis, Syncs or Projs.");
+          });
+    }
+
+    private boolean isPhiOrSync(Node node) {
+      ir_opcode opcode = node.getOpCode();
+      return opcode == iro_Phi || opcode == iro_Sync;
+    }
+
+    private boolean isLoadOrStore(Node node) {
+      return node.getOpCode() == iro_Load || node.getOpCode() == iro_Store;
     }
   }
 }

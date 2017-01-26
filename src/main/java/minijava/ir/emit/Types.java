@@ -1,6 +1,7 @@
 package minijava.ir.emit;
 
 import firm.ArrayType;
+import firm.ClassType;
 import firm.Entity;
 import firm.MethodType;
 import firm.Mode;
@@ -80,12 +81,32 @@ public class Types {
    *
    * <p>So, for value types just return their value, for reference types return a pointer.
    */
-  static Type storageType(minijava.ast.Type type) {
-    return type.acceptVisitor(new StorageTypeVisitor());
+  static Type storageType(minijava.ast.Type type, Map<Class, ClassType> classTypes) {
+    return type.acceptVisitor(new StorageTypeVisitor(classTypes));
+  }
+
+  public static String methodTypeToString(MethodType mt) {
+    StringBuilder sb = new StringBuilder();
+    for (int i = 0; i < mt.getNParams(); ++i) {
+      sb.append(mt.getParamType(0));
+      sb.append(" -> ");
+    }
+    if (mt.getNRess() == 0) {
+      sb.append("void");
+    } else {
+      sb.append(mt.getResType(0));
+    }
+    return sb.toString();
   }
 
   private static class StorageTypeVisitor
       implements minijava.ast.Type.Visitor<Type>, minijava.ast.BasicType.Visitor<Type> {
+
+    private final Map<Class, ClassType> classTypes;
+
+    public StorageTypeVisitor(Map<Class, ClassType> classTypes) {
+      this.classTypes = classTypes;
+    }
 
     @Override
     public Type visitType(minijava.ast.Type that) {
@@ -126,8 +147,7 @@ public class Types {
 
     @Override
     public Type visitClass(Class that) {
-      // The actual firm.ClassType is irrelevant for storing references to it.
-      return new PrimitiveType(Mode.getP());
+      return pointerTo(classTypes.get(that));
     }
   }
 }
