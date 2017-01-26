@@ -70,9 +70,7 @@ public class AliasAnalyzer extends BaseOptimizer {
     this.graph = graph;
     fixedPointIteration(GraphUtils.topologicalOrder(graph));
     LoadStoreAliasingTransformation transformation = new LoadStoreAliasingTransformation();
-    Boolean hasChanged = FirmUtils.withBackEdges(graph, transformation::transform);
-    System.out.println("-------------------------------");
-    return hasChanged;
+    return FirmUtils.withBackEdges(graph, transformation::transform);
   }
 
   private Set<IndirectAccess> getPointsTo(Node node) {
@@ -94,9 +92,6 @@ public class AliasAnalyzer extends BaseOptimizer {
   private <T> void update(Map<Node, T> map, Node key, T newValue) {
     T oldValue = map.put(key, newValue);
     hasChanged |= oldValue == null || !oldValue.equals(newValue);
-    System.out.println("-------------------------------");
-    System.out.println(key);
-    System.out.println(newValue);
   }
 
   private void bumpSuccessors() {
@@ -190,7 +185,7 @@ public class AliasAnalyzer extends BaseOptimizer {
 
       // A called function may possibly taint all shared chunks, plus the any new chunks.
       PSet<Node> taintedChunks =
-          seq(aliasesWithCallee(call))
+          seq(aliasesSharedWithCallee(call))
               .map(ia -> ia.base)
               // We also add the returned chunk (which is always represented by the call) as tainted.
               // If the called method is calloc however, we don't, since we know the result
@@ -211,7 +206,7 @@ public class AliasAnalyzer extends BaseOptimizer {
   }
 
   @NotNull
-  private Set<IndirectAccess> aliasesWithCallee(Call call) {
+  private Set<IndirectAccess> aliasesSharedWithCallee(Call call) {
     Entity method = calledMethod(call);
     MethodType mt = (MethodType) method.getType();
     Set<IndirectAccess> sharedChunks = new HashSet<>();
@@ -267,7 +262,7 @@ public class AliasAnalyzer extends BaseOptimizer {
     // our points-to set.
     if (startOrCall.getOpCode() == iro_Call) {
       newPointsTo =
-          seq(aliasesWithCallee((Call) startOrCall))
+          seq(aliasesSharedWithCallee((Call) startOrCall))
               .filter(ia -> ia.isBaseReferencePointingTo(pointerType.getPointsTo()))
               .toSet();
     }
@@ -573,8 +568,6 @@ public class AliasAnalyzer extends BaseOptimizer {
           continue;
         }
 
-        System.out.println(sideEffect);
-
         // We assume that the Mem pred is at index 0 and that the ptr pred is at index 1
         // That's at least the case for Load and Store.
         Node ptr = sideEffect.getPred(1);
@@ -582,15 +575,33 @@ public class AliasAnalyzer extends BaseOptimizer {
         // side effect chain, so calling get() directly is safe.
         //noinspection OptionalGetWithoutIsPresent
         Node lastSideEffect = sideEffectChainBefore(sideEffect).findFirst().get();
-        if (isLoadOrStore(lastSideEffect)) {
-          Node predMem = lastSideEffect.getPred(0);
-          Node predPtr = lastSideEffect.getPred(1);
-          if (!mayAlias(ptr, predPtr)) {
-            // we can point the mem node to the pred's
-            redirectMem(sideEffect, predMem);
-            // We also have to
-            hasChanged = true;
-          }
+        Set<IndirectAccess> otherAliasClass;
+        switch (lastSideEffect.getOpCode()) {
+          case iro_Load:
+          case iro_Store:
+            Node predPtr = lastSideEffect.getPred(1);
+            otherAliasClass = getPointsTo(predPtr);
+            break;
+          case iro_Call:
+            // We may move forward only if the call couldn't modify our alias class.
+            otherAliasClass = aliasesSharedWithCallee((Call) lastSideEffect);
+            break;
+          case iro_Start:
+            // Clearly, we can't move stuff before the Start node
+            continue;
+          default:
+            // I wonder what other side-effects we might hit...
+            // Div/Mod are never reachable.
+            LOGGER.info("Can't handle side effect " + lastSideEffect);
+            continue;
+        }
+
+        Node predMem = lastSideEffect.getPred(0);
+        if (!mayAlias(ptr, otherAliasClass)) {
+          // we can point the mem node to the pred's
+          redirectMem(sideEffect, predMem);
+          // We also have to
+          hasChanged = true;
         }
       }
       return hasChanged;
@@ -646,13 +657,6 @@ public class AliasAnalyzer extends BaseOptimizer {
       }
 
       removeSyncOnSync(sync);
-
-      System.out.println("-------------------------");
-      System.out.println("AliasAnalyzer.redirectMem");
-      System.out.println("sideEffect = " + sideEffect);
-      System.out.println("oldMem = " + oldMem);
-      System.out.println("newMem = " + newMem);
-      System.out.println("sync = " + sync);
     }
 
     private void removeSyncOnSync(Sync node) {
@@ -683,8 +687,12 @@ public class AliasAnalyzer extends BaseOptimizer {
     }
 
     private boolean mayAlias(Node ptr1, Node ptr2) {
-      HashSet<IndirectAccess> commonPointers = new HashSet<>(getPointsTo(ptr1));
-      commonPointers.retainAll(getPointsTo(ptr2));
+      return mayAlias(ptr1, getPointsTo(ptr2));
+    }
+
+    private boolean mayAlias(Node ptr, Set<IndirectAccess> otherAliasClass) {
+      HashSet<IndirectAccess> commonPointers = new HashSet<>(getPointsTo(ptr));
+      commonPointers.retainAll(otherAliasClass);
       return !commonPointers.isEmpty();
     }
 

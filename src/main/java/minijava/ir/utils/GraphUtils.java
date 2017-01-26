@@ -45,6 +45,7 @@ public class GraphUtils {
         return (T) mapping.get(node);
       }
       T copy = (T) graph.copyNode(node);
+      NodeUtils.setLink(copy, NodeUtils.getLink(node));
       mapping.put(node, copy);
       mapping.put(copy, copy); // Just in case some reference was already updated
       if (node.getBlock() != null) {
