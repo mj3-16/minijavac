@@ -149,18 +149,15 @@ public class Cli {
   }
 
   private boolean optimizationsTurnedOff() {
-    String value = System.getenv("MJ_OPTIMIZE");
-    return value != null && value.equals("0");
+    return EnvironmentVariablesHandler.Optimization.turnedOff();
   }
 
   private static boolean shouldPrintGraphs() {
-    String value = System.getenv("MJ_GRAPH");
-    return value != null && value.equals("1");
+    return EnvironmentVariablesHandler.Graph.printGraphs();
   }
 
   private boolean shouldProduceDebuggableBinary() {
-    String value = System.getenv("MJ_DBG");
-    return value != null && value.equals("1");
+    return EnvironmentVariablesHandler.Debug.produceDebuggableBinary();
   }
 
   public static void dumpGraphsIfNeeded(String appendix) {

@@ -77,6 +77,7 @@ public class Compiler {
   }
 
   public static void optimize() {
+
     dumpGraphsIfNeeded("before-optimizations");
     Optimizer constantFolder = new ConstantFolder();
     Optimizer floatInTransformation = new FloatInTransformation();
@@ -143,11 +144,16 @@ public class Compiler {
 
       // Here comes the interprocedural stuff... This is method is really turning into a mess
       boolean hasChanged = false;
-      for (Graph graph : Program.getGraphs()) {
-        hasChanged |= inliner.optimize(graph);
-        unreachableCodeRemover.optimize(graph);
-        Cli.dumpGraphIfNeeded(graph, "after-inlining");
+
+      // check if inliner should be used
+      if (!EnvironmentVariablesHandler.Optimization.dontUseInliner()) {
+        for (Graph graph : Program.getGraphs()) {
+          hasChanged |= inliner.optimize(graph);
+          unreachableCodeRemover.optimize(graph);
+          Cli.dumpGraphIfNeeded(graph, "after-inlining");
+        }
       }
+
       if (!hasChanged) {
         if (inliner.onlyLeafs) {
           inliner = new Inliner(metrics, false);
