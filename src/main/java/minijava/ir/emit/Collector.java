@@ -51,11 +51,8 @@ class Collector implements Program.Visitor<Void> {
       for (Method m : decl.methods) {
         methods.put(m, createEntity(m));
       }
-      //System.out.println("# " + classType);
-      //System.out.println(classType.getSize());
       classType.layoutFields();
       classType.finishLayout();
-      //System.out.println(classType.getSize());
     }
     return null;
   }
@@ -93,7 +90,6 @@ class Collector implements Program.Visitor<Void> {
     }
 
     MethodType methodType = new MethodType(parameterTypes.toArray(new Type[0]), returnTypes);
-    System.out.println(Types.methodTypeToString(methodType));
 
     // Set the mangled name
     Entity methodEnt = new Entity(definingClass, m.name(), methodType);

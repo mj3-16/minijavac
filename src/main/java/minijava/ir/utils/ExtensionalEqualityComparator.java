@@ -140,7 +140,8 @@ public class ExtensionalEqualityComparator implements Comparator<Node> {
 
     @Override
     public void visit(Proj node) {
-      cmp = node.getNum() - ((Proj) other).getNum();
+      // Two different projs should never be considered equal.
+      cmp = node.getNr() - other.getNr();
     }
 
     @Override

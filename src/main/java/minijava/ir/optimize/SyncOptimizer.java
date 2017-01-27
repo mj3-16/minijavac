@@ -34,20 +34,14 @@ public class SyncOptimizer extends BaseOptimizer {
 
   @Override
   public void visit(Sync node) {
-    System.out.println("SyncOptimizer.visit");
-    System.out.println("node = " + node);
     Set<Node> sinks = findReachabilitySinks(node);
-    System.out.println("sinks = " + sinks);
     Set<Node> modeMs = seq(sinks).map(NodeUtils::projModeMOf).toSet();
-    System.out.println("modeMs = " + modeMs);
     boolean needToExchangeWithNewNode = !seq(node.getPreds()).toSet().equals(modeMs);
-    System.out.println("needToExchangeWithNewNode = " + needToExchangeWithNewNode);
     if (!needToExchangeWithNewNode) {
       return;
     }
     hasChanged = true;
     if (modeMs.size() == 1) {
-      System.out.println("node = " + node);
       Graph.exchange(node, Iterables.getOnlyElement(modeMs));
     } else {
       Node newSync = graph.newSync(node.getBlock(), seq(modeMs).toArray(Node[]::new));
@@ -59,7 +53,6 @@ public class SyncOptimizer extends BaseOptimizer {
     // We'll use the algorithm http://wiki.c2.com/?GraphSinkDetection.
     // Note that we won't optimize beyond Phi nodes.
     Set<Node> relevantNodes = reachableSideEffects(node);
-    System.out.println("relevantNodes = " + relevantNodes);
     Set<Node> possiblySources = new HashSet<>(relevantNodes);
     for (Node n : relevantNodes) {
       if (isSink(n)) {
@@ -69,7 +62,6 @@ public class SyncOptimizer extends BaseOptimizer {
       Set<Node> notSources = NodeUtils.getPreviousSideEffects(mem);
       possiblySources.removeAll(notSources);
     }
-    System.out.println("possiblySources = " + possiblySources);
     return possiblySources;
   }
 

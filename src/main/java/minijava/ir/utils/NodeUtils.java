@@ -99,23 +99,27 @@ public class NodeUtils {
    */
   public static void mergeProjsWithNum(Node node, int num) {
     List<Proj> projs = new ArrayList<>();
-    for (BackEdges.Edge be : BackEdges.getOuts(node)) {
-      asProj(be.node)
-          .ifPresent(
-              proj -> {
-                if (proj.getNum() == num) {
-                  projs.add(proj);
-                }
-              });
-    }
-    // this will do the right thing in case there aren't any projs as well as when there are 1 or more.
-    for (Proj proj : seq(projs).skip(1)) {
-      Proj survivor = projs.get(0);
-      for (BackEdges.Edge be : BackEdges.getOuts(proj)) {
-        be.node.setPred(be.pos, survivor);
-      }
-      Graph.killNode(proj);
-    }
+    FirmUtils.withBackEdges(
+        node.getGraph(),
+        () -> {
+          for (BackEdges.Edge be : BackEdges.getOuts(node)) {
+            asProj(be.node)
+                .ifPresent(
+                    proj -> {
+                      if (proj.getNum() == num) {
+                        projs.add(proj);
+                      }
+                    });
+          }
+          // this will do the right thing in case there aren't any projs as well as when there are 1 or more.
+          for (Proj proj : seq(projs).skip(1)) {
+            Proj survivor = projs.get(0);
+            for (BackEdges.Edge be : BackEdges.getOuts(proj)) {
+              be.node.setPred(be.pos, survivor);
+            }
+            Graph.killNode(proj);
+          }
+        });
   }
 
   /** Make sure to have called GraphUtils.reserveResource(graph, IR_RESOURCE_IRN_LINK) before! */

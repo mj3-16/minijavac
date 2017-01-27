@@ -94,7 +94,7 @@ public class Compiler {
     OptimizerFramework perGraphFramework =
         new OptimizerFramework.Builder()
             .add(unreachableCodeRemover)
-            .dependsOn(controlFlowOptimizer, jmpBlockRemover, loadStoreOptimizer)
+            .dependsOn(controlFlowOptimizer, jmpBlockRemover)
             .add(criticalEdgeDetector)
             .dependsOn(controlFlowOptimizer, jmpBlockRemover)
             .add(constantFolder)
