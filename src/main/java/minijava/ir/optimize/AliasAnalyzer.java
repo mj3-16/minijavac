@@ -9,7 +9,6 @@ import static firm.bindings.binding_irnode.ir_opcode.iro_Sync;
 import static org.jooq.lambda.Seq.seq;
 
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import firm.ArrayType;
 import firm.BackEdges;
 import firm.BackEdges.Edge;
@@ -30,8 +29,6 @@ import firm.nodes.Proj;
 import firm.nodes.Sel;
 import firm.nodes.Store;
 import firm.nodes.Sync;
-import java.util.ArrayDeque;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -84,7 +81,10 @@ public class AliasAnalyzer extends BaseOptimizer {
 
   /** The model of the memory at a certain program point. */
   private final Map<Node, Memory> memories = new HashMap<>();
-  /** Models the set of aliased memory locations the node might point to. */
+  /**
+   * Models the set of aliased memory locations the node might point to. For side-effecting nodes,
+   * this represents the set of possibly tainted memory locations.
+   */
   private final Map<Node, Set<IndirectAccess>> pointsTos = new HashMap<>();
 
   @Override
@@ -182,12 +182,11 @@ public class AliasAnalyzer extends BaseOptimizer {
     // Which memory locations can be aliased by the callee?
     // aliasesSharedWithCallee will find all possible transitive aliasing pointers
     // that are visible through the function's arguments.
-    Set<IndirectAccess> newPointsTo = aliasesSharedWithCallee(call, memory);
-    updatePointsTo(call, newPointsTo);
+    Set<IndirectAccess> argumentAliases = aliasesSharedWithCallee(call, memory);
 
     // A called function may possibly taint all shared chunks, plus any new chunks.
     PSet<Node> taintedChunks =
-        seq(newPointsTo)
+        seq(argumentAliases)
             .map(ia -> ia.base)
             // We also add the returned chunk (which is always represented by the call) as tainted.
             // If the called method is calloc however, we don't, since we know the result
@@ -202,6 +201,11 @@ public class AliasAnalyzer extends BaseOptimizer {
       memory = memory.modifyChunk(tainted, chunk -> chunk.setSlot(UNKNOWN_OFFSET, taintedChunks));
     }
     updateMemory(call, memory);
+
+    // Now that we have tainted the memory, we can compute the aliasing state *after* the callee.
+    // Note that now there might even be hidden new references in some transitive argument.
+    Set<IndirectAccess> newPointsTo = aliasesSharedWithCallee(call, memory);
+    updatePointsTo(call, newPointsTo);
   }
 
   @Override
@@ -219,8 +223,10 @@ public class AliasAnalyzer extends BaseOptimizer {
 
   @Override
   public void visit(Store store) {
-    // Store is only interesting for its side effects.
+    // Store is only interesting for its side effects. Yet we record the pointed to set,
+    // which means in this case 'might be modified by'.
     Set<IndirectAccess> ptrPointsTo = getPointsTo(store.getPtr());
+    updatePointsTo(store, ptrPointsTo);
     Set<IndirectAccess> valPointsTo = getPointsTo(store.getValue());
     Type referencedType = getReferencedType(store.getPtr());
     Memory memory = getMemory(store.getMem());
@@ -261,6 +267,10 @@ public class AliasAnalyzer extends BaseOptimizer {
           .flatMap(ia -> transitiveAliasesOfChunk(ia, memory))
           .forEach(sharedAliases::add);
     }
+    // Also the callee might set new aliases to every possible known location.
+    Set<IndirectAccess> possibleNewAliases =
+        seq(sharedAliases).map(ia -> new IndirectAccess(call, ia.pointedToType, ia.offset)).toSet();
+    sharedAliases.addAll(possibleNewAliases);
     return sharedAliases;
   }
 
@@ -313,31 +323,35 @@ public class AliasAnalyzer extends BaseOptimizer {
   private Seq<IndirectAccess> transitiveAliasesOfChunk(IndirectAccess ref, Memory memory) {
     // Calls to base may potentially modify any field/array element.
     Set<IndirectAccess> transitiveAliases = new HashSet<>();
-    Deque<IndirectAccess> toVisit = new ArrayDeque<>();
+    Set<IndirectAccess> toVisit = new HashSet<>();
     toVisit.add(ref);
 
     while (!toVisit.isEmpty()) {
-      IndirectAccess cur = toVisit.remove();
+
+      IndirectAccess cur = toVisit.iterator().next();
+      toVisit.remove(cur);
       if (transitiveAliases.contains(cur)) {
         continue;
       }
       transitiveAliases.add(cur);
 
-      if (ref.pointedToType instanceof ArrayType) {
+      if (cur.pointedToType instanceof ArrayType) {
         // We also return an access to all elements
-        Type elementType = ((ArrayType) ref.pointedToType).getElementType();
-        toVisit.add(new IndirectAccess(ref.base, elementType, UNKNOWN_OFFSET));
-      } else if (ref.pointedToType instanceof ClassType) {
+        Type elementType = ((ArrayType) cur.pointedToType).getElementType();
+        toVisit.add(new IndirectAccess(cur.base, elementType, UNKNOWN_OFFSET));
+      } else if (cur.pointedToType instanceof ClassType) {
         // We return an access to all fields
-        ClassType classType = (ClassType) ref.pointedToType;
+        ClassType classType = (ClassType) cur.pointedToType;
         int n = classType.getNMembers();
         for (int i = 0; i < n; ++i) {
           Entity field = classType.getMember(i);
-          toVisit.add(new IndirectAccess(ref.base, field.getType(), field.getOffset()));
+          int tmp = toVisit.size();
+          toVisit.add(new IndirectAccess(cur.base, field.getType(), field.getOffset()));
+          if (field.getType() instanceof PointerType && tmp == toVisit.size()) throw new Error();
         }
-      } else if (ref.pointedToType instanceof PointerType) {
+      } else if (cur.pointedToType instanceof PointerType) {
         // We follow the ref and add all transitive refs.
-        followIndirectAccessInMemory(ref, memory).forEach(toVisit::add);
+        followIndirectAccessInMemory(cur, memory).forEach(toVisit::add);
       }
     }
 
@@ -541,7 +555,7 @@ public class AliasAnalyzer extends BaseOptimizer {
         this.slots = slots;
       }
 
-      public PSet<Node> getSlot(Integer offset) {
+      public PSet<Node> getSlot(int offset) {
         if (offset == UNKNOWN_OFFSET) {
           // We don't know the offset for sure, so we conservatively return all stored values.
           return seq(slots.values())
@@ -551,9 +565,8 @@ public class AliasAnalyzer extends BaseOptimizer {
 
         // The UNKNOWN_OFFSET is special: It represents every possible offset. Consequently,
         // we have to always merge with values at the UNKNOWN_OFFSET slot.
-        return slots
-            .getOrDefault(offset, HashTreePSet.empty())
-            .plusAll(slots.getOrDefault(UNKNOWN_OFFSET, HashTreePSet.empty()));
+        PSet<Node> unknown = slots.getOrDefault(UNKNOWN_OFFSET, HashTreePSet.empty());
+        return slots.getOrDefault(offset, HashTreePSet.empty()).plusAll(unknown);
       }
 
       public Chunk setSlot(int offset, PSet<Node> value) {
@@ -685,13 +698,9 @@ public class AliasAnalyzer extends BaseOptimizer {
       switch (node.getOpCode()) {
         case iro_Load:
         case iro_Store:
-          // We assume that the Mem pred is at index 0 and that the ptr pred is at index 1
-          // That's at least the case for Load and Store.
           Node ptr = node.getPred(1);
           return getPointsTo(ptr);
         case iro_Call:
-          // We may move forward only if the call couldn't modify any alias visible through
-          // an argument.
           return getPointsTo(node);
         case iro_Start:
           // Clearly, we can't move stuff before the Start node. But there is no way
@@ -786,7 +795,29 @@ public class AliasAnalyzer extends BaseOptimizer {
     }
 
     private boolean mayAlias(Node ptr, Set<IndirectAccess> otherAliasClass) {
-      return !Sets.intersection(getPointsTo(ptr), otherAliasClass).isEmpty();
+      for (IndirectAccess ref : getPointsTo(ptr)) {
+        if (ref.offset == UNKNOWN_OFFSET) {
+          // This is bad asymptotic wise, since we don't have an index for base and type.
+          boolean mayPotentiallyAlias =
+              !seq(otherAliasClass)
+                  .filter(
+                      ia -> ia.base.equals(ref.base) && ia.pointedToType.equals(ref.pointedToType))
+                  .isEmpty();
+          if (mayPotentiallyAlias) {
+            return true;
+          }
+        } else {
+          // This is much better.
+          IndirectAccess refAtAnyOffset =
+              new IndirectAccess(ref.base, ref.pointedToType, UNKNOWN_OFFSET);
+          boolean mayPotentiallyAlias =
+              otherAliasClass.contains(ref) || otherAliasClass.contains(refAtAnyOffset);
+          if (mayPotentiallyAlias) {
+            return true;
+          }
+        }
+      }
+      return false;
     }
 
     private boolean isLoadOrStore(Node node) {

@@ -118,7 +118,7 @@ public class Compiler {
                 loadStoreOptimizer,
                 controlFlowOptimizer)
             .add(aliasAnalyzer)
-            .dependsOn(constantFolder, algebraicSimplifier)
+            .dependsOn() // It's quite expensive to run the alias analysis, so we do so only once.
             .add(syncOptimizer)
             .dependsOn(aliasAnalyzer)
             .add(loadStoreOptimizer)
