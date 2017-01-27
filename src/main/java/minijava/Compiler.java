@@ -122,7 +122,12 @@ public class Compiler {
             .add(syncOptimizer)
             .dependsOn(aliasAnalyzer)
             .add(loadStoreOptimizer)
-            .dependsOn(commonSubexpressionElimination, constantFolder, algebraicSimplifier)
+            .dependsOn(
+                commonSubexpressionElimination,
+                constantFolder,
+                algebraicSimplifier,
+                aliasAnalyzer,
+                syncOptimizer)
             .add(floatInTransformation)
             .dependsOn(
                 commonSubexpressionElimination,

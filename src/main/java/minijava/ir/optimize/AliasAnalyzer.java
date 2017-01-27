@@ -646,11 +646,11 @@ public class AliasAnalyzer extends BaseOptimizer {
      */
     private Set<Node> lastAliasingSideEffects(Node sideEffect) {
       Set<Node> ret = new HashSet<>();
-      Deque<Node> toVisit =
-          new ArrayDeque<>(NodeUtils.getPreviousSideEffects(sideEffect.getPred(0)));
+      Set<Node> toVisit = NodeUtils.getPreviousSideEffects(sideEffect.getPred(0));
       Set<Node> visited = new HashSet<>();
       while (!toVisit.isEmpty()) {
-        Node prevSideEffect = toVisit.removeFirst();
+        Node prevSideEffect = toVisit.iterator().next();
+        toVisit.remove(prevSideEffect);
         if (visited.contains(prevSideEffect)) {
           continue;
         }
@@ -673,7 +673,7 @@ public class AliasAnalyzer extends BaseOptimizer {
               .forEach(toVisit::add);
         }
 
-        if (ret.size() > MAX_NUMBER_OF_SYNC_PREDS || toVisit.size() > 10) {
+        if (toVisit.size() > MAX_NUMBER_OF_SYNC_PREDS) {
           // This is a conservative default, to speed up compilation time and space.
           return NodeUtils.getPreviousSideEffects(sideEffect.getPred(0));
         }
