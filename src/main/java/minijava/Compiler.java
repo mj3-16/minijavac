@@ -37,6 +37,7 @@ import minijava.ir.optimize.Optimizer;
 import minijava.ir.optimize.OptimizerFramework;
 import minijava.ir.optimize.PhiOptimizer;
 import minijava.ir.optimize.ProgramMetrics;
+import minijava.ir.optimize.SyncOptimizer;
 import minijava.ir.optimize.UnreachableCodeRemover;
 import minijava.ir.utils.GraphUtils;
 import minijava.lexer.Lexer;
@@ -87,12 +88,13 @@ public class Compiler {
     Optimizer commonSubexpressionElimination = new CommonSubexpressionElimination();
     Optimizer phiOptimizer = new PhiOptimizer();
     Optimizer aliasAnalyzer = new AliasAnalyzer();
+    Optimizer syncOptimizer = new SyncOptimizer();
     Optimizer loadStoreOptimizer = new LoadStoreOptimizer();
     Optimizer criticalEdgeDetector = new CriticalEdgeDetector();
     OptimizerFramework perGraphFramework =
         new OptimizerFramework.Builder()
             .add(unreachableCodeRemover)
-            .dependsOn(controlFlowOptimizer, jmpBlockRemover)
+            .dependsOn(controlFlowOptimizer, jmpBlockRemover, loadStoreOptimizer)
             .add(criticalEdgeDetector)
             .dependsOn(controlFlowOptimizer, jmpBlockRemover)
             .add(constantFolder)
@@ -117,6 +119,8 @@ public class Compiler {
                 controlFlowOptimizer)
             .add(aliasAnalyzer)
             .dependsOn(constantFolder, algebraicSimplifier)
+            .add(syncOptimizer)
+            .dependsOn(aliasAnalyzer)
             .add(loadStoreOptimizer)
             .dependsOn(commonSubexpressionElimination, constantFolder, algebraicSimplifier)
             .add(floatInTransformation)
@@ -144,11 +148,11 @@ public class Compiler {
       }
 
       // Here comes the interprocedural stuff... This is method is really turning into a mess
+      Cli.dumpGraphsIfNeeded("before-Inliner");
       boolean hasChanged = false;
       for (Graph graph : Program.getGraphs()) {
         hasChanged |= inliner.optimize(graph);
         unreachableCodeRemover.optimize(graph);
-        Cli.dumpGraphIfNeeded(graph, "after-inlining");
       }
       if (!hasChanged) {
         if (inliner.onlyLeafs) {

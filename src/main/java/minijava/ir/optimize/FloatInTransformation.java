@@ -33,6 +33,7 @@ public class FloatInTransformation extends BaseOptimizer {
           iro_Block,
           iro_Phi,
           iro_Address,
+          iro_Size,
           iro_Const,
           iro_Jmp,
           iro_Start,

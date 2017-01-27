@@ -2,16 +2,13 @@ package minijava.ir.optimize;
 
 import static firm.bindings.binding_irnode.ir_opcode.iro_Call;
 import static firm.bindings.binding_irnode.ir_opcode.iro_Load;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Phi;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Proj;
 import static firm.bindings.binding_irnode.ir_opcode.iro_Start;
 import static firm.bindings.binding_irnode.ir_opcode.iro_Store;
 import static firm.bindings.binding_irnode.ir_opcode.iro_Sync;
 import static org.jooq.lambda.Seq.seq;
-import static org.jooq.lambda.tuple.Tuple.tuple;
 
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import firm.ArrayType;
 import firm.BackEdges;
 import firm.BackEdges.Edge;
@@ -22,7 +19,6 @@ import firm.MethodType;
 import firm.Mode;
 import firm.PointerType;
 import firm.Type;
-import firm.bindings.binding_irnode.ir_opcode;
 import firm.nodes.Address;
 import firm.nodes.Call;
 import firm.nodes.Load;
@@ -33,14 +29,16 @@ import firm.nodes.Proj;
 import firm.nodes.Sel;
 import firm.nodes.Store;
 import firm.nodes.Sync;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import minijava.Cli;
 import minijava.ir.emit.Types;
 import minijava.ir.utils.ExtensionalEqualityComparator;
 import minijava.ir.utils.FirmUtils;
@@ -68,6 +66,8 @@ public class AliasAnalyzer extends BaseOptimizer {
   @Override
   public boolean optimize(Graph graph) {
     this.graph = graph;
+    memories.clear();
+    pointsTos.clear();
     fixedPointIteration(GraphUtils.topologicalOrder(graph));
     LoadStoreAliasingTransformation transformation = new LoadStoreAliasingTransformation();
     return FirmUtils.withBackEdges(graph, transformation::transform);
@@ -79,6 +79,9 @@ public class AliasAnalyzer extends BaseOptimizer {
 
   private void updatePointsTo(Node node, Set<IndirectAccess> newPointsTo) {
     update(pointsTos, node, newPointsTo);
+    System.out.println("AliasAnalyzer.updatePointsTo");
+    System.out.println("node = " + node);
+    System.out.println("newPointsTo = " + newPointsTo);
   }
 
   private Memory getMemory(Node node) {
@@ -111,6 +114,13 @@ public class AliasAnalyzer extends BaseOptimizer {
           seq(node.getPreds()).map(this::getPointsTo).flatMap(Seq::seq).toSet();
       updatePointsTo(node, pointsTo);
     }
+  }
+
+  @Override
+  public void visit(Sync node) {
+    Memory memory =
+        seq(node.getPreds()).map(this::getMemory).foldLeft(Memory.empty(), Memory::mergeWith);
+    updateMemory(node, memory);
   }
 
   @Override
@@ -559,52 +569,99 @@ public class AliasAnalyzer extends BaseOptimizer {
     public boolean transform() {
       // This works by following memory edges and reordering them when there is no alias.
       boolean hasChanged = false;
-      Seq<Node> allSideEffectChains =
-          seq(graph.getEndBlock().getPreds()).flatMap(this::sideEffectChainBefore);
-      for (Node sideEffect : allSideEffectChains) {
-        // We got a Proj M. Now we try to redirect Mem edges of preds, always making sure we sync
-        // diverging paths.
+      for (Node sideEffect : GraphUtils.topologicalOrder(graph)) {
+        // We try to point the Mem pred as far up in the graph as possible.
+        // That can possibly mean that we have to insert multiple Sync nodes.
         if (!isLoadOrStore(sideEffect)) {
           continue;
         }
 
-        // We assume that the Mem pred is at index 0 and that the ptr pred is at index 1
-        // That's at least the case for Load and Store.
-        Node ptr = sideEffect.getPred(1);
-        // Since we look at a load or store, there is at least a Start node further up in the
-        // side effect chain, so calling get() directly is safe.
-        //noinspection OptionalGetWithoutIsPresent
-        Node lastSideEffect = sideEffectChainBefore(sideEffect).findFirst().get();
-        Set<IndirectAccess> otherAliasClass;
-        switch (lastSideEffect.getOpCode()) {
-          case iro_Load:
-          case iro_Store:
-            Node predPtr = lastSideEffect.getPred(1);
-            otherAliasClass = getPointsTo(predPtr);
-            break;
-          case iro_Call:
-            // We may move forward only if the call couldn't modify our alias class.
-            otherAliasClass = aliasesSharedWithCallee((Call) lastSideEffect);
-            break;
-          case iro_Start:
-            // Clearly, we can't move stuff before the Start node
-            continue;
-          default:
-            // I wonder what other side-effects we might hit...
-            // Div/Mod are never reachable.
-            LOGGER.info("Can't handle side effect " + lastSideEffect);
-            continue;
+        Set<Node> aliasing = lastAliasingSideEffects(sideEffect);
+        Node newMem;
+        if (aliasing.size() > 1) {
+          // This should drastically cut down on some edges and should
+          // always preserve the invariant that all other aliased nodes
+          // transitively depend on the Start node.
+          aliasing.remove(graph.getStart());
         }
 
-        Node predMem = lastSideEffect.getPred(0);
-        if (!mayAlias(ptr, otherAliasClass)) {
-          // we can point the mem node to the pred's
-          redirectMem(sideEffect, predMem);
-          // We also have to
+        if (aliasing.size() == 1) {
+          newMem = NodeUtils.getMemProjSuccessor(aliasing.iterator().next());
+        } else {
+          Node[] mems = seq(aliasing).map(NodeUtils::projModeMOf).toArray(Node[]::new);
+          newMem = graph.newSync(sideEffect.getBlock(), mems);
+        }
+
+        if (!newMem.equals(sideEffect.getPred(0))) {
           hasChanged = true;
+          Cli.dumpGraphIfNeeded(graph, sideEffect.toString());
+          redirectMem(sideEffect, newMem);
         }
       }
       return hasChanged;
+    }
+
+    /**
+     * Performs a pre-order search on all previous side effects, stopping on aliasing side effects.
+     */
+    private Set<Node> lastAliasingSideEffects(Node sideEffect) {
+      Set<Node> ret = new HashSet<>();
+      Deque<Node> toVisit =
+          new ArrayDeque<>(NodeUtils.getPreviousSideEffects(sideEffect.getPred(0)));
+      Set<Node> visited = new HashSet<>();
+      System.out.println();
+      System.out.println("LoadStoreAliasingTransformation.lastAliasingSideEffects");
+      System.out.println("sideEffect = " + sideEffect);
+      while (!toVisit.isEmpty()) {
+        Node prevSideEffect = toVisit.removeFirst();
+        if (visited.contains(prevSideEffect)) {
+          continue;
+        }
+        visited.add(prevSideEffect);
+        System.out.println("prevSideEffect = " + prevSideEffect);
+        System.out.println("toVisit = " + toVisit);
+
+        // We assume that the Mem pred is at index 0 and that the ptr pred is at index 1
+        // That's at least the case for Load and Store.
+        Node ptr = sideEffect.getPred(1);
+
+        boolean cannotMoveBeyond =
+            prevSideEffect.getOpCode() == iro_Start || mayAlias(ptr, aliasClass(prevSideEffect));
+        if (cannotMoveBeyond) {
+          System.out.println("May alias");
+          ret.add(prevSideEffect);
+        } else {
+          System.out.println("May not alias");
+          Node prevMem = prevSideEffect.getPred(0);
+          toVisit.addAll(NodeUtils.getPreviousSideEffects(prevMem));
+        }
+      }
+      System.out.println();
+      return ret;
+    }
+
+    private Set<IndirectAccess> aliasClass(Node node) {
+      switch (node.getOpCode()) {
+        case iro_Load:
+        case iro_Store:
+          // We assume that the Mem pred is at index 0 and that the ptr pred is at index 1
+          // That's at least the case for Load and Store.
+          Node ptr = node.getPred(1);
+          return getPointsTo(ptr);
+        case iro_Phi:
+          return getPointsTo(node);
+        case iro_Call:
+          // We may move forward only if the call couldn't modify our alias class.
+          return aliasesSharedWithCallee((Call) node);
+        case iro_Start:
+          // Clearly, we can't move stuff before the Start node. But there is no way
+          // to state this just by its alias class.
+          throw new UnsupportedOperationException("The alias class of Start can't be computed.");
+        default:
+          // I wonder what other side-effects we might hit...
+          // Div/Mod are never reachable.
+          throw new UnsupportedOperationException("Can't handle side effect " + node);
+      }
     }
 
     private void redirectMem(Node sideEffect, Node newMem) {
@@ -640,12 +697,7 @@ public class AliasAnalyzer extends BaseOptimizer {
       //
       // So we need to redirect all uses of the side effect's Proj to a fresh Sync node.
 
-      Proj projOnSideEffect =
-          Iterables.getOnlyElement(
-              seq(BackEdges.getOuts(sideEffect))
-                  .map(be -> be.node)
-                  .ofType(Proj.class)
-                  .filter(proj -> proj.getMode().equals(Mode.getM())));
+      Proj projOnSideEffect = NodeUtils.getMemProjSuccessor(sideEffect);
 
       // We have to fix up all usages of the Proj by inserting a Sync node.
       // Redundant Sync nodes could be removed later, similar to Phi nodes.
@@ -656,7 +708,12 @@ public class AliasAnalyzer extends BaseOptimizer {
         be.node.setPred(be.pos, sync);
       }
 
+      // We might be able to merge the newly created Sync node when it only has a single Sync usage.
       removeSyncOnSync(sync);
+      // We can try to merge the newMem in the same way with its predecessors.
+      if (newMem.getOpCode() == iro_Sync) {
+        seq(newMem.getPreds()).ofType(Sync.class).forEach(this::removeSyncOnSync);
+      }
     }
 
     private void removeSyncOnSync(Sync node) {
@@ -686,54 +743,12 @@ public class AliasAnalyzer extends BaseOptimizer {
       Graph.exchange(successorSync, newSync);
     }
 
-    private boolean mayAlias(Node ptr1, Node ptr2) {
-      return mayAlias(ptr1, getPointsTo(ptr2));
-    }
-
     private boolean mayAlias(Node ptr, Set<IndirectAccess> otherAliasClass) {
-      HashSet<IndirectAccess> commonPointers = new HashSet<>(getPointsTo(ptr));
-      commonPointers.retainAll(otherAliasClass);
-      return !commonPointers.isEmpty();
-    }
-
-    /**
-     * Assumes that {@param node} itself is a side-effect. This effectively makes us not bother
-     * about the intermediate Projs.
-     */
-    private Seq<Node> sideEffectChainBefore(Node node) {
-      return Seq.unfold(
-          node,
-          last -> {
-            if (last.getOpCode() == iro_Start) {
-              return Optional.empty();
-            }
-
-            if (isPhiOrSync(last)) {
-              // We don't iterate any further, as these have two mem preds
-              // which doesn't make sense for our traversal.
-              return Optional.empty();
-            }
-
-            Node someMemNode = last.getPred(0);
-            assert someMemNode.getMode().equals(Mode.getM());
-
-            if (isPhiOrSync(someMemNode)) {
-              return Optional.of(tuple(someMemNode, someMemNode));
-            }
-
-            if (someMemNode.getOpCode() == iro_Proj) {
-              Node pred = ((Proj) someMemNode).getPred();
-              return Optional.of(tuple(pred, pred));
-            }
-
-            throw new AssertionError(
-                "Intermediate memory nodes should be either Phis, Syncs or Projs.");
-          });
-    }
-
-    private boolean isPhiOrSync(Node node) {
-      ir_opcode opcode = node.getOpCode();
-      return opcode == iro_Phi || opcode == iro_Sync;
+      System.out.println("LoadStoreAliasingTransformation.mayAlias");
+      System.out.println("ptr = " + ptr);
+      System.out.println("getPointsTo(ptr) = " + getPointsTo(ptr));
+      System.out.println("otherAliasClass = " + otherAliasClass);
+      return !Sets.intersection(getPointsTo(ptr), otherAliasClass).isEmpty();
     }
 
     private boolean isLoadOrStore(Node node) {

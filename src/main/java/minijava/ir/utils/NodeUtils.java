@@ -8,23 +8,31 @@ import static org.jooq.lambda.Seq.seq;
 import static org.jooq.lambda.Seq.zipWithIndex;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import com.sun.jna.Pointer;
 import firm.BackEdges;
 import firm.Graph;
+import firm.Mode;
 import firm.bindings.binding_irnode;
 import firm.nodes.Block;
 import firm.nodes.Cond;
 import firm.nodes.Const;
+import firm.nodes.Load;
 import firm.nodes.Node;
 import firm.nodes.Proj;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.jooq.lambda.Seq;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** For lack of a better name */
 public class NodeUtils {
+  private static final Logger LOGGER = LoggerFactory.getLogger("NodeUtils");
+
   private static final Set<binding_irnode.ir_opcode> SINGLE_EXIT =
       ImmutableSet.of(iro_Jmp, iro_Return);
 
@@ -117,5 +125,48 @@ public class NodeUtils {
 
   public static Pointer getLink(Node node) {
     return binding_irnode.get_irn_link(node.ptr);
+  }
+
+  /**
+   * Expects {@param modeM} to be a Mem node from which we follow mem edges until we hit a
+   * side-effect node (including Phis)
+   */
+  public static Set<Node> getPreviousSideEffects(Node modeM) {
+    assert modeM.getMode().equals(Mode.getM());
+    switch (modeM.getOpCode()) {
+      case iro_Proj:
+        return Sets.newHashSet(modeM.getPred(0));
+      case iro_Phi:
+        return Sets.newHashSet(modeM); // we return Phis themselves
+      case iro_Sync:
+        Set<Node> ret = new HashSet<>();
+        seq(modeM.getPreds()).map(NodeUtils::getPreviousSideEffects).forEach(ret::addAll);
+        return ret;
+      default:
+        LOGGER.warn("Didn't expect a mode M node " + modeM);
+        return Sets.newHashSet(modeM);
+    }
+  }
+
+  /** Projects out the Mem effect of the passed side effect if necessary. */
+  public static Node projModeMOf(Node sideEffect) {
+    if (sideEffect.getMode().equals(Mode.getM())) {
+      return sideEffect;
+    }
+    return getMemProjSuccessor(sideEffect);
+  }
+
+  /** Returns the unique Proj of mode M depending on {@param sideEffect} or creates one. */
+  public static Proj getMemProjSuccessor(Node sideEffect) {
+    return FirmUtils.withBackEdges(
+        sideEffect.getGraph(),
+        () ->
+            seq(BackEdges.getOuts(sideEffect))
+                .map(be -> be.node)
+                .ofType(Proj.class)
+                .filter(p -> p.getMode().equals(Mode.getM()))
+                .findFirst()
+                .orElseGet(
+                    () -> (Proj) sideEffect.getGraph().newProj(sideEffect, Mode.getM(), Load.pnM)));
   }
 }
