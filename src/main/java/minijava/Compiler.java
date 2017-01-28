@@ -76,12 +76,15 @@ public class Compiler {
     Optimizer syncOptimizer = new SyncOptimizer();
     Optimizer loadStoreOptimizer = new LoadStoreOptimizer();
     Optimizer criticalEdgeDetector = new CriticalEdgeDetector();
+    Optimizer duplicateProjDetector = new DuplicateProjDetector();
     OptimizerFramework perGraphFramework =
         new OptimizerFramework.Builder()
             .add(unreachableCodeRemover)
             .dependsOn(controlFlowOptimizer, jmpBlockRemover)
             .add(criticalEdgeDetector)
             .dependsOn(controlFlowOptimizer, jmpBlockRemover)
+            .add(duplicateProjDetector)
+            .dependsOn(loadStoreOptimizer, commonSubexpressionElimination)
             .add(constantFolder)
             .dependsOn(algebraicSimplifier, phiOptimizer, controlFlowOptimizer, loadStoreOptimizer)
             .add(expressionNormalizer)

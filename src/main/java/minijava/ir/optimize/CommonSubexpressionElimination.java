@@ -3,11 +3,13 @@ package minijava.ir.optimize;
 import static org.jooq.lambda.Seq.seq;
 
 import firm.Graph;
+import firm.Mode;
 import firm.nodes.*;
 import java.util.*;
 import minijava.ir.Dominance;
 import minijava.ir.utils.ExtensionalEqualityComparator;
 import minijava.ir.utils.GraphUtils;
+import minijava.ir.utils.NodeUtils;
 import org.jooq.lambda.Seq;
 
 /**
@@ -65,12 +67,25 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
             continue;
           }
           // otherwise we can exchange it for a reference to a dominated expression
-          Graph.exchange(edge.getKey(), edge.getValue());
+          exchange(edge);
           hasChanged = true;
         }
       }
     }
     return hasChanged;
+  }
+
+  private void exchange(Map.Entry<Node, Node> edge) {
+    Node redundant = edge.getKey();
+    Node replacement = edge.getValue();
+    if (redundant.getMode().equals(Mode.getT())) {
+      // Nodes such as div and mod return a tuple.
+      // We have to merge projs accordingly.
+      NodeUtils.redirectProjsOnto(redundant, replacement);
+      Graph.killNode(redundant);
+    } else {
+      Graph.exchange(edge.getKey(), edge.getValue());
+    }
   }
 
   /** This computes the dominance forest of star graphs in a UnionFind-like manner. */

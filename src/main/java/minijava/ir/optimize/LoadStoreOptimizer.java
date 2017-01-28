@@ -42,15 +42,9 @@ public class LoadStoreOptimizer extends BaseOptimizer {
 
         hasChanged = true;
 
-        for (BackEdges.Edge be : BackEdges.getOuts(node)) {
-          // Let the Projs point to the previous load
-          be.node.setPred(be.pos, previousLoad);
-          be.node.setBlock(previousLoad.getBlock());
-        }
         // There must never be more than one Proj for each Num (e.g. M, Res, etc.),
         // so we merge them.
-        NodeUtils.mergeProjsWithNum(previousLoad, Load.pnM);
-        NodeUtils.mergeProjsWithNum(previousLoad, Load.pnRes);
+        NodeUtils.redirectProjsOnto(node, previousLoad);
         Graph.killNode(node);
         break;
       case iro_Store:
@@ -105,12 +99,13 @@ public class LoadStoreOptimizer extends BaseOptimizer {
         }
 
         hasChanged = true;
+        Proj projOnCurrent = NodeUtils.getMemProjSuccessor(currentStore);
         for (Edge usage : usages) {
-          Proj projOnCurrent = NodeUtils.getMemProjSuccessor(currentStore);
           usage.node.setPred(usage.pos, projOnCurrent);
         }
         currentStore.setMem(previousStore.getMem());
         Graph.killNode(previousStore);
+        Graph.killNode(projOnPrevious);
         break;
       default:
         break;

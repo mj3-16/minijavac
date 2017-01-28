@@ -122,6 +122,31 @@ public class NodeUtils {
         });
   }
 
+  /**
+   * This will point all Projs of {@param oldTarget} to {@param newTarget} and after that will merge
+   * Projs with the same Num (because there may only be a single proj for Num).
+   */
+  public static void redirectProjsOnto(Node oldTarget, Node newTarget) {
+    Set<Integer> usedNums = new HashSet<>();
+
+    FirmUtils.withBackEdges(
+        oldTarget.getGraph(),
+        () -> {
+          for (BackEdges.Edge be : BackEdges.getOuts(oldTarget)) {
+            // Point the projs to newTarget
+            if (be.node.getOpCode() != iro_Proj) {
+              continue;
+            }
+            be.node.setPred(be.pos, newTarget);
+            be.node.setBlock(newTarget.getBlock());
+            usedNums.add(((Proj) be.node).getNum());
+          }
+        });
+    System.out.println(usedNums);
+
+    usedNums.forEach(num -> mergeProjsWithNum(newTarget, num));
+  }
+
   /** Make sure to have called GraphUtils.reserveResource(graph, IR_RESOURCE_IRN_LINK) before! */
   public static void setLink(Node node, Pointer val) {
     binding_irnode.set_irn_link(node.ptr, val);
