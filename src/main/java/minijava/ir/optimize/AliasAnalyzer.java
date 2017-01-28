@@ -93,9 +93,8 @@ public class AliasAnalyzer extends BaseOptimizer {
     memories.clear();
     pointsTos.clear();
     ArrayList<Node> worklist = GraphUtils.topologicalOrder(graph);
-    long count = seq(worklist).filter(AliasAnalyzer::isRelevantNode).count();
-    System.out.println("count = " + count);
-    if (count > 400) {
+    long complexity = seq(worklist).filter(AliasAnalyzer::isRelevantNode).count();
+    if (complexity > 400) {
       // The analysis is too slow for big graphs...
       return false;
     }
@@ -151,7 +150,6 @@ public class AliasAnalyzer extends BaseOptimizer {
 
   @Override
   public void visit(Phi node) {
-    System.out.println(node);
     if (node.getMode().equals(Mode.getM())) {
       Memory memory =
           seq(node.getPreds()).map(this::getMemory).foldLeft(Memory.empty(), Memory::mergeWith);
@@ -161,21 +159,17 @@ public class AliasAnalyzer extends BaseOptimizer {
           seq(node.getPreds()).map(this::getPointsTo).flatMap(Seq::seq).toSet();
       updatePointsTo(node, pointsTo);
     }
-    System.out.println(node + " done");
   }
 
   @Override
   public void visit(Sync node) {
-    System.out.println(node);
     Memory memory =
         seq(node.getPreds()).map(this::getMemory).foldLeft(Memory.empty(), Memory::mergeWith);
     updateMemory(node, memory);
-    System.out.println(node + " done");
   }
 
   @Override
   public void visit(Member node) {
-    System.out.println(node);
     int offset = node.getEntity().getOffset();
     Type fieldType = node.getEntity().getType();
     ClassType containingClassType = (ClassType) node.getEntity().getOwner();
@@ -189,12 +183,10 @@ public class AliasAnalyzer extends BaseOptimizer {
             .toSet();
 
     updatePointsTo(node, fieldReferences);
-    System.out.println(node + " done");
   }
 
   @Override
   public void visit(Sel node) {
-    System.out.println(node);
     ArrayType arrayType = (ArrayType) node.getType();
     int offset =
         NodeUtils.asConst(node.getIndex()).map(i -> i.getTarval().asInt()).orElse(UNKNOWN_OFFSET);
@@ -207,12 +199,10 @@ public class AliasAnalyzer extends BaseOptimizer {
             .toSet();
 
     updatePointsTo(node, offsetReferences);
-    System.out.println(node + " done");
   }
 
   @Override
   public void visit(Call call) {
-    System.out.println("call");
     Memory memory = getMemory(call.getMem());
     Entity method = calledMethod(call);
 
@@ -243,13 +233,10 @@ public class AliasAnalyzer extends BaseOptimizer {
     // Note that now there might even be hidden new references in some transitive argument.
     Set<IndirectAccess> newPointsTo = aliasesSharedWithCallee(call, memory);
     updatePointsTo(call, newPointsTo);
-    System.out.println("newPointsTo.size() = " + newPointsTo.size());
-    System.out.println("Call end");
   }
 
   @Override
   public void visit(Load load) {
-    System.out.println(load);
     // A load doesn't change memory
     updateMemory(load, getMemory(load.getMem()));
     // ... but we can say something about the loaded value
@@ -259,12 +246,10 @@ public class AliasAnalyzer extends BaseOptimizer {
     Set<IndirectAccess> loadedRefs =
         followIndirectAccessesInMemory(pointsTo, memory, referencedType);
     updatePointsTo(load, loadedRefs);
-    System.out.println(load + " done");
   }
 
   @Override
   public void visit(Store store) {
-    System.out.println("Store");
     // Store is only interesting for its side effects. Yet we record the pointed to set,
     // which means in this case 'might be modified by'.
     Set<IndirectAccess> ptrPointsTo = getPointsTo(store.getPtr());
@@ -277,12 +262,10 @@ public class AliasAnalyzer extends BaseOptimizer {
     // It doesn't make sense to talk about the result value of a Store.
     // Thus it also can't refer to and alias anything.
     updateMemory(store, modifiedMemory);
-    System.out.println("Store end");
   }
 
   @Override
   public void visit(Proj proj) {
-    System.out.println(proj);
     if (proj.getMode().equals(Mode.getM())) {
       // we just forward the memory
       updateMemory(proj, getMemory(proj.getPred()));
@@ -291,7 +274,6 @@ public class AliasAnalyzer extends BaseOptimizer {
     } else {
       updatePointsTo(proj, getPointsTo(proj.getPred()));
     }
-    System.out.println(proj + " done");
   }
 
   @NotNull
@@ -556,8 +538,6 @@ public class AliasAnalyzer extends BaseOptimizer {
     }
 
     public Memory mergeWith(Memory other) {
-      System.out.println("Merging memory");
-      System.out.println(this.allocatedChunks.size());
       if (other instanceof AliasedMemory) {
         // We better be conservative for performance.
         return other.mergeWith(this);
@@ -568,8 +548,6 @@ public class AliasAnalyzer extends BaseOptimizer {
         Chunk oldValue = getChunk(entry.getKey());
         chunks = chunks.plus(entry.getKey(), oldValue.mergeWith(entry.getValue()));
       }
-
-      System.out.println("... done!");
 
       if (chunks.size() > 50) {
         // Convert this memory to a conservative fallback AliasedMemory.
@@ -803,7 +781,6 @@ public class AliasAnalyzer extends BaseOptimizer {
     private final int MAX_NUMBER_OF_SYNC_PREDS = 10;
 
     public boolean transform() {
-      System.out.println("transforming");
       // This works by following memory edges and reordering them when there is no alias.
       boolean hasChanged = false;
       for (Node sideEffect : GraphUtils.topologicalOrder(graph)) {
@@ -836,7 +813,6 @@ public class AliasAnalyzer extends BaseOptimizer {
           redirectMem(sideEffect, newMem);
         }
       }
-      System.out.println("done transforming");
       return hasChanged;
     }
 
