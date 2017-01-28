@@ -76,6 +76,7 @@ import org.slf4j.LoggerFactory;
  */
 public class AliasAnalyzer extends BaseOptimizer {
 
+  private static final int MAX_RELEVANT_NODES = 1000;
   private static final int UNKNOWN_OFFSET = -1;
   private static final Logger LOGGER = LoggerFactory.getLogger("AliasAnalyzer");
 
@@ -94,7 +95,7 @@ public class AliasAnalyzer extends BaseOptimizer {
     pointsTos.clear();
     ArrayList<Node> worklist = GraphUtils.topologicalOrder(graph);
     long complexity = seq(worklist).filter(AliasAnalyzer::isRelevantNode).count();
-    if (complexity > 400) {
+    if (complexity > MAX_RELEVANT_NODES) {
       // The analysis is too slow for big graphs...
       return false;
     }
