@@ -99,7 +99,12 @@ public class AliasAnalyzer extends BaseOptimizer {
       // The analysis is too slow for big graphs...
       return false;
     }
-    fixedPointIteration(worklist);
+    try {
+      fixedPointIteration(worklist);
+    } catch (TooComplexError e) {
+      // Well, that's unfortunate.
+      return false;
+    }
     LoadStoreAliasingTransformation transformation = new LoadStoreAliasingTransformation();
     return FirmUtils.withBackEdges(graph, transformation::transform);
   }
@@ -121,6 +126,10 @@ public class AliasAnalyzer extends BaseOptimizer {
   }
 
   private void updatePointsTo(Node node, Set<IndirectAccess> newPointsTo) {
+    if (newPointsTo.size() > 1000) {
+      // This will lead to unbearable performance otherwise
+      throw new TooComplexError();
+    }
     update(pointsTos, node, newPointsTo, HashTreePSet.empty());
   }
 
@@ -549,13 +558,27 @@ public class AliasAnalyzer extends BaseOptimizer {
     public Memory mergeWith(Memory other) {
       System.out.println("Merging memory");
       System.out.println(this.allocatedChunks.size());
-      System.out.println(other.allocatedChunks.size());
+      if (other instanceof AliasedMemory) {
+        // We better be conservative for performance.
+        return other.mergeWith(this);
+      }
+
       PMap<Node, Chunk> chunks = allocatedChunks;
       for (Map.Entry<Node, Chunk> entry : other.allocatedChunks.entrySet()) {
         Chunk oldValue = getChunk(entry.getKey());
         chunks = chunks.plus(entry.getKey(), oldValue.mergeWith(entry.getValue()));
       }
+
       System.out.println("... done!");
+
+      if (chunks.size() > 50) {
+        // Convert this memory to a conservative fallback AliasedMemory.
+        AliasedChunk initialChunk = new AliasedChunk(HashTreePSet.from(chunks.keySet()));
+        AliasedChunk completeChunk =
+            seq(chunks.values()).foldLeft(initialChunk, AliasedChunk::mergeWith);
+        return new AliasedMemory(completeChunk.encounteredNodes);
+      }
+
       return new Memory(chunks);
     }
 
@@ -618,6 +641,10 @@ public class AliasAnalyzer extends BaseOptimizer {
       }
 
       public Chunk mergeWith(Chunk other) {
+        if (other instanceof AliasedChunk) {
+          // We want to favor the conservative fallback solution, because performance
+          return other.mergeWith(this);
+        }
         IntTreePMap<PSet<Node>> slots = this.slots;
         for (Map.Entry<Integer, PSet<Node>> entry : other.slots.entrySet()) {
           PSet<Node> oldValue = getSlot(entry.getKey());
@@ -646,6 +673,127 @@ public class AliasAnalyzer extends BaseOptimizer {
       @Override
       public int hashCode() {
         return Objects.hash(slots);
+      }
+    }
+
+    /**
+     * This is an ugly hack for a conservative fallback memory that doesn't track offsets nor single
+     * memory slots.
+     */
+    private static class AliasedMemory extends Memory {
+      private final PSet<Node> encounteredNodes;
+
+      public AliasedMemory(PSet<Node> encounteredNodes) {
+        super(null);
+        this.encounteredNodes = encounteredNodes;
+      }
+
+      @Override
+      public Memory modifyChunk(Node base, Function<Chunk, Chunk> modifier) {
+        AliasedChunk changed = (AliasedChunk) modifier.apply(new AliasedChunk(encounteredNodes));
+        return new AliasedMemory(changed.encounteredNodes);
+      }
+
+      @Override
+      public Chunk getChunk(Node base) {
+        return encounteredNodes.contains(base) ? new AliasedChunk(encounteredNodes) : EMPTY_CHUNK;
+      }
+
+      @Override
+      public Memory mergeWith(Memory other) {
+        if (other instanceof AliasedMemory) {
+          PSet<Node> bothEncountered =
+              encounteredNodes.plusAll(((AliasedMemory) other).encounteredNodes);
+          return new AliasedMemory(bothEncountered);
+        } else {
+          AliasedChunk completeChunk =
+              seq(other.allocatedChunks.values())
+                  .foldLeft(new AliasedChunk(encounteredNodes), AliasedChunk::mergeWith);
+          return new AliasedMemory(
+              completeChunk.encounteredNodes.plusAll(other.allocatedChunks.keySet()));
+        }
+      }
+
+      @Override
+      public boolean equals(Object o) {
+        if (this == o) {
+          return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+          return false;
+        }
+        if (!super.equals(o)) {
+          return false;
+        }
+        AliasedMemory that = (AliasedMemory) o;
+        return Objects.equals(encounteredNodes, that.encounteredNodes);
+      }
+
+      @Override
+      public int hashCode() {
+        return Objects.hash(super.hashCode(), encounteredNodes);
+      }
+
+      @Override
+      public String toString() {
+        return "AliasedMemory{" + "encounteredNodes=" + encounteredNodes + '}';
+      }
+    }
+
+    private static class AliasedChunk extends Chunk {
+      private final PSet<Node> encounteredNodes;
+
+      public AliasedChunk(PSet<Node> nodes) {
+        super();
+        encounteredNodes = nodes;
+      }
+
+      @Override
+      public PSet<Node> getSlot(int offset) {
+        return encounteredNodes;
+      }
+
+      @Override
+      public Chunk setSlot(int offset, PSet<Node> value) {
+        return new AliasedChunk(encounteredNodes.plusAll(value));
+      }
+
+      @Override
+      public AliasedChunk mergeWith(Chunk other) {
+        if (other instanceof AliasedChunk) {
+          PSet<Node> bothEncountered =
+              encounteredNodes.plusAll(((AliasedChunk) other).encounteredNodes);
+          return new AliasedChunk(bothEncountered);
+        } else {
+          PSet<Node> allEncountered =
+              seq(other.slots.values()).foldLeft(encounteredNodes, PSet::plusAll);
+          return new AliasedChunk(allEncountered);
+        }
+      }
+
+      @Override
+      public boolean equals(Object o) {
+        if (this == o) {
+          return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+          return false;
+        }
+        if (!super.equals(o)) {
+          return false;
+        }
+        AliasedChunk that = (AliasedChunk) o;
+        return Objects.equals(encounteredNodes, that.encounteredNodes);
+      }
+
+      @Override
+      public int hashCode() {
+        return Objects.hash(super.hashCode(), encounteredNodes);
+      }
+
+      @Override
+      public String toString() {
+        return "AliasedChunk{" + "encounteredNodes=" + encounteredNodes + '}';
       }
     }
   }
@@ -862,4 +1010,6 @@ public class AliasAnalyzer extends BaseOptimizer {
       return node.getOpCode() == iro_Load || node.getOpCode() == iro_Store;
     }
   }
+
+  private static class TooComplexError extends RuntimeException {}
 }
