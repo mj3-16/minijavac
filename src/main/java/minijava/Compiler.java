@@ -16,29 +16,14 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.Iterator;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import minijava.ir.assembler.allocator.OnTheFlyRegAllocator;
 import minijava.ir.assembler.block.AssemblerFile;
 import minijava.ir.emit.IREmitter;
-import minijava.ir.optimize.AlgebraicSimplifier;
-import minijava.ir.optimize.AliasAnalyzer;
-import minijava.ir.optimize.CommonSubexpressionElimination;
-import minijava.ir.optimize.ConstantControlFlowOptimizer;
-import minijava.ir.optimize.ConstantFolder;
-import minijava.ir.optimize.CriticalEdgeDetector;
-import minijava.ir.optimize.ExpressionNormalizer;
-import minijava.ir.optimize.FloatInTransformation;
-import minijava.ir.optimize.Inliner;
-import minijava.ir.optimize.JmpBlockRemover;
-import minijava.ir.optimize.LoadStoreOptimizer;
-import minijava.ir.optimize.Optimizer;
-import minijava.ir.optimize.OptimizerFramework;
-import minijava.ir.optimize.PhiOptimizer;
-import minijava.ir.optimize.ProgramMetrics;
-import minijava.ir.optimize.SyncOptimizer;
-import minijava.ir.optimize.UnreachableCodeRemover;
+import minijava.ir.optimize.*;
 import minijava.ir.utils.GraphUtils;
 import minijava.lexer.Lexer;
 import minijava.parser.Parser;
@@ -148,17 +133,22 @@ public class Compiler {
     ScheduledFuture<?> timer =
         Executors.newScheduledThreadPool(1).schedule(Runnables.doNothing(), 9, TimeUnit.MINUTES);
     while (!timer.isDone()) {
-      for (Graph graph : Program.getGraphs()) {
+      Set<Graph> reachable = metrics.reachableFromMain();
+
+      for (Graph graph : reachable) {
         perGraphFramework.optimizeUntilFixedpoint(graph);
       }
 
       // Here comes the interprocedural stuff... This is method is really turning into a mess
       Cli.dumpGraphsIfNeeded("before-Inliner");
       boolean hasChanged = false;
-      for (Graph graph : Program.getGraphs()) {
+      for (Graph graph : reachable) {
         hasChanged |= inliner.optimize(graph);
         unreachableCodeRemover.optimize(graph);
       }
+
+      reachable.forEach(metrics::updateGraphInfo);
+
       if (!hasChanged) {
         if (inliner.onlyLeafs) {
           inliner = new Inliner(metrics, false);
