@@ -1,18 +1,23 @@
 package minijava.ir.optimize;
 
+import static firm.bindings.binding_irnode.ir_opcode.iro_Phi;
 import static org.jooq.lambda.Seq.seq;
 
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
 import firm.Graph;
 import firm.bindings.binding_irnode.ir_opcode;
+import firm.nodes.Block;
 import firm.nodes.Node;
 import firm.nodes.Sync;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.Set;
+import minijava.ir.Dominance;
 import minijava.ir.utils.GraphUtils;
 import minijava.ir.utils.NodeUtils;
+import org.jooq.lambda.Seq;
 
 /**
  * Performs optimizations special to Sync nodes. Currently, there are transformations for
@@ -58,16 +63,34 @@ public class SyncOptimizer extends BaseOptimizer {
       if (isSink(n)) {
         continue;
       }
-      Node mem = n.getPred(0);
-      Set<Node> notSources = NodeUtils.getPreviousSideEffects(mem);
-      possiblySources.removeAll(notSources);
+      // Any side effect with an incoming edge is not a source
+      getPrecedingSideEffects(n).forEach(possiblySources::removeAll);
     }
     return possiblySources;
   }
 
+  private static Seq<Set<Node>> getPrecedingSideEffects(Node n) {
+    Set<Node> mems;
+    if (n.getOpCode() == iro_Phi) {
+      // We have to be careful to not follow back edges. We might reach actual sources through
+      // them, so that they aren't sources anymore.
+      // So we only return those mems where the blocks aren't dominated by the Phi's.
+      Block phiBlock = (Block) n.getBlock();
+      mems =
+          seq(n.getPreds())
+              .filter(mem -> !Dominance.dominates(phiBlock, (Block) mem.getBlock()))
+              .toSet();
+    } else {
+      // Every other case is simple: Just use the single mem pred at index 0.
+      mems = Sets.newHashSet(n.getPred(0));
+    }
+
+    return seq(mems).map(NodeUtils::getPreviousSideEffects);
+  }
+
   private static boolean isSink(Node n) {
     // We don't optimize beyond Phis.
-    return n.getOpCode() == ir_opcode.iro_Start || n.getOpCode() == ir_opcode.iro_Phi;
+    return n.getOpCode() == ir_opcode.iro_Start;
   }
 
   private static Set<Node> reachableSideEffects(Sync node) {
@@ -81,8 +104,7 @@ public class SyncOptimizer extends BaseOptimizer {
       }
       reachable.add(cur);
       if (!isSink(cur)) {
-        Node mem = cur.getPred(0);
-        toVisit.addAll(NodeUtils.getPreviousSideEffects(mem));
+        getPrecedingSideEffects(cur).forEach(toVisit::addAll);
       }
     }
     return reachable;
