@@ -9,6 +9,7 @@ import static firm.bindings.binding_irnode.ir_opcode.iro_Sync;
 import static org.jooq.lambda.Seq.seq;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import firm.ArrayType;
 import firm.BackEdges;
 import firm.BackEdges.Edge;
@@ -19,7 +20,9 @@ import firm.MethodType;
 import firm.Mode;
 import firm.PointerType;
 import firm.Type;
+import firm.bindings.binding_irnode.ir_opcode;
 import firm.nodes.Address;
+import firm.nodes.Block;
 import firm.nodes.Call;
 import firm.nodes.Load;
 import firm.nodes.Member;
@@ -37,6 +40,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import minijava.ir.Dominance;
 import minijava.ir.emit.Types;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
@@ -821,9 +825,32 @@ public class AliasAnalyzer extends BaseOptimizer {
      * Performs a pre-order search on all previous side effects, stopping on aliasing side effects.
      */
     private Set<Node> lastAliasingSideEffects(Node sideEffect) {
+      // We assume that the Mem pred is at index 0 and that the ptr pred is at index 1
+      // That's at least the case for Load and Store.
+      Node mem = sideEffect.getPred(0);
+      Node ptr = sideEffect.getPred(1);
+      Set<IndirectAccess> aliasClass = getPointsTo(ptr);
+      Set<Node> sideEffectRoots = NodeUtils.getPreviousSideEffects(mem);
+      HashSet<Node> visited = Sets.newHashSet(sideEffect);
+      return lastAliasingSideEffectsHelper(aliasClass, sideEffectRoots, visited).sideEffects;
+    }
+
+    /**
+     * This is the meat of lastAliasingSideEffects. It got somewhat complicated when adding support
+     * for Phi nodes with something like back-tracking.
+     *
+     * @param aliasClass The alias class that we try to determing the last aliasing side effects
+     *     for.
+     * @param roots The memory nodes from which to start searching for aliases.
+     * @param originalVisited The set of already visited nodes at the time this call happens.
+     * @return A LastAliasingSideEffectsResult containing the last aliasing side effects and the set
+     *     of nodes visited during the search.
+     */
+    private LastAliasingSideEffectsResult lastAliasingSideEffectsHelper(
+        Set<IndirectAccess> aliasClass, Set<Node> roots, Set<Node> originalVisited) {
       Set<Node> ret = new HashSet<>();
-      Set<Node> toVisit = NodeUtils.getPreviousSideEffects(sideEffect.getPred(0));
-      Set<Node> visited = new HashSet<>();
+      Set<Node> toVisit = new HashSet<>(roots);
+      Set<Node> visited = new HashSet<>(originalVisited);
       while (!toVisit.isEmpty()) {
         Node prevSideEffect = toVisit.iterator().next();
         toVisit.remove(prevSideEffect);
@@ -832,29 +859,68 @@ public class AliasAnalyzer extends BaseOptimizer {
         }
         visited.add(prevSideEffect);
 
-        // We assume that the Mem pred is at index 0 and that the ptr pred is at index 1
-        // That's at least the case for Load and Store.
-        Node ptr = sideEffect.getPred(1);
+        ir_opcode opCode = prevSideEffect.getOpCode();
 
-        boolean cannotMoveBeyond =
-            prevSideEffect.getOpCode() == iro_Start
-                || prevSideEffect.getOpCode() == iro_Phi
-                || mayAlias(ptr, aliasClass(prevSideEffect));
-        if (cannotMoveBeyond) {
+        if (opCode == iro_Start) {
+          // We can't extend beyond a Start node.
+          ret.add(prevSideEffect);
+        } else if (opCode == iro_Phi) {
+          // We try to extend beyond that Phi
+          Set<Node> sideEffectsPrecedingPhi =
+              seq(prevSideEffect.getPreds())
+                  .map(NodeUtils::getPreviousSideEffects)
+                  .flatMap(Seq::seq)
+                  .toSet();
+          LastAliasingSideEffectsResult extended =
+              lastAliasingSideEffectsHelper(aliasClass, sideEffectsPrecedingPhi, visited);
+          // The extended solution might contain side effects from the current block, reachable
+          // through a back edge. If there is such a node, we can't extend beyond the Phi.
+          // Also, if one of the side effects doesn't dominate the current block, we can't extend.
+          // In other words: All side effects' blocks must be strict dominators of the Phi's block.
+          // Note that it's OK if this returned the node we started from and that case is the
+          // reason we pass along the visited set: So that no node already visited is included (as
+          // we already have them covered).
+          Block phiBlock = (Block) prevSideEffect.getBlock();
+          boolean canExtend =
+              seq(extended.sideEffects)
+                  .allMatch(se -> Dominance.strictlyDominates((Block) se.getBlock(), phiBlock));
+          if (!canExtend) {
+            // Just record the Phi.
+            ret.add(prevSideEffect);
+          } else {
+            System.out.println(extended.sideEffects + " instead of " + prevSideEffect);
+            ret.addAll(extended.sideEffects);
+            // This is only OK now that we covered all those nodes.
+            visited = extended.visited;
+          }
+        } else if (mayAlias(aliasClass, aliasClass(prevSideEffect))) {
+          // We can't extend beyond the aliasing node.
           ret.add(prevSideEffect);
         } else {
+          // The node doesn't alias, so we try its side-effecting parents.
           Node prevMem = prevSideEffect.getPred(0);
+          Set<Node> finalVisited = visited;
           seq(NodeUtils.getPreviousSideEffects(prevMem))
-              .filter(n -> !visited.contains(n))
+              .filter(n -> !finalVisited.contains(n))
               .forEach(toVisit::add);
         }
 
-        if (toVisit.size() > Math.max(MAX_NUMBER_OF_SYNC_PREDS, sideEffect.getPredCount())) {
+        if (toVisit.size() > Math.max(MAX_NUMBER_OF_SYNC_PREDS, roots.size())) {
           // This is a conservative default, to speed up compilation time and space.
-          return NodeUtils.getPreviousSideEffects(sideEffect.getPred(0));
+          return new LastAliasingSideEffectsResult(roots, originalVisited);
         }
       }
-      return ret;
+      return new LastAliasingSideEffectsResult(ret, visited);
+    }
+
+    private class LastAliasingSideEffectsResult {
+      public final Set<Node> sideEffects;
+      public final Set<Node> visited;
+
+      public LastAliasingSideEffectsResult(Set<Node> sideEffects, Set<Node> visited) {
+        this.sideEffects = sideEffects;
+        this.visited = visited;
+      }
     }
 
     private Set<IndirectAccess> aliasClass(Node node) {
@@ -957,12 +1023,12 @@ public class AliasAnalyzer extends BaseOptimizer {
       Graph.exchange(successorSync, newSync);
     }
 
-    private boolean mayAlias(Node ptr, Set<IndirectAccess> otherAliasClass) {
-      for (IndirectAccess ref : getPointsTo(ptr)) {
+    private boolean mayAlias(Set<IndirectAccess> aliasClassA, Set<IndirectAccess> aliasClassB) {
+      for (IndirectAccess ref : aliasClassA) {
         if (ref.offset == UNKNOWN_OFFSET) {
           // This is bad asymptotic wise, since we don't have an index for base and type.
           boolean mayPotentiallyAlias =
-              !seq(otherAliasClass)
+              !seq(aliasClassB)
                   .filter(
                       ia -> ia.base.equals(ref.base) && ia.pointedToType.equals(ref.pointedToType))
                   .isEmpty();
@@ -974,7 +1040,7 @@ public class AliasAnalyzer extends BaseOptimizer {
           IndirectAccess refAtAnyOffset =
               new IndirectAccess(ref.base, ref.pointedToType, UNKNOWN_OFFSET);
           boolean mayPotentiallyAlias =
-              otherAliasClass.contains(ref) || otherAliasClass.contains(refAtAnyOffset);
+              aliasClassB.contains(ref) || aliasClassB.contains(refAtAnyOffset);
           if (mayPotentiallyAlias) {
             return true;
           }

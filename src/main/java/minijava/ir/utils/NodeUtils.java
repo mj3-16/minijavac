@@ -158,7 +158,7 @@ public class NodeUtils {
 
   /**
    * Expects {@param modeM} to be a Mem node from which we follow mem edges until we hit a
-   * side-effect node (including Phis)
+   * side-effect node (including Phis). Essentially skips uninteresting Proj M and Sync nodes.
    */
   public static Set<Node> getPreviousSideEffects(Node modeM) {
     assert modeM.getMode().equals(Mode.getM());
