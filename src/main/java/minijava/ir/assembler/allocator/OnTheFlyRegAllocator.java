@@ -349,7 +349,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
       BiFunction<Argument, Register, Instruction> instrCreator,
       boolean loadRightValue) {
     Tuple2<Optional<List<Instruction>>, Register> spillAndRegLeft = null;
-    if (!(left instanceof ConstArgument)) {
+    if (!(left instanceof ConstArgument && ((ConstArgument) left).fitsIntoImmPartOfInstruction())) {
       spillAndRegLeft = getRegisterForArgument(left);
     }
     Tuple2<Optional<List<Instruction>>, Register> spillAndRegRight =
@@ -467,13 +467,11 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     // move the register passed argument into the registers
     for (int i = 0; i < Math.min(argRegs.size(), metaCall.methodInfo.paramNumber); i++) {
       Argument arg = metaCall.args.get(i);
-      if (getCurrentLocation(arg) == null) {
-        throw new NullPointerException(
-            String.format("%s: Argument %s doesn't exist", metaCall, arg));
+      if (getCurrentLocation(arg) != null) {
+        instructions.add(
+            new Mov(getCurrentLocation(arg), argRegs.get(i).ofWidth(arg.width))
+                .com(String.format("Move %d.th param into register", i)));
       }
-      instructions.add(
-          new Mov(getCurrentLocation(arg), argRegs.get(i).ofWidth(arg.width))
-              .com(String.format("Move %d.th param into register", i)));
     }
     // we have than to evict all other registers
     seq(Register.usableRegisters)
@@ -820,9 +818,27 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
       // the only instance where this seems to happen is for Cmp instructions
       currentPlace = argument;
     }
-    if (currentPlace != null && restoreValue) {
-      instructions.add(
-          new Mov(currentPlace, register).com(String.format("Move %s into register", argument)));
+    boolean invalidConst =
+        argument instanceof ConstArgument
+            && !((ConstArgument) argument).fitsIntoImmPartOfInstruction();
+    if (currentPlace != null && (restoreValue || invalidConst)) {
+      if (invalidConst) {
+        // we handle constants here that are too big for the imm part of an instruction
+        long value = ((ConstArgument) argument).value;
+        assert value > Integer.MAX_VALUE;
+        instructions.add(
+            new Mov(new ConstArgument(argument.width, 0), register)
+                .com(
+                    String.format("%s doesn't fit into the imm part of an instruction...", value)));
+        while (value > Integer.MAX_VALUE) {
+          value -= Integer.MAX_VALUE;
+          instructions.add(new Add(new ConstArgument(argument.width, Integer.MAX_VALUE), register));
+        }
+        instructions.add(new Add(new ConstArgument(argument.width, value), register));
+      } else {
+        instructions.add(
+            new Mov(currentPlace, register).com(String.format("Move %s into register", argument)));
+      }
     }
     return new Tuple2<Optional<List<Instruction>>, Register>(Optional.of(instructions), register);
   }
