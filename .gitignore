@@ -39,3 +39,10 @@ gradle-app.setting
 
 # firm
 *.vcg
+
+# workflow specific
+/*.java
+/*.mj
+/*.out
+/*.s
+/*.pre

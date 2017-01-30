@@ -1,11 +1,16 @@
 package minijava.ir.emit;
 
-import firm.*;
+import firm.ClassType;
+import firm.Entity;
+import firm.MethodType;
+import firm.SegmentType;
 import firm.Type;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
-import minijava.ast.*;
 import minijava.ast.Class;
+import minijava.ast.Field;
+import minijava.ast.LocalVariable;
+import minijava.ast.Method;
 import minijava.ast.Program;
 import minijava.ir.utils.MethodInformation;
 
@@ -27,8 +32,13 @@ class Collector implements Program.Visitor<Void> {
   @Override
   public Void visitProgram(Program that) {
     for (Class decl : that.declarations) {
+      // We need a first pass through the decls to have all class types available.
       ClassType classType = new ClassType(decl.name());
       classTypes.put(decl, classType);
+    }
+
+    for (Class decl : that.declarations) {
+      ClassType classType = classTypes.get(decl);
       for (Field f : decl.fields) {
         fields.put(f, createEntity(f));
       }
@@ -41,17 +51,14 @@ class Collector implements Program.Visitor<Void> {
       for (Method m : decl.methods) {
         methods.put(m, createEntity(m));
       }
-      //System.out.println("# " + classType);
-      //System.out.println(classType.getSize());
       classType.layoutFields();
       classType.finishLayout();
-      //System.out.println(classType.getSize());
     }
     return null;
   }
 
   private Entity createEntity(Field f) {
-    Type type = Types.storageType(f.type);
+    Type type = Types.storageType(f.type, classTypes);
     ClassType definingClass = classTypes.get(f.definingClass.def);
     Entity fieldEnt = new Entity(definingClass, f.name(), type);
     fieldEnt.setLdIdent(NameMangler.mangleInstanceFieldName(definingClass.getName(), f.name()));
@@ -70,19 +77,19 @@ class Collector implements Program.Visitor<Void> {
     ArrayList<Type> parameterTypes = new ArrayList<>();
 
     // Add the this pointer. It's always parameter 0, so access will be trivial.
-    parameterTypes.add(ptrTo(definingClass));
+    parameterTypes.add(Types.pointerTo(definingClass));
     for (LocalVariable p : m.parameters) {
       // In the body, we need to refer to local variables by index, so we save that mapping.
-      parameterTypes.add(Types.storageType(p.type));
+      parameterTypes.add(Types.storageType(p.type, classTypes));
     }
 
     // The visitor returns null if that.returnType was void.
     Type[] returnTypes = {};
     if (!m.returnType.equals(minijava.ast.Type.VOID)) {
-      returnTypes = new Type[] {Types.storageType(m.returnType)};
+      returnTypes = new Type[] {Types.storageType(m.returnType, classTypes)};
     }
 
-    Type methodType = new MethodType(parameterTypes.toArray(new Type[0]), returnTypes);
+    MethodType methodType = new MethodType(parameterTypes.toArray(new Type[0]), returnTypes);
 
     // Set the mangled name
     Entity methodEnt = new Entity(definingClass, m.name(), methodType);
@@ -96,9 +103,5 @@ class Collector implements Program.Visitor<Void> {
     Entity mainEnt = new Entity(global, "main", type);
     mainEnt.setLdIdent(NameMangler.mangledMainMethodName());
     return mainEnt;
-  }
-
-  private PointerType ptrTo(Type type) {
-    return new PointerType(type);
   }
 }

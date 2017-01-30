@@ -28,6 +28,10 @@ public class Dominance {
     return Optional.of(new Block(idom));
   }
 
+  public static boolean strictlyDominates(Block dominator, Block dominated) {
+    return !dominator.equals(dominated) && dominates(dominator, dominated);
+  }
+
   /** The reflexive transitive path of immediate dominators starting from {@param dominated}. */
   public static Seq<Block> dominatorPath(Block dominated) {
     return Seq.of(dominated)

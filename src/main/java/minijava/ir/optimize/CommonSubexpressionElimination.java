@@ -3,11 +3,13 @@ package minijava.ir.optimize;
 import static org.jooq.lambda.Seq.seq;
 
 import firm.Graph;
+import firm.Mode;
 import firm.nodes.*;
 import java.util.*;
 import minijava.ir.Dominance;
 import minijava.ir.utils.ExtensionalEqualityComparator;
 import minijava.ir.utils.GraphUtils;
+import minijava.ir.utils.NodeUtils;
 import org.jooq.lambda.Seq;
 
 /**
@@ -43,7 +45,7 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
     this.hashes.clear();
     this.similarNodes.clear();
     // One postorder traversal should be enough, as we don't handle Phi nodes and thus cycles.
-    GraphUtils.postOrder(graph).forEach(this::visit);
+    GraphUtils.topologicalOrder(graph).forEach(this::visit);
     return transform();
   }
 
@@ -65,12 +67,25 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
             continue;
           }
           // otherwise we can exchange it for a reference to a dominated expression
-          Graph.exchange(edge.getKey(), edge.getValue());
+          exchange(edge);
           hasChanged = true;
         }
       }
     }
     return hasChanged;
+  }
+
+  private void exchange(Map.Entry<Node, Node> edge) {
+    Node redundant = edge.getKey();
+    Node replacement = edge.getValue();
+    if (redundant.getMode().equals(Mode.getT())) {
+      // Nodes such as div and mod return a tuple.
+      // We have to merge projs accordingly.
+      NodeUtils.redirectProjsOnto(redundant, replacement);
+      Graph.killNode(redundant);
+    } else {
+      Graph.exchange(edge.getKey(), edge.getValue());
+    }
   }
 
   /** This computes the dominance forest of star graphs in a UnionFind-like manner. */
@@ -181,12 +196,20 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
 
   @Override
   public void visit(Conv node) {
-    unaryNode(node);
+    hashWithSalt(Objects.hash(node.getOpCode(), node.getMode()), node.getOp())
+        .ifPresent(hash -> hashes.put(node, new HashedNode(node, hash)));
+    // As with Const nodes, we don't add an entry to similarNodes.
   }
 
   @Override
   public void visit(Div node) {
     binaryNode(node);
+  }
+
+  @Override
+  public void visit(Member node) {
+    hashWithSalt(Objects.hash(node.getOpCode(), node.getEntity()), node.getPred(0))
+        .ifPresent(hash -> updateHashMapping(node, hash));
   }
 
   @Override
@@ -221,6 +244,11 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
   }
 
   @Override
+  public void visit(Sel node) {
+    binaryNode(node);
+  }
+
+  @Override
   public void visit(Shl node) {
     binaryNode(node);
   }
@@ -233,6 +261,13 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
   @Override
   public void visit(Shrs node) {
     binaryNode(node);
+  }
+
+  @Override
+  public void visit(Size node) {
+    int hash = node.getOpCode().hashCode() ^ node.getType().hashCode();
+    hashes.put(node, new HashedNode(node, hash));
+    // As with Const nodes, we don't add an entry to similarNodes.
   }
 
   @Override
