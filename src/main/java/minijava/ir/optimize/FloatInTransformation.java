@@ -33,7 +33,9 @@ public class FloatInTransformation extends BaseOptimizer {
           iro_Block,
           iro_Phi,
           iro_Address,
+          iro_Size,
           iro_Const,
+          iro_Conv,
           iro_Jmp,
           iro_Start,
           iro_End,
@@ -42,11 +44,9 @@ public class FloatInTransformation extends BaseOptimizer {
 
   @Override
   public boolean optimize(Graph graph) {
-    //Cli.dumpGraphIfNeeded(graph, "before-float-in");
     this.graph = graph;
     // Not sure if we really need more than one pass here, but better be safe.
-    return fixedPointIteration(GraphUtils.reversePostOrder(graph));
-    //Cli.dumpGraphIfNeeded(graph, "after-float-in");
+    return fixedPointIteration(GraphUtils.reverseTopologicalOrder(graph));
   }
 
   @Override

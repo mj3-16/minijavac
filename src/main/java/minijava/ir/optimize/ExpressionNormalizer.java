@@ -18,7 +18,7 @@ public class ExpressionNormalizer extends BaseOptimizer {
   @Override
   public boolean optimize(Graph graph) {
     hasChanged = false;
-    GraphUtils.postOrder(graph).forEach(this::visit);
+    GraphUtils.topologicalOrder(graph).forEach(this::visit);
     return hasChanged;
   }
 

@@ -1,26 +1,38 @@
 package minijava.ir.utils;
 
-import static firm.bindings.binding_irnode.ir_opcode.*;
+import static firm.bindings.binding_irnode.ir_opcode.iro_Const;
+import static firm.bindings.binding_irnode.ir_opcode.iro_Jmp;
+import static firm.bindings.binding_irnode.ir_opcode.iro_Proj;
+import static firm.bindings.binding_irnode.ir_opcode.iro_Return;
 import static org.jooq.lambda.Seq.seq;
 import static org.jooq.lambda.Seq.zipWithIndex;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
+import com.sun.jna.Pointer;
 import firm.BackEdges;
 import firm.Graph;
+import firm.Mode;
 import firm.bindings.binding_irnode;
 import firm.nodes.Block;
 import firm.nodes.Cond;
 import firm.nodes.Const;
+import firm.nodes.Load;
 import firm.nodes.Node;
 import firm.nodes.Proj;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.jooq.lambda.Seq;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** For lack of a better name */
 public class NodeUtils {
+  private static final Logger LOGGER = LoggerFactory.getLogger("NodeUtils");
+
   private static final Set<binding_irnode.ir_opcode> SINGLE_EXIT =
       ImmutableSet.of(iro_Jmp, iro_Return);
 
@@ -87,22 +99,103 @@ public class NodeUtils {
    */
   public static void mergeProjsWithNum(Node node, int num) {
     List<Proj> projs = new ArrayList<>();
-    for (BackEdges.Edge be : BackEdges.getOuts(node)) {
-      asProj(be.node)
-          .ifPresent(
-              proj -> {
-                if (proj.getNum() == num) {
-                  projs.add(proj);
-                }
-              });
+    FirmUtils.withBackEdges(
+        node.getGraph(),
+        () -> {
+          for (BackEdges.Edge be : BackEdges.getOuts(node)) {
+            asProj(be.node)
+                .ifPresent(
+                    proj -> {
+                      if (proj.getNum() == num) {
+                        projs.add(proj);
+                      }
+                    });
+          }
+          // this will do the right thing in case there aren't any projs as well as when there are 1 or more.
+          for (Proj proj : seq(projs).skip(1)) {
+            Proj survivor = projs.get(0);
+            for (BackEdges.Edge be : BackEdges.getOuts(proj)) {
+              be.node.setPred(be.pos, survivor);
+            }
+            Graph.killNode(proj);
+          }
+        });
+  }
+
+  /**
+   * This will point all Projs of {@param oldTarget} to {@param newTarget} and after that will merge
+   * Projs with the same Num (because there may only be a single proj for Num).
+   */
+  public static void redirectProjsOnto(Node oldTarget, Node newTarget) {
+    Set<Integer> usedNums = new HashSet<>();
+
+    FirmUtils.withBackEdges(
+        oldTarget.getGraph(),
+        () -> {
+          for (BackEdges.Edge be : BackEdges.getOuts(oldTarget)) {
+            // Point the projs to newTarget
+            if (be.node.getOpCode() != iro_Proj) {
+              continue;
+            }
+            be.node.setPred(be.pos, newTarget);
+            be.node.setBlock(newTarget.getBlock());
+            usedNums.add(((Proj) be.node).getNum());
+          }
+        });
+    System.out.println(usedNums);
+
+    usedNums.forEach(num -> mergeProjsWithNum(newTarget, num));
+  }
+
+  /** Make sure to have called GraphUtils.reserveResource(graph, IR_RESOURCE_IRN_LINK) before! */
+  public static void setLink(Node node, Pointer val) {
+    binding_irnode.set_irn_link(node.ptr, val);
+  }
+
+  public static Pointer getLink(Node node) {
+    return binding_irnode.get_irn_link(node.ptr);
+  }
+
+  /**
+   * Expects {@param modeM} to be a Mem node from which we follow mem edges until we hit a
+   * side-effect node (including Phis). Essentially skips uninteresting Proj M and Sync nodes.
+   */
+  public static Set<Node> getPreviousSideEffects(Node modeM) {
+    assert modeM.getMode().equals(Mode.getM());
+    switch (modeM.getOpCode()) {
+      case iro_Proj:
+        return Sets.newHashSet(modeM.getPred(0));
+      case iro_Phi:
+        return Sets.newHashSet(modeM); // we return Phis themselves
+      case iro_Sync:
+        Set<Node> ret = new HashSet<>();
+        seq(modeM.getPreds()).map(NodeUtils::getPreviousSideEffects).forEach(ret::addAll);
+        return ret;
+      default:
+        LOGGER.warn("Didn't expect a mode M node " + modeM);
+        return Sets.newHashSet(modeM);
     }
-    // this will do the right thing in case there aren't any projs as well as when there are 1 or more.
-    for (Proj proj : seq(projs).skip(1)) {
-      Proj survivor = projs.get(0);
-      for (BackEdges.Edge be : BackEdges.getOuts(proj)) {
-        be.node.setPred(be.pos, survivor);
-      }
-      Graph.killNode(proj);
+  }
+
+  /** Projects out the Mem effect of the passed side effect if necessary. */
+  public static Node projModeMOf(Node sideEffect) {
+    if (sideEffect.getMode().equals(Mode.getM())) {
+      return sideEffect;
     }
+    return getMemProjSuccessor(sideEffect);
+  }
+
+  /** Returns the unique Proj of mode M depending on {@param sideEffect} or creates one. */
+  public static Proj getMemProjSuccessor(Node sideEffect) {
+    return FirmUtils.withBackEdges(
+        sideEffect.getGraph(),
+        () ->
+            seq(BackEdges.getOuts(sideEffect))
+                .map(be -> be.node)
+                .ofType(Proj.class)
+                .filter(p -> p.getMode().equals(Mode.getM()))
+                .findFirst()
+                .orElseGet(
+                    () -> (Proj) sideEffect.getGraph().newProj(sideEffect, Mode.getM(), Load.pnM)));
   }
 }

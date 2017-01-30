@@ -22,6 +22,7 @@ import minijava.ir.assembler.instructions.Sub;
 import minijava.ir.assembler.location.*;
 import minijava.ir.emit.Types;
 import minijava.ir.utils.FirmUtils;
+import minijava.ir.utils.GraphUtils;
 import minijava.ir.utils.MethodInformation;
 
 /**
@@ -56,8 +57,8 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     segment = new CodeSegment(new ArrayList<>(), new ArrayList<>());
     segment.addComment(String.format("Code segment for method %s", info.name));
     blocksToCodeBlocks = new HashMap<>();
-    BackEdges.enable(graph);
-    graph.walkTopological(this);
+    FirmUtils.withBackEdges(
+        graph, () -> GraphUtils.topologicalOrder(graph).forEach(n -> n.accept(this)));
     prependStartBlockWithPrologue();
     return segment;
   }
