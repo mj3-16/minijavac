@@ -3,6 +3,7 @@ package minijava.ir.optimize;
 import static org.jooq.lambda.Seq.seq;
 
 import firm.BackEdges;
+import firm.BackEdges.Edge;
 import firm.Graph;
 import firm.Mode;
 import firm.nodes.Block;
@@ -156,7 +157,18 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
               getPredecessorBlocks(cur).forEach(toVisit::add);
             }
           }
-          return Optional.of(new MoveInfo(toDup, lastPostdom));
+
+          // usages that aren't duplicated and point to the original defs that might
+          // not be visible and need merging through Phis.
+          Set<BackEdges.Edge> unduplicatedUsages =
+              seq(toDup)
+                  .map(NodeUtils::getNodesInBlock)
+                  .flatMap(Seq::seq)
+                  .map(BackEdges::getOuts)
+                  .flatMap(Seq::seq)
+                  .filter(usage -> !toDup.contains(usage.node.getBlock()))
+                  .toSet();
+          return Optional.of(new MoveInfo(toDup, unduplicatedUsages, lastPostdom));
         });
   }
 
@@ -167,10 +179,12 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
   private static class MoveInfo {
 
     public final Set<Block> toDuplicate;
+    public final Set<BackEdges.Edge> unduplicatedUsages;
     public final Block lastDominated;
 
-    private MoveInfo(Set<Block> toDuplicate, Block lastDominated) {
+    private MoveInfo(Set<Block> toDuplicate, Set<Edge> unduplicatedUsages, Block lastDominated) {
       this.toDuplicate = toDuplicate;
+      this.unduplicatedUsages = unduplicatedUsages;
       this.lastDominated = lastDominated;
     }
   }
@@ -230,9 +244,17 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
               (Block)
                   graph.newBlock(
                       new Node[] {graph.newJmp(fromOriginal), graph.newJmp(fromDuplicate)});
-          // TODO: Phis here
           successor.node.setPred(0, graph.newJmp(landingBlock));
         }
+      }
+
+      // TODO: Phis here
+      Dominance.dominanceFrontier(originalHeader);
+      for (BackEdges.Edge usage : info.unduplicatedUsages) {
+        // These always point to the original nodes and were not in a duplicated block.
+        // This means we have to merge the multiple incoming definitions from the original
+        // and duplicated block by inserting Phi nodes in the right blocks.
+        // What is the right block? The
       }
 
       boolean duplicatedLoopHeader = duplicated.containsKey(originalHeader);
@@ -345,6 +367,7 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
     }
     if (!blocksToDuplicate.contains(originalBlock)) {
       // We don't duplicate this node and return the original.
+      System.out.println("node = " + node);
       return node;
     }
 

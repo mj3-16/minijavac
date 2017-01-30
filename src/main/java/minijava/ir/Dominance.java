@@ -6,12 +6,21 @@ import com.sun.jna.Pointer;
 import firm.Graph;
 import firm.bindings.binding_irdom;
 import firm.nodes.Block;
+import java.nio.Buffer;
 import java.util.Optional;
 import org.jooq.lambda.Seq;
 
 public class Dominance {
   private static void computeDoms(Graph g) {
     binding_irdom.compute_doms(g.ptr);
+  }
+
+  private static void computePostDoms(Graph g) {
+    binding_irdom.compute_postdoms(g.ptr);
+  }
+
+  private static void computeDomFrontiers(Graph g) {
+    binding_irdom.ir_compute_dominance_frontiers(g.ptr);
   }
 
   public static boolean dominates(Block dominator, Block dominated) {
@@ -44,17 +53,17 @@ public class Dominance {
                 }));
   }
 
-  public static Block deepestCommonDominator(Block a, Block b) {
-    computeDoms(a.getGraph());
-    return new Block(binding_irdom.ir_deepest_common_dominator(a.ptr, b.ptr));
-  }
-
-  private static void computePostDoms(Graph graph) {
-    binding_irdom.compute_postdoms(graph.ptr);
-  }
-
   public static boolean postDominates(Block dominator, Block dominated) {
     computePostDoms(dominator.getGraph());
     return binding_irdom.block_postdominates(dominator.ptr, dominated.ptr) != 0;
+  }
+
+  /** Computes the dominance frontier of {@param block}. */
+  public static Block[] dominanceFrontier(Block block) {
+    computeDomFrontiers(block.getGraph());
+    Buffer buffer = binding_irdom.ir_get_dominance_frontier(block.ptr);
+    System.out.println("buffer.getClass() = " + buffer.getClass());
+    System.out.println("buffer = " + buffer.limit());
+    return null;
   }
 }
