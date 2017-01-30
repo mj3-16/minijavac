@@ -176,7 +176,7 @@ public class Compiler {
   public static void compile(Backend backend, String outFile, boolean produceDebuggableBinary)
       throws IOException {
     lower();
-    Cli.dumpGraphsIfNeeded("finished");
+    Cli.dumpGraphsIfNeeded("after-lowering");
     String asmFile = backend.lowerToAssembler(outFile);
     assemble(asmFile, outFile, produceDebuggableBinary);
   }
@@ -191,13 +191,15 @@ public class Compiler {
     OptimizerFramework framework =
         new OptimizerFramework.Builder()
             .add(constantFolder)
-            .dependsOn(simplifier)
+            .dependsOn()
             .add(normalizer)
             .dependsOn(constantFolder)
             .add(simplifier)
             .dependsOn(normalizer, constantFolder)
             .build();
-    Program.getGraphs().forEach(framework::optimizeUntilFixedpoint);
+    ProgramMetrics.analyse(Program.getGraphs())
+        .reachableFromMain()
+        .forEach(framework::optimizeUntilFixedpoint);
   }
 
   private static void assemble(
