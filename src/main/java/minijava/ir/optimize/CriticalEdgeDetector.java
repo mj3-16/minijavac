@@ -17,7 +17,7 @@ import minijava.ir.utils.NodeUtils;
 public class CriticalEdgeDetector implements Optimizer {
   @Override
   public boolean optimize(Graph graph) {
-    seq(GraphUtils.postOrder(graph))
+    seq(GraphUtils.topologicalOrder(graph))
         .ofType(Block.class)
         .forEach(CriticalEdgeDetector::checkForCriticalEdge);
     return false;
