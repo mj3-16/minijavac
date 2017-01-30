@@ -186,7 +186,18 @@ public class Compiler {
     // lowering Member and Sel nodes might result in constant expressions like this + (4 * 2).
     // This shouldn't take long to rectify.
     ConstantFolder constantFolder = new ConstantFolder();
-    Program.getGraphs().forEach(constantFolder::optimize);
+    ExpressionNormalizer normalizer = new ExpressionNormalizer();
+    AlgebraicSimplifier simplifier = new AlgebraicSimplifier();
+    OptimizerFramework framework =
+        new OptimizerFramework.Builder()
+            .add(constantFolder)
+            .dependsOn(simplifier)
+            .add(normalizer)
+            .dependsOn(constantFolder)
+            .add(simplifier)
+            .dependsOn(normalizer, constantFolder)
+            .build();
+    Program.getGraphs().forEach(framework::optimizeUntilFixedpoint);
   }
 
   private static void assemble(
