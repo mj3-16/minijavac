@@ -65,6 +65,7 @@ public class Compiler {
     dumpGraphsIfNeeded("before-optimizations");
     Optimizer constantFolder = new ConstantFolder();
     Optimizer floatInTransformation = new FloatInTransformation();
+    Optimizer loopInvariantCodeMotion = new LoopInvariantCodeMotion();
     Optimizer controlFlowOptimizer = new ConstantControlFlowOptimizer();
     Optimizer jmpBlockRemover = new JmpBlockRemover();
     Optimizer unreachableCodeRemover = new UnreachableCodeRemover();
@@ -80,7 +81,7 @@ public class Compiler {
     OptimizerFramework perGraphFramework =
         new OptimizerFramework.Builder()
             .add(unreachableCodeRemover)
-            .dependsOn(controlFlowOptimizer, jmpBlockRemover)
+            .dependsOn(controlFlowOptimizer, jmpBlockRemover, loopInvariantCodeMotion)
             .add(criticalEdgeDetector)
             .dependsOn(controlFlowOptimizer, jmpBlockRemover)
             .add(duplicateProjDetector)
@@ -122,13 +123,21 @@ public class Compiler {
                 algebraicSimplifier,
                 phiOptimizer,
                 loadStoreOptimizer,
+                loopInvariantCodeMotion,
                 controlFlowOptimizer)
+            .add(loopInvariantCodeMotion)
+            .dependsOn(aliasAnalyzer, constantFolder, commonSubexpressionElimination)
             .add(phiOptimizer)
             .dependsOn(controlFlowOptimizer)
             .add(controlFlowOptimizer)
-            .dependsOn(constantFolder, algebraicSimplifier, loadStoreOptimizer)
+            .dependsOn(
+                constantFolder, algebraicSimplifier, loadStoreOptimizer, loopInvariantCodeMotion)
             .add(jmpBlockRemover)
-            .dependsOn(controlFlowOptimizer, floatInTransformation, loadStoreOptimizer)
+            .dependsOn(
+                controlFlowOptimizer,
+                floatInTransformation,
+                loopInvariantCodeMotion,
+                loadStoreOptimizer)
             .build();
 
     ProgramMetrics metrics = ProgramMetrics.analyse(Program.getGraphs());

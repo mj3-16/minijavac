@@ -1,13 +1,11 @@
 package minijava.ir.optimize;
 
-import static firm.bindings.binding_irnode.ir_opcode.*;
+import static firm.bindings.binding_irnode.ir_opcode.iro_Anchor;
+import static firm.bindings.binding_irnode.ir_opcode.iro_Phi;
 import static org.jooq.lambda.Seq.seq;
 
-import com.google.common.collect.ImmutableSet;
 import firm.BackEdges;
 import firm.Graph;
-import firm.Mode;
-import firm.bindings.binding_irnode.ir_opcode;
 import firm.nodes.Block;
 import firm.nodes.Node;
 import java.util.HashSet;
@@ -16,6 +14,7 @@ import java.util.Set;
 import minijava.ir.Dominance;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
+import minijava.ir.utils.NodeUtils;
 import org.jooq.lambda.tuple.Tuple2;
 
 /**
@@ -23,24 +22,6 @@ import org.jooq.lambda.tuple.Tuple2;
  * common subexpression elimination to kick in once more.
  */
 public class FloatInTransformation extends BaseOptimizer {
-
-  /**
-   * Blocks can't be moved to another block, Phis are inherently tied to their block, Address and
-   * Const need to stay in the start block.
-   */
-  private static final Set<ir_opcode> DONT_OPTIMIZE =
-      ImmutableSet.of(
-          iro_Block,
-          iro_Phi,
-          iro_Address,
-          iro_Size,
-          iro_Const,
-          iro_Conv,
-          iro_Jmp,
-          iro_Start,
-          iro_End,
-          iro_Anchor,
-          iro_Proj);
 
   @Override
   public boolean optimize(Graph graph) {
@@ -51,8 +32,8 @@ public class FloatInTransformation extends BaseOptimizer {
 
   @Override
   public void defaultVisit(Node n) {
-
-    if (DONT_OPTIMIZE.contains(n.getOpCode()) || n.getMode().equals(Mode.getX())) {
+    if (NodeUtils.isTiedToBlock(n)) {
+      // We can't move anything if it's tied to its block.
       return;
     }
 
@@ -92,24 +73,17 @@ public class FloatInTransformation extends BaseOptimizer {
     // This means we just return our last best block when we hit a back edge.
     Block candidate = originalBlock;
     for (Block b : reverseCommonDominatorPath) {
-      if (hasIncomingBackEdge(b)) {
+      if (NodeUtils.hasIncomingBackEdge(b)) {
         break;
       }
       candidate = b;
     }
 
     if (!candidate.equals(originalBlock)) {
-      //System.out.println("Floating " + node + " to " + candidate);
+      System.out.println("Floating " + node + " to " + candidate);
       hasChanged = true;
       node.setBlock(candidate);
     }
-  }
-
-  private boolean hasIncomingBackEdge(Block b) {
-    // A back edge (not to confuse with jFirms notion of BackEdges,
-    // which is misnomer for reverse edges) is an edge where the source's block
-    // is dominated by the target.
-    return seq(b.getPreds()).anyMatch(n -> Dominance.dominates(b, (Block) n.getBlock()));
   }
 
   private static List<Block> intersectPaths(List<List<Block>> paths) {

@@ -373,7 +373,10 @@ public class IREmitter
     Node rightConv = construction.newConv(that.right.acceptVisitor(this).asValue(), Mode.getLs());
     Node divOrMod =
         newOp.apply(
-            construction.getCurrentMem(),
+            // This would be more correct, but we don't need to handle division by zero
+            // according to the MiniJava spec, so we can ignore side-effects.
+            //construction.getCurrentMem(),
+            construction.newNoMem(),
             leftConv,
             rightConv,
             binding_ircons.op_pin_state.op_pin_state_pinned);

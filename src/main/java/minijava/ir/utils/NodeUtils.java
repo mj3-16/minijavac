@@ -1,5 +1,6 @@
 package minijava.ir.utils;
 
+import static firm.bindings.binding_irnode.ir_opcode.iro_Block;
 import static firm.bindings.binding_irnode.ir_opcode.iro_Const;
 import static firm.bindings.binding_irnode.ir_opcode.iro_Jmp;
 import static firm.bindings.binding_irnode.ir_opcode.iro_Proj;
@@ -25,6 +26,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import minijava.ir.Dominance;
 import org.jooq.lambda.Seq;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -197,5 +199,58 @@ public class NodeUtils {
                 .findFirst()
                 .orElseGet(
                     () -> (Proj) sideEffect.getGraph().newProj(sideEffect, Mode.getM(), Load.pnM)));
+  }
+
+  public static boolean hasIncomingBackEdge(Block b) {
+    // A back edge (not to confuse with jFirms notion of BackEdges,
+    // which is misnomer for reverse edges) is an edge where the source's block
+    // is dominated by the target.
+    return seq(b.getPreds()).anyMatch(n -> Dominance.dominates(b, (Block) n.getBlock()));
+  }
+
+  public static boolean isTiedToBlock(Node node) {
+    switch (node.getOpCode()) {
+      case iro_Add:
+      case iro_Sub:
+      case iro_Mul:
+      case iro_Div:
+      case iro_Mod:
+      case iro_Minus:
+      case iro_Or:
+      case iro_And:
+      case iro_Not:
+      case iro_Shl:
+      case iro_Shr:
+      case iro_Shrs:
+      case iro_Load:
+      case iro_Store:
+      case iro_Conv:
+      case iro_Call:
+      case iro_Cmp:
+      case iro_Cond:
+      case iro_Mux:
+      case iro_Member:
+      case iro_Sel:
+      case iro_Sync:
+      case iro_Tuple:
+        return false;
+      case iro_Proj:
+        return node.getMode().equals(Mode.getX());
+      default:
+        return true;
+    }
+  }
+
+  /** This returns reverse edges to successor blocks. */
+  public static Seq<BackEdges.Edge> getControlFlowSuccessors(Block block) {
+    return FirmUtils.withBackEdges(
+        block.getGraph(),
+        () ->
+            seq(BackEdges.getOuts(block))
+                .map(be -> be.node)
+                .filter(n -> n.getMode().equals(Mode.getX()))
+                .map(BackEdges::getOuts)
+                .flatMap(Seq::seq)
+                .filter(be -> be.node.getOpCode() == iro_Block));
   }
 }

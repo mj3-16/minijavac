@@ -22,7 +22,7 @@ public class Dominance {
   public static Optional<Block> immediateDominator(Block dominated) {
     computeDoms(dominated.getGraph());
     Pointer idom = binding_irdom.get_Block_idom(dominated.ptr);
-    if (idom.equals(Pointer.NULL)) {
+    if (idom == null) {
       return Optional.empty();
     }
     return Optional.of(new Block(idom));
