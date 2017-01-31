@@ -1,14 +1,13 @@
-package minijava.ir.assembler.instructions;
+package minijava.ir.assembler.operands;
 
-import minijava.ir.assembler.location.Register;
 import minijava.ir.utils.AssemblerUtils;
 
-/** Constant argument for assembler instructions */
-public class ConstOperand extends Operand {
+/** Constant operand for assembler instructions */
+public class ImmediateOperand extends Operand {
 
   public final long value;
 
-  public ConstOperand(Register.Width width, long value) {
+  public ImmediateOperand(OperandWidth width, long value) {
     super(width);
     this.value = value;
   }

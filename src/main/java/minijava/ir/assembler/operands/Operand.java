@@ -1,9 +1,9 @@
-package minijava.ir.assembler.instructions;
+package minijava.ir.assembler.operands;
 
 import java.util.*;
 import minijava.ir.assembler.GNUAssemblerConvertible;
 import minijava.ir.assembler.block.CodeBlock;
-import minijava.ir.assembler.location.Register;
+import minijava.ir.assembler.instructions.Instruction;
 
 /** Operand for an assembler instruction */
 public abstract class Operand implements GNUAssemblerConvertible {
@@ -78,9 +78,9 @@ public abstract class Operand implements GNUAssemblerConvertible {
     }
   }
 
-  public final Register.Width width;
+  public final OperandWidth width;
 
-  public Operand(Register.Width width) {
+  public Operand(OperandWidth width) {
     this.width = width;
   }
 

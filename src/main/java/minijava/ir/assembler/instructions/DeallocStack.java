@@ -2,7 +2,10 @@ package minijava.ir.assembler.instructions;
 
 import com.google.common.collect.ImmutableList;
 import java.util.List;
-import minijava.ir.assembler.location.Register;
+import minijava.ir.assembler.operands.ImmediateOperand;
+import minijava.ir.assembler.operands.Operand;
+import minijava.ir.assembler.operands.OperandWidth;
+import minijava.ir.assembler.registers.AMD64Register;
 
 /** Abstraction of a <code>addq</code> instruction that free bytes of stack */
 public class DeallocStack extends Instruction {
@@ -10,7 +13,7 @@ public class DeallocStack extends Instruction {
   public final int amount;
 
   public DeallocStack(int amount) {
-    super(Register.Width.Quad);
+    super(OperandWidth.Quad);
     this.amount = amount;
     this.addComment(String.format("Free %d bytes of the stack", amount));
   }
@@ -23,7 +26,7 @@ public class DeallocStack extends Instruction {
   @Override
   protected String toGNUAssemblerWoComments() {
     return super.createGNUAssemblerWoComments(
-        new ConstOperand(Register.Width.Quad, amount), Register.STACK_POINTER);
+        new ImmediateOperand(OperandWidth.Quad, amount), AMD64Register.STACK_POINTER);
   }
 
   @Override

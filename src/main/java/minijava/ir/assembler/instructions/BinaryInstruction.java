@@ -2,6 +2,7 @@ package minijava.ir.assembler.instructions;
 
 import com.google.common.collect.ImmutableList;
 import java.util.List;
+import minijava.ir.assembler.operands.Operand;
 
 /** A binary instruction with two arguments */
 public abstract class BinaryInstruction extends Instruction {

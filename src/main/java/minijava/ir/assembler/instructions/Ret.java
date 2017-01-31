@@ -2,12 +2,13 @@ package minijava.ir.assembler.instructions;
 
 import com.google.common.collect.ImmutableList;
 import java.util.List;
-import minijava.ir.assembler.location.Register;
+import minijava.ir.assembler.operands.Operand;
+import minijava.ir.assembler.operands.OperandWidth;
 
 /** <code>ret</code> instruction that returns from a function call */
 public class Ret extends Instruction {
   public Ret() {
-    super(Register.Width.Quad);
+    super(OperandWidth.Quad);
   }
 
   @Override

@@ -11,7 +11,8 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import minijava.ir.assembler.GNUAssemblerConvertible;
 import minijava.ir.assembler.block.CodeBlock;
-import minijava.ir.assembler.location.*;
+import minijava.ir.assembler.operands.Operand;
+import minijava.ir.assembler.operands.OperandWidth;
 import org.jetbrains.annotations.NotNull;
 
 /** Models an assembler instruction */
@@ -40,8 +41,6 @@ public abstract class Instruction implements GNUAssemblerConvertible, Comparable
     EVICT(Category.META, "evict"),
     PROLOGUE(Category.META, "prologue"),
     META_CALL(Category.META, "meta_call"),
-    META_LOAD(Category.META, "meta_load"),
-    META_STORE(Category.META, "meta_store"),
     META_FRAME_ALLOC(Category.META, "frame_alloc"),
     DISABLE_REGISTER_USAGE(Category.META, "disable_register_usage"),
     ENABLE_REGISTER_USAGE(Category.META, "enable_register_usage");
@@ -81,13 +80,13 @@ public abstract class Instruction implements GNUAssemblerConvertible, Comparable
   }
 
   /** Width of the arguments (and therefore the result most of the time) */
-  public final Register.Width width;
+  public final OperandWidth width;
 
-  protected Instruction(Register.Width width) {
+  protected Instruction(OperandWidth width) {
     this.width = width;
   }
 
-  public static Register.Width getWidthOfArguments(Class klass, Operand... operands) {
+  public static OperandWidth getWidthOfArguments(Class klass, Operand... operands) {
     if (operands[0] == null) {
       throw new NullPointerException(
           String.format(
@@ -98,7 +97,7 @@ public abstract class Instruction implements GNUAssemblerConvertible, Comparable
                   .stream()
                   .collect(Collectors.joining(" "))));
     }
-    Register.Width width = operands[0].width;
+    OperandWidth width = operands[0].width;
     for (int i = 1; i < operands.length; i++) {
       Operand operand = operands[i];
       if (operand.width != width) {
@@ -262,9 +261,6 @@ public abstract class Instruction implements GNUAssemblerConvertible, Comparable
 
   public void setUsedByRelations() {
     for (Operand operand : getArguments()) {
-      if (operand instanceof MemoryNodeLocation) {
-        ((MemoryNodeLocation) operand).address.addUsedByRelation(this);
-      }
       operand.addUsedByRelation(this);
     }
   }

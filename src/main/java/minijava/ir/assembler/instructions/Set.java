@@ -3,13 +3,13 @@ package minijava.ir.assembler.instructions;
 import static minijava.ir.utils.FirmUtils.relationToInstructionSuffix;
 
 import firm.Relation;
-import minijava.ir.assembler.location.Location;
+import minijava.ir.assembler.registers.Register;
 
 public class Set extends UnaryInstruction {
 
   public final Relation relation;
 
-  public Set(Relation relation, Location destination) {
+  public Set(Relation relation, Register destination) {
     super(destination);
     this.relation = relation;
   }

@@ -1,5 +1,7 @@
 package minijava.ir.assembler.instructions;
 
+import minijava.ir.assembler.operands.Operand;
+
 /** Negates the passed argument and stores it back */
 public class Neg extends UnaryInstruction {
 

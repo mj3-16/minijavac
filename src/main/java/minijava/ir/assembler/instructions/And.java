@@ -1,5 +1,7 @@
 package minijava.ir.assembler.instructions;
 
+import minijava.ir.assembler.operands.Operand;
+
 /** Bitwise and */
 public class And extends BinaryInstruction {
 

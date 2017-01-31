@@ -2,7 +2,8 @@ package minijava.ir.assembler.instructions;
 
 import com.google.common.collect.ImmutableList;
 import java.util.List;
-import minijava.ir.assembler.location.Register;
+import minijava.ir.assembler.operands.Operand;
+import minijava.ir.assembler.operands.OperandWidth;
 
 /**
  * <code>idivl</code> instruction.
@@ -19,7 +20,7 @@ public class Div extends Instruction {
   public final Operand divisor;
 
   public Div(Operand divisor) {
-    super(Register.Width.Quad);
+    super(OperandWidth.Quad);
     this.divisor = divisor;
   }
 

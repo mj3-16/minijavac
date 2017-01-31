@@ -2,6 +2,7 @@ package minijava.ir.assembler.instructions;
 
 import com.google.common.collect.ImmutableList;
 import java.util.List;
+import minijava.ir.assembler.operands.Operand;
 
 /** An instruction with one argument */
 public abstract class UnaryInstruction extends Instruction {

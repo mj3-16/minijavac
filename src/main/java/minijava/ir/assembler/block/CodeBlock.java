@@ -10,7 +10,7 @@ import minijava.ir.assembler.GNUAssemblerConvertible;
 import minijava.ir.assembler.instructions.Cmp;
 import minijava.ir.assembler.instructions.Instruction;
 import minijava.ir.assembler.instructions.Jmp;
-import minijava.ir.assembler.instructions.Operand;
+import minijava.ir.assembler.operands.Operand;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -94,7 +94,7 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
     return builder.toString();
   }
 
-  public int size() {
+  private int size() {
     return blockStartInstructions.size()
         + normalInstructions.size()
         + phiHelperInstructions.size()
@@ -222,7 +222,7 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
    * Call this method after the generation of a all code blocks finished to update to initialize the
    * set of following blocks. TODO: improve perfomance (if it matters)
    */
-  public void initFollowingBlocks() {
+  protected void initFollowingBlocks() {
     // we just do a depth first search
     followingBlocks = new HashSet<>();
     distanceToFollowingBlocks = new HashMap<>();
@@ -250,7 +250,7 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
    * Initializes the set of arguments used by the following blocks. Attention: the {@link
    * CodeBlock::initFollowingBlocks} should be executed before this method.
    */
-  public void initArgumentsUsedByFollowingBlocks() {
+  protected void initArgumentsUsedByFollowingBlocks() {
     assert followingBlocks != null;
     this.argumentsUsedByFollowingBlocks = new HashSet<>();
     for (FollowingBlockInfo followingBlock : followingBlocks) {
@@ -266,7 +266,7 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
    * Returns a list of blocks that this block might jump to (i.e. all blocks that can directly
    * follow this block in an execution).
    */
-  public List<CodeBlock> getJumpedToBlocks() {
+  private List<CodeBlock> getJumpedToBlocks() {
     List<CodeBlock> blocks = new ArrayList<>();
     conditionalJumps.forEach(j -> blocks.add(j.nextBlock));
     unconditionalJump.ifPresent(j -> blocks.add(j.nextBlock));

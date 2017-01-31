@@ -31,7 +31,6 @@ import minijava.ir.assembler.instructions.Add;
 import minijava.ir.assembler.instructions.CLTD;
 import minijava.ir.assembler.instructions.Cmp;
 import minijava.ir.assembler.instructions.ConditionalJmp;
-import minijava.ir.assembler.instructions.ConstOperand;
 import minijava.ir.assembler.instructions.DisableRegisterUsage;
 import minijava.ir.assembler.instructions.Div;
 import minijava.ir.assembler.instructions.EnableRegisterUsage;
@@ -39,26 +38,27 @@ import minijava.ir.assembler.instructions.Evict;
 import minijava.ir.assembler.instructions.Instruction;
 import minijava.ir.assembler.instructions.Jmp;
 import minijava.ir.assembler.instructions.MetaCall;
-import minijava.ir.assembler.instructions.MetaLoad;
-import minijava.ir.assembler.instructions.MetaStore;
 import minijava.ir.assembler.instructions.MethodPrologue;
 import minijava.ir.assembler.instructions.Mov;
 import minijava.ir.assembler.instructions.MovFromSmallerToGreater;
 import minijava.ir.assembler.instructions.Mul;
 import minijava.ir.assembler.instructions.Neg;
-import minijava.ir.assembler.instructions.Operand;
 import minijava.ir.assembler.instructions.Pop;
 import minijava.ir.assembler.instructions.Ret;
 import minijava.ir.assembler.instructions.Set;
 import minijava.ir.assembler.instructions.Sub;
-import minijava.ir.assembler.location.Location;
-import minijava.ir.assembler.location.MemoryNodeLocation;
-import minijava.ir.assembler.location.NodeLocation;
-import minijava.ir.assembler.location.Register;
+import minijava.ir.assembler.operands.ImmediateOperand;
+import minijava.ir.assembler.operands.Operand;
+import minijava.ir.assembler.operands.OperandWidth;
+import minijava.ir.assembler.operands.RegisterOperand;
+import minijava.ir.assembler.registers.AMD64Register;
+import minijava.ir.assembler.registers.Register;
+import minijava.ir.assembler.registers.VirtualRegister;
 import minijava.ir.emit.Types;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
 import minijava.ir.utils.MethodInformation;
+import minijava.ir.utils.NodeUtils;
 
 /**
  * Generates GNU assembler for a graph
@@ -98,7 +98,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
   private List<Operand> getOperands(Node node) {
     List<Operand> args = new ArrayList<>();
     int start = 0;
-    if (hasSideEffect(node)) {
+    if (NodeUtils.hasSideEffect(node)) {
       start++;
     }
     if (node instanceof Call) {
@@ -109,20 +109,6 @@ public class AssemblerGenerator extends NodeVisitor.Default {
       args.add(allocator.getAsOperand(node.getPred(i)));
     }
     return args;
-  }
-
-  private static boolean hasSideEffect(Node node) {
-    switch (node.getOpCode()) {
-      case iro_Return:
-      case iro_Mod:
-      case iro_Div:
-      case iro_Load:
-      case iro_Store:
-      case iro_Call:
-        return true;
-      default:
-        return false;
-    }
   }
 
   @Override
@@ -151,21 +137,22 @@ public class AssemblerGenerator extends NodeVisitor.Default {
   }
 
   private void visitDivAndMod(Node node, boolean isDiv) {
-    Location res = allocator.getLocation(node, Types.INT_TYPE.getMode());
+    Register res = allocator.getLocation(node, Types.INT_TYPE.getMode());
     CodeBlock block = segment.getCodeBlockForNode(node);
     List<Operand> args = getOperands(node);
     assert args.size() == 2;
     Operand firstArg = args.get(0);
     Operand secondArg = args.get(1);
-    List<Register> usedRegisters = ImmutableList.of(Register.EAX, Register.EBX, Register.EDX);
+    List<AMD64Register> usedRegisters =
+        ImmutableList.of(AMD64Register.EAX, AMD64Register.EBX, AMD64Register.EDX);
     block.add(new Evict(usedRegisters));
     block.add(new DisableRegisterUsage(usedRegisters));
-    Register secondArgIm = Register.EBX;
+    AMD64Register secondArgIm = AMD64Register.EBX;
     block.add(
         new Mov(secondArg, secondArgIm.ofWidth(secondArg.width))
             .com(String.format("Copy second argument %s", secondArg)));
     block.add(
-        new Mov(firstArg, Register.EAX.ofWidth(firstArg.width))
+        new Mov(firstArg, AMD64Register.EAX.ofWidth(firstArg.width))
             .com("copy the first argument (the dividend) into the EAX register"));
     block.add(new CLTD().com("and convert it from 32 Bits to 64 Bits"));
     block.add(
@@ -173,7 +160,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
             .com("the quotient is now in the EAX register and the remainder in the EDX register")
             .firm(node));
     block.add(
-        new Mov(isDiv ? Register.EAX : Register.EDX, res)
+        new Mov(isDiv ? AMD64Register.EAX : AMD64Register.EDX, res)
             .com(String.format("Move result into %s", res)));
     block.add(new EnableRegisterUsage(usedRegisters));
   }
@@ -185,7 +172,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     assert args.size() == 1;
     CodeBlock block = segment.getCodeBlockForNode(node);
     Operand arg = args.get(0);
-    Location res = allocator.getLocation(node);
+    Register res = allocator.getLocation(node);
     block.add(new Mov(arg, res));
     block.add(new Neg(res).firm(node));
   }
@@ -196,17 +183,17 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     // swap arguments because GNU assembler has them in reversed order (compared to Intel assembler)
     Operand firstArg = args.get(0);
     Operand secondArg = args.get(1);
-    Location res = allocator.getLocation(node);
+    Register res = allocator.getLocation(node);
     CodeBlock block = segment.getCodeBlockForNode(node);
     if (secondArg.width.ordinal() < res.width.ordinal()) {
-      Location intermLoc = new NodeLocation(res.width, allocator.genLocationId());
+      Register intermLoc = new VirtualRegister(res.width, allocator.genLocationId());
       block.add(new MovFromSmallerToGreater(secondArg, intermLoc));
       secondArg = intermLoc;
     }
     if (firstArg.width == res.width) {
       block.add(new Mov(firstArg, res));
     } else if (firstArg.width.ordinal() < res.width.ordinal()) {
-      block.add(new Mov(new ConstOperand(res.width, 0), res));
+      block.add(new Mov(new ImmediateOperand(res.width, 0), res));
       block.add(new MovFromSmallerToGreater(firstArg, res));
     } else {
       assert false;
@@ -231,13 +218,13 @@ public class AssemblerGenerator extends NodeVisitor.Default {
       List<Operand> args = getOperands(node);
       assert args.size() == 1;
       Operand arg = args.get(0);
-      codeBlock.add(new Mov(arg, Register.RETURN_REGISTER.ofWidth(arg.width)));
+      codeBlock.add(new Mov(arg, AMD64Register.RETURN_REGISTER.ofWidth(arg.width)));
     }
     // insert the epilogue
     codeBlock.add(
-        new Mov(Register.BASE_POINTER, Register.STACK_POINTER)
+        new Mov(AMD64Register.BASE_POINTER, AMD64Register.STACK_POINTER)
             .com("Copy base pointer to stack pointer (free stack)"));
-    codeBlock.add(new Pop(Register.BASE_POINTER).com("Restore previous base pointer"));
+    codeBlock.add(new Pop(AMD64Register.BASE_POINTER).com("Restore previous base pointer"));
     codeBlock.add(
         new Ret().com("Jump to return address (and remove it from the stack)").firm(node));
   }
@@ -247,7 +234,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     MethodInformation info = new MethodInformation(node);
     List<Operand> args = getOperands(node);
     CodeBlock block = segment.getCodeBlockForNode(node);
-    Optional<Location> ret = Optional.empty();
+    Optional<Register> ret = Optional.empty();
     if (info.hasReturnValue) {
       ret = Optional.of(allocator.getResultLocation(node));
     }
@@ -262,8 +249,9 @@ public class AssemblerGenerator extends NodeVisitor.Default {
                     + " -> "
                     + ret));
     if (info.hasReturnValue) {
-      Location returnLocation = allocator.getLocation(node);
-      block.add(new Mov(Register.RETURN_REGISTER.ofWidth(returnLocation.width), returnLocation));
+      Register returnRegister = allocator.getLocation(node);
+      block.add(
+          new Mov(AMD64Register.RETURN_REGISTER.ofWidth(returnRegister.width), returnRegister));
     }
   }
 
@@ -272,14 +260,11 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     CodeBlock codeBlock = segment.getCodeBlock(node);
     // we only handle control flow edges here
     for (Node pred : node.getPreds()) {
+      assert pred.getMode().equals(Mode.getX());
       CodeBlock predCodeBlock = segment.getCodeBlockForNode(pred);
       // pred is a predecessor node but not a block
       if (pred instanceof Proj) {
-        if (pred.getMode() == Mode.getM()) {
-          continue;
-        }
         // we might do unnecessary work here, but the {@link CodeBlock} instance takes care of it
-
         // this edge comes from a conditional jump
         Proj proj = (Proj) pred;
         boolean isTrueEdge = proj.getNum() == 1;
@@ -312,7 +297,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
         } else if (cond.getSelector() instanceof Phi) {
           // we should have a Phi b node here
           Phi bPhi = (Phi) cond.getSelector();
-          Location res = allocator.getLocation(bPhi);
+          Register res = allocator.getLocation(bPhi);
           Block bPhiBlock = (Block) bPhi.getBlock();
           java.util.Set<Block> moreThanOncePredBlocks = blocksThatAreMoreOnceAPredBlock(bPhiBlock);
           for (int i = 0; i < bPhi.getPredCount(); i++) {
@@ -337,8 +322,8 @@ public class AssemblerGenerator extends NodeVisitor.Default {
                 inputCodeBlock.setCompare((Cmp) new Cmp(leftArg, rightArg).firm(cmp));
               }
               List<Instruction> phiBHelperInstructions = new ArrayList<>();
-              // zero the result location
-              phiBHelperInstructions.add(new Mov(new ConstOperand(res.width, 0), res));
+              // zero the result registers
+              phiBHelperInstructions.add(new Mov(new ImmediateOperand(res.width, 0), res));
               // set the value to one if condition did hold true
               phiBHelperInstructions.add(
                   new Set(((firm.nodes.Cmp) inputNode).getRelation(), res).firm(bPhi));
@@ -356,13 +341,14 @@ public class AssemblerGenerator extends NodeVisitor.Default {
             }
           }
           // we compare the phi's value with 1 (== true)
-          NodeLocation intermediateLoc =
-              new NodeLocation(
+          VirtualRegister immediateReg =
+              new VirtualRegister(
                   modeToWidth(Types.BOOLEAN_TYPE.getMode()), allocator.genLocationId());
-          intermediateLoc.setComment("1");
+          immediateReg.setComment("1");
+          RegisterOperand immOperand = new RegisterOperand(immediateReg);
           predCodeBlock.addToCmpOrJmpSupportInstructions(
-              new Mov(new ConstOperand(Register.Width.Byte, 1), intermediateLoc).firm(node));
-          predCodeBlock.setCompare((Cmp) new Cmp(intermediateLoc, res).firm(cond));
+              new Mov(new ImmediateOperand(OperandWidth.Byte, 1), immOperand).firm(node));
+          predCodeBlock.setCompare((Cmp) new Cmp(immediateReg, res).firm(cond));
           if (isTrueEdge) {
             // we jump to the true block if both cmps arguments were equal
             predCodeBlock.addConditionalJump(
@@ -387,6 +373,10 @@ public class AssemblerGenerator extends NodeVisitor.Default {
 
   @Override
   public void visit(Phi node) {
+    if (node.getMode().equals(Mode.getM())) {
+      // we don't have to deal with memory dependencies here
+      return;
+    }
     boolean isPhiB = node.getMode().equals(Mode.getb());
     if (isPhiB) {
       // we look for other phis that have this node as a predecessor
@@ -402,20 +392,16 @@ public class AssemblerGenerator extends NodeVisitor.Default {
         return;
       }
     }
-    if (node.getMode().equals(Mode.getM())) {
-      // we don't have to deal with memory dependencies here
-      return;
-    }
-    Location res = allocator.getLocation(node);
-    Location tmpLocation = null;
+    Register res = allocator.getLocation(node);
+    Register tmpRegister = null;
     if (isPhiProneToLostCopies(node)) {
       // we only need a temporary variable if the phi is prone to lost copy errors
-      tmpLocation = new NodeLocation(modeToWidth(node.getMode()), allocator.genLocationId());
-      // we have copy the temporarily modified value into phis location
+      tmpRegister = new VirtualRegister(modeToWidth(node.getMode()), allocator.genLocationId());
+      // we have copy the temporarily modified value into phis registers
       // at the start of the block that the phi is part of
       CodeBlock phisBlock = segment.getCodeBlockForNode(node);
       // we have to use a register to copy the value between two locations
-      phisBlock.addBlockStartInstruction(new Mov(tmpLocation, res));
+      phisBlock.addBlockStartInstruction(new Mov(tmpRegister, res));
     }
     Block block = (Block) node.getBlock();
     java.util.Set<Block> moreThanOncePredBlocks = blocksThatAreMoreOnceAPredBlock(block);
@@ -433,20 +419,21 @@ public class AssemblerGenerator extends NodeVisitor.Default {
       if (isPhiProneToLostCopies(node)) {
         // if this phi is prone to lost copies then we copy the value only
         // into the temporary variable
-        phiMov = new Mov(op, tmpLocation).firm(node);
+        phiMov = new Mov(op, tmpRegister).firm(node);
       } else {
-        // we copy it into Phis location
+        // we copy it into Phis registers
         phiMov = new Mov(op, res).firm(node);
       }
       if (isPhiB && inputNode instanceof firm.nodes.Cmp) {
         // we have to insert the mov instructions behind (!) the compare
         // first we have to make sure that the intermediate register is really zero
-        NodeLocation intermediateLoc =
-            new NodeLocation(modeToWidth(Types.BOOLEAN_TYPE.getMode()), allocator.genLocationId());
+        VirtualRegister intermediateLoc =
+            new VirtualRegister(
+                modeToWidth(Types.BOOLEAN_TYPE.getMode()), allocator.genLocationId());
         intermediateLoc.setComment("0");
         List<Instruction> phiBHelperInstructions = new ArrayList<>();
         phiBHelperInstructions.add(
-            new Mov(new ConstOperand(intermediateLoc.width, 0), intermediateLoc).firm(node));
+            new Mov(new ImmediateOperand(intermediateLoc.width, 0), intermediateLoc).firm(node));
         // than we have to use the set instruction to set the registers value to one if the condition is true
         // important note: we can only set the lowest 8 bit of the intermediate register
         phiBHelperInstructions.add(
@@ -501,19 +488,11 @@ public class AssemblerGenerator extends NodeVisitor.Default {
   @Override
   public void visit(Load node) {
     // firm graph:
-    // [Ptr node, might be a calculation!] <- [Load] <- [Proj res]
+    // [Ptr node, might be a calculation!] <- [Load] <- [Proj dest]
     Operand ptr = allocator.getAsOperand(node.getPtr());
-    Location res = allocator.getLocation(node);
-    CodeBlock block = segment.getCodeBlockForNode(node);
-    block.add(
-        new MetaLoad(
-                new MemoryNodeLocation(
-                    modeToWidth(node.getType().getMode()),
-                    allocator.genLocationId(),
-                    node.getPtr(),
-                    ptr),
-                res)
-            .firm(node));
+    Register dest = allocator.getLocation(node);
+    RegisterOperand destOperand = new RegisterOperand(modeToWidth(node.getType().getMode()), dest);
+    segment.getCodeBlockForNode(node).add(new Mov(ptr, destOperand));
   }
 
   @Override
@@ -525,15 +504,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     CodeBlock block = segment.getCodeBlockForNode(node);
     Operand dest = allocator.getAsOperand(node.getPtr());
     Operand newValue = allocator.getAsOperand(node.getValue());
-    block.add(
-        new MetaStore(
-                newValue,
-                new MemoryNodeLocation(
-                    modeToWidth(node.getValue().getMode()),
-                    allocator.genLocationId(),
-                    node.getPtr(),
-                    dest))
-            .firm(node));
+    block.add(new Mov(newValue, dest).firm(node));
   }
 
   private boolean isPhiProneToLostCopies(Phi phi) {

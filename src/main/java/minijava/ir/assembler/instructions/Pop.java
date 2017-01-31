@@ -1,5 +1,7 @@
 package minijava.ir.assembler.instructions;
 
+import minijava.ir.assembler.operands.Operand;
+
 /** Pops a value of the stack */
 public class Pop extends UnaryInstruction {
 

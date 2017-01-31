@@ -12,7 +12,13 @@ import minijava.ir.assembler.NodeAllocator;
 import minijava.ir.assembler.block.CodeBlock;
 import minijava.ir.assembler.block.LinearCodeSegment;
 import minijava.ir.assembler.instructions.*;
-import minijava.ir.assembler.location.*;
+import minijava.ir.assembler.operands.ImmediateOperand;
+import minijava.ir.assembler.operands.MemoryOperand;
+import minijava.ir.assembler.operands.Operand;
+import minijava.ir.assembler.operands.OperandWidth;
+import minijava.ir.assembler.operands.Parameter;
+import minijava.ir.assembler.operands.StackSlot;
+import minijava.ir.assembler.registers.*;
 import minijava.ir.utils.MethodInformation;
 import org.jooq.lambda.tuple.Tuple2;
 
@@ -31,21 +37,21 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
    */
   private List<Optional<StackSlot>> assignedStackSlots;
 
-  private Map<Register, Operand> usedRegisters;
-  private Map<Operand, Register> argumentsInRegisters;
-  private Set<Register> freeRegisters;
+  private Map<AMD64Register, Operand> usedRegisters;
+  private Map<Operand, AMD64Register> argumentsInRegisters;
+  private Set<AMD64Register> freeRegisters;
   private int maxStackDepth;
   private int currentStackDepth;
   private Instruction currentInstruction;
-  private List<Register> usableRegisters;
+  private List<AMD64Register> usableRegisters;
   /** Registers that contain value that should be written back if spilled. */
-  private Set<Register> registersToSpill;
+  private Set<AMD64Register> registersToSpill;
 
   public OnTheFlyRegAllocator(
       MethodInformation methodInfo, LinearCodeSegment code, NodeAllocator nodeAllocator) {
     super(code, nodeAllocator);
     this.usableRegisters = new ArrayList<>();
-    this.usableRegisters.addAll(Register.usableRegisters);
+    this.usableRegisters.addAll(AMD64Register.usableRegisters);
     this.maxStackDepth = 0;
     this.currentStackDepth = 0;
     this.assignedStackSlots = new ArrayList<>();
@@ -56,21 +62,18 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     this.argumentsInRegisters = new HashMap<>();
     this.registersToSpill = new HashSet<>();
     // setup the method parameters
-    List<Register> argRegs = Register.methodArgumentQuadRegisters;
+    List<AMD64Register> argRegs = AMD64Register.methodArgumentQuadRegisters;
     for (int i = 0; i < Math.min(argRegs.size(), methodInfo.paramNumber); i++) {
-      ParamLocation location = nodeAllocator.paramLocations.get(i);
-      if (location.isUsed()) {
-        // we can omit unused parameters
-        putArgumentIntoRegister(location, argRegs.get(i));
-        registersToSpill.add(argRegs.get(i));
-      }
+      Parameter location = nodeAllocator.parameters.get(i);
+      putArgumentIntoRegister(location, argRegs.get(i));
+      registersToSpill.add(argRegs.get(i));
     }
     // put a pseudo element on the stack as we can't use the 0. stack slot (we backup the old frame pointer there)
-    putArgumentOnStack(new ConstOperand(Register.Width.Quad, 42));
+    putArgumentOnStack(new ImmediateOperand(OperandWidth.Quad, 42));
     // add a stack slot for each stack passed parameter
     for (int i = argRegs.size(); i < methodInfo.paramNumber; i++) {
-      ParamLocation paramLocation = nodeAllocator.paramLocations.get(i);
-      putParameterOnStack(paramLocation);
+      Parameter parameter = nodeAllocator.parameters.get(i);
+      putParameterOnStack(parameter);
     }
     this.freeRegisters =
         seq(usableRegisters).removeAll(usedRegisters.keySet()).collect(Collectors.toSet());
@@ -85,18 +88,19 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     for (int i = 0;
         i
             < Math.min(
-                Register.methodArgumentQuadRegisters.size(), nodeAllocator.paramLocations.size());
+                AMD64Register.methodArgumentQuadRegisters.size(), nodeAllocator.parameters.size());
         i++) {
-      ParamLocation param = nodeAllocator.paramLocations.get(i);
+      Parameter param = nodeAllocator.parameters.get(i);
       putArgumentOnStack(param);
-      Register paramReg = Register.methodArgumentQuadRegisters.get(i).ofWidth(param.width);
+      AMD64Register paramReg =
+          AMD64Register.methodArgumentQuadRegisters.get(i).ofWidth(param.width);
     }
     // we assign all NodeLocations that appear in instructions a stack slot
     for (LinearCodeSegment.InstructionOrString instructionOrString : code) {
       if (instructionOrString.instruction.isPresent()) {
         for (Operand arg : instructionOrString.instruction.get().getArguments()) {
-          if (arg instanceof NodeLocation
-              && !(arg instanceof ParamLocation)
+          if (arg instanceof VirtualRegister
+              && !(arg instanceof Parameter)
               && arg.instructionRelations.getNumberOfBlockUsages() != 1) {
             // we can omit all constants, registers that are only used in one block
             putArgumentOnStack(arg);
@@ -108,7 +112,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
   }
 
   /** Important: This method doesn't create any instructions (hence the return type void) */
-  private void putArgumentIntoRegister(Operand operand, Register register) {
+  private void putArgumentIntoRegister(Operand operand, AMD64Register register) {
     register = register.ofWidth(operand.width);
     this.argumentsInRegisters.put(operand, register);
     this.usedRegisters.put(register, operand);
@@ -119,7 +123,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
   }
 
   private void removeArgumentFromRegister(Operand operand) {
-    Register reg = argumentsInRegisters.get(operand);
+    AMD64Register reg = argumentsInRegisters.get(operand);
     this.usedRegisters.remove(reg);
     this.argumentsInRegisters.remove(operand);
     this.freeRegisters.add(reg);
@@ -168,7 +172,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     }
   }
 
-  private void putParameterOnStack(ParamLocation param) {
+  private void putParameterOnStack(Parameter param) {
     if (!hasStackSlotAssigned(param)) {
       StackSlot slot = (StackSlot) getCurrentLocation(param);
       slot.setComment(param.getComment());
@@ -201,7 +205,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     }
   }
 
-  private Register chooseRegisterToEvict() {
+  private AMD64Register chooseRegisterToEvict() {
     Operand evictedOperand = null;
     evictedOperand =
         seq(argumentsInRegisters.keySet())
@@ -240,8 +244,8 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
             .getNextUsageInBlock(currentInstruction)
             .map(Instruction::getNumberInSegment)
             .orElse(100);
-    Register reg = argumentsInRegisters.get(operand);
-    if (!Register.methodArgumentQuadRegisters.contains(reg)) {
+    AMD64Register reg = argumentsInRegisters.get(operand);
+    if (!AMD64Register.methodArgumentQuadRegisters.contains(reg)) {
       // we prefer register that aren't method arguments registers as this speeds up method calling
       grade += 50;
     }
@@ -303,8 +307,8 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
   @Override
   public List<Instruction> visit(MethodPrologue prologue) {
     return ImmutableList.of(
-        new Push(Register.BASE_POINTER).com("Backup old base pointer"),
-        new Mov(Register.STACK_POINTER, Register.BASE_POINTER),
+        new Push(AMD64Register.BASE_POINTER).com("Backup old base pointer"),
+        new Mov(AMD64Register.STACK_POINTER, AMD64Register.BASE_POINTER),
         new MetaMethodFrameAlloc());
   }
 
@@ -314,7 +318,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
   }
 
   private List<Instruction> visitBinaryInstruction(
-      BinaryInstruction binop, BiFunction<Operand, Register, Instruction> instrCreator) {
+      BinaryInstruction binop, BiFunction<Operand, AMD64Register, Instruction> instrCreator) {
     return visitBinaryInstruction(binop, binop.left, binop.right, instrCreator, true);
   }
 
@@ -327,7 +331,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
       Instruction instruction,
       Operand left,
       Operand right,
-      BiFunction<Operand, Register, Instruction> instrCreator) {
+      BiFunction<Operand, AMD64Register, Instruction> instrCreator) {
     return visitBinaryInstruction(instruction, left, right, instrCreator, false);
   }
 
@@ -346,13 +350,14 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
       Instruction instruction,
       Operand left,
       Operand right,
-      BiFunction<Operand, Register, Instruction> instrCreator,
+      BiFunction<Operand, AMD64Register, Instruction> instrCreator,
       boolean loadRightValue) {
-    Tuple2<Optional<List<Instruction>>, Register> spillAndRegLeft = null;
-    if (!(left instanceof ConstOperand && ((ConstOperand) left).fitsIntoImmPartOfInstruction())) {
+    Tuple2<Optional<List<Instruction>>, AMD64Register> spillAndRegLeft = null;
+    if (!(left instanceof ImmediateOperand
+        && ((ImmediateOperand) left).fitsIntoImmPartOfInstruction())) {
       spillAndRegLeft = getRegisterForArgument(left);
     }
-    Tuple2<Optional<List<Instruction>>, Register> spillAndRegRight =
+    Tuple2<Optional<List<Instruction>>, AMD64Register> spillAndRegRight =
         getRegisterForArgument(right, loadRightValue);
     List<Instruction> instructions = new ArrayList<>();
     Operand leftOperand = left;
@@ -368,8 +373,8 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
   }
 
   private List<Instruction> visitUnaryInstruction(
-      Instruction instruction, Operand arg, Function<Register, Instruction> instrCreator) {
-    Tuple2<Optional<List<Instruction>>, Register> spillAndReg = getRegisterForArgument(arg);
+      Instruction instruction, Operand arg, Function<AMD64Register, Instruction> instrCreator) {
+    Tuple2<Optional<List<Instruction>>, AMD64Register> spillAndReg = getRegisterForArgument(arg);
     List<Instruction> instructions = new ArrayList<>();
     spillAndReg.v1.ifPresent(instructions::addAll);
     instructions.add(instrCreator.apply(spillAndReg.v2).firmAndComments(instruction));
@@ -420,13 +425,13 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
   @Override
   public List<Instruction> visit(Evict evict) {
     List<Instruction> instructions = new ArrayList<>();
-    for (Register register : evict.registers) {
+    for (AMD64Register register : evict.registers) {
       evictFromRegister(register).ifPresent(instructions::add);
     }
     return instructions;
   }
 
-  private Optional<Instruction> evictFromRegister(Register register) {
+  private Optional<Instruction> evictFromRegister(AMD64Register register) {
     return evictFromRegister(register, false);
   }
 
@@ -435,16 +440,16 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     return ImmutableList.of(jmp);
   }
 
-  /** Returns the current location of the argument and doesn't generate any code. */
+  /** Returns the current registers of the argument and doesn't generate any code. */
   private Operand getCurrentLocation(Operand arg) {
-    if (arg instanceof NodeLocation) {
+    if (arg instanceof VirtualRegister) {
       if (argumentsInRegisters.containsKey(arg)) {
         return argumentsInRegisters.get(arg);
       } else {
-        if (arg instanceof ParamLocation) {
-          if (((ParamLocation) arg).paramNumber >= Register.methodArgumentQuadRegisters.size()) {
-            int inRegs = Register.methodArgumentQuadRegisters.size();
-            int paramNum = ((ParamLocation) arg).paramNumber;
+        if (arg instanceof Parameter) {
+          if (((Parameter) arg).paramNumber >= AMD64Register.methodArgumentQuadRegisters.size()) {
+            int inRegs = AMD64Register.methodArgumentQuadRegisters.size();
+            int paramNum = ((Parameter) arg).paramNumber;
             return new StackSlot(arg.width, (paramNum - inRegs + 2) * 8);
           }
         }
@@ -457,10 +462,10 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
 
   @Override
   public List<Instruction> visit(MetaCall metaCall) {
-    List<Register> argRegs = Register.methodArgumentQuadRegisters;
+    List<AMD64Register> argRegs = AMD64Register.methodArgumentQuadRegisters;
     List<Instruction> instructions = new ArrayList<>();
     // we evict all argument passing registers
-    Register.methodArgumentQuadRegisters
+    AMD64Register.methodArgumentQuadRegisters
         .stream()
         .map(this::evictFromRegister)
         .forEach(o -> o.ifPresent(instructions::add));
@@ -474,12 +479,12 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
       }
     }
     // we have than to evict all other registers
-    seq(Register.usableRegisters)
-        .removeAll(Register.methodArgumentQuadRegisters)
+    seq(AMD64Register.usableRegisters)
+        .removeAll(AMD64Register.methodArgumentQuadRegisters)
         .map(this::evictFromRegister)
         .forEach(o -> o.ifPresent(instructions::add));
     // the 64 ABI requires the stack to aligned to 16 bytes
-    instructions.add(new Push(Register.STACK_POINTER).com("Save old stack pointer"));
+    instructions.add(new Push(AMD64Register.STACK_POINTER).com("Save old stack pointer"));
     int stackAlignmentDecrement = 0;
     int stackDepthWithProlog = currentStackDepth + 8; // for saving %rbp
     if (stackDepthWithProlog % 16 != 0) { // the stack isn't aligned to 16 Bytes
@@ -489,8 +494,8 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
       stackAlignmentDecrement = 16 - stackDepthWithProlog % 16;
       instructions.add(
           new Add(
-                  new ConstOperand(Register.Width.Quad, -stackAlignmentDecrement),
-                  Register.STACK_POINTER)
+                  new ImmediateOperand(OperandWidth.Quad, -stackAlignmentDecrement),
+                  AMD64Register.STACK_POINTER)
               .com("Decrement the stack to ensure alignment"));
     }
     // Use the tmpReg to move the additional parameters on the stack
@@ -502,7 +507,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
         new Call(
                 metaCall.methodInfo.hasReturnValue
                     ? metaCall.result.get().width
-                    : Register.Width.Quad,
+                    : OperandWidth.Quad,
                 metaCall.methodInfo.ldName)
             .com("Call the function")
             .firm(metaCall.firm()));
@@ -510,29 +515,30 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
         new DeallocStack(
             Math.max(
                     0,
-                    metaCall.methodInfo.paramNumber - Register.methodArgumentQuadRegisters.size())
+                    metaCall.methodInfo.paramNumber
+                        - AMD64Register.methodArgumentQuadRegisters.size())
                 * 8));
     if (stackAlignmentDecrement != 0) { // we aligned the stack explicitly before
       instructions.add(
           new Add(
-                  new ConstOperand(Register.Width.Quad, stackAlignmentDecrement),
-                  Register.STACK_POINTER)
+                  new ImmediateOperand(OperandWidth.Quad, stackAlignmentDecrement),
+                  AMD64Register.STACK_POINTER)
               .com("Remove stack alignment"));
     }
     instructions.add(
         new Mov(
-                new RegRelativeLocation(Register.Width.Quad, Register.STACK_POINTER, 0),
-                Register.STACK_POINTER)
+                new MemoryOperand(OperandWidth.Quad, AMD64Register.STACK_POINTER, 0),
+                AMD64Register.STACK_POINTER)
             .com("Restore old stack pointer"));
     if (metaCall.methodInfo.hasReturnValue) {
-      Location ret = metaCall.result.get();
-      Tuple2<Optional<List<Instruction>>, Register> registerForArgument =
+      Register ret = metaCall.result.get();
+      Tuple2<Optional<List<Instruction>>, AMD64Register> registerForArgument =
           getRegisterForArgument(ret, false);
       registerForArgument.v1.ifPresent(instructions::addAll);
       putArgumentIntoRegister(ret, registerForArgument.v2);
-      // now we move the return value from the %rax register into the return value's location
+      // now we move the return value from the %rax register into the return value's registers
       instructions.addAll(
-          visit(new Mov(Register.RETURN_REGISTER.ofWidth(ret.width), registerForArgument.v2)));
+          visit(new Mov(AMD64Register.RETURN_REGISTER.ofWidth(ret.width), registerForArgument.v2)));
       registersToSpill.add(registerForArgument.v2);
     }
     return instructions;
@@ -590,33 +596,6 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
   }
 
   @Override
-  public List<Instruction> visit(MetaLoad load) {
-    return visitMovLikeBinaryInstruction(
-        load,
-        load.source.address,
-        load.destination,
-        (l, r) -> {
-          RegRelativeLocation source = new RegRelativeLocation(load.width, (Register) l, 0);
-          return new Mov(source, r).firm(load.firm()).com("Load " + source.toString());
-        });
-  }
-
-  @Override
-  public List<Instruction> visit(MetaStore store) {
-    return visitBinaryInstruction(
-        store,
-        store.source,
-        store.destination.address,
-        (l, r) -> {
-          RegRelativeLocation destination = new RegRelativeLocation(store.source.width, r, 0);
-          return new Mov(l, destination)
-              .firm(store.firm())
-              .com(String.format("Store into %s", destination));
-        },
-        true);
-  }
-
-  @Override
   public List<Instruction> visit(DisableRegisterUsage disableRegisterUsage) {
     usableRegisters.removeAll(disableRegisterUsage.registers);
     freeRegisters.removeAll(disableRegisterUsage.registers);
@@ -625,7 +604,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
 
   @Override
   public List<Instruction> visit(EnableRegisterUsage enableRegisterUsage) {
-    for (Register register : enableRegisterUsage.registers) {
+    for (AMD64Register register : enableRegisterUsage.registers) {
       if (!usableRegisters.contains(register)) {
         usableRegisters.add(register);
         freeRegisters.add(register);
@@ -675,7 +654,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     if (currentInstruction != null) {
       prefix = currentInstruction.toGNUAssembler() + ": ";
     }
-    List<Register> incorrectRegisters =
+    List<AMD64Register> incorrectRegisters =
         seq(freeRegisters).retainAll(usedRegisters.keySet()).collect(Collectors.toList());
     if (incorrectRegisters.size() > 0) {
       throw new RuntimeException(
@@ -703,7 +682,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     }
   }
 
-  private Optional<Instruction> evictFromRegister(Register register, boolean forceSpill) {
+  private Optional<Instruction> evictFromRegister(AMD64Register register, boolean forceSpill) {
     if (usedRegisters.containsKey(register)) {
       Operand arg = usedRegisters.get(register);
       Optional<Instruction> spill =
@@ -715,7 +694,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     return Optional.empty();
   }
 
-  private Optional<Instruction> genSpillRegisterInstruction(Register register) {
+  private Optional<Instruction> genSpillRegisterInstruction(AMD64Register register) {
     return genSpillRegisterInstruction(register, false);
   }
 
@@ -729,13 +708,13 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
    * </ul>
    *
    * It doesn't remove the register or the value from any data structure, but creates a stack
-   * location if needed.
+   * registers if needed.
    */
   private Optional<Instruction> genSpillRegisterInstruction(
-      Register register, boolean forceSpilling) {
+      AMD64Register register, boolean forceSpilling) {
     Operand operand = usedRegisters.get(register);
     if (!forceSpilling
-        && (operand instanceof ConstOperand
+        && (operand instanceof ImmediateOperand
             || !registersToSpill.contains(register)
             || !isArgumentObsolete(operand))) {
       // we don't have to do anything (see method comment)
@@ -763,7 +742,8 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
    *
    * @return (optional spill and reload instructions, register the operand is placed in)
    */
-  private Tuple2<Optional<List<Instruction>>, Register> getRegisterForArgument(Operand operand) {
+  private Tuple2<Optional<List<Instruction>>, AMD64Register> getRegisterForArgument(
+      Operand operand) {
     return getRegisterForArgument(operand, true);
   }
 
@@ -776,21 +756,21 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
    * @param restoreValue restore the old value of the operand in the register if possible
    * @return (optional spill and reload instructions, register the operand is placed in)
    */
-  private Tuple2<Optional<List<Instruction>>, Register> getRegisterForArgument(
+  private Tuple2<Optional<List<Instruction>>, AMD64Register> getRegisterForArgument(
       Operand operand, boolean restoreValue) {
-    if (operand instanceof Register) {
+    if (operand instanceof AMD64Register) {
       // a valid register was already passed as an operand
-      return new Tuple2<Optional<List<Instruction>>, Register>(
-          Optional.empty(), (Register) operand);
+      return new Tuple2<Optional<List<Instruction>>, AMD64Register>(
+          Optional.empty(), (AMD64Register) operand);
     }
     if (argumentsInRegisters.containsKey(operand)) {
       // the operand is already in a register, nothing to do...
-      return new Tuple2<Optional<List<Instruction>>, Register>(
+      return new Tuple2<Optional<List<Instruction>>, AMD64Register>(
           Optional.empty(), argumentsInRegisters.get(operand));
     }
-    Register.Width width = operand.width;
+    OperandWidth width = operand.width;
     List<Instruction> instructions = new ArrayList<>();
-    Register register;
+    AMD64Register register;
     if (needsToEvictRegister()) {
       // we need to evict registers here
       register = chooseRegisterToEvict().ofWidth(width);
@@ -799,8 +779,8 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
       removeArgumentFromRegister(priorOperand);
     } else {
       // we have enough registers
-      Optional<Register> nonMethodArgRegister =
-          seq(freeRegisters).removeAll(Register.methodArgumentQuadRegisters).findFirst();
+      Optional<AMD64Register> nonMethodArgRegister =
+          seq(freeRegisters).removeAll(AMD64Register.methodArgumentQuadRegisters).findFirst();
       register =
           nonMethodArgRegister
               .orElseGet(() -> seq(freeRegisters.iterator()).findFirst().get())
@@ -812,33 +792,36 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     if (hasStackSlotAssigned(operand)) {
       // the operand was evicted once, we have to load its value
       currentPlace = argumentStackSlots.get(operand);
-    } else if (operand instanceof ConstOperand) {
+    } else if (operand instanceof ImmediateOperand) {
       // this is usually a sign that something went wrong, as this case should be been captured early an the constant
       // placed directly into the instruction
       // the only instance where this seems to happen is for Cmp instructions
       currentPlace = operand;
     }
     boolean invalidConst =
-        operand instanceof ConstOperand && !((ConstOperand) operand).fitsIntoImmPartOfInstruction();
+        operand instanceof ImmediateOperand
+            && !((ImmediateOperand) operand).fitsIntoImmPartOfInstruction();
     if (currentPlace != null && (restoreValue || invalidConst)) {
       if (invalidConst) {
         // we handle constants here that are too big for the imm part of an instruction
-        long value = ((ConstOperand) operand).value;
+        long value = ((ImmediateOperand) operand).value;
         assert value > Integer.MAX_VALUE;
         instructions.add(
-            new Mov(new ConstOperand(operand.width, 0), register)
+            new Mov(new ImmediateOperand(operand.width, 0), register)
                 .com(
                     String.format("%s doesn't fit into the imm part of an instruction...", value)));
         while (value > Integer.MAX_VALUE) {
           value -= Integer.MAX_VALUE;
-          instructions.add(new Add(new ConstOperand(operand.width, Integer.MAX_VALUE), register));
+          instructions.add(
+              new Add(new ImmediateOperand(operand.width, Integer.MAX_VALUE), register));
         }
-        instructions.add(new Add(new ConstOperand(operand.width, value), register));
+        instructions.add(new Add(new ImmediateOperand(operand.width, value), register));
       } else {
         instructions.add(
             new Mov(currentPlace, register).com(String.format("Move %s into register", operand)));
       }
     }
-    return new Tuple2<Optional<List<Instruction>>, Register>(Optional.of(instructions), register);
+    return new Tuple2<Optional<List<Instruction>>, AMD64Register>(
+        Optional.of(instructions), register);
   }
 }

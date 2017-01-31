@@ -10,7 +10,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.Stack;
 import java.util.function.Supplier;
-import minijava.ir.assembler.location.Register;
+import minijava.ir.assembler.operands.OperandWidth;
 
 public class FirmUtils {
 
@@ -92,19 +92,19 @@ public class FirmUtils {
     }
   }
 
-  public static Register.Width modeToWidth(Mode mode) {
+  public static OperandWidth modeToWidth(Mode mode) {
     switch (mode.getSizeBytes()) {
       case 1:
-        return Register.Width.Byte;
+        return OperandWidth.Byte;
       case 4:
-        return Register.Width.Long;
+        return OperandWidth.Long;
       case 8:
-        return Register.Width.Quad;
+        return OperandWidth.Quad;
     }
     if (mode.isReference()) {
-      return Register.Width.Quad;
+      return OperandWidth.Quad;
     } else if (mode.equals(Mode.getb())) {
-      return Register.Width.Byte;
+      return OperandWidth.Byte;
     }
     throw new RuntimeException(mode.toString());
   }

@@ -296,7 +296,7 @@ public class AliasAnalyzer extends BaseOptimizer {
           .flatMap(ia -> transitiveAliasesOfChunk(ia, memory))
           .forEach(sharedAliases::add);
     }
-    // Also the callee might set new aliases to every possible known location.
+    // Also the callee might set new aliases to every possible known registers.
     Set<IndirectAccess> possibleNewAliases =
         seq(sharedAliases).map(ia -> new IndirectAccess(call, ia.pointedToType, ia.offset)).toSet();
     sharedAliases.addAll(possibleNewAliases);

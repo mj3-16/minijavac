@@ -4,7 +4,9 @@ import com.google.common.collect.ImmutableList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import minijava.ir.assembler.location.Register;
+import minijava.ir.assembler.operands.Operand;
+import minijava.ir.assembler.operands.OperandWidth;
+import minijava.ir.assembler.registers.AMD64Register;
 
 /**
  * A meta instruction to force the temporary eviction of some registers. The registers may only be
@@ -12,14 +14,14 @@ import minijava.ir.assembler.location.Register;
  */
 public class Evict extends Instruction {
 
-  public final List<Register> registers;
+  public final List<AMD64Register> registers;
 
-  public Evict(List<Register> registers) {
-    super(Register.Width.Quad);
+  public Evict(List<AMD64Register> registers) {
+    super(OperandWidth.Quad);
     this.registers = Collections.unmodifiableList(registers);
   }
 
-  public Evict(Register... registers) {
+  public Evict(AMD64Register... registers) {
     this(Arrays.asList(registers));
   }
 

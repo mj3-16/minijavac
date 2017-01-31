@@ -1,5 +1,7 @@
 package minijava.ir.assembler.instructions;
 
+import minijava.ir.assembler.operands.Operand;
+
 /** Pushes a value on the stack */
 public class Push extends UnaryInstruction {
 

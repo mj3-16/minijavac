@@ -3,7 +3,8 @@ package minijava.ir.assembler.instructions;
 import com.google.common.collect.ImmutableList;
 import java.util.List;
 import minijava.ir.assembler.block.CodeBlock;
-import minijava.ir.assembler.location.Register;
+import minijava.ir.assembler.operands.Operand;
+import minijava.ir.assembler.operands.OperandWidth;
 
 /** An unconditional jump to a new block */
 public class Jmp extends Instruction {
@@ -11,7 +12,7 @@ public class Jmp extends Instruction {
   public final CodeBlock nextBlock;
 
   public Jmp(CodeBlock nextBlock) {
-    super(Register.Width.Quad);
+    super(OperandWidth.Quad);
     this.nextBlock = nextBlock;
   }
 

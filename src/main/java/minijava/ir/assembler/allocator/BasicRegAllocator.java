@@ -8,11 +8,17 @@ import java.util.function.Function;
 import minijava.ir.assembler.NodeAllocator;
 import minijava.ir.assembler.block.LinearCodeSegment;
 import minijava.ir.assembler.instructions.*;
-import minijava.ir.assembler.location.*;
+import minijava.ir.assembler.operands.ImmediateOperand;
+import minijava.ir.assembler.operands.MemoryOperand;
+import minijava.ir.assembler.operands.Operand;
+import minijava.ir.assembler.operands.OperandWidth;
+import minijava.ir.assembler.operands.Parameter;
+import minijava.ir.assembler.operands.StackSlot;
+import minijava.ir.assembler.registers.*;
 
 /**
- * This is a basic implementation of a register allocator, that allocates {@link
- * minijava.ir.assembler.location.NodeLocation} instances in registers and the heap.
+ * This is a basic implementation of a register allocator, that allocates {@link VirtualRegister}
+ * instances in registers and the heap.
  *
  * <p>It's pretty slow (stores everything on the stack) but works well.
  */
@@ -27,7 +33,7 @@ public class BasicRegAllocator extends AbstractRegAllocator
    */
   private List<Optional<StackSlot>> assignedStackSlots;
 
-  private Map<Operand, Register> argumentsInRegisters;
+  private Map<Operand, AMD64Register> argumentsInRegisters;
   private int maxStackDepth;
   private int currentStackDepth;
   private Instruction currentInstruction;
@@ -41,7 +47,7 @@ public class BasicRegAllocator extends AbstractRegAllocator
     this.usedStackSlots = new HashMap<>();
     this.argumentsInRegisters = new HashMap<>();
     // put a pseudo element on the stack as we can't use the 0. stack slot (we backup the old frame pointer there)
-    putArgumentOnStack(new ConstOperand(Register.Width.Quad, 42));
+    putArgumentOnStack(new ImmediateOperand(OperandWidth.Quad, 42));
   }
 
   private List<Instruction> prepopulateStack() {
@@ -53,20 +59,21 @@ public class BasicRegAllocator extends AbstractRegAllocator
     for (int i = 0;
         i
             < Math.min(
-                Register.methodArgumentQuadRegisters.size(), nodeAllocator.paramLocations.size());
+                AMD64Register.methodArgumentQuadRegisters.size(), nodeAllocator.parameters.size());
         i++) {
-      ParamLocation param = nodeAllocator.paramLocations.get(i);
+      Parameter param = nodeAllocator.parameters.get(i);
       putArgumentOnStack(param);
-      Register paramReg = Register.methodArgumentQuadRegisters.get(i).ofWidth(param.width);
+      AMD64Register paramReg =
+          AMD64Register.methodArgumentQuadRegisters.get(i).ofWidth(param.width);
       instructions.add(
-          new Mov(paramReg, (Location) getCurrentLocation(param))
+          new Mov(paramReg, (Register) getCurrentLocation(param))
               .com(String.format("Copy %d. parameter on the stack", i)));
     }
     // we assign all NodeLocations that appear in instructions a stack slot
     for (LinearCodeSegment.InstructionOrString instructionOrString : code) {
       if (instructionOrString.instruction.isPresent()) {
         for (Operand arg : instructionOrString.instruction.get().getArguments()) {
-          if (arg instanceof NodeLocation && !(arg instanceof ParamLocation)) {
+          if (arg instanceof VirtualRegister && !(arg instanceof Parameter)) {
             putArgumentOnStack(arg);
           }
         }
@@ -124,8 +131,8 @@ public class BasicRegAllocator extends AbstractRegAllocator
   @Override
   public List<Instruction> visit(MethodPrologue prologue) {
     return ImmutableList.of(
-        new Push(Register.BASE_POINTER).com("Backup old base pointer"),
-        new Mov(Register.STACK_POINTER, Register.BASE_POINTER),
+        new Push(AMD64Register.BASE_POINTER).com("Backup old base pointer"),
+        new Mov(AMD64Register.STACK_POINTER, AMD64Register.BASE_POINTER),
         new MetaMethodFrameAlloc());
   }
 
@@ -135,7 +142,7 @@ public class BasicRegAllocator extends AbstractRegAllocator
   }
 
   private List<Instruction> visitBinaryInstruction(
-      BinaryInstruction binop, BiFunction<Operand, Register, Instruction> instrCreator) {
+      BinaryInstruction binop, BiFunction<Operand, AMD64Register, Instruction> instrCreator) {
     return visitBinaryInstruction(binop, binop.left, binop.right, instrCreator);
   }
 
@@ -143,47 +150,47 @@ public class BasicRegAllocator extends AbstractRegAllocator
       Instruction instruction,
       Operand left,
       Operand right,
-      BiFunction<Operand, Register, Instruction> instrCreator) {
+      BiFunction<Operand, AMD64Register, Instruction> instrCreator) {
     List<Instruction> instructions = new ArrayList<>();
     // we copy both arguments simply into these registers
     // they are new in the x86-64 (compared to x86) and can therefore be used freely
-    Register leftReg;
-    if (!(left instanceof Register)) {
-      leftReg = Register.R14.ofWidth(left.width);
+    AMD64Register leftReg;
+    if (!(left instanceof AMD64Register)) {
+      leftReg = AMD64Register.R14.ofWidth(left.width);
       instructions.add(new Mov(getCurrentLocation(left), leftReg));
     } else {
-      leftReg = (Register) left;
+      leftReg = (AMD64Register) left;
     }
-    Register rightReg;
-    if (!(right instanceof Register)) {
-      rightReg = Register.R15.ofWidth(right.width);
+    AMD64Register rightReg;
+    if (!(right instanceof AMD64Register)) {
+      rightReg = AMD64Register.R15.ofWidth(right.width);
       instructions.add(new Mov(getCurrentLocation(right), rightReg));
     } else {
-      rightReg = (Register) right;
+      rightReg = (AMD64Register) right;
     }
     instructions.add(instrCreator.apply(leftReg, rightReg).firmAndComments(instruction));
     // copy the result back
-    if (!(right instanceof ConstOperand)) {
-      if (!(right instanceof Register)) {
-        instructions.add(new Mov(rightReg, (Location) getCurrentLocation(right)));
+    if (!(right instanceof ImmediateOperand)) {
+      if (!(right instanceof AMD64Register)) {
+        instructions.add(new Mov(rightReg, (Register) getCurrentLocation(right)));
       }
     }
     return instructions;
   }
 
   private List<Instruction> visitUnaryInstruction(
-      Instruction instruction, Operand arg, Function<Register, Instruction> instrCreator) {
+      Instruction instruction, Operand arg, Function<AMD64Register, Instruction> instrCreator) {
     List<Instruction> instructions = new ArrayList<>();
     // use a temporary register
-    Register reg = Register.R14.ofWidth(arg.width);
-    if (arg instanceof Register) {
-      reg = (Register) arg;
+    AMD64Register reg = AMD64Register.R14.ofWidth(arg.width);
+    if (arg instanceof AMD64Register) {
+      reg = (AMD64Register) arg;
     } else {
       instructions.add(new Mov(getCurrentLocation(arg), reg));
     }
     instructions.add(instrCreator.apply(reg).firmAndComments(instruction));
-    if (!(arg instanceof ConstOperand) && !(arg instanceof Register)) {
-      instructions.add(new Mov(reg, (Location) getCurrentLocation(arg)));
+    if (!(arg instanceof ImmediateOperand) && !(arg instanceof AMD64Register)) {
+      instructions.add(new Mov(reg, (Register) getCurrentLocation(arg)));
     }
     return instructions;
   }
@@ -238,16 +245,16 @@ public class BasicRegAllocator extends AbstractRegAllocator
     return ImmutableList.of(jmp);
   }
 
-  /** Returns the current location of the argument and doesn't generate any code. */
+  /** Returns the current registers of the argument and doesn't generate any code. */
   private Operand getCurrentLocation(Operand arg) {
-    if (arg instanceof NodeLocation) {
+    if (arg instanceof VirtualRegister) {
       if (argumentsInRegisters.containsKey(arg)) {
         return argumentsInRegisters.get(arg);
       } else {
-        if (arg instanceof ParamLocation) {
-          if (((ParamLocation) arg).paramNumber >= Register.methodArgumentQuadRegisters.size()) {
-            int inRegs = Register.methodArgumentQuadRegisters.size();
-            int paramNum = ((ParamLocation) arg).paramNumber;
+        if (arg instanceof Parameter) {
+          if (((Parameter) arg).paramNumber >= AMD64Register.methodArgumentQuadRegisters.size()) {
+            int inRegs = AMD64Register.methodArgumentQuadRegisters.size();
+            int paramNum = ((Parameter) arg).paramNumber;
             return new StackSlot(arg.width, (paramNum - inRegs + 2) * 8);
           }
         }
@@ -260,7 +267,7 @@ public class BasicRegAllocator extends AbstractRegAllocator
 
   @Override
   public List<Instruction> visit(MetaCall metaCall) {
-    List<Register> argRegs = Register.methodArgumentQuadRegisters;
+    List<AMD64Register> argRegs = AMD64Register.methodArgumentQuadRegisters;
     List<Instruction> instructions = new ArrayList<>();
     // move the register passed argument into the registers
     for (int i = 0; i < Math.min(argRegs.size(), metaCall.methodInfo.paramNumber); i++) {
@@ -274,7 +281,7 @@ public class BasicRegAllocator extends AbstractRegAllocator
               .com(String.format("Move %d.th param into register", i)));
     }
     // the 64 ABI requires the stack to aligned to 16 bytes
-    instructions.add(new Push(Register.STACK_POINTER).com("Save old stack pointer"));
+    instructions.add(new Push(AMD64Register.STACK_POINTER).com("Save old stack pointer"));
     int stackAlignmentDecrement = 0;
     int stackDepthWithProlog = currentStackDepth + 8; // for saving %rbp
     if (stackDepthWithProlog % 16 != 0) { // the stack isn't aligned to 16 Bytes
@@ -284,8 +291,8 @@ public class BasicRegAllocator extends AbstractRegAllocator
       stackAlignmentDecrement = 16 - stackDepthWithProlog % 16;
       instructions.add(
           new Add(
-                  new ConstOperand(Register.Width.Quad, -stackAlignmentDecrement),
-                  Register.STACK_POINTER)
+                  new ImmediateOperand(OperandWidth.Quad, -stackAlignmentDecrement),
+                  AMD64Register.STACK_POINTER)
               .com("Decrement the stack to ensure alignment"));
     }
     // Use the tmpReg to move the additional parameters on the stack
@@ -297,7 +304,7 @@ public class BasicRegAllocator extends AbstractRegAllocator
         new Call(
                 metaCall.methodInfo.hasReturnValue
                     ? metaCall.result.get().width
-                    : Register.Width.Quad,
+                    : OperandWidth.Quad,
                 metaCall.methodInfo.ldName)
             .com("Call the function")
             .firm(metaCall.firm()));
@@ -305,24 +312,25 @@ public class BasicRegAllocator extends AbstractRegAllocator
         new DeallocStack(
             Math.max(
                     0,
-                    metaCall.methodInfo.paramNumber - Register.methodArgumentQuadRegisters.size())
+                    metaCall.methodInfo.paramNumber
+                        - AMD64Register.methodArgumentQuadRegisters.size())
                 * 8));
     if (stackAlignmentDecrement != 0) { // we aligned the stack explicitly before
       instructions.add(
           new Add(
-                  new ConstOperand(Register.Width.Quad, stackAlignmentDecrement),
-                  Register.STACK_POINTER)
+                  new ImmediateOperand(OperandWidth.Quad, stackAlignmentDecrement),
+                  AMD64Register.STACK_POINTER)
               .com("Remove stack alignment"));
     }
     instructions.add(
         new Mov(
-                new RegRelativeLocation(Register.Width.Quad, Register.STACK_POINTER, 0),
-                Register.STACK_POINTER)
+                new MemoryOperand(OperandWidth.Quad, AMD64Register.STACK_POINTER, 0),
+                AMD64Register.STACK_POINTER)
             .com("Restore old stack pointer"));
     if (metaCall.methodInfo.hasReturnValue) {
-      Location ret = (Location) getCurrentLocation(metaCall.result.get());
-      // now we move the return value from the %rax register into the return value's location
-      instructions.addAll(visit(new Mov(Register.RETURN_REGISTER.ofWidth(ret.width), ret)));
+      Register ret = (Register) getCurrentLocation(metaCall.result.get());
+      // now we move the return value from the %rax register into the return value's registers
+      instructions.addAll(visit(new Mov(AMD64Register.RETURN_REGISTER.ofWidth(ret.width), ret)));
     }
     return instructions;
   }
@@ -376,32 +384,6 @@ public class BasicRegAllocator extends AbstractRegAllocator
   @Override
   public List<Instruction> visit(Sub sub) {
     return visitBinaryInstruction(sub, (l, r) -> new Sub(l, r));
-  }
-
-  @Override
-  public List<Instruction> visit(MetaLoad load) {
-    return visitBinaryInstruction(
-        load,
-        load.source.address,
-        load.destination,
-        (l, r) -> {
-          RegRelativeLocation source = new RegRelativeLocation(load.width, (Register) l, 0);
-          return new Mov(source, r).firm(load.firm()).com("Load " + source.toString());
-        });
-  }
-
-  @Override
-  public List<Instruction> visit(MetaStore store) {
-    return visitBinaryInstruction(
-        store,
-        store.source,
-        store.destination.address,
-        (l, r) -> {
-          RegRelativeLocation destination = new RegRelativeLocation(store.source.width, r, 0);
-          return new Mov(l, destination)
-              .firm(store.firm())
-              .com(String.format("Store into %s", destination));
-        });
   }
 
   @Override

@@ -2,7 +2,8 @@ package minijava.ir.assembler.instructions;
 
 import com.google.common.collect.ImmutableList;
 import java.util.List;
-import minijava.ir.assembler.location.Register;
+import minijava.ir.assembler.operands.Operand;
+import minijava.ir.assembler.operands.OperandWidth;
 
 /**
  * Convert Signed Long to Signed Double Long
@@ -12,7 +13,7 @@ import minijava.ir.assembler.location.Register;
 public class CLTD extends Instruction {
 
   public CLTD() {
-    super(Register.Width.Long);
+    super(OperandWidth.Long);
   }
 
   @Override

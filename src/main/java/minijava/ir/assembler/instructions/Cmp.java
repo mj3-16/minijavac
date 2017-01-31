@@ -1,5 +1,7 @@
 package minijava.ir.assembler.instructions;
 
+import minijava.ir.assembler.operands.Operand;
+
 /**
  * Important note: It compares the right argument with the left argument. Be sure to swap its
  * arguments if needed.
