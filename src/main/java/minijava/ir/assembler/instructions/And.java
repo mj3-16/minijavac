@@ -3,7 +3,7 @@ package minijava.ir.assembler.instructions;
 /** Bitwise and */
 public class And extends BinaryInstruction {
 
-  public And(Argument left, Argument right) {
+  public And(Operand left, Operand right) {
     super(left, right);
   }
 

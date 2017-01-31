@@ -7,10 +7,10 @@ import com.google.common.collect.Iterators;
 import java.util.*;
 import java.util.stream.Collectors;
 import minijava.ir.assembler.GNUAssemblerConvertible;
-import minijava.ir.assembler.instructions.Argument;
 import minijava.ir.assembler.instructions.Cmp;
 import minijava.ir.assembler.instructions.Instruction;
 import minijava.ir.assembler.instructions.Jmp;
+import minijava.ir.assembler.instructions.Operand;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -66,7 +66,7 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
   private Set<FollowingBlockInfo> followingBlocks;
 
   private Map<CodeBlock, Integer> distanceToFollowingBlocks;
-  private Set<Argument> argumentsUsedByFollowingBlocks;
+  private Set<Operand> argumentsUsedByFollowingBlocks;
 
   public CodeBlock(String label) {
     this.label = label;
@@ -273,7 +273,7 @@ public class CodeBlock implements GNUAssemblerConvertible, Iterable<Instruction>
     return Collections.unmodifiableList(blocks);
   }
 
-  public Set<Argument> getArgumentsUsedByFollowingBlocks() {
+  public Set<Operand> getArgumentsUsedByFollowingBlocks() {
     return argumentsUsedByFollowingBlocks;
   }
 }

@@ -1,7 +1,7 @@
 package minijava.ir.assembler.instructions;
 
 public class Mul extends BinaryInstruction {
-  public Mul(Argument left, Argument right) {
+  public Mul(Operand left, Operand right) {
     super(left, right);
   }
 

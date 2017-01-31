@@ -23,11 +23,11 @@ public class DeallocStack extends Instruction {
   @Override
   protected String toGNUAssemblerWoComments() {
     return super.createGNUAssemblerWoComments(
-        new ConstArgument(Register.Width.Quad, amount), Register.STACK_POINTER);
+        new ConstOperand(Register.Width.Quad, amount), Register.STACK_POINTER);
   }
 
   @Override
-  public List<Argument> getArguments() {
+  public List<Operand> getArguments() {
     return ImmutableList.of();
   }
 

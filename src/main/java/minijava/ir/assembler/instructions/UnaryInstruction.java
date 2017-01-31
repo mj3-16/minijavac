@@ -5,9 +5,9 @@ import java.util.List;
 
 /** An instruction with one argument */
 public abstract class UnaryInstruction extends Instruction {
-  public final Argument arg;
+  public final Operand arg;
 
-  public UnaryInstruction(Argument arg) {
+  public UnaryInstruction(Operand arg) {
     super(arg.width);
     this.arg = arg;
   }
@@ -18,7 +18,7 @@ public abstract class UnaryInstruction extends Instruction {
   }
 
   @Override
-  public List<Argument> getArguments() {
+  public List<Operand> getArguments() {
     return ImmutableList.of(arg);
   }
 }

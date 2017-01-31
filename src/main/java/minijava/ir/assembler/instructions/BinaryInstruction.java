@@ -5,10 +5,10 @@ import java.util.List;
 
 /** A binary instruction with two arguments */
 public abstract class BinaryInstruction extends Instruction {
-  public final Argument left;
-  public final Argument right;
+  public final Operand left;
+  public final Operand right;
 
-  public BinaryInstruction(Argument left, Argument right) {
+  public BinaryInstruction(Operand left, Operand right) {
     super(getWidthOfArguments(BinaryInstruction.class, left, right));
     this.left = left;
     this.right = right;
@@ -20,7 +20,7 @@ public abstract class BinaryInstruction extends Instruction {
   }
 
   @Override
-  public List<Argument> getArguments() {
+  public List<Operand> getArguments() {
     return ImmutableList.of(left, right);
   }
 }

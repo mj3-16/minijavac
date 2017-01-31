@@ -23,16 +23,16 @@ import org.jooq.lambda.tuple.Tuple2;
 public class OnTheFlyRegAllocator extends AbstractRegAllocator
     implements InstructionVisitor<List<Instruction>> {
 
-  private Map<Argument, StackSlot> argumentStackSlots;
-  private Map<StackSlot, Argument> usedStackSlots;
+  private Map<Operand, StackSlot> argumentStackSlots;
+  private Map<StackSlot, Operand> usedStackSlots;
   /**
    * Empty optionals are equivalent to "there was a stack slot assigned here and was later removed,
    * but there are stack slots that have a bigger offset)
    */
   private List<Optional<StackSlot>> assignedStackSlots;
 
-  private Map<Register, Argument> usedRegisters;
-  private Map<Argument, Register> argumentsInRegisters;
+  private Map<Register, Operand> usedRegisters;
+  private Map<Operand, Register> argumentsInRegisters;
   private Set<Register> freeRegisters;
   private int maxStackDepth;
   private int currentStackDepth;
@@ -66,7 +66,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
       }
     }
     // put a pseudo element on the stack as we can't use the 0. stack slot (we backup the old frame pointer there)
-    putArgumentOnStack(new ConstArgument(Register.Width.Quad, 42));
+    putArgumentOnStack(new ConstOperand(Register.Width.Quad, 42));
     // add a stack slot for each stack passed parameter
     for (int i = argRegs.size(); i < methodInfo.paramNumber; i++) {
       ParamLocation paramLocation = nodeAllocator.paramLocations.get(i);
@@ -94,7 +94,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     // we assign all NodeLocations that appear in instructions a stack slot
     for (LinearCodeSegment.InstructionOrString instructionOrString : code) {
       if (instructionOrString.instruction.isPresent()) {
-        for (Argument arg : instructionOrString.instruction.get().getArguments()) {
+        for (Operand arg : instructionOrString.instruction.get().getArguments()) {
           if (arg instanceof NodeLocation
               && !(arg instanceof ParamLocation)
               && arg.instructionRelations.getNumberOfBlockUsages() != 1) {
@@ -108,20 +108,20 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
   }
 
   /** Important: This method doesn't create any instructions (hence the return type void) */
-  private void putArgumentIntoRegister(Argument argument, Register register) {
-    register = register.ofWidth(argument.width);
-    this.argumentsInRegisters.put(argument, register);
-    this.usedRegisters.put(register, argument);
+  private void putArgumentIntoRegister(Operand operand, Register register) {
+    register = register.ofWidth(operand.width);
+    this.argumentsInRegisters.put(operand, register);
+    this.usedRegisters.put(register, operand);
     if (freeRegisters.contains(register)) {
       freeRegisters.remove(register);
     }
     registersToSpill.remove(register);
   }
 
-  private void removeArgumentFromRegister(Argument argument) {
-    Register reg = argumentsInRegisters.get(argument);
+  private void removeArgumentFromRegister(Operand operand) {
+    Register reg = argumentsInRegisters.get(operand);
     this.usedRegisters.remove(reg);
-    this.argumentsInRegisters.remove(argument);
+    this.argumentsInRegisters.remove(operand);
     this.freeRegisters.add(reg);
     registersToSpill.remove(reg);
   }
@@ -132,7 +132,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
    */
   private void removeObsoleteArgumentsFromStack() {
     // we skip the first element that represents the backuped stack pointer that the don't want to remove
-    List<Argument> removeArgs =
+    List<Operand> removeArgs =
         assignedStackSlots
             .stream()
             .skip(1)
@@ -144,23 +144,23 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
   }
 
   /**
-   * Is the passed argument not used in instructions that might follow the current instruction in an
+   * Is the passed operand not used in instructions that might follow the current instruction in an
    * execution?
    */
-  private boolean isArgumentObsolete(Argument argument) {
-    Argument.InstructionRelations relations = argument.instructionRelations;
+  private boolean isArgumentObsolete(Operand operand) {
+    Operand.InstructionRelations relations = operand.instructionRelations;
     return (relations.getNumberOfBlockUsages() == 1
             && !relations.isUsedLaterInBlockOfInstruction(currentInstruction))
         || relations.isUsedAfterInstruction(currentInstruction);
   }
 
-  private void putArgumentOnStack(Argument argument) {
-    if (!hasStackSlotAssigned(argument)) {
-      currentStackDepth += 8; //argument.width.sizeInBytes;
-      StackSlot slot = new StackSlot(argument.width, -currentStackDepth);
-      slot.setComment(argument.getComment());
-      argumentStackSlots.put(argument, slot);
-      usedStackSlots.put(slot, argument);
+  private void putArgumentOnStack(Operand operand) {
+    if (!hasStackSlotAssigned(operand)) {
+      currentStackDepth += 8; //operand.width.sizeInBytes;
+      StackSlot slot = new StackSlot(operand.width, -currentStackDepth);
+      slot.setComment(operand.getComment());
+      argumentStackSlots.put(operand, slot);
+      usedStackSlots.put(slot, operand);
       assignedStackSlots.add(Optional.of(slot));
       if (currentStackDepth > maxStackDepth) {
         maxStackDepth = currentStackDepth;
@@ -178,10 +178,10 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     }
   }
 
-  private void removeArgumentFromStack(Argument argument) {
-    if (hasStackSlotAssigned(argument)) {
-      final StackSlot slot = argumentStackSlots.get(argument);
-      argumentStackSlots.remove(argument);
+  private void removeArgumentFromStack(Operand operand) {
+    if (hasStackSlotAssigned(operand)) {
+      final StackSlot slot = argumentStackSlots.get(operand);
+      argumentStackSlots.remove(operand);
       assignedStackSlots.replaceAll(
           s -> s.isPresent() && s.get().equals(slot) ? Optional.empty() : s);
       usedStackSlots.remove(slot);
@@ -202,45 +202,45 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
   }
 
   private Register chooseRegisterToEvict() {
-    Argument evictedArgument = null;
-    evictedArgument =
+    Operand evictedOperand = null;
+    evictedOperand =
         seq(argumentsInRegisters.keySet())
             .filter(a -> !currentInstruction.getArguments().contains(a))
             .sorted(this::gradeArgumentToEvict)
             .reverse()
             .findAny()
             .get();
-    assert evictedArgument != null;
-    return argumentsInRegisters.get(evictedArgument);
+    assert evictedOperand != null;
+    return argumentsInRegisters.get(evictedOperand);
   }
 
   /**
-   * Assign's an argument (that should be located in a register) a score from -1 (don't evict it)
-   * and 0 (evicting it is costly) to MAX_INT (evicting is cheap) It favors arguments that lie in
+   * Assign's an operand (that should be located in a register) a score from -1 (don't evict it) and
+   * 0 (evicting it is costly) to MAX_INT (evicting is cheap) It favors arguments that lie in
    * registers not used for method calling.
    */
-  private int gradeArgumentToEvict(Argument argument) {
-    if (currentInstruction.getArguments().contains(argument)) {
+  private int gradeArgumentToEvict(Operand operand) {
+    if (currentInstruction.getArguments().contains(operand)) {
       // we shouldn't evict registers that contain arguments that the current instruction uses
       return -1;
     }
     int grade = 0;
-    if (isArgumentObsolete(argument)) {
+    if (isArgumentObsolete(operand)) {
       // we can definitely use "spill" registers that are obsolete (not used in the following instructions)
       grade = 200;
     }
-    if (!registersToSpill.contains(argumentsInRegisters.get(argument))) {
+    if (!registersToSpill.contains(argumentsInRegisters.get(operand))) {
       // we can also cheaply use a register that has content that didn't change
       // (compared to it's original value from the stack…)
       grade = (grade + 1) * 2;
     }
     grade +=
-        argument
+        operand
             .instructionRelations
             .getNextUsageInBlock(currentInstruction)
             .map(Instruction::getNumberInSegment)
             .orElse(100);
-    Register reg = argumentsInRegisters.get(argument);
+    Register reg = argumentsInRegisters.get(operand);
     if (!Register.methodArgumentQuadRegisters.contains(reg)) {
       // we prefer register that aren't method arguments registers as this speeds up method calling
       grade += 50;
@@ -296,8 +296,8 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     return new LinearCodeSegment(code.codeBlocks, ret, code.getComments());
   }
 
-  private boolean hasStackSlotAssigned(Argument argument) {
-    return argumentStackSlots.containsKey(argument);
+  private boolean hasStackSlotAssigned(Operand operand) {
+    return argumentStackSlots.containsKey(operand);
   }
 
   @Override
@@ -314,7 +314,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
   }
 
   private List<Instruction> visitBinaryInstruction(
-      BinaryInstruction binop, BiFunction<Argument, Register, Instruction> instrCreator) {
+      BinaryInstruction binop, BiFunction<Operand, Register, Instruction> instrCreator) {
     return visitBinaryInstruction(binop, binop.left, binop.right, instrCreator, true);
   }
 
@@ -325,9 +325,9 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
    */
   private List<Instruction> visitMovLikeBinaryInstruction(
       Instruction instruction,
-      Argument left,
-      Argument right,
-      BiFunction<Argument, Register, Instruction> instrCreator) {
+      Operand left,
+      Operand right,
+      BiFunction<Operand, Register, Instruction> instrCreator) {
     return visitBinaryInstruction(instruction, left, right, instrCreator, false);
   }
 
@@ -344,31 +344,31 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
    */
   private List<Instruction> visitBinaryInstruction(
       Instruction instruction,
-      Argument left,
-      Argument right,
-      BiFunction<Argument, Register, Instruction> instrCreator,
+      Operand left,
+      Operand right,
+      BiFunction<Operand, Register, Instruction> instrCreator,
       boolean loadRightValue) {
     Tuple2<Optional<List<Instruction>>, Register> spillAndRegLeft = null;
-    if (!(left instanceof ConstArgument && ((ConstArgument) left).fitsIntoImmPartOfInstruction())) {
+    if (!(left instanceof ConstOperand && ((ConstOperand) left).fitsIntoImmPartOfInstruction())) {
       spillAndRegLeft = getRegisterForArgument(left);
     }
     Tuple2<Optional<List<Instruction>>, Register> spillAndRegRight =
         getRegisterForArgument(right, loadRightValue);
     List<Instruction> instructions = new ArrayList<>();
-    Argument leftArgument = left;
+    Operand leftOperand = left;
     if (spillAndRegLeft != null) {
       spillAndRegLeft.v1.ifPresent(instructions::addAll);
-      leftArgument = spillAndRegLeft.v2;
+      leftOperand = spillAndRegLeft.v2;
     }
     spillAndRegRight.v1.ifPresent(instructions::addAll);
     instructions.add(
-        instrCreator.apply(leftArgument, spillAndRegRight.v2).firmAndComments(instruction));
+        instrCreator.apply(leftOperand, spillAndRegRight.v2).firmAndComments(instruction));
     registersToSpill.add(spillAndRegRight.v2);
     return instructions;
   }
 
   private List<Instruction> visitUnaryInstruction(
-      Instruction instruction, Argument arg, Function<Register, Instruction> instrCreator) {
+      Instruction instruction, Operand arg, Function<Register, Instruction> instrCreator) {
     Tuple2<Optional<List<Instruction>>, Register> spillAndReg = getRegisterForArgument(arg);
     List<Instruction> instructions = new ArrayList<>();
     spillAndReg.v1.ifPresent(instructions::addAll);
@@ -436,7 +436,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
   }
 
   /** Returns the current location of the argument and doesn't generate any code. */
-  private Argument getCurrentLocation(Argument arg) {
+  private Operand getCurrentLocation(Operand arg) {
     if (arg instanceof NodeLocation) {
       if (argumentsInRegisters.containsKey(arg)) {
         return argumentsInRegisters.get(arg);
@@ -466,7 +466,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
         .forEach(o -> o.ifPresent(instructions::add));
     // move the register passed argument into the registers
     for (int i = 0; i < Math.min(argRegs.size(), metaCall.methodInfo.paramNumber); i++) {
-      Argument arg = metaCall.args.get(i);
+      Operand arg = metaCall.args.get(i);
       if (getCurrentLocation(arg) != null) {
         instructions.add(
             new Mov(getCurrentLocation(arg), argRegs.get(i).ofWidth(arg.width))
@@ -489,13 +489,13 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
       stackAlignmentDecrement = 16 - stackDepthWithProlog % 16;
       instructions.add(
           new Add(
-                  new ConstArgument(Register.Width.Quad, -stackAlignmentDecrement),
+                  new ConstOperand(Register.Width.Quad, -stackAlignmentDecrement),
                   Register.STACK_POINTER)
               .com("Decrement the stack to ensure alignment"));
     }
     // Use the tmpReg to move the additional parameters on the stack
     for (int i = metaCall.methodInfo.paramNumber - 1; i >= argRegs.size(); i--) {
-      Argument arg = metaCall.args.get(i);
+      Operand arg = metaCall.args.get(i);
       instructions.add(new Push(getCurrentLocation(arg)));
     }
     instructions.add(
@@ -515,7 +515,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
     if (stackAlignmentDecrement != 0) { // we aligned the stack explicitly before
       instructions.add(
           new Add(
-                  new ConstArgument(Register.Width.Quad, stackAlignmentDecrement),
+                  new ConstOperand(Register.Width.Quad, stackAlignmentDecrement),
                   Register.STACK_POINTER)
               .com("Remove stack alignment"));
     }
@@ -705,7 +705,7 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
 
   private Optional<Instruction> evictFromRegister(Register register, boolean forceSpill) {
     if (usedRegisters.containsKey(register)) {
-      Argument arg = usedRegisters.get(register);
+      Operand arg = usedRegisters.get(register);
       Optional<Instruction> spill =
           genSpillRegisterInstruction(register.ofWidth(arg.width), forceSpill);
       removeArgumentFromRegister(arg);
@@ -733,24 +733,24 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
    */
   private Optional<Instruction> genSpillRegisterInstruction(
       Register register, boolean forceSpilling) {
-    Argument argument = usedRegisters.get(register);
+    Operand operand = usedRegisters.get(register);
     if (!forceSpilling
-        && (argument instanceof ConstArgument
+        && (operand instanceof ConstOperand
             || !registersToSpill.contains(register)
-            || !isArgumentObsolete(argument))) {
+            || !isArgumentObsolete(operand))) {
       // we don't have to do anything (see method comment)
       return Optional.empty();
     }
     // we have to spill the value
-    if (!hasStackSlotAssigned(argument)) {
+    if (!hasStackSlotAssigned(operand)) {
       // if we don't have already assigned a stack slot, we create one
       // we use the method because it handles the data structures...
-      putArgumentOnStack(argument);
+      putArgumentOnStack(operand);
     }
-    StackSlot spillSlot = argumentStackSlots.get(argument);
+    StackSlot spillSlot = argumentStackSlots.get(operand);
     Instruction spillInstruction =
-        new Mov(register.ofWidth(argument.width), spillSlot)
-            .com(String.format("Evict %s to %s (%s)", register, spillSlot, argument));
+        new Mov(register.ofWidth(operand.width), spillSlot)
+            .com(String.format("Evict %s to %s (%s)", register, spillSlot, operand));
     return Optional.of(spillInstruction);
   }
 
@@ -758,45 +758,45 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
    * Returns the register that contains the arguments value if the returned instruction were
    * executed before
    *
-   * <p>Attention the argument shouldn't be a constant. Use constants directly as an instruction
-   * argument.
+   * <p>Attention the operand shouldn't be a constant. Use constants directly as an instruction
+   * operand.
    *
-   * @return (optional spill and reload instructions, register the argument is placed in)
+   * @return (optional spill and reload instructions, register the operand is placed in)
    */
-  private Tuple2<Optional<List<Instruction>>, Register> getRegisterForArgument(Argument argument) {
-    return getRegisterForArgument(argument, true);
+  private Tuple2<Optional<List<Instruction>>, Register> getRegisterForArgument(Operand operand) {
+    return getRegisterForArgument(operand, true);
   }
 
   /**
-   * Returns the register that is assigned to the passed argument
+   * Returns the register that is assigned to the passed operand
    *
-   * <p>Attention the argument shouldn't be a constant. Use constants directly as an instruction
-   * argument
+   * <p>Attention the operand shouldn't be a constant. Use constants directly as an instruction
+   * operand
    *
-   * @param restoreValue restore the old value of the argument in the register if possible
-   * @return (optional spill and reload instructions, register the argument is placed in)
+   * @param restoreValue restore the old value of the operand in the register if possible
+   * @return (optional spill and reload instructions, register the operand is placed in)
    */
   private Tuple2<Optional<List<Instruction>>, Register> getRegisterForArgument(
-      Argument argument, boolean restoreValue) {
-    if (argument instanceof Register) {
-      // a valid register was already passed as an argument
+      Operand operand, boolean restoreValue) {
+    if (operand instanceof Register) {
+      // a valid register was already passed as an operand
       return new Tuple2<Optional<List<Instruction>>, Register>(
-          Optional.empty(), (Register) argument);
+          Optional.empty(), (Register) operand);
     }
-    if (argumentsInRegisters.containsKey(argument)) {
-      // the argument is already in a register, nothing to do...
+    if (argumentsInRegisters.containsKey(operand)) {
+      // the operand is already in a register, nothing to do...
       return new Tuple2<Optional<List<Instruction>>, Register>(
-          Optional.empty(), argumentsInRegisters.get(argument));
+          Optional.empty(), argumentsInRegisters.get(operand));
     }
-    Register.Width width = argument.width;
+    Register.Width width = operand.width;
     List<Instruction> instructions = new ArrayList<>();
     Register register;
     if (needsToEvictRegister()) {
       // we need to evict registers here
       register = chooseRegisterToEvict().ofWidth(width);
       genSpillRegisterInstruction(register.ofWidth(width)).ifPresent(instructions::add);
-      Argument priorArgument = usedRegisters.get(register);
-      removeArgumentFromRegister(priorArgument);
+      Operand priorOperand = usedRegisters.get(register);
+      removeArgumentFromRegister(priorOperand);
     } else {
       // we have enough registers
       Optional<Register> nonMethodArgRegister =
@@ -807,37 +807,36 @@ public class OnTheFlyRegAllocator extends AbstractRegAllocator
               .ofWidth(width);
       freeRegisters.remove(register);
     }
-    putArgumentIntoRegister(argument, register);
-    Argument currentPlace = null;
-    if (hasStackSlotAssigned(argument)) {
-      // the argument was evicted once, we have to load its value
-      currentPlace = argumentStackSlots.get(argument);
-    } else if (argument instanceof ConstArgument) {
+    putArgumentIntoRegister(operand, register);
+    Operand currentPlace = null;
+    if (hasStackSlotAssigned(operand)) {
+      // the operand was evicted once, we have to load its value
+      currentPlace = argumentStackSlots.get(operand);
+    } else if (operand instanceof ConstOperand) {
       // this is usually a sign that something went wrong, as this case should be been captured early an the constant
       // placed directly into the instruction
       // the only instance where this seems to happen is for Cmp instructions
-      currentPlace = argument;
+      currentPlace = operand;
     }
     boolean invalidConst =
-        argument instanceof ConstArgument
-            && !((ConstArgument) argument).fitsIntoImmPartOfInstruction();
+        operand instanceof ConstOperand && !((ConstOperand) operand).fitsIntoImmPartOfInstruction();
     if (currentPlace != null && (restoreValue || invalidConst)) {
       if (invalidConst) {
         // we handle constants here that are too big for the imm part of an instruction
-        long value = ((ConstArgument) argument).value;
+        long value = ((ConstOperand) operand).value;
         assert value > Integer.MAX_VALUE;
         instructions.add(
-            new Mov(new ConstArgument(argument.width, 0), register)
+            new Mov(new ConstOperand(operand.width, 0), register)
                 .com(
                     String.format("%s doesn't fit into the imm part of an instruction...", value)));
         while (value > Integer.MAX_VALUE) {
           value -= Integer.MAX_VALUE;
-          instructions.add(new Add(new ConstArgument(argument.width, Integer.MAX_VALUE), register));
+          instructions.add(new Add(new ConstOperand(operand.width, Integer.MAX_VALUE), register));
         }
-        instructions.add(new Add(new ConstArgument(argument.width, value), register));
+        instructions.add(new Add(new ConstOperand(operand.width, value), register));
       } else {
         instructions.add(
-            new Mov(currentPlace, register).com(String.format("Move %s into register", argument)));
+            new Mov(currentPlace, register).com(String.format("Move %s into register", operand)));
       }
     }
     return new Tuple2<Optional<List<Instruction>>, Register>(Optional.of(instructions), register);
