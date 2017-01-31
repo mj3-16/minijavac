@@ -346,8 +346,9 @@ public class IREmitter
       Expression.Variable use = (Expression.Variable) lval;
       int idx = getLocalVarIndex(use.var.def);
       ExpressionIR value = rhs.acceptVisitor(this);
-      construction.setVariable(idx, convControlFlowToBu(value));
-      return value;
+      Node assignedValue = convControlFlowToBu(value);
+      construction.setVariable(idx, assignedValue);
+      return convBuToControlFlow(assignedValue);
     } else if (lval instanceof Expression.FieldAccess) {
       Expression.FieldAccess access = (Expression.FieldAccess) lval;
       Node address = calculateOffsetForAccess(access);
@@ -561,7 +562,7 @@ public class IREmitter
     Node asValue = convControlFlowToBu(value);
     Node store = construction.newStore(construction.getCurrentMem(), address, asValue);
     construction.setCurrentMem(construction.newProj(store, Mode.getM(), Store.pnM));
-    return value;
+    return convBuToControlFlow(asValue);
   }
 
   private ExpressionIR load(Node address, Mode mode) {
