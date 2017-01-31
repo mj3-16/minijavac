@@ -88,22 +88,7 @@ public class NodeAllocator {
     return getNodeLocation(node, mode);
   }
 
-  public List<Operand> getArguments(Node node) {
-    List<Operand> args = new ArrayList<>();
-    int start = 0;
-    if (node instanceof Call) {
-      start = 2;
-    } else if (node instanceof Return || node instanceof Mod || node instanceof Div) {
-      // they have memory dependencies
-      start = 1;
-    }
-    for (int i = start; i < node.getPredCount(); i++) {
-      args.add(getAsArgument(node.getPred(i)));
-    }
-    return args;
-  }
-
-  public Operand getAsArgument(Node node) {
+  public Operand getAsOperand(Node node) {
     if (node instanceof Const) {
       TargetValue tarVal = ((Const) node).getTarval();
       if (tarVal.getMode().getSizeBytes() == 1) {
