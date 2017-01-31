@@ -3,7 +3,7 @@ package minijava.ir.assembler.instructions;
 /** Pushes a value on the stack */
 public class Push extends UnaryInstruction {
 
-  public Push(Argument arg) {
+  public Push(Operand arg) {
     super(arg);
   }
 

@@ -7,10 +7,10 @@ import minijava.ir.assembler.location.MemoryNodeLocation;
 /** A meta instruction representing a {@link firm.nodes.Store} node */
 public class MetaStore extends Instruction {
 
-  public final Argument source;
+  public final Operand source;
   public final MemoryNodeLocation destination;
 
-  public MetaStore(Argument source, MemoryNodeLocation destination) {
+  public MetaStore(Operand source, MemoryNodeLocation destination) {
     super(getWidthOfArguments(MetaStore.class, source, destination));
     this.source = source;
     this.destination = destination;
@@ -22,7 +22,7 @@ public class MetaStore extends Instruction {
   }
 
   @Override
-  public List<Argument> getArguments() {
+  public List<Operand> getArguments() {
     return ImmutableList.of(source, destination.address);
   }
 

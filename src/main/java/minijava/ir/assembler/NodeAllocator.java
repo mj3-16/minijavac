@@ -5,8 +5,8 @@ import static minijava.ir.utils.FirmUtils.modeToWidth;
 import firm.*;
 import firm.nodes.*;
 import java.util.*;
-import minijava.ir.assembler.instructions.Argument;
-import minijava.ir.assembler.instructions.ConstArgument;
+import minijava.ir.assembler.instructions.ConstOperand;
+import minijava.ir.assembler.instructions.Operand;
 import minijava.ir.assembler.location.*;
 import minijava.ir.emit.Types;
 import minijava.ir.utils.MethodInformation;
@@ -88,8 +88,8 @@ public class NodeAllocator {
     return getNodeLocation(node, mode);
   }
 
-  public List<Argument> getArguments(Node node) {
-    List<Argument> args = new ArrayList<>();
+  public List<Operand> getArguments(Node node) {
+    List<Operand> args = new ArrayList<>();
     int start = 0;
     if (node instanceof Call) {
       start = 2;
@@ -103,17 +103,17 @@ public class NodeAllocator {
     return args;
   }
 
-  public Argument getAsArgument(Node node) {
+  public Operand getAsArgument(Node node) {
     if (node instanceof Const) {
       TargetValue tarVal = ((Const) node).getTarval();
       if (tarVal.getMode().getSizeBytes() == 1) {
-        return new ConstArgument(Register.Width.Byte, tarVal.asInt());
+        return new ConstOperand(Register.Width.Byte, tarVal.asInt());
       } else if (tarVal.getMode().getSizeBytes() == 4) {
-        return new ConstArgument(Register.Width.Long, tarVal.asLong());
+        return new ConstOperand(Register.Width.Long, tarVal.asLong());
       } else if (tarVal.getMode().getSizeBytes() == 8 || tarVal.getMode().isReference()) {
-        return new ConstArgument(Register.Width.Quad, tarVal.asLong());
+        return new ConstOperand(Register.Width.Quad, tarVal.asLong());
       } else if (tarVal.getMode().equals(Mode.getb())) {
-        return new ConstArgument(Register.Width.Byte, tarVal.isNull() ? 0 : 1);
+        return new ConstOperand(Register.Width.Byte, tarVal.isNull() ? 0 : 1);
       } else {
         System.err.println(tarVal);
         System.err.println(tarVal.getMode());

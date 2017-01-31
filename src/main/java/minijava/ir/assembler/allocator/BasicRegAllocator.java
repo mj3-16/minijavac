@@ -19,15 +19,15 @@ import minijava.ir.assembler.location.*;
 public class BasicRegAllocator extends AbstractRegAllocator
     implements InstructionVisitor<List<Instruction>> {
 
-  private Map<Argument, StackSlot> argumentStackSlots;
-  private Map<StackSlot, Argument> usedStackSlots;
+  private Map<Operand, StackSlot> argumentStackSlots;
+  private Map<StackSlot, Operand> usedStackSlots;
   /**
    * Empty optionals are equivalent to "there was a stack slot assigned here and was later removed,
    * but there are stack slots that have a bigger offset)
    */
   private List<Optional<StackSlot>> assignedStackSlots;
 
-  private Map<Argument, Register> argumentsInRegisters;
+  private Map<Operand, Register> argumentsInRegisters;
   private int maxStackDepth;
   private int currentStackDepth;
   private Instruction currentInstruction;
@@ -41,7 +41,7 @@ public class BasicRegAllocator extends AbstractRegAllocator
     this.usedStackSlots = new HashMap<>();
     this.argumentsInRegisters = new HashMap<>();
     // put a pseudo element on the stack as we can't use the 0. stack slot (we backup the old frame pointer there)
-    putArgumentOnStack(new ConstArgument(Register.Width.Quad, 42));
+    putArgumentOnStack(new ConstOperand(Register.Width.Quad, 42));
   }
 
   private List<Instruction> prepopulateStack() {
@@ -65,7 +65,7 @@ public class BasicRegAllocator extends AbstractRegAllocator
     // we assign all NodeLocations that appear in instructions a stack slot
     for (LinearCodeSegment.InstructionOrString instructionOrString : code) {
       if (instructionOrString.instruction.isPresent()) {
-        for (Argument arg : instructionOrString.instruction.get().getArguments()) {
+        for (Operand arg : instructionOrString.instruction.get().getArguments()) {
           if (arg instanceof NodeLocation && !(arg instanceof ParamLocation)) {
             putArgumentOnStack(arg);
           }
@@ -75,13 +75,13 @@ public class BasicRegAllocator extends AbstractRegAllocator
     return instructions;
   }
 
-  private void putArgumentOnStack(Argument argument) {
-    if (!hasStackSlotAssigned(argument)) {
-      currentStackDepth += 8; //argument.width.sizeInBytes;
-      StackSlot slot = new StackSlot(argument.width, -currentStackDepth);
-      slot.setComment(argument.getComment());
-      argumentStackSlots.put(argument, slot);
-      usedStackSlots.put(slot, argument);
+  private void putArgumentOnStack(Operand operand) {
+    if (!hasStackSlotAssigned(operand)) {
+      currentStackDepth += 8; //operand.width.sizeInBytes;
+      StackSlot slot = new StackSlot(operand.width, -currentStackDepth);
+      slot.setComment(operand.getComment());
+      argumentStackSlots.put(operand, slot);
+      usedStackSlots.put(slot, operand);
       assignedStackSlots.add(Optional.of(slot));
       if (currentStackDepth > maxStackDepth) {
         maxStackDepth = currentStackDepth;
@@ -117,8 +117,8 @@ public class BasicRegAllocator extends AbstractRegAllocator
     return new LinearCodeSegment(code.codeBlocks, ret, code.getComments());
   }
 
-  private boolean hasStackSlotAssigned(Argument argument) {
-    return argumentStackSlots.containsKey(argument);
+  private boolean hasStackSlotAssigned(Operand operand) {
+    return argumentStackSlots.containsKey(operand);
   }
 
   @Override
@@ -135,15 +135,15 @@ public class BasicRegAllocator extends AbstractRegAllocator
   }
 
   private List<Instruction> visitBinaryInstruction(
-      BinaryInstruction binop, BiFunction<Argument, Register, Instruction> instrCreator) {
+      BinaryInstruction binop, BiFunction<Operand, Register, Instruction> instrCreator) {
     return visitBinaryInstruction(binop, binop.left, binop.right, instrCreator);
   }
 
   private List<Instruction> visitBinaryInstruction(
       Instruction instruction,
-      Argument left,
-      Argument right,
-      BiFunction<Argument, Register, Instruction> instrCreator) {
+      Operand left,
+      Operand right,
+      BiFunction<Operand, Register, Instruction> instrCreator) {
     List<Instruction> instructions = new ArrayList<>();
     // we copy both arguments simply into these registers
     // they are new in the x86-64 (compared to x86) and can therefore be used freely
@@ -163,7 +163,7 @@ public class BasicRegAllocator extends AbstractRegAllocator
     }
     instructions.add(instrCreator.apply(leftReg, rightReg).firmAndComments(instruction));
     // copy the result back
-    if (!(right instanceof ConstArgument)) {
+    if (!(right instanceof ConstOperand)) {
       if (!(right instanceof Register)) {
         instructions.add(new Mov(rightReg, (Location) getCurrentLocation(right)));
       }
@@ -172,7 +172,7 @@ public class BasicRegAllocator extends AbstractRegAllocator
   }
 
   private List<Instruction> visitUnaryInstruction(
-      Instruction instruction, Argument arg, Function<Register, Instruction> instrCreator) {
+      Instruction instruction, Operand arg, Function<Register, Instruction> instrCreator) {
     List<Instruction> instructions = new ArrayList<>();
     // use a temporary register
     Register reg = Register.R14.ofWidth(arg.width);
@@ -182,7 +182,7 @@ public class BasicRegAllocator extends AbstractRegAllocator
       instructions.add(new Mov(getCurrentLocation(arg), reg));
     }
     instructions.add(instrCreator.apply(reg).firmAndComments(instruction));
-    if (!(arg instanceof ConstArgument) && !(arg instanceof Register)) {
+    if (!(arg instanceof ConstOperand) && !(arg instanceof Register)) {
       instructions.add(new Mov(reg, (Location) getCurrentLocation(arg)));
     }
     return instructions;
@@ -239,7 +239,7 @@ public class BasicRegAllocator extends AbstractRegAllocator
   }
 
   /** Returns the current location of the argument and doesn't generate any code. */
-  private Argument getCurrentLocation(Argument arg) {
+  private Operand getCurrentLocation(Operand arg) {
     if (arg instanceof NodeLocation) {
       if (argumentsInRegisters.containsKey(arg)) {
         return argumentsInRegisters.get(arg);
@@ -264,10 +264,10 @@ public class BasicRegAllocator extends AbstractRegAllocator
     List<Instruction> instructions = new ArrayList<>();
     // move the register passed argument into the registers
     for (int i = 0; i < Math.min(argRegs.size(), metaCall.methodInfo.paramNumber); i++) {
-      Argument arg = metaCall.args.get(i);
+      Operand arg = metaCall.args.get(i);
       if (getCurrentLocation(arg) == null) {
         throw new NullPointerException(
-            String.format("%s: Argument %s doesn't exist", metaCall, arg));
+            String.format("%s: Operand %s doesn't exist", metaCall, arg));
       }
       instructions.add(
           new Mov(getCurrentLocation(arg), argRegs.get(i).ofWidth(arg.width))
@@ -284,13 +284,13 @@ public class BasicRegAllocator extends AbstractRegAllocator
       stackAlignmentDecrement = 16 - stackDepthWithProlog % 16;
       instructions.add(
           new Add(
-                  new ConstArgument(Register.Width.Quad, -stackAlignmentDecrement),
+                  new ConstOperand(Register.Width.Quad, -stackAlignmentDecrement),
                   Register.STACK_POINTER)
               .com("Decrement the stack to ensure alignment"));
     }
     // Use the tmpReg to move the additional parameters on the stack
     for (int i = metaCall.methodInfo.paramNumber - 1; i >= argRegs.size(); i--) {
-      Argument arg = metaCall.args.get(i);
+      Operand arg = metaCall.args.get(i);
       instructions.add(new Push(getCurrentLocation(arg)));
     }
     instructions.add(
@@ -310,7 +310,7 @@ public class BasicRegAllocator extends AbstractRegAllocator
     if (stackAlignmentDecrement != 0) { // we aligned the stack explicitly before
       instructions.add(
           new Add(
-                  new ConstArgument(Register.Width.Quad, stackAlignmentDecrement),
+                  new ConstOperand(Register.Width.Quad, stackAlignmentDecrement),
                   Register.STACK_POINTER)
               .com("Remove stack alignment"));
     }

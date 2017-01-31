@@ -87,31 +87,31 @@ public abstract class Instruction implements GNUAssemblerConvertible, Comparable
     this.width = width;
   }
 
-  public static Register.Width getWidthOfArguments(Class klass, Argument... arguments) {
-    if (arguments[0] == null) {
+  public static Register.Width getWidthOfArguments(Class klass, Operand... operands) {
+    if (operands[0] == null) {
       throw new NullPointerException(
           String.format(
               "%s %s",
               klass.getSimpleName(),
-              seq(Arrays.asList(arguments))
+              seq(Arrays.asList(operands))
                   .map(x -> x == null ? "null" : x.toString())
                   .stream()
                   .collect(Collectors.joining(" "))));
     }
-    Register.Width width = arguments[0].width;
-    for (int i = 1; i < arguments.length; i++) {
-      Argument argument = arguments[i];
-      if (argument.width != width) {
+    Register.Width width = operands[0].width;
+    for (int i = 1; i < operands.length; i++) {
+      Operand operand = operands[i];
+      if (operand.width != width) {
         throw new RuntimeException(
             String.format(
-                "%s %s: Argument %d has invalid width %s, expected %s",
+                "%s %s: Operand %d has invalid width %s, expected %s",
                 klass.getSimpleName(),
-                seq(Arrays.asList(arguments))
-                    .map(Argument::toString)
+                seq(Arrays.asList(operands))
+                    .map(Operand::toString)
                     .stream()
                     .collect(Collectors.joining(" ")),
                 i,
-                argument.width,
+                operand.width,
                 width));
       }
     }
@@ -180,18 +180,18 @@ public abstract class Instruction implements GNUAssemblerConvertible, Comparable
     return getAsmInstructionName();
   }
 
-  /** Produces the GNU assembler for the given arguments without comments */
-  protected final String createGNUAssemblerWoComments(Argument... arguments) {
+  /** Produces the GNU assembler for the given operands without comments */
+  protected final String createGNUAssemblerWoComments(Operand... operands) {
     StringBuilder builder = new StringBuilder();
     builder.append(getAsmInstructionName());
-    if (arguments.length > 0) {
+    if (operands.length > 0) {
       builder.append(" ");
     }
-    for (int i = 0; i < arguments.length; i++) {
+    for (int i = 0; i < operands.length; i++) {
       if (i > 0) {
         builder.append(", ");
       }
-      builder.append(arguments[i].toGNUAssembler());
+      builder.append(operands[i].toGNUAssembler());
     }
     return builder.toString();
   }
@@ -258,14 +258,14 @@ public abstract class Instruction implements GNUAssemblerConvertible, Comparable
     return getType().category == Category.META;
   }
 
-  public abstract List<Argument> getArguments();
+  public abstract List<Operand> getArguments();
 
   public void setUsedByRelations() {
-    for (Argument argument : getArguments()) {
-      if (argument instanceof MemoryNodeLocation) {
-        ((MemoryNodeLocation) argument).address.addUsedByRelation(this);
+    for (Operand operand : getArguments()) {
+      if (operand instanceof MemoryNodeLocation) {
+        ((MemoryNodeLocation) operand).address.addUsedByRelation(this);
       }
-      argument.addUsedByRelation(this);
+      operand.addUsedByRelation(this);
     }
   }
 

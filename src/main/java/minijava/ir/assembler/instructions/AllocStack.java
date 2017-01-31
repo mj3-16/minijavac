@@ -24,14 +24,14 @@ public class AllocStack extends Instruction {
   }
 
   @Override
-  public List<Argument> getArguments() {
+  public List<Operand> getArguments() {
     return ImmutableList.of();
   }
 
   @Override
   protected String toGNUAssemblerWoComments() {
     return super.createGNUAssemblerWoComments(
-        new ConstArgument(Register.Width.Quad, amount), Register.STACK_POINTER);
+        new ConstOperand(Register.Width.Quad, amount), Register.STACK_POINTER);
   }
 
   @Override

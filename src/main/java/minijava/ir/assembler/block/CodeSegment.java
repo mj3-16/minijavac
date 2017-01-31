@@ -3,6 +3,7 @@ package minijava.ir.assembler.block;
 import com.sun.jna.Platform;
 import firm.Graph;
 import firm.nodes.Block;
+import firm.nodes.Node;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -52,6 +53,15 @@ public class CodeSegment extends Segment {
       ldFormat = "L%d_%s";
     }
     return String.format(ldFormat, block.getNr(), ldName);
+  }
+
+  /** Get the code block for a given firm node (for the block the node belongs to) */
+  public CodeBlock getCodeBlockForNode(Node node) {
+    if (node.getBlock() == null) {
+      // the passed node is actually a block
+      return getCodeBlock((Block) node);
+    }
+    return getCodeBlock((Block) node.getBlock());
   }
 
   public void addComment(String comment) {

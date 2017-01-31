@@ -8,9 +8,9 @@ import minijava.ir.assembler.location.MemoryNodeLocation;
 public class MetaLoad extends Instruction {
 
   public final MemoryNodeLocation source;
-  public final Argument destination;
+  public final Operand destination;
 
-  public MetaLoad(MemoryNodeLocation source, Argument destination) {
+  public MetaLoad(MemoryNodeLocation source, Operand destination) {
     super(getWidthOfArguments(MemoryNodeLocation.class, source, destination));
     this.source = source;
     this.destination = destination;
@@ -22,7 +22,7 @@ public class MetaLoad extends Instruction {
   }
 
   @Override
-  public List<Argument> getArguments() {
+  public List<Operand> getArguments() {
     return ImmutableList.of(source.address, destination);
   }
 

@@ -8,7 +8,7 @@ package minijava.ir.assembler.instructions;
  * assembler.
  */
 public class Cmp extends BinaryInstruction {
-  public Cmp(Argument left, Argument right) {
+  public Cmp(Operand left, Operand right) {
     super(left, right);
   }
 

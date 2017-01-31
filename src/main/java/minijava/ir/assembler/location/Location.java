@@ -1,9 +1,9 @@
 package minijava.ir.assembler.location;
 
-import minijava.ir.assembler.instructions.Argument;
+import minijava.ir.assembler.instructions.Operand;
 
 /** Location for an assembler instruction operand (and therefore an intermediate result) */
-public abstract class Location extends Argument {
+public abstract class Location extends Operand {
 
   private String comment;
 

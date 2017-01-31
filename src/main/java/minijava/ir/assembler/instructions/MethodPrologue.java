@@ -23,7 +23,7 @@ public class MethodPrologue extends Instruction {
   }
 
   @Override
-  public List<Argument> getArguments() {
+  public List<Operand> getArguments() {
     return ImmutableList.of();
   }
 

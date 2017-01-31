@@ -7,10 +7,10 @@ import minijava.ir.assembler.location.Location;
 /** Moves the source value into the destination */
 public class Mov extends Instruction {
 
-  public final Argument source;
+  public final Operand source;
   public final Location destination;
 
-  public Mov(Argument source, Location destination) {
+  public Mov(Operand source, Location destination) {
     super(getWidthOfArguments(Mov.class, source, destination));
     this.source = source;
     this.destination = destination;
@@ -27,7 +27,7 @@ public class Mov extends Instruction {
   }
 
   @Override
-  public List<Argument> getArguments() {
+  public List<Operand> getArguments() {
     return ImmutableList.of(source, destination);
   }
 

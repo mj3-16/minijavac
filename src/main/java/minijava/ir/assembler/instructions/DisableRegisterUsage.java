@@ -24,7 +24,7 @@ public class DisableRegisterUsage extends Instruction {
   }
 
   @Override
-  public List<Argument> getArguments() {
+  public List<Operand> getArguments() {
     return ImmutableList.of();
   }
 

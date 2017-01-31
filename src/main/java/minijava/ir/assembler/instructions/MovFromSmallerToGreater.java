@@ -10,10 +10,10 @@ import minijava.ir.assembler.location.Location;
  */
 public class MovFromSmallerToGreater extends Instruction {
 
-  public final Argument source;
+  public final Operand source;
   public final Location destination;
 
-  public MovFromSmallerToGreater(Argument source, Location destination) {
+  public MovFromSmallerToGreater(Operand source, Location destination) {
     super(source.width);
     if (source.width.ordinal() > destination.width.ordinal()) {
       throw new RuntimeException(
@@ -34,7 +34,7 @@ public class MovFromSmallerToGreater extends Instruction {
   }
 
   @Override
-  public List<Argument> getArguments() {
+  public List<Operand> getArguments() {
     return ImmutableList.of(source, destination);
   }
 

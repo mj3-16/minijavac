@@ -3,7 +3,7 @@ package minijava.ir.assembler.instructions;
 /** Pops a value of the stack */
 public class Pop extends UnaryInstruction {
 
-  public Pop(Argument arg) {
+  public Pop(Operand arg) {
     super(arg);
   }
 

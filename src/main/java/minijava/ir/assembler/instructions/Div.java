@@ -16,9 +16,9 @@ import minijava.ir.assembler.location.Register;
  */
 public class Div extends Instruction {
 
-  public final Argument divisor;
+  public final Operand divisor;
 
-  public Div(Argument divisor) {
+  public Div(Operand divisor) {
     super(Register.Width.Quad);
     this.divisor = divisor;
   }
@@ -34,7 +34,7 @@ public class Div extends Instruction {
   }
 
   @Override
-  public List<Argument> getArguments() {
+  public List<Operand> getArguments() {
     return ImmutableList.of();
   }
 
