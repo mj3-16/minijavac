@@ -8,6 +8,7 @@ import firm.Graph;
 import firm.Mode;
 import firm.Relation;
 import firm.nodes.Block;
+import firm.nodes.Call;
 import firm.nodes.Cond;
 import firm.nodes.Const;
 import firm.nodes.Load;
@@ -94,6 +95,36 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     return segment;
   }
 
+  private List<Operand> getOperands(Node node) {
+    List<Operand> args = new ArrayList<>();
+    int start = 0;
+    if (hasSideEffect(node)) {
+      start++;
+    }
+    if (node instanceof Call) {
+      // The first operand is the called function, which is always constant for MiniJava.
+      start++;
+    }
+    for (int i = start; i < node.getPredCount(); i++) {
+      args.add(allocator.getAsOperand(node.getPred(i)));
+    }
+    return args;
+  }
+
+  private static boolean hasSideEffect(Node node) {
+    switch (node.getOpCode()) {
+      case iro_Return:
+      case iro_Mod:
+      case iro_Div:
+      case iro_Load:
+      case iro_Store:
+      case iro_Call:
+        return true;
+      default:
+        return false;
+    }
+  }
+
   @Override
   public void visit(firm.nodes.Add node) {
     addBinaryInstruction(Add::new, node);
@@ -122,7 +153,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
   private void visitDivAndMod(Node node, boolean isDiv) {
     Location res = allocator.getLocation(node, Types.INT_TYPE.getMode());
     CodeBlock block = segment.getCodeBlockForNode(node);
-    List<Operand> args = allocator.getArguments(node);
+    List<Operand> args = getOperands(node);
     assert args.size() == 2;
     Operand firstArg = args.get(0);
     Operand secondArg = args.get(1);
@@ -150,7 +181,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
   @Override
   public void visit(firm.nodes.Minus node) {
     // Note: this method handles the arithmetic negation (unary minus) operation
-    List<Operand> args = allocator.getArguments(node);
+    List<Operand> args = getOperands(node);
     assert args.size() == 1;
     CodeBlock block = segment.getCodeBlockForNode(node);
     Operand arg = args.get(0);
@@ -160,7 +191,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
   }
 
   private void addBinaryInstruction(BiFunction<Operand, Operand, Instruction> creator, Node node) {
-    List<Operand> args = allocator.getArguments(node);
+    List<Operand> args = getOperands(node);
     assert args.size() == 2;
     // swap arguments because GNU assembler has them in reversed order (compared to Intel assembler)
     Operand firstArg = args.get(0);
@@ -197,7 +228,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     CodeBlock codeBlock = segment.getCodeBlockForNode(node);
     if (node.getPredCount() > 1) {
       // we only need this if the return actually returns a value
-      List<Operand> args = allocator.getArguments(node);
+      List<Operand> args = getOperands(node);
       assert args.size() == 1;
       Operand arg = args.get(0);
       codeBlock.add(new Mov(arg, Register.RETURN_REGISTER.ofWidth(arg.width)));
@@ -214,7 +245,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
   @Override
   public void visit(firm.nodes.Call node) {
     MethodInformation info = new MethodInformation(node);
-    List<Operand> args = allocator.getArguments(node);
+    List<Operand> args = getOperands(node);
     CodeBlock block = segment.getCodeBlockForNode(node);
     Optional<Location> ret = Optional.empty();
     if (info.hasReturnValue) {
@@ -259,7 +290,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
           // we ignore it as we're really interested in the preceding compare node
           firm.nodes.Cmp cmp = (firm.nodes.Cmp) cond.getSelector();
 
-          List<Operand> args = allocator.getArguments(cmp);
+          List<Operand> args = getOperands(cmp);
           assert args.size() == 2;
           Operand left = args.get(0);
           Operand right = args.get(1);
@@ -299,8 +330,8 @@ public class AssemblerGenerator extends NodeVisitor.Default {
                 // we have to add one
                 // a set without a cmp doesn't make any sense
                 firm.nodes.Cmp cmp = (firm.nodes.Cmp) inputNode;
-                Operand leftArg = allocator.getAsArgument(cmp.getLeft());
-                Operand rightArg = allocator.getAsArgument(cmp.getRight());
+                Operand leftArg = allocator.getAsOperand(cmp.getLeft());
+                Operand rightArg = allocator.getAsOperand(cmp.getRight());
                 // compare the values
                 // swap its arguments, GNU assembler...
                 inputCodeBlock.setCompare((Cmp) new Cmp(leftArg, rightArg).firm(cmp));
@@ -316,7 +347,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
                       ? inputCodeBlock::addToAfterCompareInstructions
                       : inputCodeBlock::addAfterConditionalJumpsInstruction);
             } else {
-              Instruction bPhiMov = new Mov(allocator.getAsArgument(inputNode), res).firm(bPhi);
+              Instruction bPhiMov = new Mov(allocator.getAsOperand(inputNode), res).firm(bPhi);
               if (afterCondJumps) {
                 inputCodeBlock.addAfterConditionalJumpsInstruction(bPhiMov);
               } else {
@@ -396,16 +427,16 @@ public class AssemblerGenerator extends NodeVisitor.Default {
       boolean afterCondJumps = shouldPlacePhiHelperAfterCondJumps(moreThanOncePredBlocks, block, i);
       // the i.th block belongs to the i.th input edge of the phi node
       Node inputNode = node.getPred(i);
-      Operand arg = allocator.getAsArgument(inputNode);
-      // we store the argument in a register
+      Operand op = allocator.getAsOperand(inputNode);
+      // we store the operand in a register
       Instruction phiMov;
       if (isPhiProneToLostCopies(node)) {
         // if this phi is prone to lost copies then we copy the value only
         // into the temporary variable
-        phiMov = new Mov(arg, tmpLocation).firm(node);
+        phiMov = new Mov(op, tmpLocation).firm(node);
       } else {
         // we copy it into Phis location
-        phiMov = new Mov(arg, res).firm(node);
+        phiMov = new Mov(op, res).firm(node);
       }
       if (isPhiB && inputNode instanceof firm.nodes.Cmp) {
         // we have to insert the mov instructions behind (!) the compare
@@ -471,7 +502,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
   public void visit(Load node) {
     // firm graph:
     // [Ptr node, might be a calculation!] <- [Load] <- [Proj res]
-    Operand arg = allocator.getAsArgument(node.getPtr());
+    Operand ptr = allocator.getAsOperand(node.getPtr());
     Location res = allocator.getLocation(node);
     CodeBlock block = segment.getCodeBlockForNode(node);
     block.add(
@@ -480,7 +511,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
                     modeToWidth(node.getType().getMode()),
                     allocator.genLocationId(),
                     node.getPtr(),
-                    arg),
+                    ptr),
                 res)
             .firm(node));
   }
@@ -492,8 +523,8 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     // [Ptr node] <---|
     // [Value node] <-|Store] <- [Proj MM]
     CodeBlock block = segment.getCodeBlockForNode(node);
-    Operand dest = allocator.getAsArgument(node.getPtr());
-    Operand newValue = allocator.getAsArgument(node.getValue());
+    Operand dest = allocator.getAsOperand(node.getPtr());
+    Operand newValue = allocator.getAsOperand(node.getValue());
     block.add(
         new MetaStore(
                 newValue,
