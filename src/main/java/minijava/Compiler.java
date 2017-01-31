@@ -176,7 +176,7 @@ public class Compiler {
   public static void compile(Backend backend, String outFile, boolean produceDebuggableBinary)
       throws IOException {
     lower();
-    Cli.dumpGraphsIfNeeded("finished");
+    Cli.dumpGraphsIfNeeded("after-lowering");
     String asmFile = backend.lowerToAssembler(outFile);
     assemble(asmFile, outFile, produceDebuggableBinary);
   }
@@ -186,7 +186,20 @@ public class Compiler {
     // lowering Member and Sel nodes might result in constant expressions like this + (4 * 2).
     // This shouldn't take long to rectify.
     ConstantFolder constantFolder = new ConstantFolder();
-    Program.getGraphs().forEach(constantFolder::optimize);
+    ExpressionNormalizer normalizer = new ExpressionNormalizer();
+    AlgebraicSimplifier simplifier = new AlgebraicSimplifier();
+    OptimizerFramework framework =
+        new OptimizerFramework.Builder()
+            .add(constantFolder)
+            .dependsOn()
+            .add(normalizer)
+            .dependsOn(constantFolder)
+            .add(simplifier)
+            .dependsOn(normalizer, constantFolder)
+            .build();
+    ProgramMetrics.analyse(Program.getGraphs())
+        .reachableFromMain()
+        .forEach(framework::optimizeUntilFixedpoint);
   }
 
   private static void assemble(
