@@ -3,23 +3,57 @@ package minijava.ir.assembler;
 import static minijava.ir.utils.FirmUtils.modeToWidth;
 
 import com.google.common.collect.ImmutableList;
-import com.sun.jna.Platform;
-import firm.*;
-import firm.nodes.*;
-import java.util.*;
+import firm.BackEdges;
+import firm.Graph;
+import firm.Mode;
+import firm.Relation;
+import firm.nodes.Block;
+import firm.nodes.Cond;
+import firm.nodes.Const;
+import firm.nodes.Load;
+import firm.nodes.Node;
+import firm.nodes.NodeVisitor;
+import firm.nodes.Phi;
+import firm.nodes.Proj;
+import firm.nodes.Return;
+import firm.nodes.Store;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import minijava.ir.assembler.block.CodeBlock;
 import minijava.ir.assembler.block.CodeSegment;
-import minijava.ir.assembler.instructions.*;
 import minijava.ir.assembler.instructions.Add;
+import minijava.ir.assembler.instructions.Argument;
+import minijava.ir.assembler.instructions.CLTD;
 import minijava.ir.assembler.instructions.Cmp;
+import minijava.ir.assembler.instructions.ConditionalJmp;
+import minijava.ir.assembler.instructions.ConstArgument;
+import minijava.ir.assembler.instructions.DisableRegisterUsage;
 import minijava.ir.assembler.instructions.Div;
+import minijava.ir.assembler.instructions.EnableRegisterUsage;
+import minijava.ir.assembler.instructions.Evict;
+import minijava.ir.assembler.instructions.Instruction;
 import minijava.ir.assembler.instructions.Jmp;
+import minijava.ir.assembler.instructions.MetaCall;
+import minijava.ir.assembler.instructions.MetaLoad;
+import minijava.ir.assembler.instructions.MetaStore;
+import minijava.ir.assembler.instructions.MethodPrologue;
+import minijava.ir.assembler.instructions.Mov;
+import minijava.ir.assembler.instructions.MovFromSmallerToGreater;
 import minijava.ir.assembler.instructions.Mul;
+import minijava.ir.assembler.instructions.Neg;
+import minijava.ir.assembler.instructions.Pop;
+import minijava.ir.assembler.instructions.Ret;
 import minijava.ir.assembler.instructions.Set;
 import minijava.ir.assembler.instructions.Sub;
-import minijava.ir.assembler.location.*;
+import minijava.ir.assembler.location.Location;
+import minijava.ir.assembler.location.MemoryNodeLocation;
+import minijava.ir.assembler.location.NodeLocation;
+import minijava.ir.assembler.location.Register;
 import minijava.ir.emit.Types;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
@@ -42,7 +76,6 @@ public class AssemblerGenerator extends NodeVisitor.Default {
   private final MethodInformation info;
   private final NodeAllocator allocator;
   private CodeSegment segment;
-  private Map<Integer, CodeBlock> blocksToCodeBlocks;
   private static Map<Phi, Boolean> isPhiProneToLostCopies;
 
   public AssemblerGenerator(Graph graph) {
@@ -53,44 +86,21 @@ public class AssemblerGenerator extends NodeVisitor.Default {
   }
 
   public CodeSegment generateSegmentForGraph() {
-    blocksToCodeBlocks = new HashMap<>();
-    segment = new CodeSegment(new ArrayList<>(), new ArrayList<>());
+    segment = new CodeSegment();
     segment.addComment(String.format("Code segment for method %s", info.name));
-    blocksToCodeBlocks = new HashMap<>();
     FirmUtils.withBackEdges(
         graph, () -> GraphUtils.topologicalOrder(graph).forEach(n -> n.accept(this)));
     prependStartBlockWithPrologue();
     return segment;
   }
 
-  private CodeBlock getCodeBlock(Block block) {
-    if (!blocksToCodeBlocks.containsKey(block.getNr())) {
-      blocksToCodeBlocks.put(block.getNr(), new CodeBlock(getLabelForBlock(block)));
-      segment.addBlock(blocksToCodeBlocks.get(block.getNr()));
-    }
-    return blocksToCodeBlocks.get(block.getNr());
-  }
-
-  private String getLabelForBlock(Block block) {
-    if (block.getNr() == graph.getStartBlock().getNr()) {
-      return info.ldName;
-    }
-    String ldFormat;
-    if (Platform.isLinux()) {
-      ldFormat = ".L%d_%s";
-    } else {
-      ldFormat = "L%d_%s";
-    }
-    return String.format(ldFormat, block.getNr(), info.ldName);
-  }
-
   /** Get the code block for a given firm node (for the block the node belongs to) */
   private CodeBlock getCodeBlockForNode(Node node) {
     if (node.getBlock() == null) {
       // the passed node is actually a block
-      return getCodeBlock((Block) node);
+      return segment.getCodeBlock((Block) node);
     }
-    return getCodeBlock((Block) node.getBlock());
+    return segment.getCodeBlock((Block) node.getBlock());
   }
 
   @Override
@@ -188,7 +198,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
    * stack for the activation record.
    */
   private void prependStartBlockWithPrologue() {
-    CodeBlock startBlock = getCodeBlock(graph.getStartBlock());
+    CodeBlock startBlock = segment.getCodeBlock(graph.getStartBlock());
     startBlock.prepend(new MethodPrologue());
   }
 
@@ -238,7 +248,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
 
   @Override
   public void visit(Block node) {
-    CodeBlock codeBlock = getCodeBlock(node);
+    CodeBlock codeBlock = segment.getCodeBlock(node);
     // we only handle control flow edges here
     for (Node pred : node.getPreds()) {
       CodeBlock predCodeBlock = getCodeBlockForNode(pred);
@@ -288,7 +298,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
             Node inputNode = bPhi.getPred(i);
             // the i.th block belongs to the i.th input edge of the phi node
             Block block = (Block) bPhi.getBlock().getPred(i).getBlock();
-            CodeBlock inputCodeBlock = getCodeBlock(block);
+            CodeBlock inputCodeBlock = segment.getCodeBlock(block);
 
             boolean afterCondJumps =
                 shouldPlacePhiHelperAfterCondJumps(
@@ -391,7 +401,7 @@ public class AssemblerGenerator extends NodeVisitor.Default {
     for (int i = 0; i < block.getPredCount(); i++) {
       // we get the correct block be taking the predecessors of the block of the phi node
       Block inputBlock = (Block) block.getPred(i).getBlock();
-      CodeBlock inputCodeBlock = getCodeBlock(inputBlock);
+      CodeBlock inputCodeBlock = segment.getCodeBlock(inputBlock);
       // we should decide whether we want to place the phi helper instruction before or after the conditional jumps
       boolean afterCondJumps = shouldPlacePhiHelperAfterCondJumps(moreThanOncePredBlocks, block, i);
       // the i.th block belongs to the i.th input edge of the phi node
