@@ -338,9 +338,6 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
     addHashedNode(hashed);
     HashedNode old = hashes.put(node, hashed);
     if (!hashed.equals(old)) {
-      if (node.getNr() == 419) {
-        System.out.println("Changed: " + old + " new: " + hashed);
-      }
       hasChanged = true;
     }
   }

@@ -151,12 +151,18 @@ public class AliasAnalyzer extends BaseOptimizer {
   }
 
   @Override
+  public void defaultVisit(Node node) {
+    // We have to merge all preceding memory values
+    Memory memory =
+        seq(node.getPreds()).map(this::getMemory).foldLeft(Memory.empty(), Memory::mergeWith);
+    updateMemory(node, memory);
+  }
+
+  @Override
   public void visit(Phi node) {
-    if (node.getMode().equals(Mode.getM())) {
-      Memory memory =
-          seq(node.getPreds()).map(this::getMemory).foldLeft(Memory.empty(), Memory::mergeWith);
-      updateMemory(node, memory);
-    } else {
+    defaultVisit(node);
+
+    if (node.getMode().equals(Mode.getP())) {
       Set<IndirectAccess> pointsTo =
           seq(node.getPreds()).map(this::getPointsTo).flatMap(Seq::seq).toSet();
       updatePointsTo(node, pointsTo);
@@ -164,14 +170,9 @@ public class AliasAnalyzer extends BaseOptimizer {
   }
 
   @Override
-  public void visit(Sync node) {
-    Memory memory =
-        seq(node.getPreds()).map(this::getMemory).foldLeft(Memory.empty(), Memory::mergeWith);
-    updateMemory(node, memory);
-  }
-
-  @Override
   public void visit(Member node) {
+    defaultVisit(node);
+
     int offset = node.getEntity().getOffset();
     Type fieldType = node.getEntity().getType();
     ClassType containingClassType = (ClassType) node.getEntity().getOwner();
@@ -189,6 +190,8 @@ public class AliasAnalyzer extends BaseOptimizer {
 
   @Override
   public void visit(Sel node) {
+    defaultVisit(node);
+
     ArrayType arrayType = (ArrayType) node.getType();
     int offset =
         NodeUtils.asConst(node.getIndex()).map(i -> i.getTarval().asInt()).orElse(UNKNOWN_OFFSET);
@@ -210,8 +213,8 @@ public class AliasAnalyzer extends BaseOptimizer {
     // argument will not return an empty alias class, but an alias class that overlaps with anything
     // passed into the function.
     Memory memory =
-        Memory.EMPTY.modifyChunk(
-            node, c -> c.setSlot(UNKNOWN_OFFSET, HashTreePSet.singleton(node)));
+        Memory.empty()
+            .modifyChunk(node, c -> c.setSlot(UNKNOWN_OFFSET, HashTreePSet.singleton(node)));
     updateMemory(node, memory);
   }
 
@@ -251,12 +254,11 @@ public class AliasAnalyzer extends BaseOptimizer {
 
   @Override
   public void visit(Load load) {
-    // A load doesn't change memory
-    updateMemory(load, getMemory(load.getMem()));
-    // ... but we can say something about the loaded value
+    defaultVisit(load);
+    // A load doesn't change memory, but we can say something about the loaded value
+    Memory memory = getMemory(load);
     Set<IndirectAccess> pointsTo = getPointsTo(load.getPtr());
     Type referencedType = getReferencedType(load.getPtr());
-    Memory memory = getMemory(load.getMem());
     Set<IndirectAccess> loadedRefs =
         followIndirectAccessesInMemory(pointsTo, memory, referencedType);
     updatePointsTo(load, loadedRefs);
@@ -264,13 +266,14 @@ public class AliasAnalyzer extends BaseOptimizer {
 
   @Override
   public void visit(Store store) {
+    defaultVisit(store);
     // Store is only interesting for its side effects. Yet we record the pointed to set,
     // which means in this case 'might be modified by'.
     Set<IndirectAccess> ptrPointsTo = getPointsTo(store.getPtr());
     updatePointsTo(store, ptrPointsTo);
     Set<IndirectAccess> valPointsTo = getPointsTo(store.getValue());
     Type referencedType = getReferencedType(store.getPtr());
-    Memory memory = getMemory(store.getMem());
+    Memory memory = getMemory(store);
     Memory modifiedMemory =
         writeValuesToPossibleMemorySlots(memory, ptrPointsTo, valPointsTo, referencedType);
     // It doesn't make sense to talk about the result value of a Store.
@@ -280,10 +283,8 @@ public class AliasAnalyzer extends BaseOptimizer {
 
   @Override
   public void visit(Proj proj) {
-    if (proj.getMode().equals(Mode.getM())) {
-      // we just forward the memory
-      updateMemory(proj, getMemory(proj.getPred()));
-    } else if (proj.getPred().getOpCode() == iro_Proj) {
+    defaultVisit(proj);
+    if (proj.getPred().getOpCode() == iro_Proj) {
       transferProjOnProj(proj, (Proj) proj.getPred());
     } else {
       updatePointsTo(proj, getPointsTo(proj.getPred()));
