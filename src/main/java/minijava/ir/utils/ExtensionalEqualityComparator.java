@@ -9,6 +9,7 @@ import firm.bindings.binding_irnode;
 import firm.bindings.binding_irnode.ir_opcode;
 import firm.nodes.Cmp;
 import firm.nodes.Const;
+import firm.nodes.Load;
 import firm.nodes.Member;
 import firm.nodes.Node;
 import firm.nodes.NodeVisitor;
@@ -141,6 +142,15 @@ public class ExtensionalEqualityComparator implements Comparator<Node> {
     @Override
     public void visit(Proj node) {
       // Two different projs should never be considered equal.
+      cmp = node.getNr() - other.getNr();
+    }
+
+    @Override
+    public void visit(Load node) {
+      Mode otherLoadMode = ((Load) other).getLoadMode();
+      if (node.getLoadMode().equals(otherLoadMode)) {
+        return;
+      }
       cmp = node.getNr() - other.getNr();
     }
 

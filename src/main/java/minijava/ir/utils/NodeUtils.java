@@ -8,7 +8,6 @@ import static org.jooq.lambda.Seq.seq;
 import static org.jooq.lambda.Seq.zipWithIndex;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 import com.sun.jna.Pointer;
 import firm.BackEdges;
 import firm.Graph;
@@ -142,7 +141,6 @@ public class NodeUtils {
             usedNums.add(((Proj) be.node).getNum());
           }
         });
-    System.out.println(usedNums);
 
     usedNums.forEach(num -> mergeProjsWithNum(newTarget, num));
   }
@@ -154,27 +152,6 @@ public class NodeUtils {
 
   public static Pointer getLink(Node node) {
     return binding_irnode.get_irn_link(node.ptr);
-  }
-
-  /**
-   * Expects {@param modeM} to be a Mem node from which we follow mem edges until we hit a
-   * side-effect node (including Phis). Essentially skips uninteresting Proj M and Sync nodes.
-   */
-  public static Set<Node> getPreviousSideEffects(Node modeM) {
-    assert modeM.getMode().equals(Mode.getM());
-    switch (modeM.getOpCode()) {
-      case iro_Proj:
-        return Sets.newHashSet(modeM.getPred(0));
-      case iro_Phi:
-        return Sets.newHashSet(modeM); // we return Phis themselves
-      case iro_Sync:
-        Set<Node> ret = new HashSet<>();
-        seq(modeM.getPreds()).map(NodeUtils::getPreviousSideEffects).forEach(ret::addAll);
-        return ret;
-      default:
-        LOGGER.warn("Didn't expect a mode M node " + modeM);
-        return Sets.newHashSet(modeM);
-    }
   }
 
   /** Projects out the Mem effect of the passed side effect if necessary. */

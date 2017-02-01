@@ -24,6 +24,7 @@ public abstract class BaseOptimizer extends NodeVisitor.Default implements Optim
    * from the outputs of the previous visiting.
    */
   protected boolean fixedPointIteration(Collection<Node> initialWorklist) {
+    assert graph != null : "No graph instance set";
     return FirmUtils.withBackEdges(
         graph,
         () -> {

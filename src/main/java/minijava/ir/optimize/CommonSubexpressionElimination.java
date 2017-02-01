@@ -4,13 +4,40 @@ import static org.jooq.lambda.Seq.seq;
 
 import firm.Graph;
 import firm.Mode;
-import firm.nodes.*;
-import java.util.*;
+import firm.nodes.Add;
+import firm.nodes.Address;
+import firm.nodes.And;
+import firm.nodes.Block;
+import firm.nodes.Cmp;
+import firm.nodes.Cond;
+import firm.nodes.Const;
+import firm.nodes.Conv;
+import firm.nodes.Div;
+import firm.nodes.Load;
+import firm.nodes.Member;
+import firm.nodes.Minus;
+import firm.nodes.Mod;
+import firm.nodes.Mul;
+import firm.nodes.Node;
+import firm.nodes.Not;
+import firm.nodes.Or;
+import firm.nodes.Proj;
+import firm.nodes.Sel;
+import firm.nodes.Shl;
+import firm.nodes.Shr;
+import firm.nodes.Shrs;
+import firm.nodes.Size;
+import firm.nodes.Sub;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import minijava.ir.Dominance;
 import minijava.ir.utils.ExtensionalEqualityComparator;
 import minijava.ir.utils.GraphUtils;
 import minijava.ir.utils.NodeUtils;
-import org.jooq.lambda.Seq;
 
 /**
  * Implements Common Subexpression Elimination by hashing node specific values and their
@@ -42,10 +69,11 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
 
   @Override
   public boolean optimize(Graph graph) {
+    this.graph = graph;
     this.hashes.clear();
     this.similarNodes.clear();
     // One postorder traversal should be enough, as we don't handle Phi nodes and thus cycles.
-    GraphUtils.topologicalOrder(graph).forEach(this::visit);
+    fixedPointIteration(GraphUtils.topologicalOrder(graph));
     return transform();
   }
 
@@ -81,6 +109,7 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
     if (redundant.getMode().equals(Mode.getT())) {
       // Nodes such as div and mod return a tuple.
       // We have to merge projs accordingly.
+
       NodeUtils.redirectProjsOnto(redundant, replacement);
       Graph.killNode(redundant);
     } else {
@@ -155,7 +184,7 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
   @Override
   public void defaultVisit(Node node) {
     // This is a safe default, as a nodes hash should be quite unique.
-    hashWithSalt(node.hashCode()).ifPresent(hash -> updateHashMapping(node, hash));
+    updateHashMapping(node, node.hashCode());
   }
 
   @Override
@@ -275,6 +304,13 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
     binaryNode(node);
   }
 
+  @Override
+  public void visit(Load node) {
+    // Since loads aren't really a side effect as much as they impose an ordering on other
+    // side effects, we can perform CSE if ptr and mem preds are equal.
+    binaryNode(node);
+  }
+
   /**
    * Helper method called for all uninteresting (e.g. no relevant discerning state beyond their node
    * type and preds) unary nodes.
@@ -300,12 +336,18 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
   private void updateHashMapping(Node node, int hash) {
     HashedNode hashed = new HashedNode(node, hash);
     addHashedNode(hashed);
-    hashes.put(node, hashed);
+    HashedNode old = hashes.put(node, hashed);
+    if (!hashed.equals(old)) {
+      hasChanged = true;
+    }
   }
 
   private void addHashedNode(HashedNode hashed) {
     Set<Node> similar =
         similarNodes.containsKey(hashed) ? similarNodes.get(hashed) : new HashSet<>();
+    if (!similar.contains(hashed.node)) {
+      hasChanged = true;
+    }
     similar.add(hashed.node);
     similarNodes.put(hashed, similar);
   }
@@ -315,12 +357,15 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
    * been computed yet (or can't be, e.g. Phis) then we return Optional.empty().
    */
   private Optional<Integer> hashWithSalt(int salt, Node... preds) {
-    // Java really needs `mapM`. /jk
-    Object[] hashedPreds = Seq.of(preds).map(hashes::get).toArray(Object[]::new);
-    if (Seq.of(hashedPreds).contains(null)) {
-      return Optional.empty();
+    Object[] hashes = new Object[preds.length + 1];
+    for (int i = 0; i < preds.length; ++i) {
+      hashes[i] = this.hashes.get(preds[i]);
+      if (hashes[i] == null) {
+        return Optional.empty();
+      }
     }
-    return Optional.of(salt ^ Objects.hash(hashedPreds));
+    hashes[preds.length] = salt;
+    return Optional.of(Objects.hash(hashes));
   }
 
   /**
