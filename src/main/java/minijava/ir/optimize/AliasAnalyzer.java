@@ -152,6 +152,10 @@ public class AliasAnalyzer extends BaseOptimizer {
 
   @Override
   public void defaultVisit(Node node) {
+    mergeMemoryFromPreds(node);
+  }
+
+  private void mergeMemoryFromPreds(Node node) {
     // We have to merge all preceding memory values
     Memory memory =
         seq(node.getPreds()).map(this::getMemory).foldLeft(Memory.empty(), Memory::mergeWith);
@@ -160,7 +164,7 @@ public class AliasAnalyzer extends BaseOptimizer {
 
   @Override
   public void visit(Phi node) {
-    defaultVisit(node);
+    mergeMemoryFromPreds(node);
 
     if (node.getMode().equals(Mode.getP())) {
       Set<IndirectAccess> pointsTo =
@@ -171,7 +175,7 @@ public class AliasAnalyzer extends BaseOptimizer {
 
   @Override
   public void visit(Member node) {
-    defaultVisit(node);
+    mergeMemoryFromPreds(node);
 
     int offset = node.getEntity().getOffset();
     Type fieldType = node.getEntity().getType();
@@ -190,7 +194,7 @@ public class AliasAnalyzer extends BaseOptimizer {
 
   @Override
   public void visit(Sel node) {
-    defaultVisit(node);
+    mergeMemoryFromPreds(node);
 
     ArrayType arrayType = (ArrayType) node.getType();
     int offset =
@@ -254,7 +258,7 @@ public class AliasAnalyzer extends BaseOptimizer {
 
   @Override
   public void visit(Load load) {
-    defaultVisit(load);
+    mergeMemoryFromPreds(load);
     // A load doesn't change memory, but we can say something about the loaded value
     Memory memory = getMemory(load);
     Set<IndirectAccess> pointsTo = getPointsTo(load.getPtr());
@@ -266,7 +270,7 @@ public class AliasAnalyzer extends BaseOptimizer {
 
   @Override
   public void visit(Store store) {
-    defaultVisit(store);
+    mergeMemoryFromPreds(store);
     // Store is only interesting for its side effects. Yet we record the pointed to set,
     // which means in this case 'might be modified by'.
     Set<IndirectAccess> ptrPointsTo = getPointsTo(store.getPtr());
@@ -283,7 +287,7 @@ public class AliasAnalyzer extends BaseOptimizer {
 
   @Override
   public void visit(Proj proj) {
-    defaultVisit(proj);
+    mergeMemoryFromPreds(proj);
     if (proj.getPred().getOpCode() == iro_Proj) {
       transferProjOnProj(proj, (Proj) proj.getPred());
     } else {
