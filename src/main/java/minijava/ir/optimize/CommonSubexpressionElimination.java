@@ -357,14 +357,15 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
    * been computed yet (or can't be, e.g. Phis) then we return Optional.empty().
    */
   private Optional<Integer> hashWithSalt(int salt, Node... preds) {
-    Object[] hashedPreds = new Object[preds.length];
+    Object[] hashes = new Object[preds.length + 1];
     for (int i = 0; i < preds.length; ++i) {
-      hashedPreds[i] = hashes.get(preds[i]);
-      if (hashedPreds[i] == null) {
+      hashes[i] = this.hashes.get(preds[i]);
+      if (hashes[i] == null) {
         return Optional.empty();
       }
     }
-    return Optional.of(salt ^ Objects.hash(hashedPreds));
+    hashes[preds.length] = salt;
+    return Optional.of(Objects.hash(hashes));
   }
 
   /**
