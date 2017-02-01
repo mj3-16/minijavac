@@ -25,6 +25,7 @@ import firm.nodes.Node;
 import firm.nodes.Phi;
 import firm.nodes.Proj;
 import firm.nodes.Sel;
+import firm.nodes.Start;
 import firm.nodes.Store;
 import firm.nodes.Sync;
 import java.util.ArrayList;
@@ -200,6 +201,18 @@ public class AliasAnalyzer extends BaseOptimizer {
             .toSet();
 
     updatePointsTo(node, offsetReferences);
+  }
+
+  @Override
+  public void visit(Start node) {
+    // The start node represents an alias class itself, that of all arguments to the function.
+    // The memory is tainted at all slots with self references, so that e.g. a field access on an
+    // argument will not return an empty alias class, but an alias class that overlaps with anything
+    // passed into the function.
+    Memory memory =
+        Memory.EMPTY.modifyChunk(
+            node, c -> c.setSlot(UNKNOWN_OFFSET, HashTreePSet.singleton(node)));
+    updateMemory(node, memory);
   }
 
   @Override
@@ -824,6 +837,7 @@ public class AliasAnalyzer extends BaseOptimizer {
       Node ptr = sideEffect.getPred(1);
       Set<IndirectAccess> aliasClass = getPointsTo(ptr);
       boolean isLoad = sideEffect.getOpCode() == iro_Load;
+      assert !aliasClass.isEmpty() : "Empty alias class at " + sideEffect;
       Predicate<Node> affectsSideEffect =
           se -> {
             if (isLoad && se.getOpCode() == iro_Load) {
