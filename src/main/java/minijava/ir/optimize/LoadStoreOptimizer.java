@@ -21,7 +21,7 @@ public class LoadStoreOptimizer extends BaseOptimizer {
   @Override
   public boolean optimize(Graph graph) {
     this.graph = graph;
-    return fixedPointIteration(GraphUtils.reverseTopologicalOrder(graph));
+    return fixedPointIteration(GraphUtils.topologicalOrder(graph));
   }
 
   @Override
@@ -35,6 +35,9 @@ public class LoadStoreOptimizer extends BaseOptimizer {
     Node lastSideEffect = node.getMem().getPred(0);
     switch (lastSideEffect.getOpCode()) {
       case iro_Load:
+        // This will not happen any more. After the AliasAnalyzer, there shouldn't be any
+        // Load-Load dependencies. This case is thus handled by CSE.
+        // I leave it here anyway for when the alias analysis isn't run.
         Load previousLoad = (Load) lastSideEffect;
         if (!previousLoad.getPtr().equals(node.getPtr())) {
           break;

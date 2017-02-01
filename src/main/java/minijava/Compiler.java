@@ -103,6 +103,7 @@ public class Compiler {
                 expressionNormalizer,
                 algebraicSimplifier,
                 phiOptimizer,
+                aliasAnalyzer,
                 loadStoreOptimizer,
                 controlFlowOptimizer)
             .add(aliasAnalyzer)
