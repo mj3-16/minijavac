@@ -248,12 +248,12 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
 
           // usages that aren't duplicated and point to the original defs that might
           // not be visible and need merging through Phis.
-          List<BackEdges.Edge> unduplicatedUsages = unduplicatedUsages(toDuplicate);
+          List<BackEdges.Edge> dirtyUsages = dirtyUsages(originalHeader, toDuplicate);
 
           unrollAndFixControlFlow(originalHeader, toDuplicate, backPreds);
 
           // Control flow is fixed now. What remains is to copy/move instructions from the original
-          // and also fixing up all unduplicatedUsages.
+          // and also fixing up all dirtyUsages.
 
           // We put the invariant code in a post dominator of the loop body before the loop.
           Block newHeader = enclosingLoopHeader(info.lastUnduplicated);
@@ -265,7 +265,8 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
           // Every invariant node is in its new block. We can fix other unduplicated usages now
           // by inserting the necessary Phis.
           Cli.dumpGraphIfNeeded(graph, "before-reconstruction");
-          reconstructSSA(toDuplicate, unduplicatedUsages);
+          reconstructSSA(toDuplicate, dirtyUsages);
+          Cli.dumpGraphIfNeeded(graph, "after-reconstruction");
 
           // Identify the new loop header and reorganize keeps.
           // The original loop header won't be loop header after this, so we'll delete the keep edge.
@@ -276,15 +277,14 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
     return true;
   }
 
-  private List<Edge> unduplicatedUsages(Set<Block> toDuplicate) {
-    // usages that aren't duplicated and point to the original defs that might
-    // not be visible and need merging through Phis.
+  private List<Edge> dirtyUsages(Block originalHeader, Set<Block> toDuplicate) {
+    // usages that point to the original defs that might not be visible and need merging through
+    // Phis. This is due to the back edge and consequently the loop header block changing.
     return seq(toDuplicate)
         .map(NodeUtils::getNodesInBlock)
         .flatMap(Seq::seq)
         .map(BackEdges::getOuts)
         .flatMap(Seq::seq)
-        .filter(usage -> !toDuplicate.contains(usage.node.getBlock()))
         .toList();
   }
 
@@ -384,16 +384,26 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
       if (originalDef.getMode().equals(Mode.getM()))
         System.out.println("duplicateDef = " + duplicateDef);
       Block usageBlock = (Block) usage.node.getBlock();
+      if (usage.node.getOpCode() == iro_Phi) {
+        // In case of Phis we look for the visible definition from the resp. pred.
+        usageBlock = (Block) usageBlock.getPred(usage.pos).getBlock();
+      }
       Mode mode = usage.node.getPred(usage.pos).getMode();
       Map<Block, Node> defsInBlock =
           visibleDefinitions.computeIfAbsent(originalDef, d -> new HashMap<>());
-      if (!originalDef.getOpCode().equals(iro_Phi) || !mode.equals(Mode.getM())) {
-        defsInBlock.put(originalBlock, originalDef);
-      }
+
+      defsInBlock.put(originalBlock, originalDef);
+
       Node mergedDef =
           searchDefinitionInsertingPhis(usageBlock, mode, duplicateDef, defsInBlock, false);
       usage.node.setPred(usage.pos, mergedDef);
     }
+  }
+
+  private boolean isPhiLoopWithSelfLoop(Node node) {
+    return node.getOpCode() == iro_Phi
+        && ((Phi) node).getLoop() > 0
+        && node.getMode().equals(Mode.getM());
   }
 
   private Node searchDefinitionInsertingPhis(
@@ -448,6 +458,10 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
       Block originalHeader, Block duplicateHeader, Set<Node> backPreds) {
     int n = originalHeader.getPredCount();
     assert originalHeader.getPredCount() == duplicateHeader.getPredCount();
+    List<Phi> originalPhis =
+        seq(NodeUtils.getNodesInBlock(originalHeader)).ofType(Phi.class).toList();
+    List<Phi> duplicatePhis =
+        seq(NodeUtils.getNodesInBlock(originalHeader)).ofType(Phi.class).toList();
     for (int i = 0; i < n; ++i) {
       Node pred = originalHeader.getPred(i);
       assert pred.equals(duplicateHeader.getPred(i));
@@ -455,10 +469,14 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
         // Back edges may only point to the origin header (which actually makes them not really
         // back edges any more).
         duplicateHeader.setPred(i, graph.newBad(Mode.getX()));
+        int finalI = i;
+        //duplicatePhis.forEach(phi -> phi.setPred(finalI, graph.newBad(phi.getMode())));
       } else {
         // This is a regular edge with which the loop is entered. The loop is only menat to be
         // entered from the duplicateHeader now.
         originalHeader.setPred(i, graph.newBad(Mode.getX()));
+        int finalI = i;
+        //originalPhis.forEach(phi -> phi.setPred(finalI, graph.newBad(Mode.getANY())));
       }
     }
   }
