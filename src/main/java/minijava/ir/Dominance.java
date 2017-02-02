@@ -6,7 +6,6 @@ import com.sun.jna.Pointer;
 import firm.Graph;
 import firm.bindings.binding_irdom;
 import firm.nodes.Block;
-import java.nio.Buffer;
 import java.util.Optional;
 import org.jooq.lambda.Seq;
 
@@ -56,14 +55,5 @@ public class Dominance {
   public static boolean postDominates(Block dominator, Block dominated) {
     computePostDoms(dominator.getGraph());
     return binding_irdom.block_postdominates(dominator.ptr, dominated.ptr) != 0;
-  }
-
-  /** Computes the dominance frontier of {@param block}. */
-  public static Block[] dominanceFrontier(Block block) {
-    computeDomFrontiers(block.getGraph());
-    Buffer buffer = binding_irdom.ir_get_dominance_frontier(block.ptr);
-    System.out.println("buffer.getClass() = " + buffer.getClass());
-    System.out.println("buffer = " + buffer.limit());
-    return null;
   }
 }

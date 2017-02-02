@@ -84,6 +84,18 @@ public class NodeUtils {
         .map(t -> edge(t.v1, (int) (long) t.v2));
   }
 
+  /** Splits a critical edge beginning at source, if necessary, and returns the new block, if so. */
+  public static Optional<Block> splitCriticalEdge(Block source, int pos) {
+    Node target = source.getPred(pos);
+    if (target.equals(iro_Jmp)) {
+      return Optional.empty();
+    }
+    Graph graph = source.getGraph();
+    Block splitter = (Block) graph.newBlock(new Node[] {target});
+    source.setPred(pos, graph.newJmp(splitter));
+    return Optional.of(splitter);
+  }
+
   private static BackEdges.Edge edge(Node node, int pos) {
     BackEdges.Edge e = new BackEdges.Edge();
     e.node = node;
@@ -202,10 +214,17 @@ public class NodeUtils {
   }
 
   public static boolean hasIncomingBackEdge(Block b) {
+    return incomingBackEdges(b).isNotEmpty();
+  }
+
+  public static Seq<Integer> incomingBackEdges(Block b) {
     // A back edge (not to confuse with jFirms notion of BackEdges,
     // which is misnomer for reverse edges) is an edge where the source's block
     // is dominated by the target.
-    return seq(b.getPreds()).anyMatch(n -> Dominance.dominates(b, (Block) n.getBlock()));
+    return seq(b.getPreds())
+        .zipWithIndex()
+        .filter(pred -> Dominance.dominates(b, (Block) pred.v1.getBlock()))
+        .map(pred -> (int) (long) pred.v2);
   }
 
   public static boolean isTiedToBlock(Node node) {
@@ -252,5 +271,9 @@ public class NodeUtils {
                 .map(BackEdges::getOuts)
                 .flatMap(Seq::seq)
                 .filter(be -> be.node.getOpCode() == iro_Block));
+  }
+
+  public static Seq<Block> getPredecessorBlocks(Block cur) {
+    return seq(cur.getPreds()).map(Node::getBlock).cast(Block.class);
   }
 }
