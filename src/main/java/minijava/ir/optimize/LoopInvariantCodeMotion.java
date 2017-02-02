@@ -48,11 +48,8 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
    * Contains the edges of a forest of stars, where each node has an edge to the unique loop header.
    */
   private final Map<Block, Block> loopHeadersCache = new HashMap<>();
-  private final Map<Block, Set<Block>> blocksOfLoopCache = new HashMap<>();
   /** Contains information on which nodes to move per loop header. */
   private final Map<Block, MoveInfo> moveInfos = new HashMap<>();
-  /** This is mostly used to cache determineBlocksToDuplicate. */
-  private final Map<Block, Optional<MoveInfo>> determineBlocksToDuplicateCache = new HashMap<>();
 
   private final Map<Node, Node> duplicated = new HashMap<>();
 
@@ -60,14 +57,11 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
 
   private LoopNestTree loopNestTree;
 
-
   @Override
   public boolean optimize(Graph graph) {
     this.graph = graph;
     loopHeadersCache.clear();
-    blocksOfLoopCache.clear();
     moveInfos.clear();
-    determineBlocksToDuplicateCache.clear();
     duplicated.clear();
     visibleDefinitions.clear();
     return FirmUtils.withBackEdges(
@@ -110,6 +104,7 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
     }
 
     Block defBlock = (Block) node.getBlock();
+    // We should at the very least find the root, represented by the start block.
     LoopNestTree enclosingLoop = loopNestTree.findInnermostEnclosingLoop(defBlock).get();
     boolean isPartOfALoop = !enclosingLoop.header.equals(graph.getStartBlock());
     if (!isPartOfALoop) {
@@ -117,25 +112,25 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
     }
 
     Block loopHeader = enclosingLoop.header;
+    MoveInfo info = getMoveInfoOf(loopHeader);
     Set<Block> loopBody = enclosingLoop.loopBlocks;
-    boolean canBeMovedOutside = seq(node.getPreds())
+    boolean canBeMovedOutside =
+        seq(node.getPreds())
+            .filter(n -> !info.toMove.contains(n))
             .map(Node::getBlock)
             .noneMatch(loopBody::contains);
     if (!canBeMovedOutside) {
       return;
     }
 
-    Seq<Block> loopFooters = incomingBackEdges(loopHeader)
-        .map(loopHeader::getPred)
-        .map(Node::getBlock)
-        .cast(Block.class);
-    boolean isVisibleAfterFirstIteration = loopFooters.allMatch(f -> Dominance.dominates(defBlock, f);
+    Seq<Block> loopFooters =
+        incomingBackEdges(loopHeader)
+            .map(loopHeader::getPred)
+            .map(Node::getBlock)
+            .cast(Block.class);
+    boolean isVisibleAfterFirstIteration =
+        loopFooters.allMatch(f -> Dominance.dominates(defBlock, f));
     if (!isVisibleAfterFirstIteration) {
-      return;
-    }
-
-    boolean isTooCostly = !determineBlocksToDuplicate(defBlock, true).isPresent();
-    if (isTooCostly) {
       return;
     }
 
@@ -160,7 +155,12 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
             .limitUntil(dom -> !Dominance.postDominates(definingBlock, dom))
             .reverse()
             .findFirst()
-            .get(); // definingBlock itself is always a candidate
+            .orElse(info.lastUnduplicated); // definingBlock itself is always a candidate
+
+    if (Dominance.strictlyDominates(lastUnduplicated, info.lastUnduplicated)) {
+      // lastUnduplicated would be copied anyway, so we don't need to move it.
+      return;
+    }
 
     info.toMove.add(node);
     if (info.lastUnduplicated.equals(lastUnduplicated)) {
@@ -176,10 +176,8 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
 
     // Nodes which were to be moved and are now in a block to be duplicated no longer have to be
     // moved, as they are copied and CSE will take care of the rest.
-    List<Node> nodesToBeDuplicated = seq(info.toMove)
-        .map(Node::getBlock)
-        .filter(toDuplicate::contains)
-        .toList();
+    List<Node> nodesToBeDuplicated =
+        seq(info.toMove).filter(n -> toDuplicate.contains((Block) n.getBlock())).toList();
     info.toMove.removeAll(nodesToBeDuplicated);
   }
 
@@ -198,33 +196,26 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
         continue;
       }
       reachable.add(cur);
-      Seq<Block> cfgPreds = seq(cur.getPreds())
-          .filter(n -> n.getMode().equals(Mode.getX()))
-          .map(Node::getBlock)
-          .cast(Block.class);
+      Seq<Block> cfgPreds =
+          seq(cur.getPreds())
+              .filter(n -> n.getMode().equals(Mode.getX()))
+              .map(Node::getBlock)
+              .cast(Block.class);
       cfgPreds.forEach(toVisit::add);
     }
     return reachable;
   }
 
-  private Block dominatingLoopHeader(Block block) {
+  private Block enclosingLoopHeader(Block block) {
     for (Block dominator : Dominance.dominatorPath(block)) {
-      if (loopHeadersCache.containsKey(dominator)) {
-        // We already did the hard work for the current dominator, the loop header of which
-        // is also our loop header.
-        // This should eventually hit, as the start block is always a candidate for dominator.
-        return loopHeadersCache.get(dominator);
-      }
-
       if (isLoopHeader(dominator)) {
-        // Found the header block
-        loopHeadersCache.put(dominator, dominator);
         return dominator;
       }
     }
 
+    assert false : "Couldn't find loop header of " + block;
+
     // For this case we still got a sane default
-    loopHeadersCache.put(graph.getStartBlock(), graph.getStartBlock());
     return graph.getStartBlock();
   }
 
@@ -233,180 +224,95 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
   }
 
   private boolean moveCode() {
-    System.out.println("moveInfos = " + moveInfos);
-    loopNestTree.visitPostOrder(loop -> {
-      duplicated.clear();
-      Block originalHeader = loop.header;
-      MoveInfo info = getMoveInfoOf(originalHeader);
-      Set<Block> toDuplicate = info.blocksToDuplicate();
+    loopNestTree.visitPostOrder(
+        loop -> {
+          // Everything duplicated up until now is considered an original.
+          duplicated.clear();
+          visibleDefinitions.clear();
+          Block originalHeader = loop.header;
+          MoveInfo info = getMoveInfoOf(originalHeader);
+          System.out.println("info = " + info);
+          if (info.toMove.isEmpty()) {
+            return;
+          }
+          hasChanged = true;
 
-      // We need to save back edges for later. The duplicate header will be removed of all
-      // back edges, while the original will have only back edges.
-      Set<Node> backPreds =
-          seq(originalHeader.getPreds())
-              .filter(n -> Dominance.dominates(originalHeader, (Block) n.getBlock()))
-              .toSet();
+          Set<Block> toDuplicate = info.blocksToDuplicate();
 
-      // usages that aren't duplicated and point to the original defs that might
-      // not be visible and need merging through Phis.
-      List<BackEdges.Edge> unduplicatedUsages =
-        seq(toDuplicate)
-            .map(NodeUtils::getNodesInBlock)
-            .flatMap(Seq::seq)
-            .map(BackEdges::getOuts)
-            .flatMap(Seq::seq)
-            .filter(usage -> !toDuplicate.contains(usage.node.getBlock()))
-            .toList();
+          // We need to save back edges for later. The duplicate header will be removed of all
+          // back edges, while the original will have only back edges.
+          Set<Node> backPreds =
+              seq(originalHeader.getPreds())
+                  .filter(n -> Dominance.dominates(originalHeader, (Block) n.getBlock()))
+                  .toSet();
 
-      unrollAndFixControlFlow(originalHeader, toDuplicate, backPreds);
+          // usages that aren't duplicated and point to the original defs that might
+          // not be visible and need merging through Phis.
+          List<BackEdges.Edge> unduplicatedUsages = unduplicatedUsages(toDuplicate);
 
+          unrollAndFixControlFlow(originalHeader, toDuplicate, backPreds);
 
-      // Control flow is fixed now. What remains is to copy/move instructions from the original
-      // and also fixing up all unduplicatedUsages.
-      Block newHeader = dominatingLoopHeader(info.lastUnduplicated);
-      // We put the invariant code in a post dominator of the loop body before the loop.
-      Block postdominatorBeforeLoop = postdominatorBeforeLoop(info.lastUnduplicated).get();
+          // Control flow is fixed now. What remains is to copy/move instructions from the original
+          // and also fixing up all unduplicatedUsages.
 
-      for (Node move : info.toMove) {
-        Block defBlock = (Block) move.getBlock();
-        move.setBlock(postdominatorBeforeLoop);
-      }
-
-
-      System.out.println("info.unduplicatedUsages = " + seq(info.unduplicatedUsages).map(be -> be.node));
-      reconstructSSA(info);
-
-      // Now that dominance changed, we have to identify the new loop header and reorganize Phis.
-      Phi phiLoop = seq(NodeUtils.getNodesInBlock(newHeader))
-          .ofType(Phi.class)
-          .filter(phi -> phi.getMode().equals(Mode.getM()))
-          .findFirst()
-          .get();
-
-      // The original loop header won't be loop header after this, so we'll delete the keep edge.
-      Node end = graph.getEnd();
-      int n = end.getPredCount();
-      for (int i = 0; i < n; ++i) {
-        Node kept = end.getPred(i);
-        if (originalHeader.equals(kept)) {
-          end.setPred(i, newHeader);
-        } else if (originalHeader.equals(kept.getBlock())) {
-          end.setPred(i, phiLoop);
-          phiLoop.setLoop(1);
-        }
-      }
-
-      Cli.dumpGraphIfNeeded(graph, "after-reconstruction");
-    });
-    for (Node move : moveInfos) {
-      Block defBlock = (Block) move.getBlock();
-      Block originalHeader = dominatingLoopHeader(defBlock);
-      // We need to save back edges for later. The duplicate header will be removed of all
-      // back edges, while the original will have only back edges.
-      Set<Node> backPreds =
-          seq(originalHeader.getPreds())
-              .filter(n -> Dominance.dominates(originalHeader, (Block) n.getBlock()))
-              .toSet();
-
-      MoveInfo info = determineBlocksToDuplicate(defBlock).get();
-      System.out.println("info.toDuplicate = " + info.toDuplicate);
-      System.out.println("info.firstPostdominated = " + info.firstPostdominated);
-      for (Block original : info.toDuplicate) {
-        if (duplicated.containsKey(original)) {
-          continue;
-        }
-
-        Block duplicate = copyNode(original, info.toDuplicate);
-        System.out.println("duplicate = " + duplicate);
-        // We need to fix up successors, so that they also point to this duplicate.
-        List<BackEdges.Edge> successors = NodeUtils.getControlFlowSuccessors(original).toList();
-        for (BackEdges.Edge successor : successors) {
-          if (info.toDuplicate.contains(successor.node) || duplicated.containsKey(successor.node)) {
-            // This either already was handled or will be handled
-            continue;
+          // We put the invariant code in a post dominator of the loop body before the loop.
+          Block newHeader = enclosingLoopHeader(info.lastUnduplicated);
+          Block postdominatorBeforeLoop = postdominatorBeforeLoop(newHeader).get();
+          for (Node move : info.toMove) {
+            move.setBlock(postdominatorBeforeLoop);
           }
 
-          // If the successor is not to be duplicated, there must be at least one other successor.
-          // That's because the single successor not to be duplicated is post-dominated by the
-          // defBlock, so also the current block would be post dominated.
-          // That's clearly not the case, since it is to be duplicated, so the following assertion
-          // holds.
-          assert successors.size() > 1;
-          // Since there are no critical edges at this point, the current block has to be
-          // the single predecessor.
-          assert successor.node.getPredCount() == 1;
-          Node originalJmp = successor.node.getPred(0);
-          Node duplicateJmp = copyNode(originalJmp, info.toDuplicate);
-          assert duplicateJmp.getBlock().equals(duplicate);
-          // This next block will render successor.node redundant,
-          // but we let the JmpBlockRemover figure this out.
-          Block landingBlock = (Block) graph.newBlock(new Node[] {originalJmp, duplicateJmp});
-          successor.node.setPred(0, graph.newJmp(landingBlock));
-          // Now the preceding blocks have two successors and the landing block has two predecessors.
-          // We have to split the critical edges.
-          NodeUtils.splitCriticalEdge(landingBlock, 0);
-          NodeUtils.splitCriticalEdge(landingBlock, 1);
-        }
-      }
+          // Every invariant node is in its new block. We can fix other unduplicated usages now
+          // by inserting the necessary Phis.
+          Cli.dumpGraphIfNeeded(graph, "before-reconstruction");
+          reconstructSSA(toDuplicate, unduplicatedUsages);
 
-      boolean duplicatedLoopHeader = duplicated.containsKey(originalHeader);
-      if (duplicatedLoopHeader) {
-        Block duplicateHeader = (Block) duplicated.get(originalHeader);
-        System.out.println("backPreds = " + backPreds);
-        System.out.println("originalHeader = " + originalHeader);
-        System.out.println("duplicateHeader = " + duplicateHeader);
+          // Identify the new loop header and reorganize keeps.
+          // The original loop header won't be loop header after this, so we'll delete the keep edge.
+          fixKeepEdges(originalHeader, newHeader);
 
-        // We fix up the predecessors. The original header will only keep back edges,
-        // the duplicate header will only keep the forward edges on loop entry.
-        distributePredecessors(originalHeader, duplicateHeader, backPreds);
-
-        // We changed dominance and with it the loop header, which invalidated our loopHeader
-        // information.
-        loopHeadersCache.clear();
-      }
-
-      // After this transformation, we really should find the right place to put the invariant code.
-      Block newHeader = dominatingLoopHeader(defBlock);
-      Block postdominatorBeforeLoop = postdominatorBeforeLoop(defBlock).get();
-      System.out.println("postdominatorBeforeLoop = " + postdominatorBeforeLoop);
-      move.setBlock(postdominatorBeforeLoop);
-
-      System.out.println("info.unduplicatedUsages = " + seq(info.unduplicatedUsages).map(be -> be.node));
-      reconstructSSA(info);
-
-      // Now that dominance changed, we have to identify the new loop header and reorganize Phis.
-      Phi phiLoop = seq(NodeUtils.getNodesInBlock(newHeader))
-          .ofType(Phi.class)
-          .filter(phi -> phi.getMode().equals(Mode.getM()))
-          .findFirst()
-          .get();
-
-      // The original loop header won't be loop header after this, so we'll delete the keep edge.
-      Node end = graph.getEnd();
-      int n = end.getPredCount();
-      for (int i = 0; i < n; ++i) {
-        Node kept = end.getPred(i);
-        if (originalHeader.equals(kept)) {
-          end.setPred(i, newHeader);
-        } else if (originalHeader.equals(kept.getBlock())) {
-          end.setPred(i, phiLoop);
-          phiLoop.setLoop(1);
-        }
-      }
-
-      Cli.dumpGraphIfNeeded(graph, "after-reconstruction");
-    }
-
+          Cli.dumpGraphIfNeeded(graph, "after-reconstruction");
+        });
     return true;
   }
 
-  private void unrollAndFixControlFlow(Block originalHeader, Set<Block> toDuplicate,
-      Set<Node> backPreds) {
+  private List<Edge> unduplicatedUsages(Set<Block> toDuplicate) {
+    // usages that aren't duplicated and point to the original defs that might
+    // not be visible and need merging through Phis.
+    return seq(toDuplicate)
+        .map(NodeUtils::getNodesInBlock)
+        .flatMap(Seq::seq)
+        .map(BackEdges::getOuts)
+        .flatMap(Seq::seq)
+        .filter(usage -> !toDuplicate.contains(usage.node.getBlock()))
+        .toList();
+  }
+
+  private void fixKeepEdges(Block originalHeader, Block newHeader) {
+    Phi phiLoop =
+        seq(NodeUtils.getNodesInBlock(newHeader))
+            .ofType(Phi.class)
+            .filter(phi -> phi.getMode().equals(Mode.getM()))
+            .findFirst()
+            .get();
+
+    Node end = graph.getEnd();
+    int n = end.getPredCount();
+    for (int i = 0; i < n; ++i) {
+      Node kept = end.getPred(i);
+      if (originalHeader.equals(kept)) {
+        end.setPred(i, newHeader);
+      } else if (originalHeader.equals(kept.getBlock())) {
+        end.setPred(i, phiLoop);
+        phiLoop.setLoop(1);
+      }
+    }
+  }
+
+  private void unrollAndFixControlFlow(
+      Block originalHeader, Set<Block> toDuplicate, Set<Node> backPreds) {
     // First duplicate blocks and fix up resulting control flow joints. Phis are handled later.
     for (Block original : toDuplicate) {
-      if (duplicated.containsKey(original)) {
-        continue;
-      }
       Block duplicate = copyNode(original, toDuplicate);
       joinDuplicateControlFlow(toDuplicate, original, duplicate);
     }
@@ -454,13 +360,9 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
     }
   }
 
-  /**
-   * Reconstructs SSA form for a set of usages pointing to the original of a duplicate node.
-   *
-   */
-  private void reconstructSSA(MoveInfo info) {
-    Cli.dumpGraphIfNeeded(graph, "before-reconstruction");
-    for (BackEdges.Edge usage : info.unduplicatedUsages) {
+  /** Reconstructs SSA form for a set of usages pointing to the original of a duplicate node. */
+  private void reconstructSSA(Set<Block> toDuplicate, List<BackEdges.Edge> unduplicatedUsages) {
+    for (BackEdges.Edge usage : unduplicatedUsages) {
       if (usage.node.getOpCode() == iro_End) {
         // We ignore keep edges here
         continue;
@@ -477,22 +379,25 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
       Node originalDef = usage.node.getPred(usage.pos);
       Block originalBlock = (Block) originalDef.getBlock();
       if (originalDef.getMode().equals(Mode.getM()))
-      System.out.println("originalDef = " + originalDef);
-      Node duplicateDef = copyNode(originalDef, info.toDuplicate);
+        System.out.println("originalDef = " + originalDef);
+      Node duplicateDef = copyNode(originalDef, toDuplicate);
       if (originalDef.getMode().equals(Mode.getM()))
-      System.out.println("duplicateDef = " + duplicateDef);
+        System.out.println("duplicateDef = " + duplicateDef);
       Block usageBlock = (Block) usage.node.getBlock();
       Mode mode = usage.node.getPred(usage.pos).getMode();
-      Map<Block, Node> defsInBlock = visibleDefinitions.computeIfAbsent(originalDef, d -> new HashMap<>());
+      Map<Block, Node> defsInBlock =
+          visibleDefinitions.computeIfAbsent(originalDef, d -> new HashMap<>());
       if (!originalDef.getOpCode().equals(iro_Phi) || !mode.equals(Mode.getM())) {
         defsInBlock.put(originalBlock, originalDef);
       }
-      Node mergedDef = searchDefinitionInsertingPhis(usageBlock, mode, duplicateDef, defsInBlock, false);
+      Node mergedDef =
+          searchDefinitionInsertingPhis(usageBlock, mode, duplicateDef, defsInBlock, false);
       usage.node.setPred(usage.pos, mergedDef);
     }
   }
 
-  private Node searchDefinitionInsertingPhis(Block usage, Mode mode, Node fallbackDef, Map<Block, Node> visibleDefs, boolean mayFallBack) {
+  private Node searchDefinitionInsertingPhis(
+      Block usage, Mode mode, Node fallbackDef, Map<Block, Node> visibleDefs, boolean mayFallBack) {
     if (visibleDefs.containsKey(usage)) {
       return visibleDefs.get(usage);
     }
@@ -503,12 +408,9 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
 
     assert !graph.getStartBlock().equals(usage);
 
-    List<Node> preds = seq(usage.getPreds())
-        .filter(n -> n.getOpCode() != iro_Bad)
-        .toList();
+    List<Node> preds = seq(usage.getPreds()).filter(n -> n.getOpCode() != iro_Bad).toList();
 
-    if (mode.equals(Mode.getM()))
-    System.out.println("usage = " + usage);
+    if (mode.equals(Mode.getM())) System.out.println("usage = " + usage);
 
     if (preds.size() == 1) {
       Block predBlock = (Block) preds.get(0).getBlock();
@@ -518,7 +420,6 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
     // We surely need to merge definitions.
     Node dummy = graph.newDummy(mode);
     Node[] dummies = Seq.generate(dummy).limit(preds.size()).toArray(Node[]::new);
-    // TODO: Do we need to create Phi M[loop] ourselves?
     Phi newDef = (Phi) graph.newPhi(usage, dummies, mode);
     visibleDefs.put(usage, newDef);
     for (int i = 0; i < preds.size(); ++i) {
@@ -529,15 +430,12 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
       } else {
         def = searchDefinitionInsertingPhis(predBlock, mode, fallbackDef, visibleDefs, true);
       }
-      if (mode.equals(Mode.getM()))
-      System.out.println("predBlock = " + predBlock);
-      if (mode.equals(Mode.getM()))
-      System.out.println("def = " + def);
+      if (mode.equals(Mode.getM())) System.out.println("predBlock = " + predBlock);
+      if (mode.equals(Mode.getM())) System.out.println("def = " + def);
       newDef.setPred(i, def);
     }
 
-    if (mode.equals(Mode.getM()))
-    System.out.println("newDef = " + newDef);
+    if (mode.equals(Mode.getM())) System.out.println("newDef = " + newDef);
 
     return newDef;
   }
@@ -565,14 +463,13 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
     }
   }
 
-  private Optional<Block> postdominatorBeforeLoop(Block defBlock) {
+  private Optional<Block> postdominatorBeforeLoop(Block header) {
     // The goal of the transformation is to get a block outside the loop (e.g. not dominated by
     // the loop header) that is post-dominated by the block with the invariant code we want to move.
     // This is so that we can be sure that we don't compute the definition when we don't enter the
     // loop.
     // For finding this block, we take the immedate dom of the loop header of the defining
     // block, knowing that this block will be post-dominated by the def.
-    Block header = dominatingLoopHeader(defBlock);
     return Dominance.immediateDominator(header)
         .map(
             idom -> {
@@ -580,7 +477,7 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
               // The idom must be a jmp block (e.g. one with only one successor), since
               // the loop header would introduce a critical edge otherwise.
               // That's where we put our code.
-              assert Dominance.postDominates(defBlock, idom);
+              assert Dominance.postDominates(header, idom);
               return idom;
             });
   }

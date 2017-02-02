@@ -56,4 +56,8 @@ public class Dominance {
     computePostDoms(dominator.getGraph());
     return binding_irdom.block_postdominates(dominator.ptr, dominated.ptr) != 0;
   }
+
+  public static boolean strictlyPostDominates(Block dominator, Block dominated) {
+    return !dominator.equals(dominated) && postDominates(dominator, dominated);
+  }
 }

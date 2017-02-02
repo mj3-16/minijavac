@@ -87,7 +87,12 @@ public class Compiler {
             .add(duplicateProjDetector)
             .dependsOn(loadStoreOptimizer, commonSubexpressionElimination)
             .add(constantFolder)
-            .dependsOn(algebraicSimplifier, phiOptimizer, controlFlowOptimizer, loadStoreOptimizer)
+            .dependsOn(
+                algebraicSimplifier,
+                phiOptimizer,
+                controlFlowOptimizer,
+                loadStoreOptimizer,
+                loopInvariantCodeMotion)
             .add(expressionNormalizer)
             .dependsOn(
                 constantFolder,
@@ -125,8 +130,6 @@ public class Compiler {
                 loadStoreOptimizer,
                 loopInvariantCodeMotion,
                 controlFlowOptimizer)
-            .add(loopInvariantCodeMotion)
-            .dependsOn(aliasAnalyzer, constantFolder, commonSubexpressionElimination)
             .add(phiOptimizer)
             .dependsOn(controlFlowOptimizer)
             .add(controlFlowOptimizer)
@@ -138,6 +141,8 @@ public class Compiler {
                 floatInTransformation,
                 loopInvariantCodeMotion,
                 loadStoreOptimizer)
+            .add(loopInvariantCodeMotion)
+            .dependsOn(aliasAnalyzer, constantFolder, commonSubexpressionElimination)
             .build();
 
     ProgramMetrics metrics = ProgramMetrics.analyse(Program.getGraphs());

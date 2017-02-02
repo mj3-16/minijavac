@@ -80,7 +80,6 @@ public class FloatInTransformation extends BaseOptimizer {
     }
 
     if (!candidate.equals(originalBlock)) {
-      System.out.println("Floating " + node + " to " + candidate);
       hasChanged = true;
       node.setBlock(candidate);
     }

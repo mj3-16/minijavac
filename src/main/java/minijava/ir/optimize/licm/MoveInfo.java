@@ -13,7 +13,6 @@ public class MoveInfo {
 
   public Block header;
   public Block lastUnduplicated;
-  public int cost = 0;
   public LinkedHashSet<Node> toMove = new LinkedHashSet<>();
 
   public MoveInfo(Block header) {
@@ -40,5 +39,17 @@ public class MoveInfo {
       }
     }
     return toDuplicate;
+  }
+
+  @Override
+  public String toString() {
+    return "MoveInfo{"
+        + "header="
+        + header
+        + ", lastUnduplicated="
+        + lastUnduplicated
+        + ", toMove="
+        + toMove
+        + '}';
   }
 }

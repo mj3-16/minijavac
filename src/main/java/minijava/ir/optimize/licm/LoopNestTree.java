@@ -29,9 +29,13 @@ public class LoopNestTree {
       Block header = entry.getKey();
       for (Map.Entry<Block, Set<Block>> potentialParent : loopBlocks.entrySet()) {
         Block candidate = potentialParent.getKey();
+        if (header == candidate) {
+          continue;
+        }
+
         Set<Block> enclosedBlocks = potentialParent.getValue();
-        boolean isParent = enclosedBlocks.contains(header);
-        if (!isParent) {
+        boolean isAncestor = enclosedBlocks.contains(header);
+        if (!isAncestor) {
           continue;
         }
 
@@ -43,6 +47,8 @@ public class LoopNestTree {
         }
       }
     }
+
+    System.out.println("parents = " + parents);
 
     Map<Block, LoopNestTree> nodes =
         seq(loopBlocks)

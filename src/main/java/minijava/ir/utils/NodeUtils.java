@@ -246,7 +246,6 @@ public class NodeUtils {
       case iro_Conv:
       case iro_Call:
       case iro_Cmp:
-      case iro_Cond:
       case iro_Mux:
       case iro_Member:
       case iro_Sel:
