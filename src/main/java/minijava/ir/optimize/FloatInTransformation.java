@@ -2,12 +2,14 @@ package minijava.ir.optimize;
 
 import static firm.bindings.binding_irnode.ir_opcode.iro_Anchor;
 import static firm.bindings.binding_irnode.ir_opcode.iro_Phi;
+import static firm.bindings.binding_irnode.ir_opcode.iro_Proj;
 import static org.jooq.lambda.Seq.seq;
 
 import firm.BackEdges;
 import firm.Graph;
 import firm.nodes.Block;
 import firm.nodes.Node;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -27,7 +29,19 @@ public class FloatInTransformation extends BaseOptimizer {
   public boolean optimize(Graph graph) {
     this.graph = graph;
     // Not sure if we really need more than one pass here, but better be safe.
-    return fixedPointIteration(GraphUtils.reverseTopologicalOrder(graph));
+    boolean hasChanged = fixedPointIteration(GraphUtils.reverseTopologicalOrder(graph));
+    moveProjsToPred(GraphUtils.topologicalOrder(graph));
+    return hasChanged;
+  }
+
+  private void moveProjsToPred(ArrayList<Node> order) {
+    for (Node proj : order) {
+      if (proj.getOpCode() != iro_Proj) {
+        continue;
+      }
+
+      proj.setBlock(proj.getPred(0).getBlock());
+    }
   }
 
   @Override
@@ -79,7 +93,7 @@ public class FloatInTransformation extends BaseOptimizer {
       candidate = b;
     }
 
-    if (!candidate.equals(originalBlock)) {
+    if (!candidate.equals(originalBlock) && candidate.getOpCode() != iro_Proj) {
       hasChanged = true;
       node.setBlock(candidate);
     }

@@ -156,7 +156,6 @@ public class NodeUtils {
             usedNums.add(((Proj) be.node).getNum());
           }
         });
-    System.out.println(usedNums);
 
     usedNums.forEach(num -> mergeProjsWithNum(newTarget, num));
   }

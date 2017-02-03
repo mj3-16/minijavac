@@ -904,7 +904,6 @@ public class AliasAnalyzer extends BaseOptimizer {
             // Just record the Phi.
             ret.add(prevSideEffect);
           } else {
-            System.out.println(extended.sideEffects + " instead of " + prevSideEffect);
             ret.addAll(extended.sideEffects);
             // This is only OK now that we covered all those nodes.
             visited = extended.visited;

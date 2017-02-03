@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import minijava.Cli;
 import minijava.ir.Dominance;
 import minijava.ir.optimize.licm.LoopNestTree;
 import minijava.ir.optimize.licm.MoveInfo;
@@ -265,15 +264,11 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
 
           // Every invariant node is in its new block. We can fix other unduplicated usages now
           // by inserting the necessary Phis.
-          Cli.dumpGraphIfNeeded(graph, "before-reconstruction");
           reconstructSSA(toDuplicate, dirtyUsages);
-          Cli.dumpGraphIfNeeded(graph, "after-reconstruction");
 
           // Identify the new loop header and reorganize keeps.
           // The original loop header won't be loop header after this, so we'll delete the keep edge.
           fixKeepEdges(originalHeader, newHeader);
-
-          Cli.dumpGraphIfNeeded(graph, "after-reconstruction");
         });
     return true;
   }
