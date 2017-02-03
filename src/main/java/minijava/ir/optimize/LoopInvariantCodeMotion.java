@@ -377,8 +377,6 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
 
   /** Reconstructs SSA form for a set of usages pointing to the original of a duplicate node. */
   private void reconstructSSA(Set<Block> toDuplicate, List<BackEdges.Edge> unduplicatedUsages) {
-    System.out.println(
-        "unduplicatedUsages = " + seq(unduplicatedUsages).map(be -> be.node).toList());
     for (BackEdges.Edge usage : unduplicatedUsages) {
       if (usage.node.getOpCode() == iro_End) {
         // We ignore keep edges here
