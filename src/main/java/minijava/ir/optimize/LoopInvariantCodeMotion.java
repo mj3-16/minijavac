@@ -29,6 +29,7 @@ import minijava.ir.optimize.licm.MoveInfo;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
 import minijava.ir.utils.NodeUtils;
+import org.jetbrains.annotations.Nullable;
 import org.jooq.lambda.Seq;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -248,7 +249,7 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
 
           // usages that aren't duplicated and point to the original defs that might
           // not be visible and need merging through Phis.
-          List<BackEdges.Edge> dirtyUsages = dirtyUsages(originalHeader, toDuplicate);
+          List<BackEdges.Edge> dirtyUsages = dirtyUsages(toDuplicate);
 
           unrollAndFixControlFlow(originalHeader, toDuplicate, backPreds);
 
@@ -277,7 +278,7 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
     return true;
   }
 
-  private List<Edge> dirtyUsages(Block originalHeader, Set<Block> toDuplicate) {
+  private List<Edge> dirtyUsages(Set<Block> toDuplicate) {
     // usages that point to the original defs that might not be visible and need merging through
     // Phis. This is due to the back edge and consequently the loop header block changing.
     return seq(toDuplicate)
@@ -285,7 +286,30 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
         .flatMap(Seq::seq)
         .map(BackEdges::getOuts)
         .flatMap(Seq::seq)
+        .filter(be -> isDirtyUsage(toDuplicate, be))
         .toList();
+  }
+
+  private static boolean isDirtyUsage(Set<Block> toDuplicate, Edge be) {
+    return !toDuplicate.contains(getUsageBlock(be));
+  }
+
+  /**
+   * For Phis, the actual use block is the pred block where the used definition is visible. Returns
+   * null in the case that for when it's a Phi and its block has a Bad predecessor at the usages
+   * index. (Otherwise it would return the block of the Bad, which is the start block).
+   */
+  @Nullable
+  private static Block getUsageBlock(Edge usage) {
+    Block usageBlock = (Block) usage.node.getBlock();
+    if (usage.node.getOpCode() == iro_Phi) {
+      Node pred = usageBlock.getPred(usage.pos);
+      if (pred.getOpCode() == iro_Bad) {
+        return null;
+      }
+      usageBlock = (Block) pred.getBlock();
+    }
+    return usageBlock;
   }
 
   private void fixKeepEdges(Block originalHeader, Block newHeader) {
@@ -362,6 +386,8 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
 
   /** Reconstructs SSA form for a set of usages pointing to the original of a duplicate node. */
   private void reconstructSSA(Set<Block> toDuplicate, List<BackEdges.Edge> unduplicatedUsages) {
+    System.out.println(
+        "unduplicatedUsages = " + seq(unduplicatedUsages).map(be -> be.node).toList());
     for (BackEdges.Edge usage : unduplicatedUsages) {
       if (usage.node.getOpCode() == iro_End) {
         // We ignore keep edges here
@@ -369,10 +395,6 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
       }
       if (usage.node.getOpCode() == iro_Block) {
         // Blocks have already been handled
-        continue;
-      }
-      if (usage.node.getMode().equals(Mode.getX())) {
-        // Control flow dito
         continue;
       }
       System.out.println("usage.node = " + usage.node);
@@ -383,11 +405,15 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
       Node duplicateDef = copyNode(originalDef, toDuplicate);
       if (originalDef.getMode().equals(Mode.getM()))
         System.out.println("duplicateDef = " + duplicateDef);
-      Block usageBlock = (Block) usage.node.getBlock();
-      if (usage.node.getOpCode() == iro_Phi) {
-        // In case of Phis we look for the visible definition from the resp. pred.
-        usageBlock = (Block) usageBlock.getPred(usage.pos).getBlock();
+      Block usageBlock = getUsageBlock(usage);
+      System.out.println("usageBlock = " + usageBlock);
+      if (usageBlock == null) {
+        // This can happen when the usage was a Phi, which still has a pred, but the containing
+        // block has a Bad at that position (the case when it's the loop header), indicating
+        // that the incoming control flow edge will be deleted. We don't fix the usage in that case.
+        continue;
       }
+
       Mode mode = usage.node.getPred(usage.pos).getMode();
       Map<Block, Node> defsInBlock =
           visibleDefinitions.computeIfAbsent(originalDef, d -> new HashMap<>());
@@ -398,12 +424,6 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
           searchDefinitionInsertingPhis(usageBlock, mode, duplicateDef, defsInBlock, false);
       usage.node.setPred(usage.pos, mergedDef);
     }
-  }
-
-  private boolean isPhiLoopWithSelfLoop(Node node) {
-    return node.getOpCode() == iro_Phi
-        && ((Phi) node).getLoop() > 0
-        && node.getMode().equals(Mode.getM());
   }
 
   private Node searchDefinitionInsertingPhis(
@@ -418,22 +438,22 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
 
     assert !graph.getStartBlock().equals(usage);
 
-    List<Node> preds = seq(usage.getPreds()).filter(n -> n.getOpCode() != iro_Bad).toList();
+    List<Node> cfgPreds = seq(usage.getPreds()).filter(n -> n.getOpCode() != iro_Bad).toList();
 
     if (mode.equals(Mode.getM())) System.out.println("usage = " + usage);
 
-    if (preds.size() == 1) {
-      Block predBlock = (Block) preds.get(0).getBlock();
+    if (cfgPreds.size() == 1) {
+      Block predBlock = (Block) cfgPreds.get(0).getBlock();
       return searchDefinitionInsertingPhis(predBlock, mode, fallbackDef, visibleDefs, true);
     }
 
     // We surely need to merge definitions.
     Node dummy = graph.newDummy(mode);
-    Node[] dummies = Seq.generate(dummy).limit(preds.size()).toArray(Node[]::new);
+    Node[] dummies = Seq.generate(dummy).limit(cfgPreds.size()).toArray(Node[]::new);
     Phi newDef = (Phi) graph.newPhi(usage, dummies, mode);
     visibleDefs.put(usage, newDef);
-    for (int i = 0; i < preds.size(); ++i) {
-      Block predBlock = (Block) preds.get(i).getBlock();
+    for (int i = 0; i < cfgPreds.size(); ++i) {
+      Block predBlock = (Block) cfgPreds.get(i).getBlock();
       Node def;
       if (predBlock == null) {
         def = graph.newBad(mode);

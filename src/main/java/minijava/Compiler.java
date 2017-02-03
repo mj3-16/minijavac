@@ -86,6 +86,10 @@ public class Compiler {
             .dependsOn(controlFlowOptimizer, jmpBlockRemover)
             .add(duplicateProjDetector)
             .dependsOn(loadStoreOptimizer, commonSubexpressionElimination)
+            .add(syncOptimizer)
+            .dependsOn(aliasAnalyzer)
+            .add(phiOptimizer)
+            .dependsOn(controlFlowOptimizer)
             .add(constantFolder)
             .dependsOn(
                 algebraicSimplifier,
@@ -109,10 +113,9 @@ public class Compiler {
                 expressionNormalizer,
                 algebraicSimplifier,
                 phiOptimizer,
+                aliasAnalyzer,
                 loadStoreOptimizer,
                 controlFlowOptimizer)
-            .add(syncOptimizer)
-            .dependsOn(aliasAnalyzer)
             .add(loadStoreOptimizer)
             .dependsOn(
                 commonSubexpressionElimination,
@@ -128,8 +131,6 @@ public class Compiler {
                 loadStoreOptimizer,
                 loopInvariantCodeMotion,
                 controlFlowOptimizer)
-            .add(phiOptimizer)
-            .dependsOn(controlFlowOptimizer)
             .add(controlFlowOptimizer)
             .dependsOn(
                 constantFolder, algebraicSimplifier, loadStoreOptimizer, loopInvariantCodeMotion)
