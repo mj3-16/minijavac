@@ -89,7 +89,7 @@ public class Compiler {
             .add(syncOptimizer)
             .dependsOn(aliasAnalyzer)
             .add(phiOptimizer)
-            .dependsOn(controlFlowOptimizer)
+            .dependsOn(controlFlowOptimizer, loopInvariantCodeMotion)
             .add(constantFolder)
             .dependsOn(
                 algebraicSimplifier,

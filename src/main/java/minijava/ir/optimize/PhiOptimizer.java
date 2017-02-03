@@ -5,8 +5,10 @@ import static org.jooq.lambda.Seq.seq;
 
 import firm.BackEdges;
 import firm.Graph;
+import firm.Mode;
 import firm.nodes.Node;
 import firm.nodes.Phi;
+import java.util.Set;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
 
@@ -40,12 +42,20 @@ public class PhiOptimizer extends BaseOptimizer {
     // transformation if both Phis are in the same block. But if that would be the case,
     // there is no way we could enter this block, because that phi won't be visible
     // from any predecessor, at least not on the first iteration.
-    long distinctPreds = seq(phi.getPreds()).distinct().count();
+    // Also we can ignore self references for this, if we still have only one real pred.
+    Set<Node> predsOtherThanSelf =
+        seq(phi.getPreds())
+            .filter(
+                n ->
+                    phi.getMode().equals(Mode.getM())
+                        || !n.equals(phi)) // Only include self loops in mode M
+            .toSet();
+    int distinctPreds = predsOtherThanSelf.size();
     boolean isOnlyPred = distinctPreds == 1;
     if (!isOnlyPred) {
       return;
     }
-    Node pred = phi.getPred(0);
+    Node pred = predsOtherThanSelf.iterator().next();
 
     boolean isKeptAlive = seq(graph.getEnd().getPreds()).contains(phi);
     if (isKeptAlive) {
