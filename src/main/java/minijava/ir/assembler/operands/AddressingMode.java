@@ -3,6 +3,7 @@ package minijava.ir.assembler.operands;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import com.beust.jcommander.internal.Nullable;
+import java.util.Objects;
 import minijava.ir.assembler.registers.Register;
 
 public class AddressingMode {
@@ -66,5 +67,25 @@ public class AddressingMode {
       builder.append(')');
     }
     return builder.toString();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    AddressingMode that = (AddressingMode) o;
+    return displacement == that.displacement
+        && scale == that.scale
+        && Objects.equals(base, that.base)
+        && Objects.equals(index, that.index);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(displacement, base, index, scale);
   }
 }

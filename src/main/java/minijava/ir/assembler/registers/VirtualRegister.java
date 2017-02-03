@@ -1,22 +1,21 @@
 package minijava.ir.assembler.registers;
 
+import firm.nodes.Node;
+import org.jetbrains.annotations.Nullable;
+
 /**
  * A temporary register that is used in the AssemblerGenerator and replaced with a real register by
  * a register allocator
  */
-public class VirtualRegister extends Register {
+public class VirtualRegister implements Register {
 
   public final int id;
+  public final Node definition;
+  @Nullable public AMD64Register constraint;
 
-  public VirtualRegister(int id, firm.nodes.Node def) {
+  public VirtualRegister(int id, Node definition) {
     this.id = id;
-    if (def != null) {
-      setComment(def);
-    }
-  }
-
-  public VirtualRegister(int id) {
-    this(id, null);
+    this.definition = definition;
   }
 
   @Override
@@ -31,6 +30,6 @@ public class VirtualRegister extends Register {
 
   @Override
   public String toString() {
-    return String.format("%%%d %s", id, formatComment());
+    return String.format("%%%d // %s", id, definition);
   }
 }

@@ -12,7 +12,7 @@ public class RegisterOperand extends Operand {
   }
 
   @Override
-  public String toGNUAssembler() {
-    return null;
+  public String toString() {
+    return "RegisterOperand{" + "register=" + register + '}';
   }
 }

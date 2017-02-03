@@ -10,19 +10,13 @@ import firm.Graph;
 import firm.Program;
 import firm.Util;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.PrintStream;
 import java.util.Iterator;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import minijava.ir.assembler.allocator.OnTheFlyRegAllocator;
-import minijava.ir.assembler.block.AssemblerFile;
 import minijava.ir.emit.IREmitter;
 import minijava.ir.optimize.*;
 import minijava.ir.utils.GraphUtils;
@@ -34,7 +28,6 @@ import minijava.token.Token;
 import minijava.util.PrettyPrinter;
 import org.apache.commons.io.FileUtils;
 import org.jetbrains.annotations.NotNull;
-import org.jooq.lambda.tuple.Tuple2;
 
 public class Compiler {
 
@@ -324,25 +317,12 @@ public class Compiler {
   public static class OwnBackend implements Backend {
     @Override
     public String lowerToAssembler(String outFile) throws IOException {
+      minijava.ir.assembler.Backend.lowerAssembler(outFile);
       File asm = new File(outFile + ".s");
       asm.createNewFile();
       File preAsm = new File(outFile + ".pre");
       preAsm.createNewFile();
-      printAsm(new FileOutputStream(asm), Optional.of(new FileOutputStream(preAsm)));
       return asm.getName();
-    }
-
-    public void printAsm(OutputStream out, Optional<OutputStream> preAsmOut) {
-      Tuple2<AssemblerFile, AssemblerFile> preAsmAndAsmFile =
-          AssemblerFile.createForProgram(OnTheFlyRegAllocator::new);
-      AssemblerFile preAsmFile = preAsmAndAsmFile.v1;
-      new PrintStream(preAsmOut.orElse(System.err)).println(preAsmFile.toGNUAssembler());
-      AssemblerFile file = preAsmAndAsmFile.v2;
-      if (EnvVar.MJ_FILENAME.isAvailable()) {
-        preAsmFile.setFileName(EnvVar.MJ_FILENAME.value());
-        file.setFileName(EnvVar.MJ_FILENAME.value());
-      }
-      new PrintStream(out).println(file.toGNUAssembler());
     }
   }
 }

@@ -22,7 +22,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Stream;
 import minijava.Compiler.Backend;
 import minijava.ast.Program;
@@ -205,7 +204,7 @@ public class Cli {
 
   private void printAsm(InputStream in, int optimizationLevel) throws IOException {
     Compiler.produceFirmIR(in, optimizationLevel);
-    Compiler.Backend.OWN.printAsm(out, Optional.empty());
+    //TODO: Compiler.Backend.OWN.printAsm(out, Optional.empty());
   }
 
   private void compile(InputStream in, int optimizationLevel) throws IOException {

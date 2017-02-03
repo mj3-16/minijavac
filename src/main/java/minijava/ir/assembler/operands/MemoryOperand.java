@@ -11,12 +11,7 @@ public class MemoryOperand extends Operand {
   }
 
   @Override
-  public String toGNUAssembler() {
-    return mode.toString();
-  }
-
-  @Override
   public String toString() {
-    return toGNUAssembler();
+    return "MemoryOperand{" + "mode=" + mode + '}';
   }
 }

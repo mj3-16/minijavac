@@ -13,13 +13,8 @@ public class ImmediateOperand extends Operand {
   }
 
   @Override
-  public String toGNUAssembler() {
-    return "$" + value;
-  }
-
-  @Override
   public String toString() {
-    return String.format("Const(%d)", value);
+    return "ImmediateOperand{" + "value=" + value + '}';
   }
 
   public boolean fitsIntoImmPartOfInstruction() {
