@@ -253,7 +253,9 @@ public class NodeUtils {
       case iro_Tuple:
         return false;
       case iro_Proj:
-        return node.getMode().equals(Mode.getX());
+        // Should be true for control flow (in which case a Cond is pred) and for cases like
+        // Proj on Start. Besides, nothing is gained by moving a Proj without it's pred anyway.
+        return isTiedToBlock(node.getPred(0));
       default:
         return true;
     }
