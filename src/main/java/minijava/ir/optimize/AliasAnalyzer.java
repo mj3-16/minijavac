@@ -1,15 +1,12 @@
 package minijava.ir.optimize;
 
 import static firm.bindings.binding_irnode.ir_opcode.iro_Load;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Phi;
 import static firm.bindings.binding_irnode.ir_opcode.iro_Proj;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Start;
 import static firm.bindings.binding_irnode.ir_opcode.iro_Store;
 import static firm.bindings.binding_irnode.ir_opcode.iro_Sync;
 import static org.jooq.lambda.Seq.seq;
 
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import firm.ArrayType;
 import firm.BackEdges;
 import firm.BackEdges.Edge;
@@ -20,9 +17,7 @@ import firm.MethodType;
 import firm.Mode;
 import firm.PointerType;
 import firm.Type;
-import firm.bindings.binding_irnode.ir_opcode;
 import firm.nodes.Address;
-import firm.nodes.Block;
 import firm.nodes.Call;
 import firm.nodes.Load;
 import firm.nodes.Member;
@@ -30,6 +25,7 @@ import firm.nodes.Node;
 import firm.nodes.Phi;
 import firm.nodes.Proj;
 import firm.nodes.Sel;
+import firm.nodes.Start;
 import firm.nodes.Store;
 import firm.nodes.Sync;
 import java.util.ArrayList;
@@ -40,11 +36,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
-import minijava.ir.Dominance;
+import java.util.function.Predicate;
 import minijava.ir.emit.Types;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
 import minijava.ir.utils.NodeUtils;
+import minijava.ir.utils.SideEffects;
 import org.jetbrains.annotations.NotNull;
 import org.jooq.lambda.Seq;
 import org.pcollections.HashTreePMap;
@@ -154,12 +151,22 @@ public class AliasAnalyzer extends BaseOptimizer {
   }
 
   @Override
+  public void defaultVisit(Node node) {
+    mergeMemoryFromPreds(node);
+  }
+
+  private void mergeMemoryFromPreds(Node node) {
+    // We have to merge all preceding memory values
+    Memory memory =
+        seq(node.getPreds()).map(this::getMemory).foldLeft(Memory.empty(), Memory::mergeWith);
+    updateMemory(node, memory);
+  }
+
+  @Override
   public void visit(Phi node) {
-    if (node.getMode().equals(Mode.getM())) {
-      Memory memory =
-          seq(node.getPreds()).map(this::getMemory).foldLeft(Memory.empty(), Memory::mergeWith);
-      updateMemory(node, memory);
-    } else {
+    mergeMemoryFromPreds(node);
+
+    if (node.getMode().equals(Mode.getP())) {
       Set<IndirectAccess> pointsTo =
           seq(node.getPreds()).map(this::getPointsTo).flatMap(Seq::seq).toSet();
       updatePointsTo(node, pointsTo);
@@ -167,14 +174,9 @@ public class AliasAnalyzer extends BaseOptimizer {
   }
 
   @Override
-  public void visit(Sync node) {
-    Memory memory =
-        seq(node.getPreds()).map(this::getMemory).foldLeft(Memory.empty(), Memory::mergeWith);
-    updateMemory(node, memory);
-  }
-
-  @Override
   public void visit(Member node) {
+    mergeMemoryFromPreds(node);
+
     int offset = node.getEntity().getOffset();
     Type fieldType = node.getEntity().getType();
     ClassType containingClassType = (ClassType) node.getEntity().getOwner();
@@ -192,6 +194,8 @@ public class AliasAnalyzer extends BaseOptimizer {
 
   @Override
   public void visit(Sel node) {
+    mergeMemoryFromPreds(node);
+
     ArrayType arrayType = (ArrayType) node.getType();
     int offset =
         NodeUtils.asConst(node.getIndex()).map(i -> i.getTarval().asInt()).orElse(UNKNOWN_OFFSET);
@@ -204,6 +208,18 @@ public class AliasAnalyzer extends BaseOptimizer {
             .toSet();
 
     updatePointsTo(node, offsetReferences);
+  }
+
+  @Override
+  public void visit(Start node) {
+    // The start node represents an alias class itself, that of all arguments to the function.
+    // The memory is tainted at all slots with self references, so that e.g. a field access on an
+    // argument will not return an empty alias class, but an alias class that overlaps with anything
+    // passed into the function.
+    Memory memory =
+        Memory.empty()
+            .modifyChunk(node, c -> c.setSlot(UNKNOWN_OFFSET, HashTreePSet.singleton(node)));
+    updateMemory(node, memory);
   }
 
   @Override
@@ -242,12 +258,11 @@ public class AliasAnalyzer extends BaseOptimizer {
 
   @Override
   public void visit(Load load) {
-    // A load doesn't change memory
-    updateMemory(load, getMemory(load.getMem()));
-    // ... but we can say something about the loaded value
+    mergeMemoryFromPreds(load);
+    // A load doesn't change memory, but we can say something about the loaded value
+    Memory memory = getMemory(load);
     Set<IndirectAccess> pointsTo = getPointsTo(load.getPtr());
     Type referencedType = getReferencedType(load.getPtr());
-    Memory memory = getMemory(load.getMem());
     Set<IndirectAccess> loadedRefs =
         followIndirectAccessesInMemory(pointsTo, memory, referencedType);
     updatePointsTo(load, loadedRefs);
@@ -255,13 +270,14 @@ public class AliasAnalyzer extends BaseOptimizer {
 
   @Override
   public void visit(Store store) {
+    mergeMemoryFromPreds(store);
     // Store is only interesting for its side effects. Yet we record the pointed to set,
     // which means in this case 'might be modified by'.
     Set<IndirectAccess> ptrPointsTo = getPointsTo(store.getPtr());
     updatePointsTo(store, ptrPointsTo);
     Set<IndirectAccess> valPointsTo = getPointsTo(store.getValue());
     Type referencedType = getReferencedType(store.getPtr());
-    Memory memory = getMemory(store.getMem());
+    Memory memory = getMemory(store);
     Memory modifiedMemory =
         writeValuesToPossibleMemorySlots(memory, ptrPointsTo, valPointsTo, referencedType);
     // It doesn't make sense to talk about the result value of a Store.
@@ -271,10 +287,8 @@ public class AliasAnalyzer extends BaseOptimizer {
 
   @Override
   public void visit(Proj proj) {
-    if (proj.getMode().equals(Mode.getM())) {
-      // we just forward the memory
-      updateMemory(proj, getMemory(proj.getPred()));
-    } else if (proj.getPred().getOpCode() == iro_Proj) {
+    mergeMemoryFromPreds(proj);
+    if (proj.getPred().getOpCode() == iro_Proj) {
       transferProjOnProj(proj, (Proj) proj.getPred());
     } else {
       updatePointsTo(proj, getPointsTo(proj.getPred()));
@@ -799,8 +813,6 @@ public class AliasAnalyzer extends BaseOptimizer {
 
   private class LoadStoreAliasingTransformation {
 
-    private final int MAX_NUMBER_OF_SYNC_PREDS = 10;
-
     public boolean transform() {
       // This works by following memory edges and reordering them when there is no alias.
       boolean hasChanged = false;
@@ -843,99 +855,23 @@ public class AliasAnalyzer extends BaseOptimizer {
     private Set<Node> lastAliasingSideEffects(Node sideEffect) {
       // We assume that the Mem pred is at index 0 and that the ptr pred is at index 1
       // That's at least the case for Load and Store.
-      Node mem = sideEffect.getPred(0);
       Node ptr = sideEffect.getPred(1);
       Set<IndirectAccess> aliasClass = getPointsTo(ptr);
-      Set<Node> sideEffectRoots = NodeUtils.getPreviousSideEffects(mem);
-      HashSet<Node> visited = Sets.newHashSet(sideEffect);
-      return lastAliasingSideEffectsHelper(aliasClass, sideEffectRoots, visited).sideEffects;
-    }
-
-    /**
-     * This is the meat of lastAliasingSideEffects. It got somewhat complicated when adding support
-     * for Phi nodes with something like back-tracking.
-     *
-     * @param aliasClass The alias class that we try to determing the last aliasing side effects
-     *     for.
-     * @param roots The memory nodes from which to start searching for aliases.
-     * @param originalVisited The set of already visited nodes at the time this call happens.
-     * @return A LastAliasingSideEffectsResult containing the last aliasing side effects and the set
-     *     of nodes visited during the search.
-     */
-    private LastAliasingSideEffectsResult lastAliasingSideEffectsHelper(
-        Set<IndirectAccess> aliasClass, Set<Node> roots, Set<Node> originalVisited) {
-      Set<Node> ret = new HashSet<>();
-      Set<Node> toVisit = new HashSet<>(roots);
-      Set<Node> visited = new HashSet<>(originalVisited);
-      while (!toVisit.isEmpty()) {
-        Node prevSideEffect = toVisit.iterator().next();
-        toVisit.remove(prevSideEffect);
-        if (visited.contains(prevSideEffect)) {
-          continue;
-        }
-        visited.add(prevSideEffect);
-
-        ir_opcode opCode = prevSideEffect.getOpCode();
-
-        if (opCode == iro_Start) {
-          // We can't extend beyond a Start node.
-          ret.add(prevSideEffect);
-        } else if (opCode == iro_Phi) {
-          // We try to extend beyond that Phi
-          Set<Node> sideEffectsPrecedingPhi =
-              seq(prevSideEffect.getPreds())
-                  .map(NodeUtils::getPreviousSideEffects)
-                  .flatMap(Seq::seq)
-                  .toSet();
-          LastAliasingSideEffectsResult extended =
-              lastAliasingSideEffectsHelper(aliasClass, sideEffectsPrecedingPhi, visited);
-          // The extended solution might contain side effects from the current block, reachable
-          // through a back edge. If there is such a node, we can't extend beyond the Phi.
-          // Also, if one of the side effects doesn't dominate the current block, we can't extend.
-          // In other words: All side effects' blocks must be strict dominators of the Phi's block.
-          // Note that it's OK if this returned the node we started from and that case is the
-          // reason we pass along the visited set: So that no node already visited is included (as
-          // we already have them covered).
-          Block phiBlock = (Block) prevSideEffect.getBlock();
-          boolean canExtend =
-              seq(extended.sideEffects)
-                  .allMatch(se -> Dominance.strictlyDominates((Block) se.getBlock(), phiBlock));
-          if (!canExtend) {
-            // Just record the Phi.
-            ret.add(prevSideEffect);
-          } else {
-            ret.addAll(extended.sideEffects);
-            // This is only OK now that we covered all those nodes.
-            visited = extended.visited;
-          }
-        } else if (mayAlias(aliasClass, aliasClass(prevSideEffect))) {
-          // We can't extend beyond the aliasing node.
-          ret.add(prevSideEffect);
-        } else {
-          // The node doesn't alias, so we try its side-effecting parents.
-          Node prevMem = prevSideEffect.getPred(0);
-          Set<Node> finalVisited = visited;
-          seq(NodeUtils.getPreviousSideEffects(prevMem))
-              .filter(n -> !finalVisited.contains(n))
-              .forEach(toVisit::add);
-        }
-
-        if (toVisit.size() > Math.max(MAX_NUMBER_OF_SYNC_PREDS, roots.size())) {
-          // This is a conservative default, to speed up compilation time and space.
-          return new LastAliasingSideEffectsResult(roots, originalVisited);
-        }
-      }
-      return new LastAliasingSideEffectsResult(ret, visited);
-    }
-
-    private class LastAliasingSideEffectsResult {
-      public final Set<Node> sideEffects;
-      public final Set<Node> visited;
-
-      public LastAliasingSideEffectsResult(Set<Node> sideEffects, Set<Node> visited) {
-        this.sideEffects = sideEffects;
-        this.visited = visited;
-      }
+      boolean isLoad = sideEffect.getOpCode() == iro_Load;
+      assert !aliasClass.isEmpty() : "Empty alias class at " + sideEffect;
+      Predicate<Node> affectsSideEffect =
+          se -> {
+            if (isLoad && se.getOpCode() == iro_Load) {
+              // This is handled specially for the LoadStoreOptimizer.
+              // Since loads have no observable side-effect, to move them past each other.
+              // We will do so if they don't have the same pointer.
+              return false;
+            } else {
+              // In every other case we make use of our alias info.
+              return mayAlias(aliasClass, aliasClass(se));
+            }
+          };
+      return SideEffects.lastAffectingSideEffects(affectsSideEffect, sideEffect);
     }
 
     private Set<IndirectAccess> aliasClass(Node node) {
