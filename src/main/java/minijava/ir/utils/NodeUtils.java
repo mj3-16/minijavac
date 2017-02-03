@@ -199,20 +199,6 @@ public class NodeUtils {
     return getMemProjSuccessor(sideEffect);
   }
 
-  /** Returns the unique Proj of mode M depending on {@param sideEffect} or creates one. */
-  public static Proj getMemProjSuccessor(Node sideEffect) {
-    return FirmUtils.withBackEdges(
-        sideEffect.getGraph(),
-        () ->
-            seq(BackEdges.getOuts(sideEffect))
-                .map(be -> be.node)
-                .ofType(Proj.class)
-                .filter(p -> p.getMode().equals(Mode.getM()))
-                .findFirst()
-                .orElseGet(
-                    () -> (Proj) sideEffect.getGraph().newProj(sideEffect, Mode.getM(), Load.pnM)));
-  }
-
   public static boolean hasIncomingBackEdge(Block b) {
     return incomingBackEdges(b).isNotEmpty();
   }
@@ -259,6 +245,20 @@ public class NodeUtils {
       default:
         return true;
     }
+  }
+
+  /** Returns the unique Proj of mode M depending on {@param sideEffect} or creates one. */
+  public static Proj getMemProjSuccessor(Node sideEffect) {
+    return FirmUtils.withBackEdges(
+        sideEffect.getGraph(),
+        () ->
+            seq(BackEdges.getOuts(sideEffect))
+                .map(be -> be.node)
+                .ofType(Proj.class)
+                .filter(p -> p.getMode().equals(Mode.getM()))
+                .findFirst()
+                .orElseGet(
+                    () -> (Proj) sideEffect.getGraph().newProj(sideEffect, Mode.getM(), Load.pnM)));
   }
 
   /** This returns reverse edges to successor blocks. */
