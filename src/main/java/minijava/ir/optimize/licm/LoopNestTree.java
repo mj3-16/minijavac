@@ -11,6 +11,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 
+/**
+ * Abstracts useful information about loops. Each node represents a loop by its header block and the
+ * enclosed body blocks. The tree structure mirrors nesting of loops. The root should represent the
+ * whole program.
+ */
 public class LoopNestTree {
   public final Block header;
   public final Set<Block> loopBlocks;
@@ -47,8 +52,6 @@ public class LoopNestTree {
         }
       }
     }
-
-    System.out.println("parents = " + parents);
 
     Map<Block, LoopNestTree> nodes =
         seq(loopBlocks)

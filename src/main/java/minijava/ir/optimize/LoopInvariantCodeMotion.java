@@ -30,37 +30,31 @@ import minijava.ir.utils.GraphUtils;
 import minijava.ir.utils.NodeUtils;
 import org.jetbrains.annotations.Nullable;
 import org.jooq.lambda.Seq;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * We practically do this through loop inversion: Copying the loop header and inserting the
  * invariant code there, while the back edge will still point to the old header, which won't repeat
  * the computation. That effectively transforms a while loop into a do/while loop.
  *
- * <p>This is all based on 'Compiler Design: Analysis and Transformation'.
+ * <p>This is all based on 'Compiler Design: Analysis and Transformation' and Apple's 'Modern
+ * Compiler Implementation in ML'.
  */
 public class LoopInvariantCodeMotion extends BaseOptimizer {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger("LoopInvariantCodeMotion");
-  private static final int DUPLICATE_NODES_THRESHOLD = 200;
-  /**
-   * Contains the edges of a forest of stars, where each node has an edge to the unique loop header.
-   */
-  private final Map<Block, Block> loopHeadersCache = new HashMap<>();
   /** Contains information on which nodes to move per loop header. */
   private final Map<Block, MoveInfo> moveInfos = new HashMap<>();
-
+  /** Notes already duplicated nodes while transforming a loop. */
   private final Map<Node, Node> duplicated = new HashMap<>();
-
+  /**
+   * Remembers definitions of a node that are visible in a given block during SSA reconstruction.
+   */
   private final Map<Node, Map<Block, Node>> visibleDefinitions = new HashMap<>();
-
+  /** LoopNestTree of the given graph as constructed in the initial analysis. */
   private LoopNestTree loopNestTree;
 
   @Override
   public boolean optimize(Graph graph) {
     this.graph = graph;
-    loopHeadersCache.clear();
     moveInfos.clear();
     duplicated.clear();
     visibleDefinitions.clear();
@@ -231,7 +225,6 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
           visibleDefinitions.clear();
           Block originalHeader = loop.header;
           MoveInfo info = getMoveInfoOf(originalHeader);
-          System.out.println("info = " + info);
           if (info.toMove.isEmpty()) {
             return;
           }
@@ -250,6 +243,9 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
           // not be visible and need merging through Phis.
           List<BackEdges.Edge> dirtyUsages = dirtyUsages(toDuplicate);
 
+          // We partly unroll the loop until we can move the invariant code out of the loop
+          // We may only do that if there is a block before the loop that is post-dominated by the
+          // original definition, so this is necessary.
           unrollAndFixControlFlow(originalHeader, toDuplicate, backPreds);
 
           // Control flow is fixed now. What remains is to copy/move instructions from the original
@@ -392,16 +388,11 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
         // Blocks have already been handled
         continue;
       }
-      System.out.println("usage.node = " + usage.node);
+
       Node originalDef = usage.node.getPred(usage.pos);
       Block originalBlock = (Block) originalDef.getBlock();
-      if (originalDef.getMode().equals(Mode.getM()))
-        System.out.println("originalDef = " + originalDef);
       Node duplicateDef = copyNode(originalDef, toDuplicate);
-      if (originalDef.getMode().equals(Mode.getM()))
-        System.out.println("duplicateDef = " + duplicateDef);
       Block usageBlock = getUsageBlock(usage);
-      System.out.println("usageBlock = " + usageBlock);
       if (usageBlock == null) {
         // This can happen when the usage was a Phi, which still has a pred, but the containing
         // block has a Bad at that position (the case when it's the loop header), indicating
@@ -435,8 +426,6 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
 
     List<Node> cfgPreds = seq(usage.getPreds()).filter(n -> n.getOpCode() != iro_Bad).toList();
 
-    if (mode.equals(Mode.getM())) System.out.println("usage = " + usage);
-
     if (cfgPreds.size() == 1) {
       Block predBlock = (Block) cfgPreds.get(0).getBlock();
       return searchDefinitionInsertingPhis(predBlock, mode, fallbackDef, visibleDefs, true);
@@ -455,12 +444,8 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
       } else {
         def = searchDefinitionInsertingPhis(predBlock, mode, fallbackDef, visibleDefs, true);
       }
-      if (mode.equals(Mode.getM())) System.out.println("predBlock = " + predBlock);
-      if (mode.equals(Mode.getM())) System.out.println("def = " + def);
       newDef.setPred(i, def);
     }
-
-    if (mode.equals(Mode.getM())) System.out.println("newDef = " + newDef);
 
     return newDef;
   }
@@ -473,10 +458,6 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
       Block originalHeader, Block duplicateHeader, Set<Node> backPreds) {
     int n = originalHeader.getPredCount();
     assert originalHeader.getPredCount() == duplicateHeader.getPredCount();
-    List<Phi> originalPhis =
-        seq(NodeUtils.getNodesInBlock(originalHeader)).ofType(Phi.class).toList();
-    List<Phi> duplicatePhis =
-        seq(NodeUtils.getNodesInBlock(originalHeader)).ofType(Phi.class).toList();
     for (int i = 0; i < n; ++i) {
       Node pred = originalHeader.getPred(i);
       assert pred.equals(duplicateHeader.getPred(i));
@@ -484,14 +465,10 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
         // Back edges may only point to the origin header (which actually makes them not really
         // back edges any more).
         duplicateHeader.setPred(i, graph.newBad(Mode.getX()));
-        int finalI = i;
-        //duplicatePhis.forEach(phi -> phi.setPred(finalI, graph.newBad(phi.getMode())));
       } else {
         // This is a regular edge with which the loop is entered. The loop is only menat to be
         // entered from the duplicateHeader now.
         originalHeader.setPred(i, graph.newBad(Mode.getX()));
-        int finalI = i;
-        //originalPhis.forEach(phi -> phi.setPred(finalI, graph.newBad(Mode.getANY())));
       }
     }
   }
