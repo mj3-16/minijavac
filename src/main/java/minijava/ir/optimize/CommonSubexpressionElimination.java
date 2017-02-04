@@ -72,7 +72,6 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
     this.graph = graph;
     this.hashes.clear();
     this.similarNodes.clear();
-    // One postorder traversal should be enough, as we don't handle Phi nodes and thus cycles.
     fixedPointIteration(GraphUtils.topologicalOrder(graph));
     return transform();
   }
