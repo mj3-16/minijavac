@@ -282,7 +282,9 @@ public class Cli {
       Parameters params = new Parameters();
       try {
         new JCommander(params, args);
-        params.file = params.mainParameters.get(params.mainParameters.size() - 1);
+        if (params.mainParameters.size() > 0) {
+          params.file = params.mainParameters.get(params.mainParameters.size() - 1);
+        }
       } catch (ParameterException e) {
         params.invalid = true;
       }
