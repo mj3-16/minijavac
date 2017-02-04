@@ -266,6 +266,10 @@ public class Cli {
     /** Returns true if the parameter values represent a valid set */
     boolean valid() {
       return !invalid
+          && 0 <= optimizationLevel
+          && optimizationLevel <= 3
+          && 0 <= verbosity
+          && verbosity < Level.values().length
           && (help
               || ((Booleans.countTrue(
                           echo, lextest, parsetest, printAst, check, compileFirm, runFirm, printAsm)
