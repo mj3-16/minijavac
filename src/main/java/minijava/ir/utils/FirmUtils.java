@@ -4,37 +4,10 @@ import firm.BackEdges;
 import firm.Graph;
 import firm.Mode;
 import firm.Relation;
-import firm.nodes.Node;
-import firm.nodes.Phi;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.Stack;
 import java.util.function.Supplier;
 import minijava.ir.assembler.operands.OperandWidth;
 
 public class FirmUtils {
-
-  public static boolean isPhiProneToLostCopies(Phi phi) {
-    // Assumption: a phi is error prone if a circle in the graph exists that
-    // contains this phi node
-    // we detect a circle by using depth first search
-    Set<Integer> visitedNodeIds = new HashSet<>();
-    Stack<Node> toVisit = new Stack<>();
-    toVisit.add(phi);
-    while (!toVisit.isEmpty()) {
-      Node currentNode = toVisit.pop();
-      visitedNodeIds.add(currentNode.getNr());
-      for (Node node : currentNode.getPreds()) {
-        if (node.equals(phi)) {
-          return true;
-        }
-        if (!visitedNodeIds.contains(node.getNr())) {
-          toVisit.push(node);
-        }
-      }
-    }
-    return false;
-  }
 
   public static <T> T withBackEdges(Graph graph, Supplier<T> body) {
     boolean responsible = !BackEdges.enabled(graph);

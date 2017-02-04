@@ -7,4 +7,13 @@ public abstract class Operand {
   public Operand(OperandWidth width) {
     this.width = width;
   }
+
+  public Operand withChangedWidth(OperandWidth width) {
+    if (this.width == width) {
+      return this;
+    }
+    return withChangedWidthImpl(OperandWidth width);
+  }
+
+  abstract Operand withChangedWidthImpl(OperandWidth width);
 }

@@ -9,12 +9,10 @@ import com.sun.jna.Platform;
 import firm.BackEdges;
 import firm.Graph;
 import firm.Mode;
-import firm.nodes.Add;
 import firm.nodes.Block;
 import firm.nodes.Node;
 import firm.nodes.NodeVisitor;
 import firm.nodes.Phi;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,10 +28,9 @@ import minijava.ir.utils.MethodInformation;
 public class InstructionSelector extends NodeVisitor.Default {
 
   private final Graph graph;
-  private final Map<Node, VirtualRegister> intermediateValues = new HashMap<>();
+  private final VirtualRegisterMapping mapping = new VirtualRegisterMapping();
   private final Map<Block, CodeBlock> blocks = new HashMap<>();
-  private final TreeMatcher matcher = new TreeMatcher();
-  private int registerIds = 0;
+  private final TreeMatcher matcher = new TreeMatcher(mapping);
 
   private InstructionSelector(Graph graph) {
     this.graph = graph;
@@ -75,15 +72,11 @@ public class InstructionSelector extends NodeVisitor.Default {
     // For the sake of breaking cycles we will note the register values we are interested in
     // and do nothing except for noting the Phi in its code-block.
     // SSA form deconstruction happens after/while register allocation.
-    VirtualRegister result = registerForDef(phi);
-    List<VirtualRegister> args = seq(phi.getPreds()).map(this::registerForDef).toList();
+    VirtualRegister result = mapping.registerForNode(phi);
+    List<VirtualRegister> args = seq(phi.getPreds()).map(mapping::registerForNode).toList();
     OperandWidth width = modeToWidth(phi.getMode());
     CodeBlock block = getCodeBlock((Block) phi.getBlock());
     block.phis.add(new PhiFunction(args, result, width, phi));
-  }
-
-  private VirtualRegister registerForDef(Node node) {
-    return intermediateValues.computeIfAbsent(node, n -> new VirtualRegister(registerIds++, n));
   }
 
   private CodeBlock getCodeBlock(Block block) {
@@ -120,18 +113,5 @@ public class InstructionSelector extends NodeVisitor.Default {
     List<Node> topologicalOrder = GraphUtils.topologicalOrder(graph);
     FirmUtils.withBackEdges(graph, () -> topologicalOrder.forEach(n -> n.accept(selector)));
     return selector.blocks;
-  }
-
-  private class TreeMatcher extends NodeVisitor.Default {
-    private List<Instruction> instructions;
-
-    @Override
-    public void visit(Add node) {}
-
-    public List<Instruction> match(Node node) {
-      instructions = new ArrayList<>();
-      node.accept(this);
-      return instructions;
-    }
   }
 }

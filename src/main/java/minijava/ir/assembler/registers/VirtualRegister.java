@@ -10,12 +10,19 @@ import org.jetbrains.annotations.Nullable;
 public class VirtualRegister implements Register {
 
   public final int id;
-  public final Node definition;
+  /** Null iff it's a temporary. */
+  @Nullable public final Node value;
+
   @Nullable public AMD64Register constraint;
 
-  public VirtualRegister(int id, Node definition) {
+  public VirtualRegister(int id) {
     this.id = id;
-    this.definition = definition;
+    this.value = null;
+  }
+
+  public VirtualRegister(int id, Node value) {
+    this.id = id;
+    this.value = value;
   }
 
   @Override
@@ -30,6 +37,6 @@ public class VirtualRegister implements Register {
 
   @Override
   public String toString() {
-    return String.format("%%%d // %s", id, definition);
+    return String.format("%%%d // %s", id, value);
   }
 }

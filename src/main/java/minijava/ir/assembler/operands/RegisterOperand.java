@@ -1,10 +1,11 @@
 package minijava.ir.assembler.operands;
 
+import java.util.Objects;
 import minijava.ir.assembler.registers.Register;
 
 public class RegisterOperand extends Operand {
 
-  private final Register register;
+  public final Register register;
 
   public RegisterOperand(OperandWidth width, Register register) {
     super(width);
@@ -12,7 +13,29 @@ public class RegisterOperand extends Operand {
   }
 
   @Override
+  Operand withChangedWidthImpl(OperandWidth width) {
+    return new RegisterOperand(width, register);
+  }
+
+  @Override
   public String toString() {
     return "RegisterOperand{" + "register=" + register + '}';
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    RegisterOperand that = (RegisterOperand) o;
+    return width == that.width && Objects.equals(register, that.register);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(width, register);
   }
 }
