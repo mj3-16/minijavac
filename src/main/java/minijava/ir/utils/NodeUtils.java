@@ -1,5 +1,6 @@
 package minijava.ir.utils;
 
+import static firm.bindings.binding_irnode.ir_opcode.iro_Block;
 import static firm.bindings.binding_irnode.ir_opcode.iro_Const;
 import static firm.bindings.binding_irnode.ir_opcode.iro_Jmp;
 import static firm.bindings.binding_irnode.ir_opcode.iro_Proj;
@@ -24,14 +25,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import minijava.ir.Dominance;
 import org.jooq.lambda.Seq;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /** For lack of a better name */
 public class NodeUtils {
-  private static final Logger LOGGER = LoggerFactory.getLogger("NodeUtils");
-
   private static final Set<binding_irnode.ir_opcode> SINGLE_EXIT =
       ImmutableSet.of(iro_Jmp, iro_Return);
 
@@ -79,6 +77,18 @@ public class NodeUtils {
         // This implies that there is only one outgoing control flow edge of the block.
         .filter(t -> !isSingleExitNode(t.v1))
         .map(t -> edge(t.v1, (int) (long) t.v2));
+  }
+
+  /** Splits a critical edge beginning at source, if necessary, and returns the new block, if so. */
+  public static Optional<Block> splitCriticalEdge(Block source, int pos) {
+    Node target = source.getPred(pos);
+    if (target.equals(iro_Jmp)) {
+      return Optional.empty();
+    }
+    Graph graph = source.getGraph();
+    Block splitter = (Block) graph.newBlock(new Node[] {target});
+    source.setPred(pos, graph.newJmp(splitter));
+    return Optional.of(splitter);
   }
 
   private static BackEdges.Edge edge(Node node, int pos) {
@@ -162,6 +172,54 @@ public class NodeUtils {
     return getMemProjSuccessor(sideEffect);
   }
 
+  public static boolean hasIncomingBackEdge(Block b) {
+    return incomingBackEdges(b).isNotEmpty();
+  }
+
+  public static Seq<Integer> incomingBackEdges(Block b) {
+    // A back edge (not to confuse with jFirms notion of BackEdges,
+    // which is misnomer for reverse edges) is an edge where the source's block
+    // is dominated by the target.
+    return seq(b.getPreds())
+        .zipWithIndex()
+        .filter(pred -> Dominance.dominates(b, (Block) pred.v1.getBlock()))
+        .map(pred -> (int) (long) pred.v2);
+  }
+
+  public static boolean isTiedToBlock(Node node) {
+    switch (node.getOpCode()) {
+      case iro_Add:
+      case iro_Sub:
+      case iro_Mul:
+      case iro_Div:
+      case iro_Mod:
+      case iro_Minus:
+      case iro_Or:
+      case iro_And:
+      case iro_Not:
+      case iro_Shl:
+      case iro_Shr:
+      case iro_Shrs:
+      case iro_Load:
+      case iro_Store:
+      case iro_Conv:
+      case iro_Call:
+      case iro_Cmp:
+      case iro_Mux:
+      case iro_Member:
+      case iro_Sel:
+      case iro_Sync:
+      case iro_Tuple:
+        return false;
+      case iro_Proj:
+        // Should be true for control flow (in which case a Cond is pred) and for cases like
+        // Proj on Start. Besides, nothing is gained by moving a Proj without it's pred anyway.
+        return isTiedToBlock(node.getPred(0));
+      default:
+        return true;
+    }
+  }
+
   /** Returns the unique Proj of mode M depending on {@param sideEffect} or creates one. */
   public static Proj getMemProjSuccessor(Node sideEffect) {
     return FirmUtils.withBackEdges(
@@ -174,5 +232,22 @@ public class NodeUtils {
                 .findFirst()
                 .orElseGet(
                     () -> (Proj) sideEffect.getGraph().newProj(sideEffect, Mode.getM(), Load.pnM)));
+  }
+
+  /** This returns reverse edges to successor blocks. */
+  public static Seq<BackEdges.Edge> getControlFlowSuccessors(Block block) {
+    return FirmUtils.withBackEdges(
+        block.getGraph(),
+        () ->
+            seq(BackEdges.getOuts(block))
+                .map(be -> be.node)
+                .filter(n -> n.getMode().equals(Mode.getX()))
+                .map(BackEdges::getOuts)
+                .flatMap(Seq::seq)
+                .filter(be -> be.node.getOpCode() == iro_Block));
+  }
+
+  public static Seq<Block> getPredecessorBlocks(Block cur) {
+    return seq(cur.getPreds()).map(Node::getBlock).cast(Block.class);
   }
 }

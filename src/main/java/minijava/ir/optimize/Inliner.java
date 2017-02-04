@@ -20,7 +20,7 @@ import org.jooq.lambda.tuple.Tuple2;
 
 public class Inliner extends BaseOptimizer {
   private static final Set<ir_opcode> ALWAYS_IN_START_BLOCK =
-      ImmutableSet.of(iro_Const, iro_Address, iro_Size);
+      ImmutableSet.of(iro_Const, iro_Address, iro_Size, iro_Bad, iro_NoMem);
   private static final int MAX_NODES = 1000;
   /**
    * Specifies the maximal number of nodes a leaf method can have to always be inlined, regardless

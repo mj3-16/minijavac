@@ -6,15 +6,13 @@ import firm.BackEdges;
 import firm.BackEdges.Edge;
 import firm.Graph;
 import firm.Mode;
-import firm.nodes.Block;
 import firm.nodes.Load;
 import firm.nodes.Node;
 import firm.nodes.Proj;
 import firm.nodes.Store;
-import java.util.List;
-import minijava.ir.Dominance;
 import minijava.ir.utils.GraphUtils;
 import minijava.ir.utils.NodeUtils;
+import org.jooq.lambda.Seq;
 
 public class LoadStoreOptimizer extends BaseOptimizer {
 
@@ -88,24 +86,13 @@ public class LoadStoreOptimizer extends BaseOptimizer {
         // We may only eliminate the store if it isn't visible any more, e.g. currentStore
         // is the only successor to previousStore.
         Node projOnPrevious = currentStore.getMem();
-        List<Edge> usages =
-            seq(BackEdges.getOuts(projOnPrevious))
-                .filter(be -> !be.node.equals(currentStore))
-                .toList();
-        Block currentBlock = (Block) currentStore.getBlock();
-        boolean dominatesAllUsages =
-            seq(usages)
-                .allMatch(be -> Dominance.dominates(currentBlock, (Block) be.node.getBlock()));
-        if (!dominatesAllUsages) {
-          // We can't do the transformation, as the old stored value might leak through.
-          break;
+        Seq<Edge> otherUsages =
+            seq(BackEdges.getOuts(projOnPrevious)).filter(be -> !be.node.equals(currentStore));
+        if (!otherUsages.isEmpty()) {
+          return;
         }
 
         hasChanged = true;
-        Proj projOnCurrent = NodeUtils.getMemProjSuccessor(currentStore);
-        for (Edge usage : usages) {
-          usage.node.setPred(usage.pos, projOnCurrent);
-        }
         currentStore.setMem(previousStore.getMem());
         Graph.killNode(previousStore);
         Graph.killNode(projOnPrevious);

@@ -65,6 +65,7 @@ public class Compiler {
     dumpGraphsIfNeeded("before-optimizations");
     Optimizer constantFolder = new ConstantFolder();
     Optimizer floatInTransformation = new FloatInTransformation();
+    Optimizer loopInvariantCodeMotion = new LoopInvariantCodeMotion();
     Optimizer controlFlowOptimizer = new ConstantControlFlowOptimizer();
     Optimizer jmpBlockRemover = new JmpBlockRemover();
     Optimizer unreachableCodeRemover = new UnreachableCodeRemover();
@@ -80,13 +81,22 @@ public class Compiler {
     OptimizerFramework perGraphFramework =
         new OptimizerFramework.Builder()
             .add(unreachableCodeRemover)
-            .dependsOn(controlFlowOptimizer, jmpBlockRemover)
+            .dependsOn(controlFlowOptimizer, jmpBlockRemover, loopInvariantCodeMotion)
             .add(criticalEdgeDetector)
             .dependsOn(controlFlowOptimizer, jmpBlockRemover)
             .add(duplicateProjDetector)
             .dependsOn(loadStoreOptimizer, commonSubexpressionElimination)
+            .add(syncOptimizer)
+            .dependsOn(aliasAnalyzer)
+            .add(phiOptimizer)
+            .dependsOn(controlFlowOptimizer, loopInvariantCodeMotion)
             .add(constantFolder)
-            .dependsOn(algebraicSimplifier, phiOptimizer, controlFlowOptimizer, loadStoreOptimizer)
+            .dependsOn(
+                algebraicSimplifier,
+                phiOptimizer,
+                controlFlowOptimizer,
+                loadStoreOptimizer,
+                loopInvariantCodeMotion)
             .add(expressionNormalizer)
             .dependsOn(
                 constantFolder,
@@ -106,10 +116,6 @@ public class Compiler {
                 aliasAnalyzer,
                 loadStoreOptimizer,
                 controlFlowOptimizer)
-            .add(aliasAnalyzer)
-            .dependsOn() // It's quite expensive to run the alias analysis, so we do so only once.
-            .add(syncOptimizer)
-            .dependsOn(aliasAnalyzer)
             .add(loadStoreOptimizer)
             .dependsOn(
                 commonSubexpressionElimination,
@@ -123,13 +129,21 @@ public class Compiler {
                 algebraicSimplifier,
                 phiOptimizer,
                 loadStoreOptimizer,
+                loopInvariantCodeMotion,
                 controlFlowOptimizer)
-            .add(phiOptimizer)
-            .dependsOn(controlFlowOptimizer)
             .add(controlFlowOptimizer)
-            .dependsOn(constantFolder, algebraicSimplifier, loadStoreOptimizer)
+            .dependsOn(
+                constantFolder, algebraicSimplifier, loadStoreOptimizer, loopInvariantCodeMotion)
             .add(jmpBlockRemover)
-            .dependsOn(controlFlowOptimizer, floatInTransformation, loadStoreOptimizer)
+            .dependsOn(
+                controlFlowOptimizer,
+                floatInTransformation,
+                loopInvariantCodeMotion,
+                loadStoreOptimizer)
+            .add(aliasAnalyzer)
+            .dependsOn() // It's quite expensive to run the alias analysis, so we do so only once.
+            .add(loopInvariantCodeMotion)
+            .dependsOn() // Dito
             .build();
 
     ProgramMetrics metrics = ProgramMetrics.analyse(Program.getGraphs());

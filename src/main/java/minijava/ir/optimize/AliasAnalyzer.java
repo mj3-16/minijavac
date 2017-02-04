@@ -402,12 +402,28 @@ public class AliasAnalyzer extends BaseOptimizer {
   }
 
   private static Type getReferencedType(Node node) {
+    return getReferencedTypeHelper(node, new HashSet<>());
+  }
+
+  private static Type getReferencedTypeHelper(Node node, Set<Phi> visited) {
     switch (node.getOpCode()) {
       case iro_Member:
         return ((Member) node).getEntity().getType();
       case iro_Sel:
         // Yay for jFirms inaccurate return types
         return ((ArrayType) ((Sel) node).getType()).getElementType();
+      case iro_Phi:
+        if (visited.contains(node)) {
+          return null;
+        }
+        visited.add((Phi) node);
+        for (Node pred : node.getPreds()) {
+          Type ret = getReferencedTypeHelper(pred, visited);
+          if (ret != null) {
+            return ret;
+          }
+        }
+        return null;
       default:
         throw new AssertionError("Could not find out referenced type of " + node + ".");
     }
