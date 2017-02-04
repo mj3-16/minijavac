@@ -270,7 +270,8 @@ public class Cli {
               || ((Booleans.countTrue(
                           echo, lextest, parsetest, printAst, check, compileFirm, runFirm, printAsm)
                       <= 1)
-                  && (file != null)));
+                  && (file != null)
+                  && (!echo || mainParameters.size() <= 1)));
     }
 
     static Parameters parse(String... args) {
@@ -279,7 +280,6 @@ public class Cli {
         new JCommander(params, args);
         params.file = params.mainParameters.get(params.mainParameters.size() - 1);
       } catch (ParameterException e) {
-        System.out.println(e);
         params.invalid = true;
       }
       return params;
