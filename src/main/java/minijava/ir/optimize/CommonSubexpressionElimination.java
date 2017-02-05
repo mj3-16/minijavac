@@ -3,12 +3,41 @@ package minijava.ir.optimize;
 import static org.jooq.lambda.Seq.seq;
 
 import firm.Graph;
-import firm.nodes.*;
-import java.util.*;
+import firm.Mode;
+import firm.nodes.Add;
+import firm.nodes.Address;
+import firm.nodes.And;
+import firm.nodes.Block;
+import firm.nodes.Cmp;
+import firm.nodes.Cond;
+import firm.nodes.Const;
+import firm.nodes.Conv;
+import firm.nodes.Div;
+import firm.nodes.Load;
+import firm.nodes.Member;
+import firm.nodes.Minus;
+import firm.nodes.Mod;
+import firm.nodes.Mul;
+import firm.nodes.Node;
+import firm.nodes.Not;
+import firm.nodes.Or;
+import firm.nodes.Proj;
+import firm.nodes.Sel;
+import firm.nodes.Shl;
+import firm.nodes.Shr;
+import firm.nodes.Shrs;
+import firm.nodes.Size;
+import firm.nodes.Sub;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import minijava.ir.Dominance;
 import minijava.ir.utils.ExtensionalEqualityComparator;
 import minijava.ir.utils.GraphUtils;
-import org.jooq.lambda.Seq;
+import minijava.ir.utils.NodeUtils;
 
 /**
  * Implements Common Subexpression Elimination by hashing node specific values and their
@@ -40,10 +69,11 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
 
   @Override
   public boolean optimize(Graph graph) {
+    this.graph = graph;
     this.hashes.clear();
     this.similarNodes.clear();
     // One postorder traversal should be enough, as we don't handle Phi nodes and thus cycles.
-    GraphUtils.postOrder(graph).forEach(this::visit);
+    fixedPointIteration(GraphUtils.topologicalOrder(graph));
     return transform();
   }
 
@@ -65,12 +95,26 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
             continue;
           }
           // otherwise we can exchange it for a reference to a dominated expression
-          Graph.exchange(edge.getKey(), edge.getValue());
+          exchange(edge);
           hasChanged = true;
         }
       }
     }
     return hasChanged;
+  }
+
+  private void exchange(Map.Entry<Node, Node> edge) {
+    Node redundant = edge.getKey();
+    Node replacement = edge.getValue();
+    if (redundant.getMode().equals(Mode.getT())) {
+      // Nodes such as div and mod return a tuple.
+      // We have to merge projs accordingly.
+
+      NodeUtils.redirectProjsOnto(redundant, replacement);
+      Graph.killNode(redundant);
+    } else {
+      Graph.exchange(edge.getKey(), edge.getValue());
+    }
   }
 
   /** This computes the dominance forest of star graphs in a UnionFind-like manner. */
@@ -140,7 +184,7 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
   @Override
   public void defaultVisit(Node node) {
     // This is a safe default, as a nodes hash should be quite unique.
-    hashWithSalt(node.hashCode()).ifPresent(hash -> updateHashMapping(node, hash));
+    updateHashMapping(node, node.hashCode());
   }
 
   @Override
@@ -181,12 +225,20 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
 
   @Override
   public void visit(Conv node) {
-    unaryNode(node);
+    hashWithSalt(Objects.hash(node.getOpCode(), node.getMode()), node.getOp())
+        .ifPresent(hash -> hashes.put(node, new HashedNode(node, hash)));
+    // As with Const nodes, we don't add an entry to similarNodes.
   }
 
   @Override
   public void visit(Div node) {
     binaryNode(node);
+  }
+
+  @Override
+  public void visit(Member node) {
+    hashWithSalt(Objects.hash(node.getOpCode(), node.getEntity()), node.getPred(0))
+        .ifPresent(hash -> updateHashMapping(node, hash));
   }
 
   @Override
@@ -221,6 +273,11 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
   }
 
   @Override
+  public void visit(Sel node) {
+    binaryNode(node);
+  }
+
+  @Override
   public void visit(Shl node) {
     binaryNode(node);
   }
@@ -236,7 +293,21 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
   }
 
   @Override
+  public void visit(Size node) {
+    int hash = node.getOpCode().hashCode() ^ node.getType().hashCode();
+    hashes.put(node, new HashedNode(node, hash));
+    // As with Const nodes, we don't add an entry to similarNodes.
+  }
+
+  @Override
   public void visit(Sub node) {
+    binaryNode(node);
+  }
+
+  @Override
+  public void visit(Load node) {
+    // Since loads aren't really a side effect as much as they impose an ordering on other
+    // side effects, we can perform CSE if ptr and mem preds are equal.
     binaryNode(node);
   }
 
@@ -265,12 +336,18 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
   private void updateHashMapping(Node node, int hash) {
     HashedNode hashed = new HashedNode(node, hash);
     addHashedNode(hashed);
-    hashes.put(node, hashed);
+    HashedNode old = hashes.put(node, hashed);
+    if (!hashed.equals(old)) {
+      hasChanged = true;
+    }
   }
 
   private void addHashedNode(HashedNode hashed) {
     Set<Node> similar =
         similarNodes.containsKey(hashed) ? similarNodes.get(hashed) : new HashSet<>();
+    if (!similar.contains(hashed.node)) {
+      hasChanged = true;
+    }
     similar.add(hashed.node);
     similarNodes.put(hashed, similar);
   }
@@ -280,12 +357,15 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
    * been computed yet (or can't be, e.g. Phis) then we return Optional.empty().
    */
   private Optional<Integer> hashWithSalt(int salt, Node... preds) {
-    // Java really needs `mapM`. /jk
-    Object[] hashedPreds = Seq.of(preds).map(hashes::get).toArray(Object[]::new);
-    if (Seq.of(hashedPreds).contains(null)) {
-      return Optional.empty();
+    Object[] hashes = new Object[preds.length + 1];
+    for (int i = 0; i < preds.length; ++i) {
+      hashes[i] = this.hashes.get(preds[i]);
+      if (hashes[i] == null) {
+        return Optional.empty();
+      }
     }
-    return Optional.of(salt ^ Objects.hash(hashedPreds));
+    hashes[preds.length] = salt;
+    return Optional.of(Objects.hash(hashes));
   }
 
   /**

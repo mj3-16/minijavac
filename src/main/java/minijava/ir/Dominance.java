@@ -14,6 +14,14 @@ public class Dominance {
     binding_irdom.compute_doms(g.ptr);
   }
 
+  private static void computePostDoms(Graph g) {
+    binding_irdom.compute_postdoms(g.ptr);
+  }
+
+  private static void computeDomFrontiers(Graph g) {
+    binding_irdom.ir_compute_dominance_frontiers(g.ptr);
+  }
+
   public static boolean dominates(Block dominator, Block dominated) {
     computeDoms(dominator.getGraph());
     return binding_irdom.block_dominates(dominator.ptr, dominated.ptr) != 0;
@@ -22,10 +30,14 @@ public class Dominance {
   public static Optional<Block> immediateDominator(Block dominated) {
     computeDoms(dominated.getGraph());
     Pointer idom = binding_irdom.get_Block_idom(dominated.ptr);
-    if (idom.equals(Pointer.NULL)) {
+    if (idom == null) {
       return Optional.empty();
     }
     return Optional.of(new Block(idom));
+  }
+
+  public static boolean strictlyDominates(Block dominator, Block dominated) {
+    return !dominator.equals(dominated) && dominates(dominator, dominated);
   }
 
   /** The reflexive transitive path of immediate dominators starting from {@param dominated}. */
@@ -40,17 +52,12 @@ public class Dominance {
                 }));
   }
 
-  public static Block deepestCommonDominator(Block a, Block b) {
-    computeDoms(a.getGraph());
-    return new Block(binding_irdom.ir_deepest_common_dominator(a.ptr, b.ptr));
-  }
-
-  private static void computePostDoms(Graph graph) {
-    binding_irdom.compute_postdoms(graph.ptr);
-  }
-
   public static boolean postDominates(Block dominator, Block dominated) {
     computePostDoms(dominator.getGraph());
     return binding_irdom.block_postdominates(dominator.ptr, dominated.ptr) != 0;
+  }
+
+  public static boolean strictlyPostDominates(Block dominator, Block dominated) {
+    return !dominator.equals(dominated) && postDominates(dominator, dominated);
   }
 }

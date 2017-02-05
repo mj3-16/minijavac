@@ -2,16 +2,20 @@ package minijava.ir.utils;
 
 import com.google.common.base.Objects;
 import com.sun.jna.Pointer;
+import firm.ArrayType;
 import firm.Mode;
 import firm.TargetValue;
 import firm.bindings.binding_irnode;
 import firm.bindings.binding_irnode.ir_opcode;
 import firm.nodes.Cmp;
 import firm.nodes.Const;
+import firm.nodes.Load;
+import firm.nodes.Member;
 import firm.nodes.Node;
 import firm.nodes.NodeVisitor;
 import firm.nodes.Phi;
 import firm.nodes.Proj;
+import firm.nodes.Sel;
 import java.util.Comparator;
 
 /**
@@ -115,6 +119,21 @@ public class ExtensionalEqualityComparator implements Comparator<Node> {
     }
 
     @Override
+    public void visit(Sel node) {
+      cmp = selectedElementSize(node) - selectedElementSize((Sel) other);
+    }
+
+    private int selectedElementSize(Sel node) {
+      ArrayType arrayType = (ArrayType) node.getType();
+      return arrayType.getElementType().getSize();
+    }
+
+    @Override
+    public void visit(Member node) {
+      cmp = node.getEntity().getOffset() - ((Member) other).getEntity().getOffset();
+    }
+
+    @Override
     public void visit(Cmp node) {
       Cmp otherCmp = (Cmp) other;
       cmp = node.getRelation().compareTo(otherCmp.getRelation());
@@ -122,7 +141,17 @@ public class ExtensionalEqualityComparator implements Comparator<Node> {
 
     @Override
     public void visit(Proj node) {
-      cmp = node.getNum() - ((Proj) other).getNum();
+      // Two different projs should never be considered equal.
+      cmp = node.getNr() - other.getNr();
+    }
+
+    @Override
+    public void visit(Load node) {
+      Mode otherLoadMode = ((Load) other).getLoadMode();
+      if (node.getLoadMode().equals(otherLoadMode)) {
+        return;
+      }
+      cmp = node.getNr() - other.getNr();
     }
 
     @Override

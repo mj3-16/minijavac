@@ -1,15 +1,12 @@
 package minijava;
 
+import static firm.bindings.binding_irgraph.ir_resources_t.IR_RESOURCE_IRN_LINK;
 import static minijava.Cli.dumpGraphsIfNeeded;
 
 import com.google.common.io.Files;
 import com.google.common.util.concurrent.Runnables;
-import firm.ClassType;
-import firm.Entity;
 import firm.Graph;
-import firm.MethodType;
 import firm.Program;
-import firm.Type;
 import firm.Util;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -19,27 +16,15 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.Iterator;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import minijava.ir.assembler.allocator.OnTheFlyRegAllocator;
 import minijava.ir.assembler.block.AssemblerFile;
 import minijava.ir.emit.IREmitter;
-import minijava.ir.optimize.AlgebraicSimplifier;
-import minijava.ir.optimize.CommonSubexpressionElimination;
-import minijava.ir.optimize.ConstantControlFlowOptimizer;
-import minijava.ir.optimize.ConstantFolder;
-import minijava.ir.optimize.CriticalEdgeDetector;
-import minijava.ir.optimize.ExpressionNormalizer;
-import minijava.ir.optimize.FloatInTransformation;
-import minijava.ir.optimize.Inliner;
-import minijava.ir.optimize.JmpBlockRemover;
-import minijava.ir.optimize.LoadStoreOptimizer;
-import minijava.ir.optimize.Optimizer;
-import minijava.ir.optimize.OptimizerFramework;
-import minijava.ir.optimize.PhiOptimizer;
-import minijava.ir.optimize.ProgramMetrics;
-import minijava.ir.optimize.UnreachableCodeRemover;
+import minijava.ir.optimize.*;
+import minijava.ir.utils.GraphUtils;
 import minijava.lexer.Lexer;
 import minijava.parser.Parser;
 import minijava.semantic.SemanticAnalyzer;
@@ -77,10 +62,10 @@ public class Compiler {
   }
 
   public static void optimize() {
-
     dumpGraphsIfNeeded("before-optimizations");
     Optimizer constantFolder = new ConstantFolder();
     Optimizer floatInTransformation = new FloatInTransformation();
+    Optimizer loopInvariantCodeMotion = new LoopInvariantCodeMotion();
     Optimizer controlFlowOptimizer = new ConstantControlFlowOptimizer();
     Optimizer jmpBlockRemover = new JmpBlockRemover();
     Optimizer unreachableCodeRemover = new UnreachableCodeRemover();
@@ -88,16 +73,30 @@ public class Compiler {
     Optimizer algebraicSimplifier = new AlgebraicSimplifier();
     Optimizer commonSubexpressionElimination = new CommonSubexpressionElimination();
     Optimizer phiOptimizer = new PhiOptimizer();
+    Optimizer aliasAnalyzer = new AliasAnalyzer();
+    Optimizer syncOptimizer = new SyncOptimizer();
     Optimizer loadStoreOptimizer = new LoadStoreOptimizer();
     Optimizer criticalEdgeDetector = new CriticalEdgeDetector();
+    Optimizer duplicateProjDetector = new DuplicateProjDetector();
     OptimizerFramework perGraphFramework =
         new OptimizerFramework.Builder()
             .add(unreachableCodeRemover)
-            .dependsOn(controlFlowOptimizer, jmpBlockRemover)
+            .dependsOn(controlFlowOptimizer, jmpBlockRemover, loopInvariantCodeMotion)
             .add(criticalEdgeDetector)
             .dependsOn(controlFlowOptimizer, jmpBlockRemover)
+            .add(duplicateProjDetector)
+            .dependsOn(loadStoreOptimizer, commonSubexpressionElimination)
+            .add(syncOptimizer)
+            .dependsOn(aliasAnalyzer)
+            .add(phiOptimizer)
+            .dependsOn(controlFlowOptimizer, loopInvariantCodeMotion)
             .add(constantFolder)
-            .dependsOn(algebraicSimplifier, phiOptimizer, controlFlowOptimizer, loadStoreOptimizer)
+            .dependsOn(
+                algebraicSimplifier,
+                phiOptimizer,
+                controlFlowOptimizer,
+                loadStoreOptimizer,
+                loopInvariantCodeMotion)
             .add(expressionNormalizer)
             .dependsOn(
                 constantFolder,
@@ -114,23 +113,37 @@ public class Compiler {
                 expressionNormalizer,
                 algebraicSimplifier,
                 phiOptimizer,
+                aliasAnalyzer,
                 loadStoreOptimizer,
                 controlFlowOptimizer)
             .add(loadStoreOptimizer)
-            .dependsOn(commonSubexpressionElimination, constantFolder, algebraicSimplifier)
+            .dependsOn(
+                commonSubexpressionElimination,
+                constantFolder,
+                algebraicSimplifier,
+                aliasAnalyzer,
+                syncOptimizer)
             .add(floatInTransformation)
             .dependsOn(
                 commonSubexpressionElimination,
                 algebraicSimplifier,
                 phiOptimizer,
                 loadStoreOptimizer,
+                loopInvariantCodeMotion,
                 controlFlowOptimizer)
-            .add(phiOptimizer)
-            .dependsOn(controlFlowOptimizer)
             .add(controlFlowOptimizer)
-            .dependsOn(constantFolder, algebraicSimplifier, loadStoreOptimizer)
+            .dependsOn(
+                constantFolder, algebraicSimplifier, loadStoreOptimizer, loopInvariantCodeMotion)
             .add(jmpBlockRemover)
-            .dependsOn(controlFlowOptimizer, floatInTransformation, loadStoreOptimizer)
+            .dependsOn(
+                controlFlowOptimizer,
+                floatInTransformation,
+                loopInvariantCodeMotion,
+                loadStoreOptimizer)
+            .add(aliasAnalyzer)
+            .dependsOn() // It's quite expensive to run the alias analysis, so we do so only once.
+            .add(loopInvariantCodeMotion)
+            .dependsOn() // Dito
             .build();
 
     ProgramMetrics metrics = ProgramMetrics.analyse(Program.getGraphs());
@@ -138,21 +151,21 @@ public class Compiler {
     ScheduledFuture<?> timer =
         Executors.newScheduledThreadPool(1).schedule(Runnables.doNothing(), 9, TimeUnit.MINUTES);
     while (!timer.isDone()) {
-      for (Graph graph : Program.getGraphs()) {
+      Set<Graph> reachable = metrics.reachableFromMain();
+
+      for (Graph graph : reachable) {
         perGraphFramework.optimizeUntilFixedpoint(graph);
       }
 
       // Here comes the interprocedural stuff... This is method is really turning into a mess
+      Cli.dumpGraphsIfNeeded("before-Inliner");
       boolean hasChanged = false;
-
-      // check if inliner should be used
-      if (!EnvironmentVariablesHandler.Optimization.dontUseInliner()) {
-        for (Graph graph : Program.getGraphs()) {
-          hasChanged |= inliner.optimize(graph);
-          unreachableCodeRemover.optimize(graph);
-          Cli.dumpGraphIfNeeded(graph, "after-inlining");
-        }
+      for (Graph graph : reachable) {
+        hasChanged |= inliner.optimize(graph);
+        unreachableCodeRemover.optimize(graph);
       }
+
+      reachable.forEach(metrics::updateGraphInfo);
 
       if (!hasChanged) {
         if (inliner.onlyLeafs) {
@@ -173,50 +186,43 @@ public class Compiler {
     if (optimize) {
       optimize();
     }
-    dumpGraphsIfNeeded("finished");
   }
 
   public static void compile(Backend backend, String outFile, boolean produceDebuggableBinary)
       throws IOException {
     lower();
-    Cli.dumpGraphsIfNeeded("finished");
+    Cli.dumpGraphsIfNeeded("after-lowering");
     String asmFile = backend.lowerToAssembler(outFile);
     assemble(asmFile, outFile, produceDebuggableBinary);
   }
 
   private static void lower() {
-    for (Type type : Program.getTypes()) {
-      if (type instanceof ClassType) {
-        lowerClass((ClassType) type);
-      }
-    }
     Util.lowerSels();
     // lowering Member and Sel nodes might result in constant expressions like this + (4 * 2).
     // This shouldn't take long to rectify.
     ConstantFolder constantFolder = new ConstantFolder();
-    Program.getGraphs().forEach(constantFolder::optimize);
-  }
-
-  /** Copied from the jFirm repo's Lower class */
-  private static void lowerClass(ClassType cls) {
-    for (int m = 0; m < cls.getNMembers(); /* nothing */ ) {
-      Entity member = cls.getMember(m);
-      Type type = member.getType();
-      if (!(type instanceof MethodType)) {
-        ++m;
-        continue;
-      }
-
-      /* methods get implemented outside the class, move the entity */
-      member.setOwner(Program.getGlobalType());
-    }
+    ExpressionNormalizer normalizer = new ExpressionNormalizer();
+    AlgebraicSimplifier simplifier = new AlgebraicSimplifier();
+    OptimizerFramework framework =
+        new OptimizerFramework.Builder()
+            .add(constantFolder)
+            .dependsOn()
+            .add(normalizer)
+            .dependsOn(constantFolder)
+            .add(simplifier)
+            .dependsOn(normalizer, constantFolder)
+            .build();
+    ProgramMetrics.analyse(Program.getGraphs())
+        .reachableFromMain()
+        .forEach(framework::optimizeUntilFixedpoint);
   }
 
   private static void assemble(
       String assemblerFile, String outputFile, boolean produceDebuggableBinary) throws IOException {
     File runtime = getRuntimeFile();
 
-    boolean useGC = EnvironmentVariablesHandler.GC.useGC();
+    boolean useGC =
+        System.getenv().containsKey("MJ_USE_GC") && System.getenv("MJ_USE_GC").equals("1");
 
     String gccApp = "";
     if (useGC) {
@@ -278,6 +284,7 @@ public class Compiler {
   public static class FirmBackend implements Backend {
     @Override
     public String lowerToAssembler(String outFile) throws IOException {
+      Program.getGraphs().forEach(g -> GraphUtils.freeResource(g, IR_RESOURCE_IRN_LINK));
       /* use the amd64 backend */
       firm.Backend.option("isa=amd64");
       /* transform to x86 assembler */

@@ -1,6 +1,9 @@
 package minijava.ir.optimize;
 
+import static org.jooq.lambda.Seq.seq;
+
 import firm.Graph;
+import firm.Program;
 import firm.nodes.Address;
 import firm.nodes.Call;
 import firm.nodes.End;
@@ -10,6 +13,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import minijava.ir.emit.NameMangler;
 
 public class ProgramMetrics {
   public final Map<Graph, GraphInfo> graphInfos = new HashMap<>();
@@ -26,6 +30,28 @@ public class ProgramMetrics {
     GraphWalker walker = new GraphWalker();
     graph.walk(walker);
     graphInfos.put(graph, walker.resultSummary());
+  }
+
+  public Set<Graph> reachableFromMain() {
+    Set<Graph> reachable = new HashSet<>();
+    Set<Graph> toVisit = new HashSet<>();
+    Graph main = seq(Program.getGraphs()).filter(ProgramMetrics::isMain).findFirst().get();
+    toVisit.add(main);
+    while (!toVisit.isEmpty()) {
+      Graph cur = toVisit.iterator().next();
+      toVisit.remove(cur);
+      if (reachable.contains(cur)) {
+        continue;
+      }
+      reachable.add(cur);
+
+      toVisit.addAll(graphInfos.get(cur).calls);
+    }
+    return reachable;
+  }
+
+  private static boolean isMain(Graph g) {
+    return g.getEntity().getLdName().equals(NameMangler.mangledMainMethodName());
   }
 
   public static class GraphInfo {
