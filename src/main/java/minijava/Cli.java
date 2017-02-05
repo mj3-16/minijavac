@@ -20,8 +20,10 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 import minijava.Compiler.Backend;
 import minijava.ast.Program;
 import minijava.lexer.Lexer;
@@ -33,22 +35,27 @@ public class Cli {
   static final String usage =
       Joiner.on(System.lineSeparator())
           .join(
-              new String[] {
-                "Usage: minijavac [--echo|--lextest|--parsetest|--check|--compile-firm|--print-asm] [--help] file",
-                "",
-                "  --echo          write file's content to stdout",
-                "  --lextest       run lexical analysis on file's content and print tokens to stdout",
-                "  --parsetest     run syntactical analysis on file's content",
-                "  --print-ast     pretty-print abstract syntax tree to stdout",
-                "  --check         parse the given file and perform semantic checks",
-                "  --compile-firm  compile the given file with the libfirm amd64 backend",
-                "  --run-firm      compile and run the given file with libfirm amd64 backend",
-                "  --print-asm     compile the given file and output the generated assembly",
-                "  --help          display this help and exit",
-                "",
-                "  If no flag is given, the passed file is compiled to a.out",
-                " Set the environment variable MJ_USE_GC to \"1\" to use the bdwgc."
-              });
+              Stream.concat(
+                      Arrays.stream(
+                          new String[] {
+                            "Usage: minijavac [--echo|--lextest|--parsetest|--check|--compile-firm|--print-asm] [--help] file",
+                            "",
+                            "  --echo          write file's content to stdout",
+                            "  --lextest       run lexical analysis on file's content and print tokens to stdout",
+                            "  --parsetest     run syntactical analysis on file's content",
+                            "  --print-ast     pretty-print abstract syntax tree to stdout",
+                            "  --check         parse the given file and perform semantic checks",
+                            "  --compile-firm  compile the given file with the libfirm amd64 backend",
+                            "  --run-firm      compile and run the given file with libfirm amd64 backend",
+                            "  --print-asm     compile the given file and output the generated assembly",
+                            "  --help          display this help and exit",
+                            "",
+                            "  If no flag is given, the passed file is compiled to a.out",
+                            "",
+                            "The following environment variables are available:"
+                          }),
+                      Arrays.stream(EnvVar.getAllEnvVarDescriptions()))
+                  .toArray(String[]::new));
 
   private final PrintStream out;
   private final PrintStream err;
