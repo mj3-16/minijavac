@@ -12,7 +12,7 @@ public abstract class Operand {
     if (this.width == width) {
       return this;
     }
-    return withChangedWidthImpl(OperandWidth width);
+    return withChangedWidthImpl(width);
   }
 
   abstract Operand withChangedWidthImpl(OperandWidth width);
