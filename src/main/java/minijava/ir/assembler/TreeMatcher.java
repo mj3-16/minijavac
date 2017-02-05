@@ -1,5 +1,7 @@
 package minijava.ir.assembler;
 
+import static minijava.ir.utils.FirmUtils.modeToWidth;
+
 import firm.Mode;
 import firm.nodes.Node;
 import firm.nodes.NodeVisitor;
@@ -10,6 +12,7 @@ import java.util.List;
 import minijava.ir.assembler.instructions.Add;
 import minijava.ir.assembler.instructions.And;
 import minijava.ir.assembler.instructions.CLTD;
+import minijava.ir.assembler.instructions.Enter;
 import minijava.ir.assembler.instructions.IDiv;
 import minijava.ir.assembler.instructions.IMul;
 import minijava.ir.assembler.instructions.Instruction;
@@ -69,11 +72,6 @@ class TreeMatcher extends NodeVisitor.Default {
   }
 
   @Override
-  public void visit(firm.nodes.Anchor node) {
-    // We ignore these
-  }
-
-  @Override
   public void visit(firm.nodes.Call node) {
     assert false;
   }
@@ -84,13 +82,8 @@ class TreeMatcher extends NodeVisitor.Default {
   }
 
   @Override
-  public void visit(firm.nodes.Cond node) {
-    // We can assume that the instructions for the
-  }
-
-  @Override
   public void visit(firm.nodes.Const node) {
-    OperandWidth width = FirmUtils.modeToWidth(node.getMode());
+    OperandWidth width = modeToWidth(node.getMode());
     long value = node.getTarval().asLong();
     ImmediateOperand operand = new ImmediateOperand(width, value);
     defineAsCopy(operand, node);
@@ -98,7 +91,7 @@ class TreeMatcher extends NodeVisitor.Default {
 
   @Override
   public void visit(firm.nodes.Conv node) {
-    OperandWidth width = FirmUtils.modeToWidth(node.getMode());
+    OperandWidth width = modeToWidth(node.getMode());
     unaryOperator(
         node, (op, reg) -> new Mov(op.withChangedWidth(width), new RegisterOperand(width, reg)));
   }
@@ -106,11 +99,6 @@ class TreeMatcher extends NodeVisitor.Default {
   @Override
   public void visit(firm.nodes.Div node) {
     // Handled in projectDivOrMod
-  }
-
-  @Override
-  public void visit(firm.nodes.End node) {
-    // Don't do anything (?)
   }
 
   @Override
@@ -131,11 +119,6 @@ class TreeMatcher extends NodeVisitor.Default {
   @Override
   public void visit(firm.nodes.Mul node) {
     binaryOperator(node, IMul::new);
-  }
-
-  @Override
-  public void visit(firm.nodes.NoMem node) {
-    // Memory edges are erased
   }
 
   @Override
@@ -210,7 +193,7 @@ class TreeMatcher extends NodeVisitor.Default {
   private void projectLoad(Proj proj, Node pred) {
     Node ptr = pred.getPred(1);
     AddressingMode address = followIndirecion(ptr);
-    OperandWidth width = FirmUtils.modeToWidth(proj.getMode());
+    OperandWidth width = modeToWidth(proj.getMode());
     defineAsCopy(new MemoryOperand(width, address), proj);
   }
 
@@ -221,14 +204,14 @@ class TreeMatcher extends NodeVisitor.Default {
   }
 
   private void projectReturnValue(Proj proj) {
-    OperandWidth width = FirmUtils.modeToWidth(proj.getMode());
+    OperandWidth width = modeToWidth(proj.getMode());
     RegisterOperand operand = new RegisterOperand(width, SystemVAbi.RETURN_REGISTER);
     defineAsCopy(operand, proj);
   }
 
   private void projectArgument(Proj proj, Start start) {
     assert proj.getPred().getPred(0).equals(start);
-    OperandWidth width = FirmUtils.modeToWidth(proj.getMode());
+    OperandWidth width = modeToWidth(proj.getMode());
     Operand arg = SystemVAbi.argument(proj.getNum(), width);
     defineAsCopy(arg, proj);
   }
@@ -239,14 +222,16 @@ class TreeMatcher extends NodeVisitor.Default {
 
   @Override
   public void visit(firm.nodes.Start node) {
-    // Needs to prepend the prologue, but this is the not the right place.
+    // This is cheating, but there isn't much freedom in how to choose instructions for
+    // the prologue.
+    instructions.add(new Enter());
   }
 
   @Override
   public void visit(firm.nodes.Store store) {
     AddressingMode address = followIndirecion(store.getPtr());
     Operand value = operandForNode(store.getValue());
-    OperandWidth width = FirmUtils.modeToWidth(store.getValue().getMode());
+    OperandWidth width = modeToWidth(store.getValue().getMode());
     MemoryOperand dest = new MemoryOperand(width, address);
     instructions.add(new Mov(value, dest));
   }
@@ -256,17 +241,12 @@ class TreeMatcher extends NodeVisitor.Default {
     binaryOperator(node, Sub::new);
   }
 
-  @Override
-  public void visit(firm.nodes.Sync node) {
-    // Memory edges are erased
-  }
-
   /**
    * Currently returns a RegisterOperand, e.g. always something referencing a register. This can
    * later be an Operand, but then we'll have to handle the different cases.
    */
   private RegisterOperand operandForNode(firm.nodes.Node value) {
-    OperandWidth width = FirmUtils.modeToWidth(value.getMode());
+    OperandWidth width = modeToWidth(value.getMode());
     VirtualRegister register = mapping.registerForNode(value);
     if (mapping.getDefinition(register) == null) {
       // There was no definition before this invocation of TreeMatcher.match().
@@ -311,7 +291,7 @@ class TreeMatcher extends NodeVisitor.Default {
 
   private RegisterOperand defineAsCopy(Operand src, Node value) {
     VirtualRegister register = mapping.registerForNode(value);
-    OperandWidth width = FirmUtils.modeToWidth(value.getMode());
+    OperandWidth width = modeToWidth(value.getMode());
     RegisterOperand dest = new RegisterOperand(width, register);
     instructions.add(new Mov(src.withChangedWidth(width), dest));
     return dest;

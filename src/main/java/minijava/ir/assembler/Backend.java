@@ -12,7 +12,8 @@ public class Backend {
     ProgramMetrics metrics = new ProgramMetrics();
     Map<Block, CodeBlock> blocks = new HashMap<>();
     for (Graph graph : metrics.reachableFromMain()) {
-      blocks.putAll(InstructionSelector.selectInstructions(graph));
+      ActivationRecord activationRecord = new ActivationRecord();
+      blocks.putAll(InstructionSelector.selectInstructions(graph, activationRecord));
     }
 
     // TODO: allocate registers, output asm

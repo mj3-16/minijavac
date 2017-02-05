@@ -15,16 +15,19 @@ import firm.nodes.Block;
 import firm.nodes.Cmp;
 import firm.nodes.Cond;
 import firm.nodes.End;
+import firm.nodes.Jmp;
 import firm.nodes.Node;
 import firm.nodes.NodeVisitor;
 import firm.nodes.Phi;
-import firm.nodes.Start;
+import firm.nodes.Proj;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import minijava.ir.assembler.block.CodeBlock;
+import minijava.ir.assembler.block.CodeBlock.ExitArity;
+import minijava.ir.assembler.block.CodeBlock.ExitArity.One;
 import minijava.ir.assembler.block.PhiFunction;
 import minijava.ir.assembler.instructions.Instruction;
 import minijava.ir.assembler.instructions.Test;
@@ -41,14 +44,16 @@ public class InstructionSelector extends NodeVisitor.Default {
 
   private boolean retainControlFlow = true;
   private final Graph graph;
+  private final ActivationRecord activationRecord;
   private final VirtualRegisterMapping mapping = new VirtualRegisterMapping();
   private final Map<Block, CodeBlock> blocks = new HashMap<>();
   private final Map<Block, Cmp> lastCmp = new HashMap<>();
   private final Set<Node> retainedComputations = new LinkedHashSet<>();
   private final TreeMatcher matcher = new TreeMatcher(mapping);
 
-  private InstructionSelector(Graph graph) {
+  private InstructionSelector(Graph graph, ActivationRecord activationRecord) {
     this.graph = graph;
+    this.activationRecord = activationRecord;
   }
 
   @Override
@@ -128,7 +133,18 @@ public class InstructionSelector extends NodeVisitor.Default {
     }
 
     ProjPair projs = NodeUtils.determineProjectionNodes(cond).get();
-    // TODO: Prefer jumps to the loop body by inverting the relation as needed.
+    Block falseTarget = getJumpTarget(projs.false_);
+    Block trueTarget = getJumpTarget(projs.true_);
+    // We don't generate jump instructions here. They aren't generated until we really translate
+    // the code blocks to assembly, to not enforce the decision of which target should be the
+    // unconditional jump just now.
+    block.exit =
+        new CodeBlock.ExitArity.Two(relation, getCodeBlock(trueTarget), getCodeBlock(falseTarget));
+  }
+
+  private static Block getJumpTarget(Node modeX) {
+    return Iterables.getOnlyElement(
+        seq(BackEdges.getOuts(modeX)).map(be -> be.node).ofType(Block.class));
   }
 
   @Override
@@ -155,8 +171,24 @@ public class InstructionSelector extends NodeVisitor.Default {
       return;
     }
 
-    defaultVisit(node);
+    super.visit(node);
     lastCmp.put(irBlock, node);
+  }
+
+  @Override
+  public void visit(Proj node) {
+    if (node.getMode().equals(Mode.getX())) {
+      // We handle these together with the Cond matched on.
+      return;
+    }
+    super.visit(node);
+  }
+
+  @Override
+  public void visit(Jmp jmp) {
+    Block target = getJumpTarget(jmp);
+    ExitArity exit = new One(getCodeBlock(target));
+    getCodeBlock((Block) jmp.getBlock()).exit = exit;
   }
 
   @Override
@@ -165,8 +197,8 @@ public class InstructionSelector extends NodeVisitor.Default {
   }
 
   @Override
-  public void visit(Start node) {
-    // TODO: prologue. When? After register alloc I presume, when we know the stack size.
+  public void visit(firm.nodes.Anchor node) {
+    // We ignore these
   }
 
   private CodeBlock getCodeBlock(Block block) {
@@ -198,8 +230,9 @@ public class InstructionSelector extends NodeVisitor.Default {
     return BackEdges.getNOuts(node) > 1;
   }
 
-  public static Map<Block, CodeBlock> selectInstructions(Graph graph) {
-    InstructionSelector selector = new InstructionSelector(graph);
+  public static Map<Block, CodeBlock> selectInstructions(
+      Graph graph, ActivationRecord activationRecord) {
+    InstructionSelector selector = new InstructionSelector(graph, activationRecord);
     List<Node> topologicalOrder = GraphUtils.topologicalOrder(graph);
     return FirmUtils.withBackEdges(
         graph,
