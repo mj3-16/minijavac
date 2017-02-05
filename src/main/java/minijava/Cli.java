@@ -149,15 +149,15 @@ public class Cli {
   }
 
   private boolean optimizationsTurnedOff() {
-    return EnvironmentVariablesHandler.Optimization.turnedOff();
+    return EnvVar.MJ_OPTIMIZE.isSetToZero();
   }
 
   private static boolean shouldPrintGraphs() {
-    return EnvironmentVariablesHandler.Graph.printGraphs();
+    return EnvVar.MJ_GRAPH.isSetToOne();
   }
 
   private boolean shouldProduceDebuggableBinary() {
-    return EnvironmentVariablesHandler.Debug.produceDebuggableBinary();
+    return EnvVar.MJ_DBG.isSetToOne();
   }
 
   public static void dumpGraphsIfNeeded(String appendix) {

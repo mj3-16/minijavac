@@ -221,14 +221,14 @@ public class Compiler {
       String assemblerFile, String outputFile, boolean produceDebuggableBinary) throws IOException {
     File runtime = getRuntimeFile();
 
-    boolean useGC = EnvironmentVariablesHandler.variable(EnvVar.MJ_USE_GC).isSetToOne();
+    boolean useGC = EnvVar.MJ_USE_GC.isSetToOne();
 
     String gccApp = "";
     if (useGC) {
       gccApp = " -DUSE_GC -lgc ";
     }
 
-    gccApp += " " + EnvironmentVariablesHandler.variable(EnvVar.MJ_GCC_APP).value();
+    gccApp += " " + EnvVar.MJ_GCC_APP.value();
 
     if (produceDebuggableBinary) {
       gccApp = " -g3";
@@ -308,10 +308,9 @@ public class Compiler {
       AssemblerFile preAsmFile = preAsmAndAsmFile.v1;
       new PrintStream(preAsmOut.orElse(System.err)).println(preAsmFile.toGNUAssembler());
       AssemblerFile file = preAsmAndAsmFile.v2;
-      if(EnvironmentVariablesHandler.variable(EnvVar.MJ_FILENAME).isAvailable()) {
-        String fileName = EnvironmentVariablesHandler.variable(EnvVar.MJ_FILENAME).value();
-        preAsmFile.setFileName(fileName);
-        file.setFileName(fileName);
+      if (EnvVar.MJ_FILENAME.isAvailable()) {
+        preAsmFile.setFileName(EnvVar.MJ_FILENAME.value());
+        file.setFileName(EnvVar.MJ_FILENAME.value());
       }
       new PrintStream(out).println(file.toGNUAssembler());
     }
