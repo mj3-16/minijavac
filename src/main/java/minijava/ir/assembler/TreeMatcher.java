@@ -1,7 +1,10 @@
 package minijava.ir.assembler;
 
 import firm.Mode;
+import firm.nodes.Node;
 import firm.nodes.NodeVisitor;
+import firm.nodes.Proj;
+import firm.nodes.Start;
 import java.util.ArrayList;
 import java.util.List;
 import minijava.ir.assembler.instructions.Add;
@@ -14,7 +17,9 @@ import minijava.ir.assembler.instructions.Mov;
 import minijava.ir.assembler.instructions.Neg;
 import minijava.ir.assembler.instructions.Ret;
 import minijava.ir.assembler.instructions.Sub;
+import minijava.ir.assembler.operands.AddressingMode;
 import minijava.ir.assembler.operands.ImmediateOperand;
+import minijava.ir.assembler.operands.MemoryOperand;
 import minijava.ir.assembler.operands.Operand;
 import minijava.ir.assembler.operands.OperandWidth;
 import minijava.ir.assembler.operands.RegisterOperand;
@@ -89,9 +94,7 @@ class TreeMatcher extends NodeVisitor.Default {
     OperandWidth width = FirmUtils.modeToWidth(node.getMode());
     long value = node.getTarval().asLong();
     ImmediateOperand operand = new ImmediateOperand(width, value);
-    VirtualRegister register = mapping.registerForNode(node);
-    Mov instruction = new Mov(operand, new RegisterOperand(width, register));
-    instructions.add(instruction);
+    defineAsCopy(operand, node);
   }
 
   @Override
@@ -103,41 +106,7 @@ class TreeMatcher extends NodeVisitor.Default {
 
   @Override
   public void visit(firm.nodes.Div node) {
-    divOrMod(node);
-  }
-
-  private void divOrMod(firm.nodes.Node node) {
-    // We have to copy the left operand into a temporary register, so we can unleash the register
-    // constraint on RAX.
-    RegisterOperand left = copyOperand(cltd(operandForNode(node.getPred(0))));
-    Operand right = operandForNode(node.getPred(1));
-    setConstraint(left, AMD64Register.A);
-
-    VirtualRegister quotient;
-    VirtualRegister remainder;
-    if (node instanceof firm.nodes.Div) {
-      quotient = mapping.registerForNode(node);
-      remainder = mapping.freshTemporary();
-    } else {
-      assert node instanceof firm.nodes.Mod;
-      quotient = mapping.freshTemporary();
-      remainder = mapping.registerForNode(node);
-    }
-    quotient.constraint = AMD64Register.A;
-    remainder.constraint = AMD64Register.D;
-
-    instructions.add(new IDiv(left, right, quotient, remainder));
-  }
-
-  private RegisterOperand cltd(Operand op) {
-    RegisterOperand value = copyOperand(op);
-    setConstraint(value, AMD64Register.A);
-    VirtualRegister resultLow = mapping.freshTemporary();
-    resultLow.constraint = AMD64Register.A;
-    VirtualRegister resultHigh = mapping.freshTemporary();
-    resultHigh.constraint = AMD64Register.D;
-    instructions.add(new CLTD(value, resultLow, resultHigh));
-    return new RegisterOperand(op.width, resultLow);
+    // Handled in projectDivOrMod
   }
 
   @Override
@@ -146,13 +115,8 @@ class TreeMatcher extends NodeVisitor.Default {
   }
 
   @Override
-  public void visit(firm.nodes.Load node) {
-    super.visit(node);
-  }
-
-  @Override
-  public void visit(firm.nodes.Member node) {
-    super.visit(node);
+  public void visit(firm.nodes.Load load) {
+    // We handle the Proj on load instead.
   }
 
   @Override
@@ -162,7 +126,7 @@ class TreeMatcher extends NodeVisitor.Default {
 
   @Override
   public void visit(firm.nodes.Mod node) {
-    divOrMod(node);
+    // Handled in projectDivOrMod
   }
 
   @Override
@@ -181,7 +145,93 @@ class TreeMatcher extends NodeVisitor.Default {
       // Memory edges are erased
       return;
     }
-    assert false; // TODO
+
+    assert !proj.getMode().equals(Mode.getX()) : "The TreeMatcher can't handle control flow.";
+
+    Node pred = proj.getPred();
+    switch (pred.getOpCode()) {
+      case iro_Proj:
+        // the pred is either a Call or a Start
+        Node startOrCall = pred.getPred(0);
+        switch (startOrCall.getOpCode()) {
+          case iro_Start:
+            projectArgument(proj, (firm.nodes.Start) startOrCall);
+            break;
+          case iro_Call:
+            assert proj.getNum() == 0
+                : "Projecting return value " + proj.getNum() + " on " + startOrCall;
+            projectReturnValue(proj);
+            break;
+        }
+        break;
+      case iro_Load:
+        projectLoad(proj, pred);
+      case iro_Div:
+      case iro_Mod:
+        projectDivOrMod(proj, pred);
+      default:
+        assert false : "Can't handle Proj on " + pred;
+    }
+  }
+
+  private void projectDivOrMod(Proj proj, Node node) {
+    // We have to copy the left operand into a temporary register, so we can unleash the register
+    // constraint on RAX.
+    RegisterOperand left = copyOperand(cltd(operandForNode(node.getPred(0))));
+    Operand right = operandForNode(node.getPred(1));
+    setConstraint(left, AMD64Register.A);
+
+    VirtualRegister quotient;
+    VirtualRegister remainder;
+    if (node instanceof firm.nodes.Div) {
+      quotient = mapping.registerForNode(proj);
+      remainder = mapping.freshTemporary();
+    } else {
+      assert node instanceof firm.nodes.Mod;
+      quotient = mapping.freshTemporary();
+      remainder = mapping.registerForNode(proj);
+    }
+    quotient.constraint = AMD64Register.A;
+    remainder.constraint = AMD64Register.D;
+
+    instructions.add(new IDiv(left, right, quotient, remainder));
+  }
+
+  private RegisterOperand cltd(Operand op) {
+    RegisterOperand value = copyOperand(op);
+    setConstraint(value, AMD64Register.A);
+    VirtualRegister resultLow = mapping.freshTemporary();
+    resultLow.constraint = AMD64Register.A;
+    VirtualRegister resultHigh = mapping.freshTemporary();
+    resultHigh.constraint = AMD64Register.D;
+    instructions.add(new CLTD(value, resultLow, resultHigh));
+    return new RegisterOperand(op.width, resultLow);
+  }
+
+  private void projectLoad(Proj proj, Node pred) {
+    Node ptr = pred.getPred(1);
+    AddressingMode address = followIndirecion(ptr);
+    OperandWidth width = FirmUtils.modeToWidth(proj.getMode());
+    defineAsCopy(new MemoryOperand(width, address), proj);
+  }
+
+  private AddressingMode followIndirecion(Node ptrNode) {
+    // TODO: When making use of addressing modes, we want to get that instead here.
+    RegisterOperand ptr = operandForNode(ptrNode);
+    return AddressingMode.atRegister(ptr.register);
+  }
+
+  private void projectReturnValue(Proj proj) {
+    OperandWidth width = FirmUtils.modeToWidth(proj.getMode());
+    RegisterOperand operand = new RegisterOperand(width, SystemVAbi.RETURN_REGISTER);
+    defineAsCopy(operand, proj);
+  }
+
+  private void projectArgument(Proj proj, Start start) {
+    assert proj.getPred().getPred(0).equals(start);
+    OperandWidth width = FirmUtils.modeToWidth(proj.getMode());
+    Operand arg = SystemVAbi.argument(proj.getNum(), width);
+    defineAsCopy(arg, proj);
   }
 
   @Override
@@ -200,12 +250,16 @@ class TreeMatcher extends NodeVisitor.Default {
 
   @Override
   public void visit(firm.nodes.Start node) {
-    super.visit(node);
+    // Needs to prepend the prologue, but this is the not the right place.
   }
 
   @Override
-  public void visit(firm.nodes.Store node) {
-    super.visit(node);
+  public void visit(firm.nodes.Store store) {
+    AddressingMode address = followIndirecion(store.getPtr());
+    Operand value = operandForNode(store.getValue());
+    OperandWidth width = FirmUtils.modeToWidth(store.getValue().getMode());
+    MemoryOperand dest = new MemoryOperand(width, address);
+    instructions.add(new Mov(value, dest));
   }
 
   @Override
@@ -216,11 +270,6 @@ class TreeMatcher extends NodeVisitor.Default {
   @Override
   public void visit(firm.nodes.Sync node) {
     // Memory edges are erased
-  }
-
-  @Override
-  public void visit(firm.nodes.Tuple node) {
-    super.visit(node);
   }
 
   /**
@@ -268,6 +317,14 @@ class TreeMatcher extends NodeVisitor.Default {
     VirtualRegister copy = mapping.freshTemporary();
     RegisterOperand dest = new RegisterOperand(src.width, copy);
     instructions.add(new Mov(src, dest));
+    return dest;
+  }
+
+  private RegisterOperand defineAsCopy(Operand src, Node value) {
+    VirtualRegister register = mapping.registerForNode(value);
+    OperandWidth width = FirmUtils.modeToWidth(value.getMode());
+    RegisterOperand dest = new RegisterOperand(width, register);
+    instructions.add(new Mov(src.withChangedWidth(width), dest));
     return dest;
   }
 

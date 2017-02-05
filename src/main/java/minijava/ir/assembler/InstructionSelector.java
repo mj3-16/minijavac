@@ -10,9 +10,11 @@ import firm.BackEdges;
 import firm.Graph;
 import firm.Mode;
 import firm.nodes.Block;
+import firm.nodes.End;
 import firm.nodes.Node;
 import firm.nodes.NodeVisitor;
 import firm.nodes.Phi;
+import firm.nodes.Start;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -77,6 +79,16 @@ public class InstructionSelector extends NodeVisitor.Default {
     OperandWidth width = modeToWidth(phi.getMode());
     CodeBlock block = getCodeBlock((Block) phi.getBlock());
     block.phis.add(new PhiFunction(args, result, width, phi));
+  }
+
+  @Override
+  public void visit(End node) {
+    // Do nothing (?)
+  }
+
+  @Override
+  public void visit(Start node) {
+    // TODO: prologue. When? After register alloc I presume, when we know the stack size.
   }
 
   private CodeBlock getCodeBlock(Block block) {
