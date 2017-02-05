@@ -1,6 +1,7 @@
 package minijava.ir.assembler;
 
 import static firm.bindings.binding_irnode.ir_opcode.iro_Block;
+import static firm.bindings.binding_irnode.ir_opcode.iro_Cmp;
 import static minijava.ir.utils.FirmUtils.modeToWidth;
 import static org.jooq.lambda.Seq.seq;
 
@@ -9,29 +10,41 @@ import com.sun.jna.Platform;
 import firm.BackEdges;
 import firm.Graph;
 import firm.Mode;
+import firm.Relation;
 import firm.nodes.Block;
+import firm.nodes.Cmp;
+import firm.nodes.Cond;
 import firm.nodes.End;
 import firm.nodes.Node;
 import firm.nodes.NodeVisitor;
 import firm.nodes.Phi;
 import firm.nodes.Start;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import minijava.ir.assembler.block.CodeBlock;
 import minijava.ir.assembler.block.PhiFunction;
 import minijava.ir.assembler.instructions.Instruction;
+import minijava.ir.assembler.instructions.Test;
 import minijava.ir.assembler.operands.OperandWidth;
+import minijava.ir.assembler.operands.RegisterOperand;
 import minijava.ir.assembler.registers.VirtualRegister;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
 import minijava.ir.utils.MethodInformation;
+import minijava.ir.utils.NodeUtils;
+import minijava.ir.utils.ProjPair;
 
 public class InstructionSelector extends NodeVisitor.Default {
 
+  private boolean retainControlFlow = true;
   private final Graph graph;
   private final VirtualRegisterMapping mapping = new VirtualRegisterMapping();
   private final Map<Block, CodeBlock> blocks = new HashMap<>();
+  private final Map<Block, Cmp> lastCmp = new HashMap<>();
+  private final Set<Node> retainedComputations = new LinkedHashSet<>();
   private final TreeMatcher matcher = new TreeMatcher(mapping);
 
   private InstructionSelector(Graph graph) {
@@ -82,6 +95,71 @@ public class InstructionSelector extends NodeVisitor.Default {
   }
 
   @Override
+  public void visit(Cond cond) {
+    if (retainControlFlow) {
+      // Control flow has to be the last group of instructions of a block, so we handle it
+      // in a second pass after all other computations.
+      retainedComputations.add(cond);
+      return;
+    }
+    Block irBlock = (Block) cond.getBlock();
+    CodeBlock block = getCodeBlock(irBlock);
+    // We rely on the topological ordering also present in retainedComputations and assume
+    // that the Cmp we match on is still visible through the flags register, if the Cond is
+    // in the same block as the Cmp.
+    Node sel = cond.getSelector();
+    Relation relation; // Needed for the conditional jump.
+    assert sel.getOpCode() != iro_Cmp
+        || !irBlock.equals(sel.getBlock())
+        || sel.equals(lastCmp.get(irBlock));
+    boolean flagsStillSet = sel.getOpCode() == iro_Cmp && sel.equals(lastCmp.get(irBlock));
+    if (!flagsStillSet) {
+      // i.o.w.: sel is not a Cmp or is in another block
+      assert sel.getOpCode() != iro_Cmp || !irBlock.equals(sel.getBlock());
+      // In this case we have to rematerialize the flags register with the node's value.
+      VirtualRegister selResult = mapping.registerForNode(sel);
+      OperandWidth width = modeToWidth(Mode.getb());
+      RegisterOperand op = new RegisterOperand(width, selResult);
+      block.instructions.add(new Test(op, op));
+      relation = Relation.LessGreater; // Should result in a jnz/jne
+    } else {
+      Cmp cmp = (Cmp) sel;
+      relation = cmp.getRelation();
+    }
+
+    ProjPair projs = NodeUtils.determineProjectionNodes(cond).get();
+    // TODO: Prefer jumps to the loop body by inverting the relation as needed.
+  }
+
+  @Override
+  public void visit(Cmp node) {
+    // There shouldn't be more than one usage in the current block, which would be a Cond.
+    // There can't be a Phi in a successor because of critical edges.
+    // For the case where the successor in the current block isn't a Cond, there might be multiple
+    // Phi b's having this as an argument, but that's uninteresting as we would do the setcc anyway.
+    // So: if there is a out edge to a Cond in this block, it will be the only successor in this
+    // block. That's crucial, because we may schedule the Cmp and its successor as the last
+    // instructions of the block without risking data dependency violations arising from other uses
+    // of the Cmp.
+    Block irBlock = (Block) node.getBlock();
+    boolean isMatchedOnInThisBlock =
+        seq(BackEdges.getOuts(node))
+                .map(be -> be.node)
+                .ofType(Cond.class)
+                .filter(cond -> irBlock.equals(cond.getBlock()))
+                .count()
+            > 0;
+    if (isMatchedOnInThisBlock && retainControlFlow) {
+      // We retain the computation of the Cmp, reasoning in the above comment.
+      retainedComputations.add(node);
+      return;
+    }
+
+    defaultVisit(node);
+    lastCmp.put(irBlock, node);
+  }
+
+  @Override
   public void visit(End node) {
     // Do nothing (?)
   }
@@ -123,7 +201,13 @@ public class InstructionSelector extends NodeVisitor.Default {
   public static Map<Block, CodeBlock> selectInstructions(Graph graph) {
     InstructionSelector selector = new InstructionSelector(graph);
     List<Node> topologicalOrder = GraphUtils.topologicalOrder(graph);
-    FirmUtils.withBackEdges(graph, () -> topologicalOrder.forEach(n -> n.accept(selector)));
-    return selector.blocks;
+    return FirmUtils.withBackEdges(
+        graph,
+        () -> {
+          topologicalOrder.forEach(n -> n.accept(selector));
+          selector.retainControlFlow = false;
+          selector.retainedComputations.forEach(n -> n.accept(selector));
+          return selector.blocks;
+        });
   }
 }

@@ -15,7 +15,6 @@ import minijava.ir.assembler.instructions.IMul;
 import minijava.ir.assembler.instructions.Instruction;
 import minijava.ir.assembler.instructions.Mov;
 import minijava.ir.assembler.instructions.Neg;
-import minijava.ir.assembler.instructions.Ret;
 import minijava.ir.assembler.instructions.Sub;
 import minijava.ir.assembler.operands.AddressingMode;
 import minijava.ir.assembler.operands.ImmediateOperand;
@@ -86,7 +85,7 @@ class TreeMatcher extends NodeVisitor.Default {
 
   @Override
   public void visit(firm.nodes.Cond node) {
-    assert false;
+    // We can assume that the instructions for the
   }
 
   @Override
@@ -234,16 +233,6 @@ class TreeMatcher extends NodeVisitor.Default {
     defineAsCopy(arg, proj);
   }
 
-  @Override
-  public void visit(firm.nodes.Return node) {
-    if (node.getPredCount() > 1) {
-      // We have to move the result into a temporary register constrained to RAX.
-      RegisterOperand result = copyOperand(operandForNode(node.getPred(1)));
-      setConstraint(result, AMD64Register.A);
-    }
-    instructions.add(new Ret());
-  }
-
   private static AMD64Register setConstraint(RegisterOperand result, AMD64Register constraint) {
     return ((VirtualRegister) result.register).constraint = constraint;
   }
@@ -336,9 +325,13 @@ class TreeMatcher extends NodeVisitor.Default {
   }
 
   public List<Instruction> match(firm.nodes.Node node) {
-    instructions = new ArrayList<>();
-    node.accept(this);
-    saveDefinitions();
-    return instructions;
+    return FirmUtils.withBackEdges(
+        node.getGraph(),
+        () -> {
+          instructions = new ArrayList<>();
+          node.accept(this);
+          saveDefinitions();
+          return instructions;
+        });
   }
 }
