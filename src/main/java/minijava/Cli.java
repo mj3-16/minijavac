@@ -26,6 +26,7 @@ import minijava.Compiler.Backend;
 import minijava.ast.Program;
 import minijava.lexer.Lexer;
 import minijava.token.Token;
+import org.slf4j.event.Level;
 import org.slf4j.impl.SimpleLogger;
 
 public class Cli {
@@ -34,7 +35,7 @@ public class Cli {
       Joiner.on(System.lineSeparator())
           .join(
               new String[] {
-                "Usage: minijavac [--echo|--lextest|--parsetest|--check|--compile-firm|--print-asm] [--help] file",
+                "Usage: minijavac [--echo|--lextest|--parsetest|--check|--compile-firm|--print-asm] [-O level] [-v level] [--help] file",
                 "",
                 "  --echo          write file's content to stdout",
                 "  --lextest       run lexical analysis on file's content and print tokens to stdout",
@@ -44,6 +45,8 @@ public class Cli {
                 "  --compile-firm  compile the given file with the libfirm amd64 backend",
                 "  --run-firm      compile and run the given file with libfirm amd64 backend",
                 "  --print-asm     compile the given file and output the generated assembly",
+                "  -O, --optimize  Optimization level of produced IR. 0-3",
+                "  -v, --verbosity Crank this up for more debug output",
                 "  --help          display this help and exit",
                 "",
                 "  If no flag is given, the passed file is compiled to a.out",
@@ -62,9 +65,7 @@ public class Cli {
 
   int run(String... args) {
     Parameters params = Parameters.parse(args);
-    if (shouldPrintGraphs()) {
-      System.setProperty(SimpleLogger.DEFAULT_LOG_LEVEL_KEY, "DEBUG");
-    }
+    setLogLevel(params.verbosity);
     if (!params.valid()) {
       err.println("Called as: " + String.join(" ", args));
       err.println(usage);
@@ -87,13 +88,13 @@ public class Cli {
       } else if (params.check) {
         check(in);
       } else if (params.compileFirm) {
-        compileFirm(in);
+        compileFirm(in, params.optimizationLevel);
       } else if (params.runFirm) {
         runFirm(in);
       } else if (params.printAsm) {
-        printAsm(in);
+        printAsm(in, params.optimizationLevel);
       } else {
-        compile(in);
+        compile(in, params.optimizationLevel);
       }
     } catch (AccessDeniedException e) {
       err.println("error: access to file '" + path + "' was denied");
@@ -116,6 +117,14 @@ public class Cli {
       return 1;
     }
     return 0;
+  }
+
+  private void setLogLevel(int verbosity) {
+    verbosity = Math.max(0, verbosity);
+    verbosity = Math.min(Level.values().length - 1, verbosity);
+    // HACK ALERT
+    String level = Level.values()[verbosity].toString();
+    System.setProperty(SimpleLogger.DEFAULT_LOG_LEVEL_KEY, level);
   }
 
   private void echo(InputStream in) throws IOException {
@@ -143,14 +152,9 @@ public class Cli {
   }
 
   /** Compiles (with/out optimizations) with the firm backend. */
-  private void compileFirm(InputStream in) throws IOException {
-    Compiler.produceFirmIR(in, !optimizationsTurnedOff());
+  private void compileFirm(InputStream in, int optimizationLevel) throws IOException {
+    Compiler.produceFirmIR(in, optimizationLevel);
     Compiler.compile(Backend.FIRM, "a.out", shouldProduceDebuggableBinary());
-  }
-
-  private boolean optimizationsTurnedOff() {
-    String value = System.getenv("MJ_OPTIMIZE");
-    return value != null && value.equals("0");
   }
 
   private static boolean shouldPrintGraphs() {
@@ -177,7 +181,7 @@ public class Cli {
   }
 
   private void runFirm(InputStream in) throws IOException {
-    Compiler.produceFirmIR(in, false);
+    Compiler.produceFirmIR(in, 0);
     Compiler.compile(Backend.FIRM, "a.out", shouldProduceDebuggableBinary());
     runCompiledProgram("a.out");
   }
@@ -194,13 +198,13 @@ public class Cli {
     }
   }
 
-  private void printAsm(InputStream in) throws IOException {
-    Compiler.produceFirmIR(in, !optimizationsTurnedOff());
+  private void printAsm(InputStream in, int optimizationLevel) throws IOException {
+    Compiler.produceFirmIR(in, optimizationLevel);
     Compiler.Backend.OWN.printAsm(out, Optional.empty());
   }
 
-  private void compile(InputStream in) throws IOException {
-    Compiler.produceFirmIR(in, !optimizationsTurnedOff());
+  private void compile(InputStream in, int optimizationLevel) throws IOException {
+    Compiler.produceFirmIR(in, optimizationLevel);
     Compiler.compile(Backend.OWN, "a.out", shouldProduceDebuggableBinary());
   }
 
@@ -239,6 +243,12 @@ public class Cli {
     @Parameter(names = "--print-asm")
     boolean printAsm;
 
+    @Parameter(names = {"--verbosity", "-v"})
+    Integer verbosity = 0;
+
+    @Parameter(names = {"--optimize", "-O"})
+    Integer optimizationLevel = 3;
+
     /** True if the --help option was set */
     @Parameter(names = "--help")
     boolean help;
@@ -256,6 +266,10 @@ public class Cli {
     /** Returns true if the parameter values represent a valid set */
     boolean valid() {
       return !invalid
+          && 0 <= optimizationLevel
+          && optimizationLevel <= 3
+          && 0 <= verbosity
+          && verbosity < Level.values().length
           && (help
               || ((Booleans.countTrue(
                           echo, lextest, parsetest, printAst, check, compileFirm, runFirm, printAsm)

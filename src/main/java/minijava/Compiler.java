@@ -178,12 +178,12 @@ public class Compiler {
     dumpGraphsIfNeeded("after-optimizations");
   }
 
-  public static void produceFirmIR(InputStream in, boolean optimize) {
+  public static void produceFirmIR(InputStream in, int optimizationLevel) {
     minijava.ast.Program ast = Compiler.lexAndParse(in);
     Compiler.checkSemantics(ast);
     Compiler.verifySemanticAnnotations(ast);
     Compiler.emitIR(ast);
-    if (optimize) {
+    if (optimizationLevel > 0) {
       optimize();
     }
   }
