@@ -8,6 +8,8 @@ import firm.Graph;
 import firm.Mode;
 import firm.nodes.Node;
 import firm.nodes.Phi;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
@@ -21,12 +23,25 @@ import minijava.ir.utils.GraphUtils;
  */
 public class PhiOptimizer extends BaseOptimizer {
 
+  /** Maps Phis to replace to the node its def is replaced with. */
+  private final Map<Node, Node> replacements = new HashMap<>();
+
   @Override
   public boolean optimize(Graph graph) {
     this.graph = graph;
-    this.hasChanged = false;
-    GraphUtils.topologicalOrder(graph).forEach(this::visit);
-    return hasChanged;
+    this.replacements.clear();
+    fixedPointIteration(GraphUtils.reverseTopologicalOrder(graph));
+    return transform();
+  }
+
+  /** Essentially follows replacements, but also compresses paths. */
+  private Node followReplacements(Node node) {
+    if (replacements.containsKey(node)) {
+      Node original = node;
+      node = followReplacements(replacements.get(node));
+      replacements.put(original, node);
+    }
+    return node;
   }
 
   @Override
@@ -48,7 +63,7 @@ public class PhiOptimizer extends BaseOptimizer {
             .filter(
                 n ->
                     phi.getMode().equals(Mode.getM())
-                        || !n.equals(phi)) // Only include self loops in mode M
+                        || !followReplacements(n).equals(phi)) // Only include self loops in mode M
             .toSet();
     int distinctPreds = predsOtherThanSelf.size();
     boolean isOnlyPred = distinctPreds == 1;
@@ -66,13 +81,27 @@ public class PhiOptimizer extends BaseOptimizer {
     }
 
     assert pred.getOpCode() != iro_Phi || !pred.getBlock().equals(phi.getBlock());
-    FirmUtils.withBackEdges(
+    updateReplacement(phi, pred);
+  }
+
+  private void updateReplacement(Phi phi, Node pred) {
+    Node oldValue = followReplacements(phi);
+    replacements.put(phi, pred);
+    Node newValue = followReplacements(phi);
+    hasChanged |= !newValue.equals(oldValue);
+  }
+
+  private boolean transform() {
+    return FirmUtils.withBackEdges(
         graph,
         () -> {
-          for (BackEdges.Edge usage : BackEdges.getOuts(phi)) {
-            usage.node.setPred(usage.pos, pred);
+          for (Node phi : replacements.keySet()) {
+            Node replacement = followReplacements(phi);
+            for (BackEdges.Edge usage : BackEdges.getOuts(phi)) {
+              usage.node.setPred(usage.pos, replacement);
+            }
           }
+          return !replacements.isEmpty();
         });
-    hasChanged = true;
   }
 }

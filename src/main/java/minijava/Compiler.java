@@ -115,6 +115,7 @@ public class Compiler {
                 phiOptimizer,
                 aliasAnalyzer,
                 loadStoreOptimizer,
+                loopInvariantCodeMotion,
                 controlFlowOptimizer)
             .add(loadStoreOptimizer)
             .dependsOn(
@@ -142,8 +143,8 @@ public class Compiler {
                 loadStoreOptimizer)
             .add(aliasAnalyzer)
             .dependsOn() // It's quite expensive to run the alias analysis, so we do so only once.
-            .add(loopInvariantCodeMotion)
-            .dependsOn() // Dito
+            //.add(loopInvariantCodeMotion)
+            //.dependsOn() // Dito
             .build();
 
     ProgramMetrics metrics = ProgramMetrics.analyse(Program.getGraphs());
