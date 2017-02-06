@@ -35,7 +35,7 @@ public class Cli {
       Joiner.on(System.lineSeparator())
           .join(
               new String[] {
-                "Usage: minijavac [--echo|--lextest|--parsetest|--check|--compile-firm|--print-asm] [--optimize] [--help] [--verbosity] file",
+                "Usage: minijavac [--echo|--lextest|--parsetest|--check|--compile-firm|--print-asm] [-O level] [-v level] [--help] file",
                 "",
                 "  --echo          write file's content to stdout",
                 "  --lextest       run lexical analysis on file's content and print tokens to stdout",
@@ -45,8 +45,8 @@ public class Cli {
                 "  --compile-firm  compile the given file with the libfirm amd64 backend",
                 "  --run-firm      compile and run the given file with libfirm amd64 backend",
                 "  --print-asm     compile the given file and output the generated assembly",
-                "  --optimize|-O   Optimization level of produced IR. 0-3",
-                "  --verbosity|-v  Crank this up for more debug output",
+                "  -O, --optimize  Optimization level of produced IR. 0-3",
+                "  -v, --verbosity Crank this up for more debug output",
                 "  --help          display this help and exit",
                 "",
                 "  If no flag is given, the passed file is compiled to a.out",
@@ -274,16 +274,15 @@ public class Cli {
               || ((Booleans.countTrue(
                           echo, lextest, parsetest, printAst, check, compileFirm, runFirm, printAsm)
                       <= 1)
-                  && (file != null)
-                  && (!echo || mainParameters.size() <= 1)));
+                  && (file != null)));
     }
 
     static Parameters parse(String... args) {
       Parameters params = new Parameters();
       try {
         new JCommander(params, args);
-        if (params.mainParameters.size() > 0) {
-          params.file = params.mainParameters.get(params.mainParameters.size() - 1);
+        if (params.mainParameters.size() == 1) {
+          params.file = params.mainParameters.get(0);
         }
       } catch (ParameterException e) {
         params.invalid = true;
