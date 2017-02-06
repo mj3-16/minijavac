@@ -15,7 +15,7 @@ public class ImmediateOperand extends Operand {
 
   @Override
   public String toString() {
-    return "ImmediateOperand{" + "value=" + value + '}';
+    return String.format("imm%d{%s}", width.sizeInBytes * 8, value);
   }
 
   @Override

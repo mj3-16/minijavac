@@ -7,9 +7,9 @@ import minijava.ir.assembler.registers.Register;
 
 public class IDiv extends Instruction {
 
-  public IDiv(RegisterOperand left, Operand right, Register quotient, Register remainder) {
-    super(left, right, quotient, remainder);
-    assert isConstrainedToRegister(left.register, AMD64Register.A);
+  public IDiv(RegisterOperand dividend, Operand divisor, Register quotient, Register remainder) {
+    super(dividend, divisor, quotient, remainder);
+    assert isConstrainedToRegister(dividend.register, AMD64Register.A);
     assert isConstrainedToRegister(quotient, AMD64Register.A);
     assert isConstrainedToRegister(remainder, AMD64Register.D);
   }

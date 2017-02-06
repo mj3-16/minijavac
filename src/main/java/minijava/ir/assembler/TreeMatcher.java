@@ -1,10 +1,12 @@
 package minijava.ir.assembler;
 
 import static minijava.ir.utils.FirmUtils.modeToWidth;
+import static org.jooq.lambda.Seq.seq;
 
 import firm.Mode;
 import firm.nodes.Node;
 import firm.nodes.NodeVisitor;
+import firm.nodes.Phi;
 import firm.nodes.Proj;
 import firm.nodes.Start;
 import java.util.ArrayList;
@@ -12,6 +14,8 @@ import java.util.List;
 import minijava.ir.assembler.instructions.Add;
 import minijava.ir.assembler.instructions.And;
 import minijava.ir.assembler.instructions.CLTD;
+import minijava.ir.assembler.instructions.Call;
+import minijava.ir.assembler.instructions.Cmp;
 import minijava.ir.assembler.instructions.Enter;
 import minijava.ir.assembler.instructions.IDiv;
 import minijava.ir.assembler.instructions.IMul;
@@ -29,6 +33,7 @@ import minijava.ir.assembler.registers.AMD64Register;
 import minijava.ir.assembler.registers.Register;
 import minijava.ir.assembler.registers.VirtualRegister;
 import minijava.ir.utils.FirmUtils;
+import minijava.ir.utils.MethodInformation;
 import org.jooq.lambda.function.Function2;
 import org.jooq.lambda.function.Function3;
 
@@ -72,13 +77,34 @@ class TreeMatcher extends NodeVisitor.Default {
   }
 
   @Override
-  public void visit(firm.nodes.Call node) {
-    assert false;
+  public void visit(firm.nodes.Call call) {
+    MethodInformation info = new MethodInformation(call);
+    String calleeLabel = info.ldName;
+    allocateStackSpace(SystemVAbi.parameterRegionSize(info));
+    List<Operand> arguments = new ArrayList<>(info.paramNumber);
+    for (int i = 0; i < info.paramNumber; ++i) {
+      // + 2 accounts for mem pred and callee address
+      Operand src = operandForNode(call.getPred(i + 2));
+      Operand dest = SystemVAbi.parameter(i, src.width);
+      instructions.add(new Mov(src, dest));
+      arguments.add(dest);
+    }
+    instructions.add(new Call(calleeLabel, arguments));
+  }
+
+  private void allocateStackSpace(int bytes) {
+    ImmediateOperand size = new ImmediateOperand(OperandWidth.Quad, bytes);
+    RegisterOperand sp = new RegisterOperand(OperandWidth.Quad, AMD64Register.SP);
+    instructions.add(new Sub(size, sp, AMD64Register.SP));
   }
 
   @Override
   public void visit(firm.nodes.Cmp node) {
-    assert false;
+    // We only have to produce the appropriate flags register changes.
+    // Sharing a Mode b value if necessary is done in the InstructionSelector.
+    Operand left = operandForNode(node.getLeft());
+    Operand right = operandForNode(node.getRight());
+    instructions.add(new Cmp(left, right));
   }
 
   @Override
@@ -122,6 +148,12 @@ class TreeMatcher extends NodeVisitor.Default {
   }
 
   @Override
+  public void visit(Phi phi) {
+    // These are handled by the instruction selector. We can be sure that the value of this will
+    // reside in a register.
+  }
+
+  @Override
   public void visit(firm.nodes.Proj proj) {
     if (proj.getMode().equals(Mode.getM())) {
       // Memory edges are erased
@@ -148,20 +180,26 @@ class TreeMatcher extends NodeVisitor.Default {
         break;
       case iro_Load:
         projectLoad(proj, pred);
+        break;
       case iro_Div:
       case iro_Mod:
         projectDivOrMod(proj, pred);
+        break;
+      case iro_Start:
+      case iro_Call:
+        // We ignore these, the projs on these are what's interesting
+        break;
       default:
         assert false : "Can't handle Proj on " + pred;
     }
   }
 
   private void projectDivOrMod(Proj proj, Node node) {
-    // We have to copy the left operand into a temporary register, so we can unleash the register
+    // We have to copy the dividend into a temporary register, so we can unleash the register
     // constraint on RAX.
-    RegisterOperand left = copyOperand(cltd(operandForNode(node.getPred(0))));
-    Operand right = operandForNode(node.getPred(1));
-    setConstraint(left, AMD64Register.A);
+    RegisterOperand dividend = copyOperand(cltd(operandForNode(node.getPred(1))));
+    Operand divisor = operandForNode(node.getPred(2));
+    setConstraint(dividend, AMD64Register.A);
 
     VirtualRegister quotient;
     VirtualRegister remainder;
@@ -169,14 +207,14 @@ class TreeMatcher extends NodeVisitor.Default {
       quotient = mapping.registerForNode(proj);
       remainder = mapping.freshTemporary();
     } else {
-      assert node instanceof firm.nodes.Mod;
+      assert node instanceof firm.nodes.Mod : "projectOrDivMod called something else: " + node;
       quotient = mapping.freshTemporary();
       remainder = mapping.registerForNode(proj);
     }
     quotient.constraint = AMD64Register.A;
     remainder.constraint = AMD64Register.D;
 
-    instructions.add(new IDiv(left, right, quotient, remainder));
+    instructions.add(new IDiv(dividend, divisor, quotient, remainder));
   }
 
   private RegisterOperand cltd(Operand op) {
@@ -299,8 +337,11 @@ class TreeMatcher extends NodeVisitor.Default {
 
   private void saveDefinitions() {
     for (Instruction definition : instructions) {
-      definition.defined.forEach(
-          result -> mapping.setDefinition((VirtualRegister) result, definition));
+      System.out.println("definition = " + definition);
+      for (VirtualRegister register : seq(definition.defined).ofType(VirtualRegister.class)) {
+        System.out.println("Defining " + register + " at " + definition);
+        mapping.setDefinition(register, definition);
+      }
     }
   }
 

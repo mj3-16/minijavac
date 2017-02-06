@@ -6,6 +6,7 @@ import minijava.ir.assembler.operands.Operand;
 import minijava.ir.assembler.operands.OperandWidth;
 import minijava.ir.assembler.operands.RegisterOperand;
 import minijava.ir.assembler.registers.AMD64Register;
+import minijava.ir.utils.MethodInformation;
 
 public class SystemVAbi {
   public static final AMD64Register[] ARG_REGISTERS = {
@@ -38,7 +39,22 @@ public class SystemVAbi {
     index -= ARG_REGISTERS.length;
     index += SLOTS_BETWEEN_BP_AND_ARGS; // Saved BP + return address
     int offset = index * BYTES_PER_ACTIVATION_RECORD_SLOT;
+    AddressingMode address = AddressingMode.offsetFromRegister(AMD64Register.BP, offset);
+    return new MemoryOperand(width, address);
+  }
+
+  /** Analogous to {@link #argument}, but addresses stack slots relative from the callees SP. */
+  public static Operand parameter(int index, OperandWidth width) {
+    if (index < ARG_REGISTERS.length) {
+      return new RegisterOperand(width, ARG_REGISTERS[index]);
+    }
+    index -= ARG_REGISTERS.length;
+    int offset = index * BYTES_PER_ACTIVATION_RECORD_SLOT;
     AddressingMode address = AddressingMode.offsetFromRegister(AMD64Register.SP, offset);
     return new MemoryOperand(width, address);
+  }
+
+  public static int parameterRegionSize(MethodInformation info) {
+    return (info.paramNumber - ARG_REGISTERS.length) * 8;
   }
 }

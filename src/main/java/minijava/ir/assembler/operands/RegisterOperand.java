@@ -19,7 +19,7 @@ public class RegisterOperand extends Operand {
 
   @Override
   public String toString() {
-    return "RegisterOperand{" + "register=" + register + '}';
+    return String.format("r%d{%s}", width.sizeInBytes * 8, register);
   }
 
   @Override

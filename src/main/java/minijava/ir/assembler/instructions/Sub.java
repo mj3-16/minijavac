@@ -10,7 +10,7 @@ public class Sub extends Instruction {
     super(left, right, result);
   }
 
-  public Sub(Operand left, MemoryOperand right, Register result) {
-    super(left, right, result);
+  public Sub(Operand left, MemoryOperand right) {
+    super(left, right);
   }
 }

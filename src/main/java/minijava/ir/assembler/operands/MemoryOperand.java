@@ -19,7 +19,7 @@ public class MemoryOperand extends Operand {
 
   @Override
   public String toString() {
-    return "MemoryOperand{" + "mode=" + mode + '}';
+    return String.format("m%d{%s}", width.sizeInBytes * 8, mode);
   }
 
   @Override

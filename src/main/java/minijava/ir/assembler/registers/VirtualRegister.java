@@ -37,6 +37,6 @@ public class VirtualRegister implements Register {
 
   @Override
   public String toString() {
-    return String.format("%%%d // %s", id, value);
+    return "%" + id;
   }
 }

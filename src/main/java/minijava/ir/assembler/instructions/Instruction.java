@@ -1,5 +1,7 @@
 package minijava.ir.assembler.instructions;
 
+import static org.jooq.lambda.Seq.seq;
+
 import com.beust.jcommander.internal.Lists;
 import com.google.common.base.Preconditions;
 import java.util.ArrayList;
@@ -20,12 +22,12 @@ public abstract class Instruction {
     this.defined = defined;
   }
 
-  protected Instruction(Operand operand, Register result) {
-    this(Lists.newArrayList(operand), Lists.newArrayList(result));
+  protected Instruction(Operand operand, Register defined) {
+    this(Lists.newArrayList(operand), Lists.newArrayList(defined));
   }
 
-  protected Instruction(Operand left, Operand right, Register result) {
-    this(Lists.newArrayList(left, right), Lists.newArrayList(result));
+  protected Instruction(Operand left, Operand right, Register defined) {
+    this(Lists.newArrayList(left, right), Lists.newArrayList(defined));
   }
 
   protected Instruction(Operand left, Operand right) {
@@ -45,6 +47,20 @@ public abstract class Instruction {
       return ((VirtualRegister) reg).constraint == constraint;
     }
     return reg == constraint;
+  }
+
+  @Override
+  public String toString() {
+    StringBuilder sb = new StringBuilder();
+    sb.append(getClass().getSimpleName());
+    sb.append('(');
+    sb.append(String.join(", ", seq(operands).map(Object::toString)));
+    sb.append(')');
+    if (defined.size() > 0) {
+      sb.append(" -> ");
+      sb.append(String.join(", ", seq(defined).map(Object::toString)));
+    }
+    return sb.toString();
   }
 
   interface Visitor {}

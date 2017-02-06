@@ -19,6 +19,8 @@ import minijava.ir.emit.NameMangler;
 public class ProgramMetrics {
   public final Map<Graph, GraphInfo> graphInfos = new HashMap<>();
 
+  private ProgramMetrics() {}
+
   public static ProgramMetrics analyse(Iterable<Graph> graphs) {
     ProgramMetrics metrics = new ProgramMetrics();
     for (Graph graph : graphs) {

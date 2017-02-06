@@ -2,6 +2,7 @@ package minijava.ir.assembler;
 
 import static firm.bindings.binding_irnode.ir_opcode.iro_Block;
 import static firm.bindings.binding_irnode.ir_opcode.iro_Cmp;
+import static firm.bindings.binding_irnode.ir_opcode.iro_Return;
 import static minijava.ir.utils.FirmUtils.modeToWidth;
 import static org.jooq.lambda.Seq.seq;
 
@@ -20,6 +21,7 @@ import firm.nodes.Node;
 import firm.nodes.NodeVisitor;
 import firm.nodes.Phi;
 import firm.nodes.Proj;
+import firm.nodes.Return;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -30,6 +32,7 @@ import minijava.ir.assembler.block.CodeBlock.ExitArity;
 import minijava.ir.assembler.block.CodeBlock.ExitArity.One;
 import minijava.ir.assembler.block.PhiFunction;
 import minijava.ir.assembler.instructions.Instruction;
+import minijava.ir.assembler.instructions.Mov;
 import minijava.ir.assembler.instructions.Test;
 import minijava.ir.assembler.operands.OperandWidth;
 import minijava.ir.assembler.operands.RegisterOperand;
@@ -65,7 +68,7 @@ public class InstructionSelector extends NodeVisitor.Default {
 
     // Determine if we really have to generate an intermediate value in a register for this.
 
-    if (!usedMultipleTimes(node) || !usedInSuccessorBlock(node)) {
+    if (!usedMultipleTimes(node) && !usedInSuccessorBlock(node) && !neededInRegister(node)) {
       // We don't handle these cases here, as the node matcher does not need to put intermediate
       // results in registers.
       return;
@@ -75,6 +78,43 @@ public class InstructionSelector extends NodeVisitor.Default {
     List<Instruction> newInstructions = matcher.match(node);
     CodeBlock block = getCodeBlock((Block) node.getBlock());
     block.instructions.addAll(newInstructions);
+  }
+
+  private CodeBlock getCodeBlock(Block block) {
+    return blocks.computeIfAbsent(block, b -> new CodeBlock(getLabelForBlock(b)));
+  }
+
+  private static String getLabelForBlock(Block block) {
+    Graph definingGraph = block.getGraph();
+    String ldName = new MethodInformation(definingGraph).ldName;
+    if (definingGraph.getStartBlock().equals(block)) {
+      return ldName;
+    }
+    String ldFormat;
+    if (Platform.isLinux()) {
+      ldFormat = ".L%d_%s";
+    } else {
+      ldFormat = "L%d_%s";
+    }
+    return String.format(ldFormat, block.getNr(), ldName);
+  }
+
+  private static boolean usedInSuccessorBlock(Node node) {
+    BackEdges.Edge usage = Iterables.getOnlyElement(BackEdges.getOuts(node));
+    assert node.getOpCode() != iro_Block;
+    return !node.getBlock().equals(usage.node.getBlock());
+  }
+
+  private static boolean usedMultipleTimes(Node node) {
+    return BackEdges.getNOuts(node) > 1;
+  }
+
+  private static boolean neededInRegister(Node node) {
+    // For cases like Return, which we handle in InstructionSelector. This implies we need its
+    // operand in a VirtualRegister (which might be erased again later).
+    return seq(BackEdges.getOuts(node))
+        .filter(be -> be.node.getOpCode() == iro_Return)
+        .isNotEmpty();
   }
 
   @Override
@@ -192,6 +232,23 @@ public class InstructionSelector extends NodeVisitor.Default {
   }
 
   @Override
+  public void visit(Return node) {
+    CodeBlock block = getCodeBlock((Block) node.getBlock());
+    if (node.getPredCount() > 1) {
+      Node retVal = node.getPred(1);
+      // Important invariant: we arrange the calls to the TreeMatcher so that retVal has a
+      // VirtualRegister.
+      VirtualRegister register = mapping.registerForNode(retVal);
+      assert mapping.getDefinition(register) != null : "retVal was not in a register " + retVal;
+      OperandWidth width = modeToWidth(retVal.getMode());
+      RegisterOperand source = new RegisterOperand(width, register);
+      RegisterOperand dest = new RegisterOperand(width, mapping.registerForNode(node));
+      block.instructions.add(new Mov(source, dest));
+    }
+    block.exit = new CodeBlock.ExitArity.Zero();
+  }
+
+  @Override
   public void visit(End node) {
     // Do nothing (?)
   }
@@ -199,35 +256,6 @@ public class InstructionSelector extends NodeVisitor.Default {
   @Override
   public void visit(firm.nodes.Anchor node) {
     // We ignore these
-  }
-
-  private CodeBlock getCodeBlock(Block block) {
-    return blocks.computeIfAbsent(block, b -> new CodeBlock(getLabelForBlock(b)));
-  }
-
-  private static String getLabelForBlock(Block block) {
-    Graph definingGraph = block.getGraph();
-    String ldName = new MethodInformation(definingGraph).ldName;
-    if (definingGraph.getStartBlock().equals(block)) {
-      return ldName;
-    }
-    String ldFormat;
-    if (Platform.isLinux()) {
-      ldFormat = ".L%d_%s";
-    } else {
-      ldFormat = "L%d_%s";
-    }
-    return String.format(ldFormat, block.getNr(), ldName);
-  }
-
-  private boolean usedInSuccessorBlock(Node node) {
-    BackEdges.Edge usage = Iterables.getOnlyElement(BackEdges.getOuts(node));
-    assert node.getOpCode() != iro_Block;
-    return !node.getBlock().equals(usage.node.getBlock());
-  }
-
-  private boolean usedMultipleTimes(Node node) {
-    return BackEdges.getNOuts(node) > 1;
   }
 
   public static Map<Block, CodeBlock> selectInstructions(

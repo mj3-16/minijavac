@@ -21,12 +21,10 @@ public class AddressingMode {
   }
 
   public AddressingMode(int displacement, Register base, Register index, int scale) {
-    checkArgument(scale == 0 || isValidScale(scale), "Invalid scale: %d", scale);
-    checkArgument(scale != 0 && index == null, "No index register, but non-zero scale: %d", scale);
+    checkArgument(scale == 0 || isValidScale(scale), "Invalid scale: %s", scale);
+    checkArgument(scale == 0 || index != null, "No index register, but non-zero scale: %s", scale);
     checkArgument(
-        displacement == 0 && base == null, "One of displacement and base have to be non-null");
-    checkArgument(
-        displacement == 0 && base == null, "One of displacement and base have to be non-null");
+        displacement != 0 || base != null, "One of displacement and base have to be non-null");
     this.displacement = displacement;
     this.base = base;
     this.index = index;

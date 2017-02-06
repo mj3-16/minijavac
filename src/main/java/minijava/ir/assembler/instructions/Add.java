@@ -10,7 +10,7 @@ public class Add extends Instruction {
     super(left, right, result);
   }
 
-  public Add(Operand left, MemoryOperand right, Register result) {
-    super(left, right, result);
+  public Add(Operand left, MemoryOperand right) {
+    super(left, right);
   }
 }
