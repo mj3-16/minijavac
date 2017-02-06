@@ -3,6 +3,7 @@ package minijava;
 import static firm.bindings.binding_irgraph.ir_resources_t.IR_RESOURCE_IRN_LINK;
 import static minijava.Cli.dumpGraphsIfNeeded;
 
+import com.google.common.collect.Sets;
 import com.google.common.io.Files;
 import com.google.common.util.concurrent.Runnables;
 import firm.Graph;
@@ -147,27 +148,30 @@ public class Compiler {
             .build();
 
     ProgramMetrics metrics = ProgramMetrics.analyse(Program.getGraphs());
+    Set<Graph> intraproceduralCandidates = Sets.newHashSet(Program.getGraphs());
     Inliner inliner = new Inliner(metrics, true);
     ScheduledFuture<?> timer =
         Executors.newScheduledThreadPool(1).schedule(Runnables.doNothing(), 9, TimeUnit.MINUTES);
     while (!timer.isDone()) {
       Set<Graph> reachable = metrics.reachableFromMain();
 
-      for (Graph graph : reachable) {
+      for (Graph graph : Sets.intersection(intraproceduralCandidates, reachable)) {
         perGraphFramework.optimizeUntilFixedpoint(graph);
       }
 
       // Here comes the interprocedural stuff... This is method is really turning into a mess
       Cli.dumpGraphsIfNeeded("before-Inliner");
-      boolean hasChanged = false;
+      intraproceduralCandidates.clear();
       for (Graph graph : reachable) {
-        hasChanged |= inliner.optimize(graph);
+        boolean hasChanged = inliner.optimize(graph);
+        if (hasChanged) {
+          intraproceduralCandidates.add(graph);
+        }
         unreachableCodeRemover.optimize(graph);
       }
 
       reachable.forEach(metrics::updateGraphInfo);
-
-      if (!hasChanged) {
+      if (intraproceduralCandidates.isEmpty()) {
         if (inliner.onlyLeafs) {
           inliner = new Inliner(metrics, false);
         } else {
