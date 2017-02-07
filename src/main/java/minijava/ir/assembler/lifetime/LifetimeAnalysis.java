@@ -28,64 +28,85 @@ public class LifetimeAnalysis {
 
   public Map<VirtualRegister, LifetimeInterval> analyse() {
     for (Block irBlock : Lists.reverse(linearization)) {
+      System.out.println("irBlock = " + irBlock);
       CodeBlock block = blocks.get(irBlock);
       Set<VirtualRegister> live = new HashSet<>();
-      System.out.println("irBlock = " + irBlock);
-      for (CodeBlock successor : block.exit.getSuccessors()) {
-        Set<VirtualRegister> successorLiveIn =
-            liveIn.computeIfAbsent(successor, k -> new HashSet<>());
-        for (VirtualRegister register : successorLiveIn) {
-          live.add(register);
-        }
-      }
 
-      for (CodeBlock successor : block.exit.getSuccessors()) {
-        for (PhiFunction phi : successor.phis) {
-          Register alive = phi.inputs.get(block);
-          if (alive instanceof VirtualRegister) {
-            live.add((VirtualRegister) alive);
-          }
-        }
-      }
+      addLiveInFromSuccessors(block, live);
 
-      for (VirtualRegister alive : live) {
-        // Conservatively assume alive in the whole block at first
-        LifetimeInterval interval = getInterval(alive);
-        interval.makeAliveInWholeBlock(block);
-        intervals.put(alive, interval);
-      }
+      System.out.println("live at block end = " + live);
 
-      for (int i = block.instructions.size() - 1; i >= 0; --i) {
-        Instruction instruction = block.instructions.get(i);
-        for (VirtualRegister defined : instruction.outputs) {
-          getInterval(defined).makeAliveFrom(block, i);
-          live.remove(defined);
-        }
+      makeAliveInWholeBlock(block, live);
 
-        for (VirtualRegister used : instruction.usages()) {
-          getInterval(used).makeAliveUntil(block, i);
-          live.add(used);
-        }
-      }
+      walkInstructionsBackwards(block, live);
 
-      for (PhiFunction phi : block.phis) {
-        live.remove(phi.output);
-      }
+      handleBackEdges(irBlock, live);
 
-      for (int predNum : NodeUtils.incomingBackEdges(irBlock)) {
-        // We have a back edge from pred with predNum. For these we have to be conservative:
-        // Every register in live is alive for the complete loop.
-        Block irLoopFooter = (Block) irBlock.getPred(predNum).getBlock();
-        for (VirtualRegister alive : live) {
-          for (Block irLoopBlock : allBlocksBetween(irLoopFooter, irBlock)) {
-            getInterval(alive).makeAliveInWholeBlock(blocks.get(irLoopBlock));
-          }
-        }
-      }
+      System.out.println("live at block begin = " + live);
 
       liveIn.put(block, live);
     }
     return intervals;
+  }
+
+  private void handleBackEdges(Block irBlock, Set<VirtualRegister> live) {
+    for (int predNum : NodeUtils.incomingBackEdges(irBlock)) {
+      // We have a back edge from pred with predNum. For these we have to be conservative:
+      // Every register in live is alive for the complete loop.
+      Block irLoopFooter = (Block) irBlock.getPred(predNum).getBlock();
+      for (VirtualRegister alive : live) {
+        for (Block irLoopBlock : allBlocksBetween(irLoopFooter, irBlock)) {
+          getInterval(alive).makeAliveInWholeBlock(blocks.get(irLoopBlock));
+        }
+      }
+    }
+  }
+
+  private void walkInstructionsBackwards(CodeBlock block, Set<VirtualRegister> live) {
+    for (int i = block.instructions.size() - 1; i >= 0; --i) {
+      Instruction instruction = block.instructions.get(i);
+      for (VirtualRegister defined : instruction.definitions()) {
+        getInterval(defined).makeAliveFrom(block, i);
+        live.remove(defined);
+      }
+
+      for (VirtualRegister used : instruction.usages()) {
+        getInterval(used).makeAliveUntil(block, i);
+        live.add(used);
+      }
+    }
+
+    for (PhiFunction phi : block.phis) {
+      live.remove(phi.output);
+    }
+  }
+
+  private void makeAliveInWholeBlock(CodeBlock block, Set<VirtualRegister> live) {
+    for (VirtualRegister alive : live) {
+      // Conservatively assume alive in the whole block at first
+      LifetimeInterval interval = getInterval(alive);
+      interval.makeAliveInWholeBlock(block);
+      intervals.put(alive, interval);
+    }
+  }
+
+  private void addLiveInFromSuccessors(CodeBlock block, Set<VirtualRegister> live) {
+    for (CodeBlock successor : block.exit.getSuccessors()) {
+      Set<VirtualRegister> successorLiveIn =
+          liveIn.computeIfAbsent(successor, k -> new HashSet<>());
+      for (VirtualRegister register : successorLiveIn) {
+        live.add(register);
+      }
+    }
+
+    for (CodeBlock successor : block.exit.getSuccessors()) {
+      for (PhiFunction phi : successor.phis) {
+        Register alive = phi.inputs.get(block);
+        if (alive instanceof VirtualRegister) {
+          live.add((VirtualRegister) alive);
+        }
+      }
+    }
   }
 
   private Set<Block> allBlocksBetween(Block source, Block target) {

@@ -7,18 +7,19 @@ import minijava.ir.assembler.VirtualRegisterMapping;
 import minijava.ir.assembler.operands.Operand;
 import minijava.ir.assembler.registers.AMD64Register;
 import minijava.ir.assembler.registers.VirtualRegister;
+import org.jooq.lambda.Seq;
 
 public class Call extends Instruction {
   public String label;
 
   public Call(String label, List<Operand> arguments, VirtualRegisterMapping mapping) {
-    super(arguments, temporariesForAllocatableRegisters(mapping));
+    super(arguments, toOperands(temporariesForAllocatableRegisters(mapping)));
     this.label = label;
   }
 
-  private static List<VirtualRegister> temporariesForAllocatableRegisters(
+  private static Seq<VirtualRegister> temporariesForAllocatableRegisters(
       VirtualRegisterMapping mapping) {
-    return seq(AMD64Register.allocatable).map(reg -> temporaryConstraintTo(mapping, reg)).toList();
+    return seq(AMD64Register.allocatable).map(reg -> temporaryConstraintTo(mapping, reg));
   }
 
   private static VirtualRegister temporaryConstraintTo(

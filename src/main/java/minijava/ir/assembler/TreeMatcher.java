@@ -1,7 +1,6 @@
 package minijava.ir.assembler;
 
 import static minijava.ir.utils.FirmUtils.modeToWidth;
-import static org.jooq.lambda.Seq.seq;
 
 import firm.Mode;
 import firm.nodes.Node;
@@ -338,11 +337,11 @@ class TreeMatcher extends NodeVisitor.Default {
   }
 
   private void saveDefinitions() {
-    for (Instruction definition : instructions) {
-      System.out.println("definition = " + definition);
-      for (VirtualRegister register : seq(definition.outputs).ofType(VirtualRegister.class)) {
-        System.out.println("Defining " + register + " at " + definition);
-        mapping.setDefinition(register, definition);
+    for (Instruction definingInstruction : instructions) {
+      System.out.println("definingInstruction = " + definingInstruction);
+      for (VirtualRegister register : definingInstruction.definitions()) {
+        System.out.println("Defining " + register + " at " + definingInstruction);
+        mapping.setDefinition(register, definingInstruction);
       }
     }
   }

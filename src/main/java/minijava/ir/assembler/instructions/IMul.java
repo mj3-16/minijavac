@@ -8,6 +8,6 @@ import minijava.ir.assembler.registers.VirtualRegister;
 
 public class IMul extends Instruction {
   public IMul(Operand left, RegisterOperand right, VirtualRegister result) {
-    super(newArrayList(left, right), newArrayList(result));
+    super(newArrayList(left, right), newArrayList(new RegisterOperand(right.width, result)));
   }
 }

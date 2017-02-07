@@ -1,5 +1,6 @@
 package minijava.ir.assembler.lifetime;
 
+import com.google.common.base.Preconditions;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -36,15 +37,28 @@ public class LifetimeInterval {
   }
 
   public void makeAliveFrom(CodeBlock block, int instructionIndex) {
-    int start = instructionIndex * 2;
-    ConsecutiveRange stillbirth = new ConsecutiveRange(start, start + 1);
-    lifetimes.getOrDefault(block, stillbirth).from = start;
+    if (lifetimes.containsKey(block)) {
+      ConsecutiveRange old = lifetimes.get(block);
+      lifetimes.put(block, old.from(definedBy(instructionIndex)));
+    } else {
+      ConsecutiveRange stillbirth =
+          new ConsecutiveRange(definedBy(instructionIndex), usedBy(instructionIndex + 1));
+      // stillBirth accounts for definitions without usages (we want to keep them because of constraints)
+      lifetimes.put(block, stillbirth);
+    }
   }
 
   public void makeAliveUntil(CodeBlock block, int instructionIndex) {
-    int end = instructionIndex * 2 - 1;
-    ConsecutiveRange wholeBlock = ConsecutiveRange.ofBlock(block);
-    lifetimes.getOrDefault(block, wholeBlock).to = end;
+    lifetimes.compute(
+        block,
+        (k, range) -> {
+          if (range == null) {
+            ConsecutiveRange wholeBlock = ConsecutiveRange.ofBlock(block);
+            return wholeBlock.to(usedBy(instructionIndex));
+          }
+          int newTo = Math.max(range.to, usedBy(instructionIndex));
+          return range.to(newTo);
+        });
   }
 
   @Override
@@ -52,19 +66,38 @@ public class LifetimeInterval {
     return "LifetimeInterval{" + "register=" + register + ", lifetimes=" + lifetimes + '}';
   }
 
+  private static int definedBy(int instructionIndex) {
+    instructionIndex++; // account for Phis
+    return instructionIndex * 2;
+  }
+
+  private static int usedBy(int instructionIndex) {
+    instructionIndex++; // account for Phis
+    return instructionIndex * 2 - 1;
+  }
+
   public static class ConsecutiveRange {
-    public int from; // inclusive, starting at -2 for PhiFunctions
-    public int to; // inclusive
+    public final int from; // inclusive, starting at -2 for PhiFunctions
+    public final int to; // inclusive
 
     public ConsecutiveRange(int from, int to) {
+      Preconditions.checkArgument(from < to, "ConsecutiveRange: from >= to");
       this.from = from;
       this.to = to;
     }
 
+    public ConsecutiveRange from(int from) {
+      return new ConsecutiveRange(from, this.to);
+    }
+
+    public ConsecutiveRange to(int to) {
+      return new ConsecutiveRange(this.from, to);
+    }
+
     public static ConsecutiveRange ofBlock(CodeBlock block) {
-      int start = -2; // Defined before the Phi
-      int end = block.instructions.size() * 2; // Still alive after the last instruction
-      return new ConsecutiveRange(start, end);
+      int from = definedBy(-1); // Defined before the Phi
+      int to = usedBy(block.instructions.size()); // Still alive after the last instruction
+      return new ConsecutiveRange(from, to);
     }
 
     @Override
