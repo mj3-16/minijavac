@@ -39,7 +39,7 @@ public class OptimizerFramework {
       toVisit.remove(next);
 
       Optimizer chosenOptimizer = idToOptimizers[next];
-      LOGGER.debug(chosenOptimizer.getClass().getSimpleName());
+      LOGGER.debug(chosenOptimizer.getClass().getSimpleName() + " on " + graph);
       Cli.dumpGraphIfNeeded(graph, "before-" + chosenOptimizer.getClass().getSimpleName());
       if (chosenOptimizer.optimize(graph)) {
         // The optimizer changed something, so we enqueue all dependent optimizers

@@ -88,22 +88,31 @@ public class LoadStoreOptimizer extends BaseOptimizer {
         // We may only eliminate the store if it isn't visible any more, e.g. currentStore
         // is the only successor to previousStore.
         Node projOnPrevious = currentStore.getMem();
-        List<Edge> usages =
+        List<Edge> otherUsages =
             seq(BackEdges.getOuts(projOnPrevious))
                 .filter(be -> !be.node.equals(currentStore))
                 .toList();
         Block currentBlock = (Block) currentStore.getBlock();
         boolean dominatesAllUsages =
-            seq(usages)
+            seq(otherUsages)
                 .allMatch(be -> Dominance.dominates(currentBlock, (Block) be.node.getBlock()));
         if (!dominatesAllUsages) {
           // We can't do the transformation, as the old stored value might leak through.
           break;
         }
 
+        // The value which we want to store might depend on some of the otherUsages, e.g.
+        // the result of a function call, in which case we can't do the transformation.
+        boolean anyDataDependency =
+            seq(otherUsages)
+                .anyMatch(be -> GraphUtils.areConnected(currentStore.getValue(), be.node));
+        if (anyDataDependency) {
+          break;
+        }
+
         hasChanged = true;
         Proj projOnCurrent = NodeUtils.getMemProjSuccessor(currentStore);
-        for (Edge usage : usages) {
+        for (Edge usage : otherUsages) {
           usage.node.setPred(usage.pos, projOnCurrent);
         }
         currentStore.setMem(previousStore.getMem());
