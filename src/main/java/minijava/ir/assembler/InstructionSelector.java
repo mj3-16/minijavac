@@ -6,6 +6,8 @@ import static firm.bindings.binding_irnode.ir_opcode.iro_Return;
 import static minijava.ir.utils.FirmUtils.modeToWidth;
 import static org.jooq.lambda.Seq.seq;
 
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Iterables;
 import com.sun.jna.Platform;
 import firm.BackEdges;
@@ -52,7 +54,7 @@ public class InstructionSelector extends NodeVisitor.Default {
   private final Graph graph;
   private final ActivationRecord activationRecord;
   private final VirtualRegisterMapping mapping = new VirtualRegisterMapping();
-  private final Map<Block, CodeBlock> blocks = new HashMap<>();
+  private final BiMap<Block, CodeBlock> blocks = HashBiMap.create();
   private final Map<Block, Cmp> lastCmp = new HashMap<>();
   private final Set<Node> retainedComputations = new LinkedHashSet<>();
   private final TreeMatcher matcher = new TreeMatcher(mapping);
@@ -275,7 +277,7 @@ public class InstructionSelector extends NodeVisitor.Default {
     // We ignore these
   }
 
-  public static Map<Block, CodeBlock> selectInstructions(
+  public static BiMap<Block, CodeBlock> selectInstructions(
       Graph graph, ActivationRecord activationRecord) {
     InstructionSelector selector = new InstructionSelector(graph, activationRecord);
     List<Node> topologicalOrder = GraphUtils.topologicalOrder(graph);

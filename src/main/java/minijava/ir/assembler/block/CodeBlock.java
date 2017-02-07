@@ -14,6 +14,8 @@ public class CodeBlock {
   public final Set<PhiFunction> phis = new HashSet<>();
   public final List<Instruction> instructions = new ArrayList<>();
   public ExitArity exit;
+  /** This is the index in the linearization of the CFG. */
+  public int linearizedOrdinal;
 
   public CodeBlock(String label) {
     this.label = label;

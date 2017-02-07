@@ -1,8 +1,10 @@
 package minijava.ir.assembler.lifetime;
 
+import com.google.common.collect.BiMap;
 import com.google.common.collect.Lists;
 import firm.nodes.Block;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -18,18 +20,18 @@ import minijava.ir.utils.NodeUtils;
 public class LifetimeAnalysis {
   private final Map<CodeBlock, Set<VirtualRegister>> liveIn = new HashMap<>();
   private final Map<VirtualRegister, LifetimeInterval> intervals = new HashMap<>();
-  private final Map<Block, CodeBlock> blocks;
-  private final List<Block> linearization;
+  private final BiMap<Block, CodeBlock> blocks;
+  private final List<CodeBlock> linearization;
 
-  public LifetimeAnalysis(Map<Block, CodeBlock> blocks, List<Block> linearization) {
+  public LifetimeAnalysis(BiMap<Block, CodeBlock> blocks, List<CodeBlock> linearization) {
     this.blocks = blocks;
     this.linearization = linearization;
   }
 
-  public Map<VirtualRegister, LifetimeInterval> analyse() {
-    for (Block irBlock : Lists.reverse(linearization)) {
+  public List<LifetimeInterval> analyse() {
+    for (CodeBlock block : Lists.reverse(linearization)) {
+      Block irBlock = blocks.inverse().get(block);
       System.out.println("irBlock = " + irBlock);
-      CodeBlock block = blocks.get(irBlock);
       Set<VirtualRegister> live = new HashSet<>();
 
       addLiveInFromSuccessors(block, live);
@@ -46,7 +48,7 @@ public class LifetimeAnalysis {
 
       liveIn.put(block, live);
     }
-    return intervals;
+    return new ArrayList<>(intervals.values());
   }
 
   private void handleBackEdges(Block irBlock, Set<VirtualRegister> live) {
@@ -77,6 +79,7 @@ public class LifetimeAnalysis {
     }
 
     for (PhiFunction phi : block.phis) {
+      // N.B.: phi output registers aren't visible before the begin of the block, as aren't inputs.
       live.remove(phi.output);
     }
   }
@@ -127,11 +130,11 @@ public class LifetimeAnalysis {
   }
 
   private LifetimeInterval getInterval(VirtualRegister alive) {
-    return intervals.computeIfAbsent(alive, LifetimeInterval::new);
+    return intervals.computeIfAbsent(alive, k -> new LifetimeInterval(k, blocks.size()));
   }
 
-  public static Map<VirtualRegister, LifetimeInterval> analyse(
-      Map<Block, CodeBlock> blocks, List<Block> linearization) {
+  public static List<LifetimeInterval> analyse(
+      BiMap<Block, CodeBlock> blocks, List<CodeBlock> linearization) {
     return new LifetimeAnalysis(blocks, linearization).analyse();
   }
 }
