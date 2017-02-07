@@ -61,19 +61,17 @@ public class GraphUtils {
   }
 
   public static boolean areConnected(Node source, Node target) {
+    final boolean[] connected = {false};
     Consumer<Node> visitor =
         n -> {
           if (n.equals(target)) {
-            throw new EarlyExitException();
+            connected[0] = true;
           }
         };
 
-    try {
-      walkFromNodeDepthFirst(source, visitor, n -> {});
-      return false;
-    } catch (EarlyExitException e) {
-      return true;
-    }
+    walkFromNodeDepthFirst(source, visitor, n -> {});
+
+    return connected[0];
   }
 
   /**
@@ -186,6 +184,4 @@ public class GraphUtils {
   public static void reserveResource(Graph g, ir_resources_t resource) {
     binding_irgraph.ir_reserve_resources(g.ptr, resource.val);
   }
-
-  private static class EarlyExitException extends RuntimeException {}
 }
