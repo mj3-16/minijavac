@@ -266,7 +266,7 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
           // The original loop header won't be loop header after this, so we'll delete the keep edge.
           fixKeepEdges(originalHeader, newHeader);
         });
-    return true;
+    return hasChanged;
   }
 
   private List<Edge> dirtyUsages(Set<Block> toDuplicate) {
@@ -432,8 +432,9 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
     // We surely need to merge definitions.
     Node dummy = graph.newDummy(mode);
     Node[] dummies = Seq.generate(dummy).limit(cfgPreds.size()).toArray(Node[]::new);
-    Phi newDef = (Phi) graph.newPhi(usage, dummies, mode);
+    Node newDef = graph.newPhi(usage, dummies, mode);
     visibleDefs.put(usage, newDef);
+    Set<Node> reachedDefs = new HashSet<>();
     for (int i = 0; i < cfgPreds.size(); ++i) {
       Block predBlock = (Block) cfgPreds.get(i).getBlock();
       Node def;
@@ -443,6 +444,16 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
         def = searchDefinitionInsertingPhis(predBlock, mode, fallbackDef, visibleDefs, true);
       }
       newDef.setPred(i, def);
+      if (!newDef.equals(def)) {
+        // We record unique new defs, other than the Phi itself.
+        reachedDefs.add(def);
+      }
+    }
+
+    if (reachedDefs.size() == 1 && !mode.equals(Mode.getM())) {
+      // ... So that we can simplify looping Phis if their value is invariant.
+      newDef = reachedDefs.iterator().next();
+      visibleDefs.put(usage, newDef);
     }
 
     return newDef;
