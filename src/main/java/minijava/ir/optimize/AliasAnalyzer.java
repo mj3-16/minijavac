@@ -195,7 +195,7 @@ public class AliasAnalyzer extends BaseOptimizer {
 
   @Override
   public void visit(Start node) {
-    // The start node represents an alias class itself, that of all arguments to the function.
+    // The start node represents an alias class itself, that of all input to the function.
     // The memory is tainted at all slots with self references, so that e.g. a field access on an
     // argument will not return an empty alias class, but an alias class that overlaps with anything
     // passed into the function.
@@ -212,7 +212,7 @@ public class AliasAnalyzer extends BaseOptimizer {
 
     // Which memory locations can be aliased by the callee?
     // aliasesSharedWithCallee will find all possible transitive aliasing pointers
-    // that are visible through the function's arguments.
+    // that are visible through the function's input.
     Set<IndirectAccess> argumentAliases = aliasesSharedWithCallee(call, memory);
 
     // A called function may possibly taint all shared chunks, plus any new chunks.
@@ -220,7 +220,7 @@ public class AliasAnalyzer extends BaseOptimizer {
         seq(argumentAliases)
             .map(ia -> ia.base)
             // We also add the returned chunk (which is always represented by the call) as tainted.
-            // If the called method is calloc however, we don't, since we know the result
+            // If the called method is calloc however, we don't, since we know the output
             // will point to a fresh memory block which nothing may possibly alias.
             .append(isCalloc(method) ? Seq.empty() : Seq.of(call))
             .foldLeft(HashTreePSet.empty(), MapPSet::plus);
@@ -263,7 +263,7 @@ public class AliasAnalyzer extends BaseOptimizer {
     Memory memory = getMemory(store);
     Memory modifiedMemory =
         writeValuesToPossibleMemorySlots(memory, ptrPointsTo, valPointsTo, referencedType);
-    // It doesn't make sense to talk about the result value of a Store.
+    // It doesn't make sense to talk about the output value of a Store.
     // Thus it also can't refer to and alias anything.
     updateMemory(store, modifiedMemory);
   }
@@ -329,7 +329,7 @@ public class AliasAnalyzer extends BaseOptimizer {
     // 1. pred matches on a function call.
     // 2. pred matches on the start node to get the argument tuple.
     // In both cases we want the Start/Call node to act as the representant of a new alias class.
-    // For multiple arguments this means we assume that they alias each other (which is a conservative
+    // For multiple input this means we assume that they alias each other (which is a conservative
     // assumption).
 
     Type storageType = Type.createWrapper(NodeUtils.getLink(proj));
@@ -340,14 +340,14 @@ public class AliasAnalyzer extends BaseOptimizer {
 
     PointerType pointerType = (PointerType) storageType;
     Node startOrCall = pred.getPred();
-    // There's the case of functions with pointer arguments, which we mostly handle in visit(Call).
+    // There's the case of functions with pointer input, which we mostly handle in visit(Call).
     // Here we only need to consider the aliases of matching type and add them to our points-to set.
     Set<IndirectAccess> newPointsTo =
         seq(getPointsTo(startOrCall))
             .filter(ia -> ia.isBaseReferencePointingTo(pointerType.getPointsTo()))
             .toSet();
     // The startOrCall node will also serve as our new base representant.
-    // This implies that all function arguments alias each other and that all functions return
+    // This implies that all function input alias each other and that all functions return
     // a new alias class (plus any possible tainted argument aliases).
     IndirectAccess newRepresentant = new IndirectAccess(startOrCall, pointerType.getPointsTo(), 0);
     newPointsTo.add(newRepresentant);
@@ -446,7 +446,7 @@ public class AliasAnalyzer extends BaseOptimizer {
   private static Seq<IndirectAccess> followIndirectAccessInMemory(
       IndirectAccess ref, Memory memory) {
     // We compute the indirection with our memory model, which consists of sparse chunks for
-    // all allocation sites (+ arguments).
+    // all allocation sites (+ input).
     assert ref.pointedToType instanceof PointerType;
     Type newBaseType = ((PointerType) ref.pointedToType).getPointsTo();
     Memory.Chunk allocatedChunk = memory.getChunk(ref.base);

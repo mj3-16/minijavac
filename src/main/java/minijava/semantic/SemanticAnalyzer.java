@@ -272,7 +272,7 @@ public class SemanticAnalyzer
     that.then.acceptVisitor(this);
     locals.leaveScope();
 
-    // Save the result from then
+    // Save the output from then
     boolean thenHasReturned = hasReturned;
     hasReturned = false;
 
@@ -351,7 +351,7 @@ public class SemanticAnalyzer
   }
 
   /**
-   * This is reflexive in both arguments, so swapping them should not change the outcome of this
+   * This is reflexive in both input, so swapping them should not change the outcome of this
    * function.
    *
    * <p>1. When the types are equal, we're OK. 2. If not and one of the basic types was void, we
@@ -424,7 +424,7 @@ public class SemanticAnalyzer
     Expression left = that.left.acceptVisitor(this);
     Expression right = that.right.acceptVisitor(this);
 
-    Type resultType = null; // The result of that switch statement
+    Type resultType = null; // The output of that switch statement
     switch (that.op) {
       case ASSIGN:
         // make sure that we can actually assign something to left, e.g.
@@ -439,7 +439,7 @@ public class SemanticAnalyzer
             left.type,
             right.type,
             right.range()); // This would be broken for type Any, but null can't be assigned to
-        // The result type of the assignment expression is just left.type
+        // The output type of the assignment expression is just left.type
         resultType = left.type;
         break;
       case PLUS:
@@ -595,7 +595,7 @@ public class SemanticAnalyzer
     if (m.parameters.size() != that.arguments.size()) {
       throw new SemanticError(
           that.range(),
-          "Number of declared parameters and actual number of arguments mismatch. Expected "
+          "Number of declared parameters and actual number of input mismatch. Expected "
               + m.parameters.size()
               + " but got "
               + that.arguments.size());

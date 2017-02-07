@@ -1,6 +1,7 @@
 package minijava.ir.assembler.operands;
 
 import java.util.Objects;
+import java.util.function.Function;
 import minijava.ir.assembler.registers.Register;
 
 public class RegisterOperand extends Operand {
@@ -15,6 +16,14 @@ public class RegisterOperand extends Operand {
   @Override
   Operand withChangedWidthImpl(OperandWidth width) {
     return new RegisterOperand(width, register);
+  }
+
+  @Override
+  public <T> T match(
+      Function<ImmediateOperand, T> matchImm,
+      Function<RegisterOperand, T> matchReg,
+      Function<MemoryOperand, T> matchMem) {
+    return matchReg.apply(this);
   }
 
   @Override

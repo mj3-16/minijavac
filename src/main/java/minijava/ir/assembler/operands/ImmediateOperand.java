@@ -1,6 +1,7 @@
 package minijava.ir.assembler.operands;
 
 import java.util.Objects;
+import java.util.function.Function;
 import minijava.ir.utils.AssemblerUtils;
 
 /** Constant operand for assembler instructions */
@@ -42,5 +43,13 @@ public class ImmediateOperand extends Operand {
   @Override
   public Operand withChangedWidthImpl(OperandWidth width) {
     return new ImmediateOperand(width, this.value);
+  }
+
+  @Override
+  public <T> T match(
+      Function<ImmediateOperand, T> matchImm,
+      Function<RegisterOperand, T> matchReg,
+      Function<MemoryOperand, T> matchMem) {
+    return matchImm.apply(this);
   }
 }

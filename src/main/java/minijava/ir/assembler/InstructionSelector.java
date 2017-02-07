@@ -22,6 +22,7 @@ import firm.nodes.NodeVisitor;
 import firm.nodes.Phi;
 import firm.nodes.Proj;
 import firm.nodes.Return;
+import firm.nodes.Start;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -31,7 +32,9 @@ import minijava.ir.assembler.block.CodeBlock;
 import minijava.ir.assembler.block.CodeBlock.ExitArity;
 import minijava.ir.assembler.block.CodeBlock.ExitArity.One;
 import minijava.ir.assembler.block.PhiFunction;
+import minijava.ir.assembler.instructions.Enter;
 import minijava.ir.assembler.instructions.Instruction;
+import minijava.ir.assembler.instructions.Leave;
 import minijava.ir.assembler.instructions.Mov;
 import minijava.ir.assembler.instructions.Test;
 import minijava.ir.assembler.operands.OperandWidth;
@@ -68,7 +71,10 @@ public class InstructionSelector extends NodeVisitor.Default {
 
     // Determine if we really have to generate an intermediate value in a register for this.
 
-    if (!usedMultipleTimes(node) && !usedInSuccessorBlock(node) && !neededInRegister(node)) {
+    if (!usedMultipleTimes(node)
+        && !usedInSuccessorBlock(node)
+        && !neededInRegister(node)
+        && !retainedComputations.contains(node)) {
       // We don't handle these cases here, as the node matcher does not need to put intermediate
       // results in registers.
       return;
@@ -76,8 +82,12 @@ public class InstructionSelector extends NodeVisitor.Default {
 
     // Otherwise we are 'unlucky' and have to produce code for the subtree at node.
     List<Instruction> newInstructions = matcher.match(node);
-    CodeBlock block = getCodeBlock((Block) node.getBlock());
+    CodeBlock block = getCodeBlockOfNode(node);
     block.instructions.addAll(newInstructions);
+  }
+
+  private CodeBlock getCodeBlockOfNode(Node node) {
+    return getCodeBlock((Block) node.getBlock());
   }
 
   private CodeBlock getCodeBlock(Block block) {
@@ -133,9 +143,10 @@ public class InstructionSelector extends NodeVisitor.Default {
     // and do nothing except for noting the Phi in its code-block.
     // SSA form deconstruction happens after/while register allocation.
     VirtualRegister result = mapping.registerForNode(phi);
-    List<VirtualRegister> args = seq(phi.getPreds()).map(mapping::registerForNode).toList();
+    Map<CodeBlock, VirtualRegister> args =
+        seq(phi.getPreds()).toMap(this::getCodeBlockOfNode, mapping::registerForNode);
     OperandWidth width = modeToWidth(phi.getMode());
-    CodeBlock block = getCodeBlock((Block) phi.getBlock());
+    CodeBlock block = getCodeBlockOfNode(phi);
     block.phis.add(new PhiFunction(args, result, width, phi));
   }
 
@@ -166,7 +177,7 @@ public class InstructionSelector extends NodeVisitor.Default {
       OperandWidth width = modeToWidth(Mode.getb());
       RegisterOperand op = new RegisterOperand(width, selResult);
       block.instructions.add(new Test(op, op));
-      relation = Relation.LessGreater; // Should result in a jnz/jne
+      relation = Relation.LessGreater; // Should output in a jnz/jne
     } else {
       Cmp cmp = (Cmp) sel;
       relation = cmp.getRelation();
@@ -228,12 +239,12 @@ public class InstructionSelector extends NodeVisitor.Default {
   public void visit(Jmp jmp) {
     Block target = getJumpTarget(jmp);
     ExitArity exit = new One(getCodeBlock(target));
-    getCodeBlock((Block) jmp.getBlock()).exit = exit;
+    getCodeBlockOfNode(jmp).exit = exit;
   }
 
   @Override
   public void visit(Return node) {
-    CodeBlock block = getCodeBlock((Block) node.getBlock());
+    CodeBlock block = getCodeBlockOfNode(node);
     if (node.getPredCount() > 1) {
       Node retVal = node.getPred(1);
       // Important invariant: we arrange the calls to the TreeMatcher so that retVal has a
@@ -245,7 +256,13 @@ public class InstructionSelector extends NodeVisitor.Default {
       RegisterOperand dest = new RegisterOperand(width, mapping.registerForNode(node));
       block.instructions.add(new Mov(source, dest));
     }
+    block.instructions.add(new Leave());
     block.exit = new CodeBlock.ExitArity.Zero();
+  }
+
+  @Override
+  public void visit(Start node) {
+    getCodeBlock(graph.getStartBlock()).instructions.add(0, new Enter());
   }
 
   @Override

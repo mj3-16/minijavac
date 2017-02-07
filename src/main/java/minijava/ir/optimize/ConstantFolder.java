@@ -111,7 +111,7 @@ public class ConstantFolder extends BaseOptimizer {
 
   /**
    * A more specific overload, the {@param operation} of which also allows to return
-   * Optional.empty() in case the result could not be calculated (e.g. division by zero).
+   * Optional.empty() in case the output could not be calculated (e.g. division by zero).
    */
   private void visitBinaryOperationOptional(
       BiFunction<TargetValue, TargetValue, Optional<TargetValue>> operation,

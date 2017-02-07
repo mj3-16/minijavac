@@ -1,22 +1,22 @@
 package minijava.ir.assembler.block;
 
 import firm.nodes.Phi;
-import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import minijava.ir.assembler.operands.OperandWidth;
 import minijava.ir.assembler.registers.Register;
 
 public class PhiFunction {
-  public final List<? extends Register> arguments;
-  public final Register result;
+  public final Map<CodeBlock, ? extends Register> inputs;
+  public final Register output;
   public final OperandWidth width;
-  /** We need this just for equality and hashing.Register */
+  /** We need this just for equality and hashing. */
   private final Phi phi;
 
   public PhiFunction(
-      List<? extends Register> arguments, Register result, OperandWidth width, Phi phi) {
-    this.arguments = arguments;
-    this.result = result;
+      Map<CodeBlock, ? extends Register> inputs, Register output, OperandWidth width, Phi phi) {
+    this.inputs = inputs;
+    this.output = output;
     this.width = width;
     this.phi = phi;
   }
@@ -36,5 +36,10 @@ public class PhiFunction {
   @Override
   public int hashCode() {
     return Objects.hash(phi);
+  }
+
+  @Override
+  public String toString() {
+    return "Phi" + width.sizeInBytes * 8 + inputs + "-> " + output;
   }
 }

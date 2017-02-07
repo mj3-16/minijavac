@@ -2,44 +2,43 @@ package minijava.ir.assembler.instructions;
 
 import static org.jooq.lambda.Seq.seq;
 
-import com.beust.jcommander.internal.Lists;
 import com.google.common.base.Preconditions;
-import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import minijava.ir.assembler.operands.Operand;
 import minijava.ir.assembler.registers.AMD64Register;
 import minijava.ir.assembler.registers.Register;
 import minijava.ir.assembler.registers.VirtualRegister;
 
 public abstract class Instruction {
-  public final List<Operand> operands;
-  public final List<Register> defined;
+  public final List<Operand> inputs;
+  public final List<VirtualRegister> outputs;
 
-  protected Instruction(List<Operand> operands, List<Register> defined) {
-    Preconditions.checkArgument(!operands.contains(null), "null Operand");
-    Preconditions.checkArgument(!defined.contains(null), "null result register");
-    this.operands = operands;
-    this.defined = defined;
+  protected Instruction(List<Operand> inputs, List<VirtualRegister> outputs) {
+    Preconditions.checkArgument(!inputs.contains(null), "null input operand");
+    Preconditions.checkArgument(!outputs.contains(null), "null output register");
+    this.inputs = inputs;
+    this.outputs = outputs;
   }
 
-  protected Instruction(Operand operand, Register defined) {
-    this(Lists.newArrayList(operand), Lists.newArrayList(defined));
+  public Set<VirtualRegister> usages() {
+    Set<VirtualRegister> usages = new HashSet<>();
+    for (Operand input : inputs) {
+      input.match(
+          imm -> {},
+          reg -> addIfVirtualRegister(reg.register, usages),
+          mem -> addIfVirtualRegister(mem.mode.index, addIfVirtualRegister(mem.mode.base, usages)));
+    }
+    return usages;
   }
 
-  protected Instruction(Operand left, Operand right, Register defined) {
-    this(Lists.newArrayList(left, right), Lists.newArrayList(defined));
-  }
-
-  protected Instruction(Operand left, Operand right) {
-    this(Lists.newArrayList(left, right), new ArrayList<>());
-  }
-
-  protected Instruction(Operand operand, Register resultLow, Register resultHigh) {
-    this(Lists.newArrayList(operand), Lists.newArrayList(resultLow, resultHigh));
-  }
-
-  protected Instruction(Operand left, Operand right, Register resultLow, Register resultHigh) {
-    this(Lists.newArrayList(left, right), Lists.newArrayList(resultLow, resultHigh));
+  private Set<VirtualRegister> addIfVirtualRegister(
+      Register register, Set<VirtualRegister> registers) {
+    if (register instanceof VirtualRegister) {
+      registers.add((VirtualRegister) register);
+    }
+    return registers;
   }
 
   protected static boolean isConstrainedToRegister(Register reg, AMD64Register constraint) {
@@ -54,11 +53,11 @@ public abstract class Instruction {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName());
     sb.append('(');
-    sb.append(String.join(", ", seq(operands).map(Object::toString)));
+    sb.append(String.join(", ", seq(inputs).map(Object::toString)));
     sb.append(')');
-    if (defined.size() > 0) {
+    if (outputs.size() > 0) {
       sb.append(" -> ");
-      sb.append(String.join(", ", seq(defined).map(Object::toString)));
+      sb.append(String.join(", ", seq(outputs).map(Object::toString)));
     }
     return sb.toString();
   }

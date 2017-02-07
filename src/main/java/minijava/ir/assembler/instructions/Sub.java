@@ -1,16 +1,18 @@
 package minijava.ir.assembler.instructions;
 
+import static com.google.common.collect.Lists.newArrayList;
+
 import minijava.ir.assembler.operands.MemoryOperand;
 import minijava.ir.assembler.operands.Operand;
 import minijava.ir.assembler.operands.RegisterOperand;
-import minijava.ir.assembler.registers.Register;
+import minijava.ir.assembler.registers.VirtualRegister;
 
 public class Sub extends Instruction {
-  public Sub(Operand left, RegisterOperand right, Register result) {
-    super(left, right, result);
+  public Sub(Operand subtrahend, RegisterOperand minuend, VirtualRegister result) {
+    super(newArrayList(subtrahend, minuend), newArrayList(result));
   }
 
-  public Sub(Operand left, MemoryOperand right) {
-    super(left, right);
+  public Sub(Operand subtrahend, MemoryOperand minuend) {
+    super(newArrayList(subtrahend, minuend), newArrayList());
   }
 }

@@ -16,7 +16,7 @@ public class LookAheadIterator<T> implements Iterator<T> {
   }
 
   /**
-   * Looks ahead into the stream of elements, tries to return the element as the result of the n-th
+   * Looks ahead into the stream of elements, tries to return the element as the output of the n-th
    * call to @next()@, if there is one, or @Optional.empty()@ otherwise.
    *
    * <p>To get a feel for how this works: In the call

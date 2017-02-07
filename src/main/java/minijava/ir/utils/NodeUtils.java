@@ -165,7 +165,7 @@ public class NodeUtils {
     return seq(b.getPreds())
         .zipWithIndex()
         .filter(pred -> Dominance.dominates(b, (Block) pred.v1.getBlock()))
-        .map(pred -> (int) (long) pred.v2);
+        .map(pred -> pred.v2.intValue());
   }
 
   public static boolean isTiedToBlock(Node node) {

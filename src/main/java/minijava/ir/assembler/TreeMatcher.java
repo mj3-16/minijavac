@@ -16,7 +16,6 @@ import minijava.ir.assembler.instructions.And;
 import minijava.ir.assembler.instructions.CLTD;
 import minijava.ir.assembler.instructions.Call;
 import minijava.ir.assembler.instructions.Cmp;
-import minijava.ir.assembler.instructions.Enter;
 import minijava.ir.assembler.instructions.IDiv;
 import minijava.ir.assembler.instructions.IMul;
 import minijava.ir.assembler.instructions.Instruction;
@@ -30,7 +29,6 @@ import minijava.ir.assembler.operands.Operand;
 import minijava.ir.assembler.operands.OperandWidth;
 import minijava.ir.assembler.operands.RegisterOperand;
 import minijava.ir.assembler.registers.AMD64Register;
-import minijava.ir.assembler.registers.Register;
 import minijava.ir.assembler.registers.VirtualRegister;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.MethodInformation;
@@ -80,22 +78,32 @@ class TreeMatcher extends NodeVisitor.Default {
   public void visit(firm.nodes.Call call) {
     MethodInformation info = new MethodInformation(call);
     String calleeLabel = info.ldName;
-    allocateStackSpace(SystemVAbi.parameterRegionSize(info));
+    int parameterRegionSize = SystemVAbi.parameterRegionSize(info);
+    allocateStackSpace(parameterRegionSize);
     List<Operand> arguments = new ArrayList<>(info.paramNumber);
     for (int i = 0; i < info.paramNumber; ++i) {
       // + 2 accounts for mem pred and callee address
       Operand src = operandForNode(call.getPred(i + 2));
       Operand dest = SystemVAbi.parameter(i, src.width);
-      instructions.add(new Mov(src, dest));
+      if (dest instanceof RegisterOperand) {
+        instructions.add(new Mov(src, (RegisterOperand) dest));
+      } else {
+        instructions.add(new Mov(src, (MemoryOperand) dest));
+      }
       arguments.add(dest);
     }
-    instructions.add(new Call(calleeLabel, arguments));
+    instructions.add(new Call(calleeLabel, arguments, mapping));
+    allocateStackSpace(-parameterRegionSize);
   }
 
   private void allocateStackSpace(int bytes) {
     ImmediateOperand size = new ImmediateOperand(OperandWidth.Quad, bytes);
-    RegisterOperand sp = new RegisterOperand(OperandWidth.Quad, AMD64Register.SP);
-    instructions.add(new Sub(size, sp, AMD64Register.SP));
+    VirtualRegister inputReg = mapping.freshTemporary();
+    inputReg.constraint = AMD64Register.SP;
+    VirtualRegister outputReg = mapping.freshTemporary();
+    outputReg.constraint = AMD64Register.SP;
+    RegisterOperand sp = new RegisterOperand(OperandWidth.Quad, inputReg);
+    instructions.add(bytes >= 0 ? new Sub(size, sp, outputReg) : new Add(size, sp, outputReg));
   }
 
   @Override
@@ -259,13 +267,6 @@ class TreeMatcher extends NodeVisitor.Default {
   }
 
   @Override
-  public void visit(firm.nodes.Start node) {
-    // This is cheating, but there isn't much freedom in how to choose instructions for
-    // the prologue.
-    instructions.add(new Enter());
-  }
-
-  @Override
   public void visit(firm.nodes.Store store) {
     AddressingMode address = followIndirecion(store.getPtr());
     Operand value = operandForNode(store.getValue());
@@ -299,7 +300,7 @@ class TreeMatcher extends NodeVisitor.Default {
   }
 
   private void unaryOperator(
-      firm.nodes.Node node, Function2<Operand, Register, Instruction> factory) {
+      firm.nodes.Node node, Function2<Operand, VirtualRegister, Instruction> factory) {
     assert node.getPredCount() == 1;
     Operand op = operandForNode(node.getPred(0));
     VirtualRegister result = mapping.registerForNode(node);
@@ -307,12 +308,13 @@ class TreeMatcher extends NodeVisitor.Default {
   }
 
   /**
-   * Some binary operator that saves its result in the right argument. We need to model those with
+   * Some binary operator that saves its output in the right argument. We need to model those with
    * an extra move instruction, as Linear scan expects 3-address code. Redundant moves can easily be
    * deleted later on.
    */
   private void binaryOperator(
-      firm.nodes.Binop node, Function3<Operand, RegisterOperand, Register, Instruction> factory) {
+      firm.nodes.Binop node,
+      Function3<Operand, RegisterOperand, VirtualRegister, Instruction> factory) {
     Operand left = operandForNode(node.getLeft());
     Operand right = operandForNode(node.getRight());
     RegisterOperand copiedRight = copyOperand(right);
@@ -338,7 +340,7 @@ class TreeMatcher extends NodeVisitor.Default {
   private void saveDefinitions() {
     for (Instruction definition : instructions) {
       System.out.println("definition = " + definition);
-      for (VirtualRegister register : seq(definition.defined).ofType(VirtualRegister.class)) {
+      for (VirtualRegister register : seq(definition.outputs).ofType(VirtualRegister.class)) {
         System.out.println("Defining " + register + " at " + definition);
         mapping.setDefinition(register, definition);
       }

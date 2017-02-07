@@ -1,6 +1,7 @@
 package minijava.ir.assembler.operands;
 
 import java.util.Objects;
+import java.util.function.Function;
 
 /** An operand loaded from memory via a specified addressing mode. */
 public class MemoryOperand extends Operand {
@@ -15,6 +16,14 @@ public class MemoryOperand extends Operand {
   @Override
   Operand withChangedWidthImpl(OperandWidth width) {
     return new MemoryOperand(width, mode);
+  }
+
+  @Override
+  public <T> T match(
+      Function<ImmediateOperand, T> matchImm,
+      Function<RegisterOperand, T> matchReg,
+      Function<MemoryOperand, T> matchMem) {
+    return matchMem.apply(this);
   }
 
   @Override

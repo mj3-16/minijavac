@@ -381,7 +381,7 @@ public class IREmitter
             leftConv,
             rightConv,
             binding_ircons.op_pin_state.op_pin_state_pinned);
-    // Fetch the result from memory
+    // Fetch the output from memory
     assert Div.pnRes == Mod.pnRes;
     assert Div.pnM == Mod.pnM;
     Node retProj = construction.newProj(divOrMod, Mode.getLs(), Div.pnRes);
@@ -512,16 +512,16 @@ public class IREmitter
     // the last argument is (according to the documentation) the type of the called procedure
     Node call =
         construction.newCall(construction.getCurrentMem(), funcAddress, args, func.getType());
-    // Set a new memory dependency for the result
+    // Set a new memory dependency for the output
     construction.setCurrentMem(construction.newProj(call, Mode.getM(), Call.pnM));
-    // unpacking the result needs to be done separately with `unpackCallResult`
+    // unpacking the output needs to be done separately with `unpackCallResult`
     return call;
   }
 
   private ExpressionIR unpackCallResult(Node call, Type storageType) {
     // a method returns a tuple
     Node resultTuple = construction.newProj(call, Mode.getT(), Call.pnTResult);
-    // at index 0 this tuple contains the result
+    // at index 0 this tuple contains the output
     Node result = construction.newProj(resultTuple, storageType.getMode(), 0);
     // The precise storageType is needed for alias analyis.
     NodeUtils.setLink(result, storageType.ptr);

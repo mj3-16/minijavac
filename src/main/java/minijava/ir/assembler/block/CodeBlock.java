@@ -1,9 +1,11 @@
 package minijava.ir.assembler.block;
 
+import com.google.common.collect.Sets;
 import firm.Relation;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import minijava.ir.assembler.instructions.Instruction;
 
@@ -17,15 +19,59 @@ public class CodeBlock {
     this.label = label;
   }
 
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    CodeBlock codeBlock = (CodeBlock) o;
+    return Objects.equals(label, codeBlock.label);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(label);
+  }
+
+  @Override
+  public String toString() {
+    return label;
+  }
+
   /** Poor man's ADT */
   public interface ExitArity {
-    class Zero implements ExitArity {}
+    Set<CodeBlock> getSuccessors();
+
+    class Zero implements ExitArity {
+      @Override
+      public Set<CodeBlock> getSuccessors() {
+        return new HashSet<>();
+      }
+
+      @Override
+      public String toString() {
+        return "<ret>";
+      }
+    }
 
     class One implements ExitArity {
       public final CodeBlock target;
 
       public One(CodeBlock target) {
         this.target = target;
+      }
+
+      @Override
+      public Set<CodeBlock> getSuccessors() {
+        return Sets.newHashSet(target);
+      }
+
+      @Override
+      public String toString() {
+        return "<jmp " + target + ">";
       }
     }
 
@@ -38,6 +84,16 @@ public class CodeBlock {
         this.relation = relation;
         this.trueTarget = trueTarget;
         this.falseTarget = falseTarget;
+      }
+
+      @Override
+      public Set<CodeBlock> getSuccessors() {
+        return Sets.newHashSet(trueTarget, falseTarget);
+      }
+
+      @Override
+      public String toString() {
+        return "<" + relation + " " + trueTarget + " " + falseTarget + ">";
       }
     }
   }
