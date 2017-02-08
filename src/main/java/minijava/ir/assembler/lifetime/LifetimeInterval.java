@@ -1,22 +1,30 @@
 package minijava.ir.assembler.lifetime;
 
-import com.google.common.base.Preconditions;
+import static com.google.common.base.Preconditions.checkArgument;
+import static org.jooq.lambda.tuple.Tuple.tuple;
+
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import minijava.ir.assembler.block.CodeBlock;
 import minijava.ir.assembler.registers.VirtualRegister;
+import org.jooq.lambda.tuple.Tuple2;
 
 public class LifetimeInterval {
   public final VirtualRegister register;
+  public final SortedSet<BlockPosition> defAndUses;
   private final BlockInterval[] lifetimes;
-  private int fromOrdinal;
-  private int toOrdinal;
 
   public LifetimeInterval(VirtualRegister register, int numberOfBlocks) {
+    this(register, numberOfBlocks, new TreeSet<>());
+  }
+
+  private LifetimeInterval(
+      VirtualRegister register, int numberOfBlocks, SortedSet<BlockPosition> defAndUses) {
     this.register = register;
     this.lifetimes = new BlockInterval[numberOfBlocks];
-    fromOrdinal = numberOfBlocks - 1;
-    toOrdinal = 0;
+    this.defAndUses = defAndUses;
   }
 
   public BlockInterval getLifetimeInBlock(CodeBlock block) {
@@ -26,11 +34,11 @@ public class LifetimeInterval {
   }
 
   public CodeBlock firstBlock() {
-    return lifetimes[fromOrdinal].block;
+    return defAndUses.first().block;
   }
 
   public CodeBlock lastBlock() {
-    return lifetimes[toOrdinal].block;
+    return defAndUses.last().block;
   }
 
   @Override
@@ -42,44 +50,54 @@ public class LifetimeInterval {
       return false;
     }
     LifetimeInterval that = (LifetimeInterval) o;
-    return Objects.equals(register, that.register) && Objects.equals(lifetimes, that.lifetimes);
+    return Objects.equals(register, that.register)
+        && Objects.equals(defAndUses, that.defAndUses)
+        && Arrays.equals(lifetimes, that.lifetimes);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(register, lifetimes);
+    return Objects.hash(register, defAndUses, lifetimes);
   }
 
   public void makeAliveInWholeBlock(CodeBlock block) {
-    setLifetimeInBlock(block, BlockInterval.everywhere(block));
+    setLifetimeInBlock(block, everywhere(block));
+  }
+
+  private static BlockInterval everywhere(CodeBlock block) {
+    int from = 0;
+    int to = usedBy(block.instructions.size());
+    return new BlockInterval(block, from, to);
   }
 
   private void setLifetimeInBlock(CodeBlock block, BlockInterval lifetime) {
     assert lifetime != null : "We can never forget an interval again";
     lifetimes[block.linearizedOrdinal] = lifetime;
-    fromOrdinal = Math.min(fromOrdinal, block.linearizedOrdinal);
-    toOrdinal = Math.max(toOrdinal, block.linearizedOrdinal);
   }
 
-  public void makeAliveFrom(CodeBlock block, int instructionIndex) {
+  public void setDef(CodeBlock block, int instructionIndex) {
     BlockInterval lifetime = getLifetimeInBlock(block);
-    int from = definedBy(instructionIndex);
+    int def = definedBy(instructionIndex);
+    defAndUses.add(new BlockPosition(block, def));
     if (lifetime == null) {
-      int to = usedBy(instructionIndex + 1);
-      BlockInterval stillbirth = new BlockInterval(block, from, to);
-      // stillBirth accounts for definitions without usages (we want to keep them because of constraints)
+      // this accounts for definitions without usages (we want to keep them because of constraints)
+      int pseudoUse = usedBy(instructionIndex + 1);
+      defAndUses.add(new BlockPosition(block, pseudoUse));
+      BlockInterval stillbirth = new BlockInterval(block, def, pseudoUse);
       setLifetimeInBlock(block, stillbirth);
     } else {
-      setLifetimeInBlock(block, lifetime.from(from));
+      setLifetimeInBlock(block, lifetime.from(def));
     }
   }
 
-  public void makeAliveUntil(CodeBlock block, int instructionIndex) {
+  public void addUse(CodeBlock block, int instructionIndex) {
+    int usage = usedBy(instructionIndex);
+    defAndUses.add(new BlockPosition(block, usage));
     BlockInterval lifetime = getLifetimeInBlock(block);
     if (lifetime == null) {
-      setLifetimeInBlock(block, BlockInterval.everywhere(block).to(usedBy(instructionIndex)));
+      setLifetimeInBlock(block, everywhere(block).to(usage));
     } else {
-      setLifetimeInBlock(block, lifetime.to(Math.max(lifetime.to, usedBy(instructionIndex))));
+      setLifetimeInBlock(block, lifetime.to(Math.max(lifetime.to, usage)));
     }
   }
 
@@ -124,9 +142,17 @@ public class LifetimeInterval {
         && analogInterval.to >= interval.from;
   }
 
+  private int firstBlockOrdinal() {
+    return defAndUses.first().block.linearizedOrdinal;
+  }
+
+  private int lastBlockOrdinal() {
+    return defAndUses.last().block.linearizedOrdinal;
+  }
+
   public BlockInterval firstIntersectionWith(LifetimeInterval other) {
-    int firstPossibleOrdinal = Math.min(fromOrdinal, other.fromOrdinal);
-    int lastPossibleOrdinal = Math.max(lifetimes.length, other.lifetimes.length) - 1;
+    int firstPossibleOrdinal = Math.max(firstBlockOrdinal(), other.firstBlockOrdinal());
+    int lastPossibleOrdinal = Math.min(lastBlockOrdinal(), other.lastBlockOrdinal());
     for (int i = firstPossibleOrdinal; i <= lastPossibleOrdinal; ++i) {
       BlockInterval thisInterval = lifetimes[i];
       BlockInterval otherInterval = other.lifetimes[i];
@@ -140,63 +166,36 @@ public class LifetimeInterval {
     return null;
   }
 
-  public static class BlockInterval {
-    public final CodeBlock block;
-    public final int from; // inclusive, starting at -2 for PhiFunctions
-    public final int to; // inclusive
+  public Tuple2<LifetimeInterval, LifetimeInterval> splitBefore(BlockPosition pos) {
+    checkArgument(defAndUses.first().compareTo(pos) < 0, "pos must lie after the interval's def");
+    checkArgument(defAndUses.last().compareTo(pos) > 0, "pos must lie before the last use");
+    // Not that the after split interval has a use as its first defAndUses... This might bring
+    // confusion later on, but there is no sensible def index to choose.
+    return tuple(partBeforeOrAfter(pos, false), partBeforeOrAfter(pos, true));
+  }
 
-    public BlockInterval(CodeBlock block, int from, int to) {
-      Preconditions.checkArgument(from >= 0, "ConsecutiveRange: from < 0");
-      Preconditions.checkArgument(from < to, "ConsecutiveRange: from >= to");
-      this.block = block;
-      this.from = from;
-      this.to = to;
+  private LifetimeInterval partBeforeOrAfter(BlockPosition splitPos, boolean after) {
+    SortedSet<BlockPosition> defAndUses =
+        after ? this.defAndUses.tailSet(splitPos) : this.defAndUses.headSet(splitPos);
+    BlockPosition firstPos = defAndUses.first();
+    BlockPosition lastPos = defAndUses.last();
+    LifetimeInterval split = new LifetimeInterval(register, lifetimes.length, defAndUses);
+    // We need to copy lifetime intervals between the the first and last use.
+    int first = firstPos.block.linearizedOrdinal;
+    int last = lastPos.block.linearizedOrdinal;
+    System.arraycopy(lifetimes, first, split.lifetimes, first, last + 1 - first);
+
+    // We can also be more precise for the begin and end of the split interval.
+    // Note that the lifetime may stretch beyond the last use! (e.g. loops)
+    // That's why we only modify the from part when we are producing the after split.
+    // This also destroys SSA form of the intervals.
+    if (after) {
+      split.lifetimes[first] = split.lifetimes[first].from(firstPos.useDefIndex);
+    } else {
+      assert firstPos.useDefIndex == split.lifetimes[first].from;
+      split.lifetimes[last] = split.lifetimes[last].to(lastPos.useDefIndex);
     }
 
-    public BlockInterval from(int from) {
-      return new BlockInterval(this.block, from, this.to);
-    }
-
-    public BlockInterval to(int to) {
-      return new BlockInterval(this.block, this.from, to);
-    }
-
-    public static BlockInterval everywhere(CodeBlock block) {
-      int from = 0;
-      int to = usedBy(block.instructions.size());
-      return new BlockInterval(block, from, to);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-      if (this == o) {
-        return true;
-      }
-      if (o == null || getClass() != o.getClass()) {
-        return false;
-      }
-      BlockInterval that = (BlockInterval) o;
-      return from == that.from && to == that.to;
-    }
-
-    @Override
-    public int hashCode() {
-      return Objects.hash(from, to);
-    }
-
-    @Override
-    public String toString() {
-      return String.format("[%d, %d]", from, to);
-    }
-
-    public BlockInterval intersectionWith(BlockInterval other) {
-      if (!block.equals(other.block)) {
-        return null;
-      }
-      if (from > other.to || to < other.from) {
-        return null;
-      }
-      return new BlockInterval(block, Math.max(from, other.from), Math.min(to, other.to));
-    }
+    return split;
   }
 }

@@ -68,12 +68,12 @@ public class LifetimeAnalysis {
     for (int i = block.instructions.size() - 1; i >= 0; --i) {
       Instruction instruction = block.instructions.get(i);
       for (VirtualRegister defined : instruction.definitions()) {
-        getInterval(defined).makeAliveFrom(block, i);
+        getInterval(defined).setDef(block, i);
         live.remove(defined);
       }
 
       for (VirtualRegister used : instruction.usages()) {
-        getInterval(used).makeAliveUntil(block, i);
+        getInterval(used).addUse(block, i);
         live.add(used);
       }
     }

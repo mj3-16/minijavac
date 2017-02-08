@@ -9,7 +9,7 @@ import firm.nodes.Block;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import minijava.ir.assembler.allocation.LinearScanAllocator;
+import minijava.ir.assembler.allocation.LinearScanRegisterAllocator;
 import minijava.ir.assembler.block.CodeBlock;
 import minijava.ir.assembler.lifetime.LifetimeAnalysis;
 import minijava.ir.assembler.lifetime.LifetimeInterval;
@@ -35,7 +35,7 @@ public class Backend {
         System.out.println(block.exit);
       }
       List<LifetimeInterval> lifetimes = LifetimeAnalysis.analyse(currentFunction, linearization);
-      lifetimes.sort(LinearScanAllocator.BY_FROM);
+      lifetimes.sort(LinearScanRegisterAllocator.BY_FROM);
       lifetimes.forEach(System.out::println);
     }
 
