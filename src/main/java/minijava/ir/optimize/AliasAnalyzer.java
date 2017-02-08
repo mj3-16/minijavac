@@ -317,6 +317,12 @@ public class AliasAnalyzer extends BaseOptimizer {
     Set<IndirectAccess> possibleNewAliases =
         seq(sharedAliases).map(ia -> new IndirectAccess(call, ia.pointedToType, ia.offset)).toSet();
     sharedAliases.addAll(possibleNewAliases);
+    // Plus, any new aliases fitting the return type (if a reference) and its transitive aliases.
+    if (mt.getNRess() > 0 && contributesToAliasAnalysis(mt.getResType(0))) {
+      PointerType retType = (PointerType) mt.getResType(0);
+      IndirectAccess retVal = new IndirectAccess(call, retType.getPointsTo(), 0);
+      transitiveAliasesOfChunk(retVal, memory).forEach(sharedAliases::add);
+    }
     return sharedAliases;
   }
 
@@ -498,8 +504,8 @@ public class AliasAnalyzer extends BaseOptimizer {
     private final Node base;
     private final Type pointedToType;
     /**
-     * This is only null, iff base points to an array which was used in a Sel expression where the
-     * index is not constant (and thus unknown).
+     * This is only UNKNOWN_OFFSET, iff base points to an array which was used in a Sel expression
+     * where the index is not constant (and thus unknown).
      *
      * <p>Note that in this case, this may never be a base reference.
      */
