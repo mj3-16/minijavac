@@ -864,7 +864,10 @@ public class AliasAnalyzer extends BaseOptimizer {
       Node ptr = sideEffect.getPred(1);
       Set<IndirectAccess> aliasClass = getPointsTo(ptr);
       boolean isLoad = sideEffect.getOpCode() == iro_Load;
-      assert !aliasClass.isEmpty() : "Empty alias class at " + sideEffect;
+      // This can really happen, e.g. if an array element or field is accessed before initialized
+      // with a value. We may potentially replace the Load with a null/0 or do anything on a Store
+      // because of of undefined behavior.
+      //assert !aliasClass.isEmpty() : "Empty alias class at " + sideEffect;
       Predicate<Node> affectsSideEffect =
           se -> {
             if (isLoad && se.getOpCode() == iro_Load) {
