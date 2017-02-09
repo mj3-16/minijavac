@@ -130,7 +130,7 @@ public class LifetimeAnalysis {
   }
 
   private LifetimeInterval getInterval(VirtualRegister alive) {
-    return intervals.computeIfAbsent(alive, k -> new LifetimeInterval(k, blocks.size()));
+    return intervals.computeIfAbsent(alive, k -> new LifetimeInterval(k));
   }
 
   public static List<LifetimeInterval> analyse(

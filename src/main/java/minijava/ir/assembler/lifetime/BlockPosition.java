@@ -9,17 +9,13 @@ public class BlockPosition implements Comparable<BlockPosition> {
 
   private static Comparator<BlockPosition> COMPARATOR =
       Comparator.comparingInt((BlockPosition bp) -> bp.block.linearizedOrdinal)
-          .thenComparingInt(bp -> bp.useDefIndex);
+          .thenComparingInt(bp -> bp.pos);
   public final CodeBlock block;
-  public final int useDefIndex;
+  public final int pos;
 
-  public BlockPosition(CodeBlock block, int useDefIndex) {
+  public BlockPosition(CodeBlock block, int pos) {
     this.block = block;
-    this.useDefIndex = useDefIndex;
-  }
-
-  public static BlockPosition fromBlockIntervalStart(BlockInterval interval) {
-    return new BlockPosition(interval.block, interval.from);
+    this.pos = pos;
   }
 
   @Override
@@ -31,12 +27,12 @@ public class BlockPosition implements Comparable<BlockPosition> {
       return false;
     }
     BlockPosition that = (BlockPosition) o;
-    return useDefIndex == that.useDefIndex && Objects.equals(block, that.block);
+    return pos == that.pos && Objects.equals(block, that.block);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(block, useDefIndex);
+    return Objects.hash(block, pos);
   }
 
   @Override

@@ -3,7 +3,6 @@ package minijava.ir.assembler.allocation;
 import static org.jooq.lambda.Seq.seq;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.ListIterator;
@@ -11,9 +10,10 @@ import java.util.Map;
 import java.util.SortedSet;
 import java.util.concurrent.ConcurrentSkipListSet;
 import minijava.ir.assembler.block.CodeBlock;
-import minijava.ir.assembler.lifetime.BlockInterval;
 import minijava.ir.assembler.lifetime.BlockPosition;
 import minijava.ir.assembler.lifetime.LifetimeInterval;
+import minijava.ir.assembler.lifetime.LiveRange;
+import minijava.ir.assembler.lifetime.Split;
 import minijava.ir.assembler.registers.AMD64Register;
 import minijava.ir.assembler.registers.VirtualRegister;
 import org.jetbrains.annotations.Nullable;
@@ -31,19 +31,15 @@ public class LinearScanRegisterAllocator {
   // fields concerned with spilling
   private final SpillSlotAllocator spillSlotAllocator = new SpillSlotAllocator();
 
-  public static final Comparator<LifetimeInterval> BY_FROM =
-      Comparator.comparingInt((LifetimeInterval li) -> li.firstBlock().linearizedOrdinal)
-          .thenComparingInt(li -> li.getLifetimeInBlock(li.firstBlock()).from);
-
   private LinearScanRegisterAllocator(List<LifetimeInterval> unhandled) {
-    this.unhandled = new ConcurrentSkipListSet<>(BY_FROM);
+    this.unhandled = new ConcurrentSkipListSet<>(LifetimeInterval.COMPARING_DEF);
     this.unhandled.addAll(unhandled);
   }
 
   private AllocationResult allocate() {
     for (LifetimeInterval current : unhandled) {
       CodeBlock first = current.firstBlock();
-      BlockInterval firstInterval = current.getLifetimeInBlock(first);
+      LiveRange firstInterval = current.getLifetimeInBlock(first);
 
       moveHandledAndInactiveFromActive(firstInterval);
       moveHandledAndActiveFromInactive(firstInterval);
@@ -75,11 +71,11 @@ public class LinearScanRegisterAllocator {
     for (LifetimeInterval interval : inactive) {
       AMD64Register register = allocation.get(interval.register);
       assert register != null : "Inactive lifetime interval without allocated register";
-      BlockInterval intersection = interval.firstIntersectionWith(current);
-      if (intersection == null) {
+      BlockPosition endOfLifetimeHole = interval.firstIntersectionWith(current);
+      if (endOfLifetimeHole == null) {
         continue;
       }
-      freeUntil.put(register, BlockPosition.fromBlockIntervalStart(intersection));
+      freeUntil.put(register, endOfLifetimeHole);
     }
 
     Tuple2<AMD64Register, BlockPosition> bestCandidate = seq(freeUntil).maxBy(p -> p.v2).get();
@@ -141,8 +137,8 @@ public class LinearScanRegisterAllocator {
 
     for (LifetimeInterval interval : inactive) {
       AMD64Register register = allocation.get(interval);
-      BlockInterval intersection = interval.firstIntersectionWith(current);
-      if (intersection == null) {
+      BlockPosition endOfLifetimeHole = interval.firstIntersectionWith(current);
+      if (endOfLifetimeHole == null) {
         continue;
       }
 
@@ -174,11 +170,10 @@ public class LinearScanRegisterAllocator {
         // We have to do the same for inactive intervals with the same assigned register.
         // If this intersects at some point with the current register, we have to split it and
         // re-insert the second half into unhandled.
-        BlockInterval intersection = current.firstIntersectionWith(interval);
-        if (intersection == null) {
+        BlockPosition endOfLifetimeHole = current.firstIntersectionWith(interval);
+        if (endOfLifetimeHole == null) {
           continue;
         }
-        BlockPosition endOfLifetimeHole = BlockPosition.fromBlockIntervalStart(intersection);
         splitReallocateProcrastinate(interval, endOfLifetimeHole, assignedRegister);
       }
     }
@@ -201,16 +196,16 @@ public class LinearScanRegisterAllocator {
     assert allocation.get(current) == null || allocation.get(current) == register
         : "Should reallocate the same register as the parent interval";
     deleteInterval(current);
-    Tuple2<LifetimeInterval, LifetimeInterval> split = current.splitBefore(splitPos);
-    LifetimeInterval allocated = split.v1;
-    LifetimeInterval conflicting = split.v2;
+    Split<LifetimeInterval> split = current.splitBefore(splitPos);
+    LifetimeInterval allocated = split.before;
+    LifetimeInterval conflicting = split.after;
     assignRegister(allocated, register);
     unhandled.add(conflicting);
   }
 
   private static BlockPosition definition(LifetimeInterval interval) {
-    BlockInterval lifetimeInBlock = interval.getLifetimeInBlock(interval.firstBlock());
-    return BlockPosition.fromBlockIntervalStart(lifetimeInBlock);
+    LiveRange lifetimeInBlock = interval.getLifetimeInBlock(interval.firstBlock());
+    return lifetimeInBlock.fromPosition();
   }
 
   private static BlockPosition firstUsage(LifetimeInterval interval) {
@@ -221,7 +216,7 @@ public class LinearScanRegisterAllocator {
     return interval.defAndUses.last();
   }
 
-  private void moveHandledAndActiveFromInactive(BlockInterval firstInterval) {
+  private void moveHandledAndActiveFromInactive(LiveRange firstInterval) {
     for (ListIterator<LifetimeInterval> it = inactive.listIterator(); it.hasNext(); ) {
       LifetimeInterval li = it.next();
       if (li.endsBefore(firstInterval)) {
@@ -235,7 +230,7 @@ public class LinearScanRegisterAllocator {
     }
   }
 
-  private void moveHandledAndInactiveFromActive(BlockInterval firstInterval) {
+  private void moveHandledAndInactiveFromActive(LiveRange firstInterval) {
     for (ListIterator<LifetimeInterval> it = active.listIterator(); it.hasNext(); ) {
       LifetimeInterval li = it.next();
       if (li.endsBefore(firstInterval)) {

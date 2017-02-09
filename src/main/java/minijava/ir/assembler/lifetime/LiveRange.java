@@ -1,16 +1,20 @@
 package minijava.ir.assembler.lifetime;
 
 import com.google.common.base.Preconditions;
+import java.util.Comparator;
 import java.util.Objects;
 import minijava.ir.assembler.block.CodeBlock;
 
-public class BlockInterval {
+public class LiveRange {
 
+  public static final Comparator<LiveRange> COMPARING_FROM =
+      Comparator.comparingInt((LiveRange lr) -> lr.block.linearizedOrdinal)
+          .thenComparingInt(lr -> lr.from);
   public final CodeBlock block;
   public final int from; // inclusive, starting at 0 for definitions of PhiFunctions
   public final int to; // inclusive
 
-  public BlockInterval(CodeBlock block, int from, int to) {
+  public LiveRange(CodeBlock block, int from, int to) {
     Preconditions.checkArgument(from >= 0, "ConsecutiveRange: from < 0");
     Preconditions.checkArgument(from < to, "ConsecutiveRange: from >= to");
     this.block = block;
@@ -18,12 +22,16 @@ public class BlockInterval {
     this.to = to;
   }
 
-  public BlockInterval from(int from) {
-    return new BlockInterval(this.block, from, this.to);
+  public LiveRange from(int from) {
+    return new LiveRange(this.block, from, this.to);
   }
 
-  public BlockInterval to(int to) {
-    return new BlockInterval(this.block, this.from, to);
+  public LiveRange to(int to) {
+    return new LiveRange(this.block, this.from, to);
+  }
+
+  public BlockPosition fromPosition() {
+    return new BlockPosition(block, from);
   }
 
   @Override
@@ -34,7 +42,7 @@ public class BlockInterval {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    BlockInterval that = (BlockInterval) o;
+    LiveRange that = (LiveRange) o;
     return block.equals(that.block) && from == that.from && to == that.to;
   }
 
@@ -48,13 +56,13 @@ public class BlockInterval {
     return String.format("[%d, %d]", from, to);
   }
 
-  public BlockInterval intersectionWith(BlockInterval other) {
+  public LiveRange intersectionWith(LiveRange other) {
     if (!block.equals(other.block)) {
       return null;
     }
     if (from > other.to || to < other.from) {
       return null;
     }
-    return new BlockInterval(block, Math.max(from, other.from), Math.min(to, other.to));
+    return new LiveRange(block, Math.max(from, other.from), Math.min(to, other.to));
   }
 }
