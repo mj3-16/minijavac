@@ -9,10 +9,12 @@ import firm.nodes.Block;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import minijava.ir.assembler.allocation.AllocationResult;
 import minijava.ir.assembler.allocation.LinearScanRegisterAllocator;
 import minijava.ir.assembler.block.CodeBlock;
 import minijava.ir.assembler.lifetime.LifetimeAnalysis;
 import minijava.ir.assembler.lifetime.LifetimeAnalysisResult;
+import minijava.ir.assembler.lifetime.LifetimeInterval;
 import minijava.ir.optimize.ProgramMetrics;
 import minijava.ir.utils.GraphUtils;
 import org.jooq.lambda.Seq;
@@ -35,7 +37,21 @@ public class Backend {
         System.out.println(block.exit);
       }
       LifetimeAnalysisResult lifetimes = LifetimeAnalysis.analyse(currentFunction, linearization);
-      LinearScanRegisterAllocator.allocateRegisters(lifetimes);
+
+      System.out.println();
+      System.out.println("Lifetimes:");
+      lifetimes.fixedIntervals.values().forEach(System.out::println);
+      for (LifetimeInterval interval : lifetimes.virtualIntervals) {
+        System.out.println(interval);
+      }
+
+      AllocationResult allocationResult = LinearScanRegisterAllocator.allocateRegisters(lifetimes);
+      System.out.println();
+      System.out.println("Allocation results:");
+      for (LifetimeInterval interval :
+          seq(allocationResult.allocation.keySet()).sorted(li -> li.register.id)) {
+        System.out.println(interval.register + " -> " + allocationResult.allocation.get(interval));
+      }
     }
 
     return null;

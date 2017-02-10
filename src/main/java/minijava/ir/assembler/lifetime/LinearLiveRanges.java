@@ -1,5 +1,8 @@
 package minijava.ir.assembler.lifetime;
 
+import static org.jooq.lambda.Seq.seq;
+
+import com.google.common.collect.Iterables;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -38,7 +41,7 @@ public class LinearLiveRanges {
   @Nullable
   public LiveRange getLiveRangeContaining(BlockPosition position) {
     LiveRange range = toRange(ranges.headMap(position, true).lastEntry());
-    if (range.contains(position)) {
+    if (range != null && range.contains(position)) {
       return range;
     }
     return null;
@@ -51,11 +54,10 @@ public class LinearLiveRanges {
     ranges.put(from, range.to);
   }
 
-  public void deleteLiveRangeContaining(BlockPosition pos) {
-    LiveRange range = toRange(ranges.headMap(pos, true).lastEntry());
-    if (range.contains(pos)) {
-      ranges.remove(range.fromPosition());
-    }
+  public void deleteLiveRange(LiveRange range) {
+    BlockPosition from = range.fromPosition();
+    assert ranges.containsKey(from) && ranges.get(from).equals(range.to);
+    ranges.remove(from);
   }
 
   public void deleteLiveRanges(CodeBlock block) {
@@ -71,8 +73,16 @@ public class LinearLiveRanges {
   }
 
   public BlockPosition firstIntersectionWith(LinearLiveRanges other) {
+    if (ranges.isEmpty() || other.ranges.isEmpty()) {
+      return null;
+    }
+
     BlockPosition first = Seq.of(firstFrom(), other.firstFrom()).max().get();
     BlockPosition last = Seq.of(lastTo(), other.lastTo()).min().get();
+
+    if (first.compareTo(last) > 0) {
+      return null;
+    }
 
     Iterator<Entry<BlockPosition, Integer>> itA = iterateEntriesInRange(first, last);
     Iterator<Entry<BlockPosition, Integer>> itB = other.iterateEntriesInRange(first, last);
@@ -106,6 +116,9 @@ public class LinearLiveRanges {
   }
 
   private static LiveRange toRange(Entry<BlockPosition, Integer> entry) {
+    if (entry == null) {
+      return null;
+    }
     return new LiveRange(entry.getKey().block, entry.getKey().pos, entry.getValue());
   }
 
@@ -143,6 +156,6 @@ public class LinearLiveRanges {
 
   @Override
   public String toString() {
-    return "LinearLiveRanges{" + "ranges=" + ranges + '}';
+    return Iterables.toString(seq(ranges.entrySet()).map(LinearLiveRanges::toRange));
   }
 }

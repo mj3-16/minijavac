@@ -31,23 +31,19 @@ public class LifetimeAnalysis {
   }
 
   public LifetimeAnalysisResult analyse() {
+    for (AMD64Register allocatable : AMD64Register.values()) {
+      // We can mostly ignore not allocatable registers (BP, SP), but we track them nontheless
+      // to avoid special cases.
+      fixedIntervals.put(allocatable, new FixedInterval(allocatable));
+    }
+
     for (CodeBlock block : Lists.reverse(linearization)) {
       Block irBlock = blocks.inverse().get(block);
-      System.out.println("irBlock = " + irBlock);
       Set<VirtualRegister> live = new HashSet<>();
-
       addLiveInFromSuccessors(block, live);
-
-      System.out.println("live at block end = " + live);
-
       makeAliveInWholeBlock(block, live);
-
       walkInstructionsBackwards(block, live);
-
       handleBackEdges(irBlock, live);
-
-      System.out.println("live at block begin = " + live);
-
       liveIn.put(block, live);
     }
     return new LifetimeAnalysisResult(new ArrayList<>(intervals.values()), fixedIntervals);
@@ -99,6 +95,10 @@ public class LifetimeAnalysis {
     }
   }
 
+  private FixedInterval getFixedInterval(AMD64Register hr) {
+    return fixedIntervals.get(hr);
+  }
+
   private void makeAliveInWholeBlock(CodeBlock block, Set<VirtualRegister> live) {
     for (VirtualRegister alive : live) {
       // Conservatively assume alive in the whole block at first
@@ -146,10 +146,6 @@ public class LifetimeAnalysis {
 
   private LifetimeInterval getInterval(VirtualRegister alive) {
     return intervals.computeIfAbsent(alive, LifetimeInterval::new);
-  }
-
-  private FixedInterval getFixedInterval(AMD64Register register) {
-    return fixedIntervals.computeIfAbsent(register, FixedInterval::new);
   }
 
   public static LifetimeAnalysisResult analyse(

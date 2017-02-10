@@ -46,6 +46,11 @@ public class BlockPosition implements Comparable<BlockPosition> {
   }
 
   @Override
+  public String toString() {
+    return block.label + ":" + pos;
+  }
+
+  @Override
   public int compareTo(@NotNull BlockPosition other) {
     return COMPARATOR.compare(this, other);
   }

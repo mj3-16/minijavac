@@ -55,6 +55,6 @@ public class SystemVAbi {
   }
 
   public static int parameterRegionSize(MethodInformation info) {
-    return (info.paramNumber - ARG_REGISTERS.length) * 8;
+    return Math.max(0, (info.paramNumber - ARG_REGISTERS.length) * 8);
   }
 }

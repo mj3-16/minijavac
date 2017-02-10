@@ -16,7 +16,7 @@ public class LiveRange {
 
   public LiveRange(CodeBlock block, int from, int to) {
     Preconditions.checkArgument(from >= 0, "ConsecutiveRange: from < 0");
-    Preconditions.checkArgument(from < to, "ConsecutiveRange: from >= to");
+    Preconditions.checkArgument(from <= to, "ConsecutiveRange: from > to");
     this.block = block;
     this.from = from;
     this.to = to;
@@ -59,7 +59,7 @@ public class LiveRange {
 
   @Override
   public String toString() {
-    return String.format("[%d, %d]", from, to);
+    return String.format("%s:[%d, %d]", block.label, from, to);
   }
 
   public LiveRange intersectionWith(LiveRange other) {

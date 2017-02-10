@@ -14,17 +14,7 @@ import firm.BackEdges;
 import firm.Graph;
 import firm.Mode;
 import firm.Relation;
-import firm.nodes.Block;
-import firm.nodes.Cmp;
-import firm.nodes.Cond;
-import firm.nodes.End;
-import firm.nodes.Jmp;
-import firm.nodes.Node;
-import firm.nodes.NodeVisitor;
-import firm.nodes.Phi;
-import firm.nodes.Proj;
-import firm.nodes.Return;
-import firm.nodes.Start;
+import firm.nodes.*;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -83,6 +73,10 @@ public class InstructionSelector extends NodeVisitor.Default {
     }
 
     // Otherwise we are 'unlucky' and have to produce code for the subtree at node.
+    invokeTreeMatcher(node);
+  }
+
+  private void invokeTreeMatcher(Node node) {
     List<Instruction> newInstructions = matcher.match(node);
     CodeBlock block = getCodeBlockOfNode(node);
     block.instructions.addAll(newInstructions);
@@ -260,6 +254,11 @@ public class InstructionSelector extends NodeVisitor.Default {
     }
     block.instructions.add(new Leave());
     block.exit = new CodeBlock.ExitArity.Zero();
+  }
+
+  @Override
+  public void visit(Call node) {
+    invokeTreeMatcher(node);
   }
 
   @Override

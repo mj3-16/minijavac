@@ -102,7 +102,7 @@ class TreeMatcher extends NodeVisitor.Default {
     ImmediateOperand size = new ImmediateOperand(OperandWidth.Quad, bytes);
     RegisterOperand sp = new RegisterOperand(OperandWidth.Quad, AMD64Register.SP);
     instructions.add(
-        bytes >= 0 ? new Sub(size, sp, AMD64Register.SP) : new Add(size, sp, AMD64Register.SP));
+        bytes > 0 ? new Sub(size, sp, AMD64Register.SP) : new Add(size, sp, AMD64Register.SP));
   }
 
   @Override
