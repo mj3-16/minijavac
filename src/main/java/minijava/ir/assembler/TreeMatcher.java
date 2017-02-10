@@ -1,26 +1,19 @@
 package minijava.ir.assembler;
 
 import static minijava.ir.utils.FirmUtils.modeToWidth;
+import static minijava.ir.utils.FirmUtils.withBackEdges;
 import static org.jooq.lambda.Seq.seq;
 
 import firm.Mode;
-import firm.nodes.Node;
-import firm.nodes.NodeVisitor;
-import firm.nodes.Phi;
-import firm.nodes.Proj;
-import firm.nodes.Start;
+import firm.TargetValue;
+import firm.nodes.*;
 import java.util.ArrayList;
 import java.util.List;
+import minijava.ir.assembler.instructions.*;
 import minijava.ir.assembler.instructions.Add;
 import minijava.ir.assembler.instructions.And;
-import minijava.ir.assembler.instructions.CLTD;
 import minijava.ir.assembler.instructions.Call;
 import minijava.ir.assembler.instructions.Cmp;
-import minijava.ir.assembler.instructions.IDiv;
-import minijava.ir.assembler.instructions.IMul;
-import minijava.ir.assembler.instructions.Instruction;
-import minijava.ir.assembler.instructions.Mov;
-import minijava.ir.assembler.instructions.Neg;
 import minijava.ir.assembler.instructions.Sub;
 import minijava.ir.assembler.operands.AddressingMode;
 import minijava.ir.assembler.operands.ImmediateOperand;
@@ -112,14 +105,25 @@ class TreeMatcher extends NodeVisitor.Default {
     Operand left = operandForNode(node.getLeft());
     Operand right = operandForNode(node.getRight());
     instructions.add(new Cmp(left, right));
+    // We generate a register for the mode b node by default. In cases where this isn't necessary (immediate Jcc),
+    // we just delete the defininf instruction.
+    RegisterOperand op =
+        new RegisterOperand(modeToWidth(Mode.getb()), mapping.registerForNode(node));
+    instructions.add(new Setcc(op, node.getRelation()));
   }
 
   @Override
   public void visit(firm.nodes.Const node) {
-    OperandWidth width = modeToWidth(node.getMode());
-    long value = node.getTarval().asLong();
-    ImmediateOperand operand = new ImmediateOperand(width, value);
-    defineAsCopy(operand, node);
+    defineAsCopy(imm(node.getTarval()), node);
+  }
+
+  public ImmediateOperand imm(TargetValue tarval) {
+    Mode mode = tarval.getMode();
+    OperandWidth width = modeToWidth(mode);
+    if (mode.equals(Mode.getb())) {
+      return new ImmediateOperand(width, tarval.isOne() ? 1 : 0);
+    }
+    return new ImmediateOperand(width, tarval.asLong());
   }
 
   @Override

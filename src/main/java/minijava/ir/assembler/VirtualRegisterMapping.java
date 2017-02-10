@@ -39,4 +39,8 @@ public class VirtualRegisterMapping {
   public Instruction getDefinition(VirtualRegister register) {
     return definitions.get(register);
   }
+
+  public void deleteDefinition(VirtualRegister register) {
+    definitions.remove(register);
+  }
 }
