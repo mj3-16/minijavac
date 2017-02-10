@@ -15,5 +15,6 @@ public class Mov extends Instruction {
   public Mov(Operand src, RegisterOperand dest) {
     super(newArrayList(src), newArrayList(dest));
     assert src.width == dest.width;
+    setHints(src, dest);
   }
 }

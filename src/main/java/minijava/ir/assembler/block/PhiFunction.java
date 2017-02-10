@@ -1,8 +1,10 @@
 package minijava.ir.assembler.block;
 
 import firm.nodes.Phi;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import minijava.ir.assembler.operands.OperandWidth;
 import minijava.ir.assembler.registers.Register;
 
@@ -41,5 +43,11 @@ public class PhiFunction {
   @Override
   public String toString() {
     return "Phi" + width.sizeInBytes * 8 + inputs + "-> " + output;
+  }
+
+  public Set<Register> registerHints() {
+    Set<Register> hints = new HashSet<>(inputs.values());
+    hints.add(output);
+    return hints;
   }
 }

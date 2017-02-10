@@ -2,12 +2,9 @@ package minijava.ir.assembler.lifetime;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
-import java.util.Comparator;
-import java.util.List;
-import java.util.Objects;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.*;
 import minijava.ir.assembler.block.CodeBlock;
+import minijava.ir.assembler.registers.Register;
 import minijava.ir.assembler.registers.VirtualRegister;
 
 public class LifetimeInterval {
@@ -17,6 +14,8 @@ public class LifetimeInterval {
   public final VirtualRegister register;
   public final SortedSet<BlockPosition> defAndUses;
   public final LinearLiveRanges ranges;
+  public Set<Register> fromHints = new HashSet<>();
+  public Set<Register> toHints = new HashSet<>();
 
   public LifetimeInterval(VirtualRegister register) {
     this(register, new TreeSet<>(), new LinearLiveRanges());
@@ -115,6 +114,8 @@ public class LifetimeInterval {
         new LifetimeInterval(register, defAndUses.headSet(pos), splitRanges.before);
     LifetimeInterval after =
         new LifetimeInterval(register, defAndUses.tailSet(pos), splitRanges.after);
+    before.fromHints = fromHints;
+    after.toHints = toHints;
 
     // We can also be more precise for the begin and end of the split interval.
     // Note that the lifetime may stretch beyond the last use! (e.g. loops)
@@ -134,7 +135,7 @@ public class LifetimeInterval {
     li.setLiveRange(range.from(first.pos));
   }
 
-  private void shortenToRange(LifetimeInterval li) {
+  private static void shortenToRange(LifetimeInterval li) {
     BlockPosition last = li.defAndUses.last();
     LiveRange range = li.getLifetimeInBlock(last.block);
     assert range != null; // It's the block with the last usage after all
@@ -162,6 +163,17 @@ public class LifetimeInterval {
 
   @Override
   public String toString() {
-    return "LifetimeInterval{" + "register=" + register + ", ranges=" + ranges + '}';
+    return "LifetimeInterval{"
+        + "register="
+        + register
+        + ", defAndUses="
+        + defAndUses
+        + ", ranges="
+        + ranges
+        + ", fromHints="
+        + fromHints
+        + ", toHints="
+        + toHints
+        + '}';
   }
 }

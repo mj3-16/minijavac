@@ -1,12 +1,14 @@
 package minijava.ir.assembler.allocation;
 
 import static org.jooq.lambda.Seq.seq;
+import static org.jooq.lambda.tuple.Tuple.tuple;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentSkipListSet;
 import minijava.ir.assembler.block.CodeBlock;
 import minijava.ir.assembler.lifetime.*;
 import minijava.ir.assembler.registers.AMD64Register;
+import minijava.ir.assembler.registers.Register;
 import minijava.ir.assembler.registers.VirtualRegister;
 import org.jooq.lambda.Seq;
 import org.jooq.lambda.tuple.Tuple2;
@@ -83,7 +85,7 @@ public class LinearScanRegisterAllocator {
       freeUntil.put(register, endOfLifetimeHole);
     }
 
-    Tuple2<AMD64Register, BlockPosition> bestCandidate = seq(freeUntil).maxBy(p -> p.v2).get();
+    Tuple2<AMD64Register, BlockPosition> bestCandidate = determineBestCandidate(freeUntil, current);
     AMD64Register assignedRegister = bestCandidate.v1;
     BlockPosition spillBefore = bestCandidate.v2;
 
@@ -103,6 +105,68 @@ public class LinearScanRegisterAllocator {
     LifetimeInterval before = splitAndSuspendAfterHalf(current, spillBefore).before;
     assignRegister(before, assignedRegister);
     return true;
+  }
+
+  private Tuple2<AMD64Register, BlockPosition> determineBestCandidate(
+      Map<AMD64Register, BlockPosition> nextBlocked, LifetimeInterval current) {
+    Tuple2<AMD64Register, BlockPosition> bestCandidate = seq(nextBlocked).maxBy(p -> p.v2).get();
+    // bestCandidate might not respect register hints. We'd like to preserve them if at all possible.
+
+    Set<AMD64Register> lockedHints = new TreeSet<>();
+
+    for (Register hint : current.fromHints) {
+      if (hint.equals(current.register)) {
+        continue;
+      }
+      AMD64Register locked =
+          hint instanceof AMD64Register
+              ? (AMD64Register) hint
+              : allocation.get(getLastSplitLifetime((VirtualRegister) hint));
+      if (locked != null) {
+        lockedHints.add(locked);
+      }
+    }
+
+    for (Register hint : current.toHints) {
+      if (hint.equals(current.register)) {
+        continue;
+      }
+      AMD64Register locked =
+          hint instanceof AMD64Register
+              ? (AMD64Register) hint
+              : allocation.get(getFirstSplitLifetime((VirtualRegister) hint));
+      if (locked != null) {
+        lockedHints.add(locked);
+      }
+    }
+
+    for (AMD64Register locked : lockedHints) {
+      BlockPosition blocked = nextBlocked.get(locked);
+      boolean goodEnough = current.endsBefore(blocked);
+      boolean notWorseThanBest = bestCandidate.v2.equals(blocked);
+      if (goodEnough || notWorseThanBest) {
+        // locked is a better candidate
+        return tuple(locked, blocked);
+      }
+    }
+
+    return bestCandidate;
+  }
+
+  private LifetimeInterval getLastSplitLifetime(VirtualRegister hint) {
+    List<LifetimeInterval> lifetimes = splitLifetimes.get(hint);
+    if (lifetimes == null || lifetimes.size() == 0) {
+      return null;
+    }
+    return lifetimes.get(lifetimes.size() - 1);
+  }
+
+  private LifetimeInterval getFirstSplitLifetime(VirtualRegister hint) {
+    List<LifetimeInterval> lifetimes = splitLifetimes.get(hint);
+    if (lifetimes == null || lifetimes.size() == 0) {
+      return null;
+    }
+    return lifetimes.get(lifetimes.size() - 1);
   }
 
   private void assignRegister(LifetimeInterval interval, AMD64Register assignedRegister) {
@@ -170,7 +234,7 @@ public class LinearScanRegisterAllocator {
       }
     }
 
-    Tuple2<AMD64Register, BlockPosition> bestCandidate = seq(nextUse).maxBy(p -> p.v2).get();
+    Tuple2<AMD64Register, BlockPosition> bestCandidate = determineBestCandidate(nextUse, current);
     AMD64Register assignedRegister = bestCandidate.v1;
     BlockPosition farthestNextUse = bestCandidate.v2;
 

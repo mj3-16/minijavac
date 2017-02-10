@@ -18,6 +18,6 @@ public abstract class TwoAddressInstruction extends Instruction {
   private TwoAddressInstruction(Operand left, RegisterOperand rightIn, RegisterOperand rightOut) {
     // This is only so that we can reference rightOut.
     super(newArrayList(left, rightIn), newArrayList(rightOut));
-    setHint(rightIn, rightOut);
+    setHints(rightIn, rightOut);
   }
 }

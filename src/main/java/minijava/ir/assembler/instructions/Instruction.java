@@ -20,7 +20,7 @@ public abstract class Instruction {
   // not have the information needed for lowering.
   private final List<Operand> inputs;
   private final List<Operand> outputs;
-  private final Set<Operand> hint = new HashSet<>();
+  private final Set<Operand> hints = new HashSet<>();
 
   protected Instruction(List<Operand> inputs, List<Operand> outputs) {
     Preconditions.checkArgument(!inputs.contains(null), "null input operand");
@@ -29,11 +29,11 @@ public abstract class Instruction {
     this.outputs = outputs;
   }
 
-  protected void setHint(Operand... shouldBeAssignedTheSameRegister) {
+  protected void setHints(Operand... shouldBeAssignedTheSameRegister) {
     for (Operand operand : shouldBeAssignedTheSameRegister) {
       assert inputs.contains(operand) || outputs.contains(operand)
           : "Can only hint connections between input and output operands";
-      hint.add(operand);
+      hints.add(operand);
     }
   }
 
@@ -81,5 +81,13 @@ public abstract class Instruction {
       sb.append(String.join(", ", seq(outputs).map(Object::toString)));
     }
     return sb.toString();
+  }
+
+  public Set<Register> registerHints() {
+    Set<Register> hints = new HashSet<>();
+    for (RegisterOperand operand : seq(hints).ofType(RegisterOperand.class)) {
+      hints.add(operand.register);
+    }
+    return hints;
   }
 }
