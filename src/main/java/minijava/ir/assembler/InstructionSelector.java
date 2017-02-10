@@ -139,8 +139,12 @@ public class InstructionSelector extends NodeVisitor.Default {
     // and do nothing except for noting the Phi in its code-block.
     // SSA form deconstruction happens after/while register allocation.
     VirtualRegister result = mapping.registerForNode(phi);
-    Map<CodeBlock, VirtualRegister> args =
-        seq(phi.getPreds()).toMap(this::getCodeBlockOfNode, mapping::registerForNode);
+    Map<CodeBlock, VirtualRegister> args = new HashMap<>();
+    for (int i = 0; i < phi.getPredCount(); ++i) {
+      Node pred = phi.getPred(i);
+      Block predBlock = (Block) phi.getBlock().getPred(i).getBlock();
+      args.put(getCodeBlock(predBlock), mapping.registerForNode(pred));
+    }
     OperandWidth width = modeToWidth(phi.getMode());
     CodeBlock block = getCodeBlockOfNode(phi);
     block.phis.add(new PhiFunction(args, result, width, phi));
@@ -155,6 +159,10 @@ public class InstructionSelector extends NodeVisitor.Default {
       return;
     }
     Block irBlock = (Block) cond.getBlock();
+    if (lastCmp.get(irBlock) == null) {
+      // We haven't generated
+      cond.getSelector().accept(this);
+    }
     CodeBlock block = getCodeBlock(irBlock);
     // We rely on the topological ordering also present in retainedComputations and assume
     // that the Cmp we match on is still visible through the flags register, if the Cond is

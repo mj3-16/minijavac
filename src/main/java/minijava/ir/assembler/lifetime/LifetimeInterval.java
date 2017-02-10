@@ -84,25 +84,25 @@ public class LifetimeInterval {
     }
   }
 
-  public boolean endsBefore(LiveRange interval) {
-    if (lastBlock().linearizedOrdinal < interval.block.linearizedOrdinal) {
+  public boolean endsBefore(BlockPosition position) {
+    if (lastBlock().linearizedOrdinal < position.block.linearizedOrdinal) {
       return true;
     }
 
-    if (lastBlock().linearizedOrdinal > interval.block.linearizedOrdinal) {
+    if (lastBlock().linearizedOrdinal > position.block.linearizedOrdinal) {
       return false;
     }
 
-    LiveRange analogInterval = getLifetimeInBlock(interval.block);
+    LiveRange analogInterval = getLifetimeInBlock(position.block);
     assert analogInterval != null : "The lastBlock()s interval can't be null";
-    return analogInterval.to < interval.from;
+    return analogInterval.to < position.pos;
   }
 
-  public boolean coversStartOf(LiveRange interval) {
-    LiveRange analogInterval = getLifetimeInBlock(interval.block);
+  public boolean covers(BlockPosition position) {
+    LiveRange analogInterval = getLifetimeInBlock(position.block);
     return analogInterval != null
-        && analogInterval.from <= interval.from
-        && analogInterval.to >= interval.from;
+        && analogInterval.from <= position.pos
+        && analogInterval.to >= position.pos;
   }
 
   public Split<LifetimeInterval> splitBefore(BlockPosition pos) {
