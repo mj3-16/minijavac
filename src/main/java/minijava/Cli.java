@@ -70,7 +70,7 @@ public class Cli {
     this.err = new PrintStream(err);
     this.fileSystem = fileSystem;
 
-    if(EnvVar.MJ_OUTPUTFILENAME.isAvailable()) {
+    if (EnvVar.MJ_OUTPUTFILENAME.isAvailable()) {
       outputFile = EnvVar.MJ_OUTPUTFILENAME.value();
     }
   }

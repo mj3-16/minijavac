@@ -1,5 +1,7 @@
 #!/usr/bin/env sh
 
+trap "exit" INT
+
 # Set max time the compiler should optimize
 MAXTIME=840 # 14 minutes
 # Init STARTTIME with current runtime of the script

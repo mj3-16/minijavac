@@ -152,11 +152,11 @@ public class Compiler {
     Set<Graph> intraproceduralCandidates = Sets.newHashSet(Program.getGraphs());
     Inliner inliner = new Inliner(metrics, true);
     int time = 540;
-    if(EnvVar.MJ_OPT_TIME.isAvailable()) {
+    if (EnvVar.MJ_OPT_TIME.isAvailable()) {
       try {
         time = Integer.parseInt(EnvVar.MJ_OPT_TIME.value());
+      } catch (NumberFormatException e) {
       }
-      catch (NumberFormatException e) {}
     }
     ScheduledFuture<?> timer =
         Executors.newScheduledThreadPool(1).schedule(Runnables.doNothing(), time, TimeUnit.SECONDS);
