@@ -9,6 +9,7 @@ import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import minijava.ir.assembler.block.CodeBlock;
+import org.jetbrains.annotations.Nullable;
 import org.jooq.lambda.Seq;
 
 public class LinearLiveRanges {
@@ -34,6 +35,15 @@ public class LinearLiveRanges {
     return ret;
   }
 
+  @Nullable
+  public LiveRange getLiveRangeContaining(BlockPosition position) {
+    LiveRange range = toRange(ranges.headMap(position, true).lastEntry());
+    if (range.contains(position)) {
+      return range;
+    }
+    return null;
+  }
+
   public void addLiveRange(LiveRange range) {
     BlockPosition from = new BlockPosition(range.block, range.from);
     BlockPosition to = new BlockPosition(range.block, range.to);
@@ -41,11 +51,17 @@ public class LinearLiveRanges {
     ranges.put(from, range.to);
   }
 
-  public void replaceLiveRange(LiveRange range) {
-    BlockPosition from = new BlockPosition(range.block, range.from);
-    BlockPosition to = new BlockPosition(range.block, range.to);
+  public void deleteLiveRangeContaining(BlockPosition pos) {
+    LiveRange range = toRange(ranges.headMap(pos, true).lastEntry());
+    if (range.contains(pos)) {
+      ranges.remove(range.fromPosition());
+    }
+  }
+
+  public void deleteLiveRanges(CodeBlock block) {
+    BlockPosition from = new BlockPosition(block, 0);
+    BlockPosition to = new BlockPosition(block, Integer.MAX_VALUE);
     ranges.subMap(from, to).clear();
-    ranges.put(from, range.to);
   }
 
   public Split<LinearLiveRanges> splitBefore(BlockPosition beforePos) {

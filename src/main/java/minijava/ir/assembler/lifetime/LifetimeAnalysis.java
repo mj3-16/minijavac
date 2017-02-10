@@ -13,6 +13,7 @@ import java.util.Set;
 import minijava.ir.assembler.block.CodeBlock;
 import minijava.ir.assembler.block.PhiFunction;
 import minijava.ir.assembler.instructions.Instruction;
+import minijava.ir.assembler.registers.AMD64Register;
 import minijava.ir.assembler.registers.Register;
 import minijava.ir.assembler.registers.VirtualRegister;
 import minijava.ir.utils.NodeUtils;
@@ -20,6 +21,7 @@ import minijava.ir.utils.NodeUtils;
 public class LifetimeAnalysis {
   private final Map<CodeBlock, Set<VirtualRegister>> liveIn = new HashMap<>();
   private final Map<VirtualRegister, LifetimeInterval> intervals = new HashMap<>();
+  private final Map<AMD64Register, FixedInterval> fixedIntervals = new HashMap<>();
   private final BiMap<Block, CodeBlock> blocks;
   private final List<CodeBlock> linearization;
 
@@ -28,7 +30,7 @@ public class LifetimeAnalysis {
     this.linearization = linearization;
   }
 
-  public List<LifetimeInterval> analyse() {
+  public LifetimeAnalysisResult analyse() {
     for (CodeBlock block : Lists.reverse(linearization)) {
       Block irBlock = blocks.inverse().get(block);
       System.out.println("irBlock = " + irBlock);
@@ -48,7 +50,7 @@ public class LifetimeAnalysis {
 
       liveIn.put(block, live);
     }
-    return new ArrayList<>(intervals.values());
+    return new LifetimeAnalysisResult(new ArrayList<>(intervals.values()), fixedIntervals);
   }
 
   private void handleBackEdges(Block irBlock, Set<VirtualRegister> live) {
@@ -66,15 +68,28 @@ public class LifetimeAnalysis {
 
   private void walkInstructionsBackwards(CodeBlock block, Set<VirtualRegister> live) {
     for (int i = block.instructions.size() - 1; i >= 0; --i) {
+      int idx = i;
       Instruction instruction = block.instructions.get(i);
-      for (VirtualRegister defined : instruction.definitions()) {
-        getInterval(defined).setDef(block, i);
-        live.remove(defined);
+      for (Register defined : instruction.definitions()) {
+        defined.match(
+            vr -> {
+              getInterval(vr).setDef(block, idx);
+              live.remove(defined);
+            },
+            hr -> {
+              getFixedInterval(hr).addDef(block, idx);
+            });
       }
 
-      for (VirtualRegister used : instruction.usages()) {
-        getInterval(used).addUse(block, i);
-        live.add(used);
+      for (Register used : instruction.usages()) {
+        used.match(
+            vr -> {
+              getInterval(vr).addUse(block, idx);
+              live.add(vr);
+            },
+            hr -> {
+              getFixedInterval(hr).addUse(block, idx);
+            });
       }
     }
 
@@ -130,10 +145,14 @@ public class LifetimeAnalysis {
   }
 
   private LifetimeInterval getInterval(VirtualRegister alive) {
-    return intervals.computeIfAbsent(alive, k -> new LifetimeInterval(k));
+    return intervals.computeIfAbsent(alive, LifetimeInterval::new);
   }
 
-  public static List<LifetimeInterval> analyse(
+  private FixedInterval getFixedInterval(AMD64Register register) {
+    return fixedIntervals.computeIfAbsent(register, FixedInterval::new);
+  }
+
+  public static LifetimeAnalysisResult analyse(
       BiMap<Block, CodeBlock> blocks, List<CodeBlock> linearization) {
     return new LifetimeAnalysis(blocks, linearization).analyse();
   }

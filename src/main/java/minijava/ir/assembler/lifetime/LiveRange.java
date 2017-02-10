@@ -22,6 +22,12 @@ public class LiveRange {
     this.to = to;
   }
 
+  static LiveRange everywhere(CodeBlock block) {
+    int from = 0;
+    int to = BlockPosition.usedBy(block.instructions.size());
+    return new LiveRange(block, from, to);
+  }
+
   public LiveRange from(int from) {
     return new LiveRange(this.block, from, this.to);
   }
@@ -64,5 +70,9 @@ public class LiveRange {
       return null;
     }
     return new LiveRange(block, Math.max(from, other.from), Math.min(to, other.to));
+  }
+
+  public boolean contains(BlockPosition position) {
+    return position.block.equals(block) && from <= position.pos && position.pos <= to;
   }
 }

@@ -1,6 +1,7 @@
 package minijava.ir.assembler.registers;
 
 import firm.nodes.Node;
+import java.util.function.Function;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -23,6 +24,12 @@ public class VirtualRegister implements Register {
   public VirtualRegister(int id, Node value) {
     this.id = id;
     this.value = value;
+  }
+
+  @Override
+  public <T> T match(
+      Function<VirtualRegister, T> matchVirtual, Function<AMD64Register, T> matchHardware) {
+    return matchVirtual.apply(this);
   }
 
   @Override

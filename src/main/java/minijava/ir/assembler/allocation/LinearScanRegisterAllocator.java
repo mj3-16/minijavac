@@ -10,18 +10,15 @@ import java.util.Map;
 import java.util.SortedSet;
 import java.util.concurrent.ConcurrentSkipListSet;
 import minijava.ir.assembler.block.CodeBlock;
-import minijava.ir.assembler.lifetime.BlockPosition;
-import minijava.ir.assembler.lifetime.LifetimeInterval;
-import minijava.ir.assembler.lifetime.LiveRange;
-import minijava.ir.assembler.lifetime.Split;
+import minijava.ir.assembler.lifetime.*;
 import minijava.ir.assembler.registers.AMD64Register;
 import minijava.ir.assembler.registers.VirtualRegister;
-import org.jetbrains.annotations.Nullable;
 import org.jooq.lambda.Seq;
 import org.jooq.lambda.tuple.Tuple2;
 
 public class LinearScanRegisterAllocator {
 
+  private final Map<AMD64Register, FixedInterval> fixedIntervals;
   private final SortedSet<LifetimeInterval> unhandled;
   private final List<LifetimeInterval> inactive = new ArrayList<>();
   private final List<LifetimeInterval> active = new ArrayList<>();
@@ -31,9 +28,10 @@ public class LinearScanRegisterAllocator {
   // fields concerned with spilling
   private final SpillSlotAllocator spillSlotAllocator = new SpillSlotAllocator();
 
-  private LinearScanRegisterAllocator(List<LifetimeInterval> unhandled) {
+  private LinearScanRegisterAllocator(LifetimeAnalysisResult lifetimes) {
+    this.fixedIntervals = lifetimes.fixedIntervals;
     this.unhandled = new ConcurrentSkipListSet<>(LifetimeInterval.COMPARING_DEF);
-    this.unhandled.addAll(unhandled);
+    this.unhandled.addAll(lifetimes.virtualIntervals);
   }
 
   private AllocationResult allocate() {
@@ -52,26 +50,31 @@ public class LinearScanRegisterAllocator {
     return new AllocationResult();
   }
 
-  @Nullable
   private boolean tryAllocateFreeRegister(LifetimeInterval current) {
     BlockPosition definition = definition(current);
     BlockPosition lastUsage = lastUsage(current);
     Map<AMD64Register, BlockPosition> freeUntil = new HashMap<>();
 
     for (AMD64Register register : AMD64Register.values()) {
-      freeUntil.put(register, new BlockPosition(current.lastBlock(), Integer.MAX_VALUE));
+      FixedInterval fixed = fixedIntervals.get(register);
+      BlockPosition blockedAt = fixed.ranges.firstIntersectionWith(current.ranges);
+      if (blockedAt == null) {
+        // We freely choose a position after the last usage
+        blockedAt = new BlockPosition(current.lastBlock(), Integer.MAX_VALUE);
+      }
+      freeUntil.put(register, blockedAt);
     }
 
     for (LifetimeInterval interval : active) {
-      AMD64Register register = allocation.get(interval.register);
+      AMD64Register register = allocation.get(interval);
       assert register != null : "Active lifetime interval without allocated register";
       freeUntil.put(register, definition);
     }
 
     for (LifetimeInterval interval : inactive) {
-      AMD64Register register = allocation.get(interval.register);
+      AMD64Register register = allocation.get(interval);
       assert register != null : "Inactive lifetime interval without allocated register";
-      BlockPosition endOfLifetimeHole = interval.firstIntersectionWith(current);
+      BlockPosition endOfLifetimeHole = interval.ranges.firstIntersectionWith(current.ranges);
       if (endOfLifetimeHole == null) {
         continue;
       }
@@ -137,7 +140,7 @@ public class LinearScanRegisterAllocator {
 
     for (LifetimeInterval interval : inactive) {
       AMD64Register register = allocation.get(interval);
-      BlockPosition endOfLifetimeHole = interval.firstIntersectionWith(current);
+      BlockPosition endOfLifetimeHole = interval.ranges.firstIntersectionWith(current.ranges);
       if (endOfLifetimeHole == null) {
         continue;
       }
@@ -170,12 +173,21 @@ public class LinearScanRegisterAllocator {
         // We have to do the same for inactive intervals with the same assigned register.
         // If this intersects at some point with the current register, we have to split it and
         // re-insert the second half into unhandled.
-        BlockPosition endOfLifetimeHole = current.firstIntersectionWith(interval);
+        BlockPosition endOfLifetimeHole = current.ranges.firstIntersectionWith(interval.ranges);
         if (endOfLifetimeHole == null) {
           continue;
         }
         splitReallocateProcrastinate(interval, endOfLifetimeHole, assignedRegister);
       }
+
+      assignRegister(current, assignedRegister);
+    }
+
+    FixedInterval fixed = fixedIntervals.get(assignedRegister);
+    BlockPosition constraintPosition = fixed.ranges.firstIntersectionWith(current.ranges);
+    if (constraintPosition != null) {
+      // A register constrained kicks in at constraintPosition, so we have to split current (again).
+      splitReallocateProcrastinate(current, constraintPosition, assignedRegister);
     }
   }
 
@@ -209,7 +221,7 @@ public class LinearScanRegisterAllocator {
   }
 
   private static BlockPosition firstUsage(LifetimeInterval interval) {
-    return interval.defAndUses.iterator().next();
+    return interval.defAndUses.first();
   }
 
   private static BlockPosition lastUsage(LifetimeInterval interval) {
@@ -244,7 +256,7 @@ public class LinearScanRegisterAllocator {
     }
   }
 
-  public static AllocationResult allocateRegisters(List<LifetimeInterval> unhandled) {
-    return new LinearScanRegisterAllocator(unhandled).allocate();
+  public static AllocationResult allocateRegisters(LifetimeAnalysisResult lifetimes) {
+    return new LinearScanRegisterAllocator(lifetimes).allocate();
   }
 }

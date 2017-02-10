@@ -16,7 +16,7 @@ public class LifetimeInterval {
       Comparator.comparing(LifetimeInterval::definition);
   public final VirtualRegister register;
   public final SortedSet<BlockPosition> defAndUses;
-  private final LinearLiveRanges ranges;
+  public final LinearLiveRanges ranges;
 
   public LifetimeInterval(VirtualRegister register) {
     this(register, new TreeSet<>(), new LinearLiveRanges());
@@ -56,30 +56,25 @@ public class LifetimeInterval {
   }
 
   public void makeAliveInWholeBlock(CodeBlock block) {
-    setLiveRange(everywhere(block));
-  }
-
-  private static LiveRange everywhere(CodeBlock block) {
-    int from = 0;
-    int to = usedBy(block.instructions.size());
-    return new LiveRange(block, from, to);
+    setLiveRange(LiveRange.everywhere(block));
   }
 
   private void setLiveRange(LiveRange range) {
     assert range != null : "We can never forget a live range again";
-    ranges.replaceLiveRange(range);
+    ranges.deleteLiveRanges(range.block);
+    ranges.addLiveRange(range);
   }
 
   public void setDef(CodeBlock block, int instructionIndex) {
     LiveRange lifetime = getLifetimeInBlock(block);
-    int def = definedBy(instructionIndex);
+    int def = BlockPosition.definedBy(instructionIndex);
     defAndUses.add(new BlockPosition(block, def));
     assert lifetime != null : "There should be no defs without a later use.";
     setLiveRange(lifetime.from(def));
   }
 
   public void addUse(CodeBlock block, int instructionIndex) {
-    int usage = usedBy(instructionIndex);
+    int usage = BlockPosition.usedBy(instructionIndex);
     defAndUses.add(new BlockPosition(block, usage));
     LiveRange lifetime = getLifetimeInBlock(block);
     if (lifetime == null) {
@@ -87,16 +82,6 @@ public class LifetimeInterval {
     } else {
       setLiveRange(lifetime.to(Math.max(lifetime.to, usage)));
     }
-  }
-
-  private static int definedBy(int instructionIndex) {
-    instructionIndex++; // account for Phis
-    return instructionIndex * 2;
-  }
-
-  private static int usedBy(int instructionIndex) {
-    instructionIndex++; // account for Phis
-    return instructionIndex * 2 - 1;
   }
 
   public boolean endsBefore(LiveRange interval) {
@@ -118,10 +103,6 @@ public class LifetimeInterval {
     return analogInterval != null
         && analogInterval.from <= interval.from
         && analogInterval.to >= interval.from;
-  }
-
-  public BlockPosition firstIntersectionWith(LifetimeInterval other) {
-    return ranges.firstIntersectionWith(other.ranges);
   }
 
   public Split<LifetimeInterval> splitBefore(BlockPosition pos) {
@@ -150,14 +131,14 @@ public class LifetimeInterval {
     BlockPosition first = li.defAndUses.first();
     LiveRange range = li.getLifetimeInBlock(first.block);
     assert range != null; // It's the block with the first usage after all
-    li.ranges.replaceLiveRange(range.from(first.pos));
+    li.setLiveRange(range.from(first.pos));
   }
 
   private void shortenToRange(LifetimeInterval li) {
     BlockPosition last = li.defAndUses.last();
     LiveRange range = li.getLifetimeInBlock(last.block);
     assert range != null; // It's the block with the last usage after all
-    li.ranges.replaceLiveRange(range.to(last.pos));
+    li.setLiveRange(range.to(last.pos));
   }
 
   @Override

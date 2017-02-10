@@ -30,36 +30,27 @@ public abstract class Instruction {
     this.outputs = outputs;
   }
 
-  public Set<VirtualRegister> usages() {
-    Set<VirtualRegister> usages = new HashSet<>();
+  public Set<Register> usages() {
+    Set<Register> usages = new HashSet<>();
     for (Operand input : inputs) {
       input.match(
           imm -> {},
-          reg -> addIfVirtualRegister(reg.register, usages),
-          mem -> addIfVirtualRegister(mem.mode.index, addIfVirtualRegister(mem.mode.base, usages)));
+          reg -> usages.add(reg.register),
+          mem -> {
+            usages.add(mem.mode.index);
+            usages.add(mem.mode.base);
+          });
     }
     for (MemoryOperand mem : seq(outputs).ofType(MemoryOperand.class)) {
       // These are special in that the registers mentioned in the address mode are also usages.
-      addIfVirtualRegister(mem.mode.index, usages);
-      addIfVirtualRegister(mem.mode.base, usages);
+      usages.add(mem.mode.index);
+      usages.add(mem.mode.base);
     }
     return usages;
   }
 
-  public Set<VirtualRegister> definitions() {
-    return seq(outputs)
-        .ofType(RegisterOperand.class)
-        .map(def -> def.register)
-        .ofType(VirtualRegister.class)
-        .toSet();
-  }
-
-  private Set<VirtualRegister> addIfVirtualRegister(
-      Register register, Set<VirtualRegister> registers) {
-    if (register instanceof VirtualRegister) {
-      registers.add((VirtualRegister) register);
-    }
-    return registers;
+  public Set<Register> definitions() {
+    return seq(outputs).ofType(RegisterOperand.class).map(def -> def.register).toSet();
   }
 
   protected static List<Operand> toOperands(Iterable<VirtualRegister> registers) {

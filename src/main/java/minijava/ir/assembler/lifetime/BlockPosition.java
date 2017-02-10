@@ -18,6 +18,16 @@ public class BlockPosition implements Comparable<BlockPosition> {
     this.pos = pos;
   }
 
+  static int definedBy(int instructionIndex) {
+    instructionIndex++; // account for Phis
+    return instructionIndex * 2;
+  }
+
+  static int usedBy(int instructionIndex) {
+    instructionIndex++; // account for Phis
+    return instructionIndex * 2 - 1;
+  }
+
   @Override
   public boolean equals(Object o) {
     if (this == o) {
