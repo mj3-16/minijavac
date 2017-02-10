@@ -10,9 +10,7 @@ import minijava.ir.assembler.operands.MemoryOperand;
 import minijava.ir.assembler.operands.Operand;
 import minijava.ir.assembler.operands.OperandWidth;
 import minijava.ir.assembler.operands.RegisterOperand;
-import minijava.ir.assembler.registers.AMD64Register;
 import minijava.ir.assembler.registers.Register;
-import minijava.ir.assembler.registers.VirtualRegister;
 
 public abstract class Instruction {
   // We need to separate input from output operands in order to differentiate usages from defs.
@@ -53,20 +51,13 @@ public abstract class Instruction {
     return seq(outputs).ofType(RegisterOperand.class).map(def -> def.register).toSet();
   }
 
-  protected static List<Operand> toOperands(Iterable<VirtualRegister> registers) {
+  protected static List<Operand> toOperands(Iterable<? extends Register> registers) {
     return toOperands(OperandWidth.Quad, registers);
   }
 
   protected static List<Operand> toOperands(
-      OperandWidth width, Iterable<VirtualRegister> registers) {
+      OperandWidth width, Iterable<? extends Register> registers) {
     return seq(registers).map(reg -> (Operand) new RegisterOperand(width, reg)).toList();
-  }
-
-  protected static boolean isConstrainedToRegister(Register reg, AMD64Register constraint) {
-    if (reg instanceof VirtualRegister) {
-      return ((VirtualRegister) reg).constraint == constraint;
-    }
-    return reg == constraint;
   }
 
   @Override

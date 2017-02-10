@@ -1,6 +1,7 @@
 package minijava.ir.assembler;
 
 import static minijava.ir.utils.FirmUtils.modeToWidth;
+import static org.jooq.lambda.Seq.seq;
 
 import firm.Mode;
 import firm.nodes.Node;
@@ -28,9 +29,11 @@ import minijava.ir.assembler.operands.Operand;
 import minijava.ir.assembler.operands.OperandWidth;
 import minijava.ir.assembler.operands.RegisterOperand;
 import minijava.ir.assembler.registers.AMD64Register;
+import minijava.ir.assembler.registers.Register;
 import minijava.ir.assembler.registers.VirtualRegister;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.MethodInformation;
+import org.jetbrains.annotations.NotNull;
 import org.jooq.lambda.function.Function2;
 import org.jooq.lambda.function.Function3;
 
@@ -91,18 +94,15 @@ class TreeMatcher extends NodeVisitor.Default {
       }
       arguments.add(dest);
     }
-    instructions.add(new Call(calleeLabel, arguments, mapping));
+    instructions.add(new Call(calleeLabel, arguments));
     allocateStackSpace(-parameterRegionSize);
   }
 
   private void allocateStackSpace(int bytes) {
     ImmediateOperand size = new ImmediateOperand(OperandWidth.Quad, bytes);
-    VirtualRegister inputReg = mapping.freshTemporary();
-    inputReg.constraint = AMD64Register.SP;
-    VirtualRegister outputReg = mapping.freshTemporary();
-    outputReg.constraint = AMD64Register.SP;
-    RegisterOperand sp = new RegisterOperand(OperandWidth.Quad, inputReg);
-    instructions.add(bytes >= 0 ? new Sub(size, sp, outputReg) : new Add(size, sp, outputReg));
+    RegisterOperand sp = new RegisterOperand(OperandWidth.Quad, AMD64Register.SP);
+    instructions.add(
+        bytes >= 0 ? new Sub(size, sp, AMD64Register.SP) : new Add(size, sp, AMD64Register.SP));
   }
 
   @Override
@@ -202,37 +202,25 @@ class TreeMatcher extends NodeVisitor.Default {
   }
 
   private void projectDivOrMod(Proj proj, Node node) {
-    // We have to copy the dividend into a temporary register, so we can unleash the register
-    // constraint on RAX.
-    RegisterOperand dividend = copyOperand(cltd(operandForNode(node.getPred(1))));
+    RegisterOperand dividend = cltd(operandForNode(node.getPred(1)));
+    assert dividend.register == AMD64Register.A;
     Operand divisor = operandForNode(node.getPred(2));
-    setConstraint(dividend, AMD64Register.A);
 
-    VirtualRegister quotient;
-    VirtualRegister remainder;
+    instructions.add(new IDiv(divisor));
+
+    // We immediately copy the hardware register into a virtual register, so that register allocation can decide
+    // what's best.
     if (node instanceof firm.nodes.Div) {
-      quotient = mapping.registerForNode(proj);
-      remainder = mapping.freshTemporary();
+      defineAsCopy(new RegisterOperand(dividend.width, AMD64Register.A), proj);
     } else {
       assert node instanceof firm.nodes.Mod : "projectOrDivMod called something else: " + node;
-      quotient = mapping.freshTemporary();
-      remainder = mapping.registerForNode(proj);
+      defineAsCopy(new RegisterOperand(dividend.width, AMD64Register.D), proj);
     }
-    quotient.constraint = AMD64Register.A;
-    remainder.constraint = AMD64Register.D;
-
-    instructions.add(new IDiv(dividend, divisor, quotient, remainder));
   }
 
   private RegisterOperand cltd(Operand op) {
-    RegisterOperand value = copyOperand(op);
-    setConstraint(value, AMD64Register.A);
-    VirtualRegister resultLow = mapping.freshTemporary();
-    resultLow.constraint = AMD64Register.A;
-    VirtualRegister resultHigh = mapping.freshTemporary();
-    resultHigh.constraint = AMD64Register.D;
-    instructions.add(new CLTD(value, resultLow, resultHigh));
-    return new RegisterOperand(op.width, resultLow);
+    instructions.add(new CLTD(op.width));
+    return new RegisterOperand(op.width, AMD64Register.A);
   }
 
   private void projectLoad(Proj proj, Node pred) {
@@ -259,10 +247,6 @@ class TreeMatcher extends NodeVisitor.Default {
     OperandWidth width = modeToWidth(proj.getMode());
     Operand arg = SystemVAbi.argument(proj.getNum(), width);
     defineAsCopy(arg, proj);
-  }
-
-  private static AMD64Register setConstraint(RegisterOperand result, AMD64Register constraint) {
-    return ((VirtualRegister) result.register).constraint = constraint;
   }
 
   @Override
@@ -308,8 +292,9 @@ class TreeMatcher extends NodeVisitor.Default {
 
   /**
    * Some binary operator that saves its output in the right argument. We need to model those with
-   * an extra move instruction, as Linear scan expects 3-address code. Redundant moves can easily be
-   * deleted later on.
+   * an extra move instruction, as Linear scan expects 3-address code and instructions such as
+   * Add/Sub destroy the RHS. Thus, we have to make sure we destroy the last use of the RHS.
+   * Redundant moves can easily be deleted later on.
    */
   private void binaryOperator(
       firm.nodes.Binop node,
@@ -322,7 +307,11 @@ class TreeMatcher extends NodeVisitor.Default {
   }
 
   private RegisterOperand copyOperand(Operand src) {
-    VirtualRegister copy = mapping.freshTemporary();
+    return moveIntoRegister(src, mapping.freshTemporary());
+  }
+
+  @NotNull
+  private RegisterOperand moveIntoRegister(Operand src, Register copy) {
     RegisterOperand dest = new RegisterOperand(src.width, copy);
     instructions.add(new Mov(src, dest));
     return dest;
@@ -339,7 +328,8 @@ class TreeMatcher extends NodeVisitor.Default {
   private void saveDefinitions() {
     for (Instruction definingInstruction : instructions) {
       System.out.println("definingInstruction = " + definingInstruction);
-      for (VirtualRegister register : definingInstruction.definitions()) {
+      for (VirtualRegister register :
+          seq(definingInstruction.definitions()).ofType(VirtualRegister.class)) {
         System.out.println("Defining " + register + " at " + definingInstruction);
         mapping.setDefinition(register, definingInstruction);
       }

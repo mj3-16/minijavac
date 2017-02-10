@@ -14,8 +14,6 @@ public class VirtualRegister implements Register {
   /** Null iff it's a temporary. */
   @Nullable public final Node value;
 
-  @Nullable public AMD64Register constraint;
-
   public VirtualRegister(int id) {
     this.id = id;
     this.value = null;
