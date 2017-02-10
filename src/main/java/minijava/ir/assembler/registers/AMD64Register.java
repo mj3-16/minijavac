@@ -8,9 +8,9 @@ import org.jooq.lambda.Seq;
 /** General purpose hardware register of the AMD64 ISA. */
 public enum AMD64Register implements Register {
   A,
+  B,
   C,
   D,
-  B,
   SP,
   BP,
   SI,

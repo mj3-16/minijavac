@@ -18,14 +18,23 @@ public abstract class Instruction {
   // the RHS is not an input if it's a RegisterOperand.
   // We need to store output operands as operands rather than registers, because otherwise we would
   // not have the information needed for lowering.
-  public final List<Operand> inputs;
-  public final List<Operand> outputs;
+  private final List<Operand> inputs;
+  private final List<Operand> outputs;
+  private final Set<Operand> hint = new HashSet<>();
 
   protected Instruction(List<Operand> inputs, List<Operand> outputs) {
     Preconditions.checkArgument(!inputs.contains(null), "null input operand");
     Preconditions.checkArgument(!outputs.contains(null), "null output register");
     this.inputs = inputs;
     this.outputs = outputs;
+  }
+
+  protected void setHint(Operand... shouldBeAssignedTheSameRegister) {
+    for (Operand operand : shouldBeAssignedTheSameRegister) {
+      assert inputs.contains(operand) || outputs.contains(operand)
+          : "Can only hint connections between input and output operands";
+      hint.add(operand);
+    }
   }
 
   public Set<Register> usages() {

@@ -106,9 +106,9 @@ class TreeMatcher extends NodeVisitor.Default {
     Operand right = operandForNode(node.getRight());
     instructions.add(new Cmp(left, right));
     // We generate a register for the mode b node by default. In cases where this isn't necessary (immediate Jcc),
-    // we just delete the defininf instruction.
-    RegisterOperand op =
-        new RegisterOperand(modeToWidth(Mode.getb()), mapping.registerForNode(node));
+    // we just delete the defining instruction.
+    OperandWidth width = modeToWidth(Mode.getb());
+    RegisterOperand op = new RegisterOperand(width, mapping.registerForNode(node));
     instructions.add(new Setcc(op, node.getRelation()));
   }
 
