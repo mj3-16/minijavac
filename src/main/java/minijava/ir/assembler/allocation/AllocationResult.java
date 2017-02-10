@@ -9,11 +9,14 @@ import minijava.ir.assembler.registers.VirtualRegister;
 public class AllocationResult {
   public final Map<LifetimeInterval, AMD64Register> allocation;
   public final Map<VirtualRegister, List<LifetimeInterval>> splitLifetimes;
+  public final Map<VirtualRegister, Integer> spillSlots;
 
   public AllocationResult(
       Map<LifetimeInterval, AMD64Register> allocation,
-      Map<VirtualRegister, List<LifetimeInterval>> splitLifetimes) {
+      Map<VirtualRegister, List<LifetimeInterval>> splitLifetimes,
+      Map<VirtualRegister, Integer> spillSlots) {
     this.allocation = allocation;
     this.splitLifetimes = splitLifetimes;
+    this.spillSlots = spillSlots;
   }
 }

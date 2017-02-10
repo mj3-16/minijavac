@@ -18,14 +18,18 @@ import org.jooq.lambda.tuple.Tuple2;
 
 public class LinearScanRegisterAllocator {
 
+  // Inputs to the algorithm
   private final Map<AMD64Register, FixedInterval> fixedIntervals;
   private final SortedSet<LifetimeInterval> unhandled;
+
+  // State of the algorithm
   private final List<LifetimeInterval> inactive = new ArrayList<>();
   private final List<LifetimeInterval> active = new ArrayList<>();
   private final List<LifetimeInterval> handled = new ArrayList<>();
+
+  // Outputs
   private final Map<LifetimeInterval, AMD64Register> allocation = new HashMap<>();
   private final Map<VirtualRegister, List<LifetimeInterval>> splitLifetimes = new HashMap<>();
-  // fields concerned with spilling
   private final SpillSlotAllocator spillSlotAllocator = new SpillSlotAllocator();
 
   private LinearScanRegisterAllocator(LifetimeAnalysisResult lifetimes) {
@@ -47,7 +51,7 @@ public class LinearScanRegisterAllocator {
       }
     }
 
-    return new AllocationResult();
+    return new AllocationResult(allocation, splitLifetimes, spillSlotAllocator.spillSlots);
   }
 
   private boolean tryAllocateFreeRegister(LifetimeInterval current) {
