@@ -151,8 +151,15 @@ public class Compiler {
     ProgramMetrics metrics = ProgramMetrics.analyse(Program.getGraphs());
     Set<Graph> intraproceduralCandidates = Sets.newHashSet(Program.getGraphs());
     Inliner inliner = new Inliner(metrics, true);
+    int time = 540;
+    if(EnvVar.MJ_OPT_TIME.isAvailable()) {
+      try {
+        time = Integer.parseInt(EnvVar.MJ_OPT_TIME.value());
+      }
+      catch (NumberFormatException e) {}
+    }
     ScheduledFuture<?> timer =
-        Executors.newScheduledThreadPool(1).schedule(Runnables.doNothing(), 9, TimeUnit.MINUTES);
+        Executors.newScheduledThreadPool(1).schedule(Runnables.doNothing(), time, TimeUnit.SECONDS);
     while (!timer.isDone()) {
       Set<Graph> reachable = metrics.reachableFromMain();
 
