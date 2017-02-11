@@ -33,6 +33,7 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
   }
 
   public List<Instruction> lowerBlock() {
+    instructionCounter = -1;
     Label label = new Label(block.label, seq(block.phis).map(this::substitutePhi).toList());
     lowered.add(label);
 
@@ -79,8 +80,9 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
   public PhiFunction substitutePhi(PhiFunction phi) {
     Map<CodeBlock, Operand> inputs = new HashMap<>();
     phi.inputs.forEach(
-        (block, input) -> inputs.put(block, substituteHardwareRegisters(input, false)));
-    Operand output = substituteHardwareRegisters(phi.output, true);
+        (block, input) ->
+            inputs.put(block, substituteHardwareRegisters(input, BlockPosition.endOf(block))));
+    Operand output = substituteHardwareRegisters(phi.output, BlockPosition.beginOf(this.block));
     return output.match(
         imm -> {
           throw new UnsupportedOperationException("Can't Mov into an immediate");
@@ -117,9 +119,9 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
       TwoAddressInstruction instruction,
       Function3<Operand, RegisterOperand, RegisterOperand, TwoAddressInstruction> regFactory,
       Function2<Operand, MemoryOperand, TwoAddressInstruction> memFactory) {
-    Operand left = substituteHardwareRegisters(instruction.left, false);
-    Operand rightIn = substituteHardwareRegisters(instruction.rightIn, false);
-    Operand rightOut = substituteHardwareRegisters(instruction.rightOut, true);
+    Operand left = substituteHardwareRegisters(instruction.left, currentUse());
+    Operand rightIn = substituteHardwareRegisters(instruction.rightIn, currentUse());
+    Operand rightOut = substituteHardwareRegisters(instruction.rightOut, currentDef());
     // After allocation both rightIn and rightOut MUST be the same Operands, otherwise we can't use a 2-address
     // instruction.
     assert rightIn.equals(rightOut);
@@ -150,8 +152,8 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
   public void visit(Cmp cmp) {
     lowered.add(
         new Cmp(
-            substituteHardwareRegisters(cmp.left, false),
-            substituteHardwareRegisters(cmp.right, false)));
+            substituteHardwareRegisters(cmp.left, currentUse()),
+            substituteHardwareRegisters(cmp.right, currentUse())));
   }
 
   @Override
@@ -172,7 +174,7 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
 
   @Override
   public void visit(IDiv idiv) {
-    lowered.add(new IDiv(substituteHardwareRegisters(idiv.divisor, false)));
+    lowered.add(new IDiv(substituteHardwareRegisters(idiv.divisor, currentUse())));
   }
 
   @Override
@@ -185,8 +187,8 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
 
   @Override
   public void visit(Mov mov) {
-    Operand src = substituteHardwareRegisters(mov.src, false);
-    Operand dest = substituteHardwareRegisters(mov.dest, true);
+    Operand src = substituteHardwareRegisters(mov.src, currentUse());
+    Operand dest = substituteHardwareRegisters(mov.dest, currentDef());
     Mov substituted =
         dest.match(
             imm -> {
@@ -203,8 +205,8 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
 
   @Override
   public void visit(Neg neg) {
-    Operand input = substituteHardwareRegisters(neg.input, false);
-    Operand output = substituteHardwareRegisters(neg.input, true);
+    Operand input = substituteHardwareRegisters(neg.input, currentUse());
+    Operand output = substituteHardwareRegisters(neg.input, currentDef());
     // After allocation, the input should be the same operand as the output (as we can't translate it to AMD64 code
     // otherwise).
     assert input.equals(output);
@@ -224,7 +226,7 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
 
   @Override
   public void visit(Setcc setcc) {
-    Operand output = substituteHardwareRegisters(setcc.output, true);
+    Operand output = substituteHardwareRegisters(setcc.output, currentDef());
     Setcc substituted =
         output.match(
             imm -> {
@@ -241,8 +243,8 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
 
   @Override
   public void visit(Test test) {
-    Operand left = substituteHardwareRegisters(test.left, false);
-    Operand right = substituteHardwareRegisters(test.left, false);
+    Operand left = substituteHardwareRegisters(test.left, currentUse());
+    Operand right = substituteHardwareRegisters(test.right, currentUse());
     Test substituted =
         left.match(
             imm -> {
@@ -257,17 +259,23 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
     lowered.add(substituted);
   }
 
-  private Operand substituteHardwareRegisters(Operand virtualOperand, boolean isOutput) {
-    BlockPosition def = new BlockPosition(block, BlockPosition.definedBy(instructionCounter));
-    BlockPosition use = new BlockPosition(block, BlockPosition.usedBy(instructionCounter));
+  private BlockPosition currentUse() {
+    return new BlockPosition(block, BlockPosition.usedBy(instructionCounter));
+  }
+
+  private BlockPosition currentDef() {
+    return new BlockPosition(block, BlockPosition.definedBy(instructionCounter));
+  }
+
+  private Operand substituteHardwareRegisters(Operand virtualOperand, BlockPosition position) {
     return virtualOperand.match(
         imm -> imm,
         reg -> {
-          return allocationResult.hardwareOperandAt(reg.width, reg.register, isOutput ? def : use);
+          return allocationResult.hardwareOperandAt(reg.width, reg.register, position);
         },
         mem -> {
-          AMD64Register base = allocationResult.assignedRegisterAt(mem.mode.base, use);
-          AMD64Register index = allocationResult.assignedRegisterAt(mem.mode.index, use);
+          AMD64Register base = allocationResult.assignedRegisterAt(mem.mode.base, position);
+          AMD64Register index = allocationResult.assignedRegisterAt(mem.mode.index, position);
           // We can't handle MemoryOperands where the referenced registers are spilled (yet).
           // That would entail rewriting the MemoryOperand as a series of Push/Pops.
           // Fortunately, this only happens when register pressure is really high and we make use of elaborate

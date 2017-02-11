@@ -135,12 +135,10 @@ public class LinearScanRegisterAllocator {
       boolean notWorseThanBest = bestCandidate.v2.equals(blocked);
       if (goodEnough || notWorseThanBest) {
         // locked is a better candidate
-        System.out.println("locked = " + locked);
         return tuple(locked, blocked);
       }
     }
 
-    System.out.println("bestCandidate = " + bestCandidate);
     return bestCandidate;
   }
 
