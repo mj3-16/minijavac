@@ -28,6 +28,15 @@ public class BlockPosition implements Comparable<BlockPosition> {
     return instructionIndex * 2 - 1;
   }
 
+  public static BlockPosition beginOf(CodeBlock block) {
+    return new BlockPosition(block, 0);
+  }
+
+  public static BlockPosition endOf(CodeBlock block) {
+    // interpret as a use by a pseudo instruction after the last actual instruction
+    return new BlockPosition(block, usedBy(block.instructions.size()));
+  }
+
   @Override
   public boolean equals(Object o) {
     if (this == o) {

@@ -7,7 +7,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import minijava.ir.assembler.block.PhiFunction;
-import minijava.ir.assembler.operands.MemoryOperand;
 import minijava.ir.assembler.operands.Operand;
 import minijava.ir.assembler.operands.OperandWidth;
 import minijava.ir.assembler.operands.RegisterOperand;
@@ -46,18 +45,10 @@ public abstract class Instruction {
   public Set<Register> usages() {
     Set<Register> usages = new HashSet<>();
     for (Operand input : inputs) {
-      input.match(
-          imm -> {},
-          reg -> usages.add(reg.register),
-          mem -> {
-            usages.add(mem.mode.index);
-            usages.add(mem.mode.base);
-          });
+      usages.addAll(input.reads(false));
     }
-    for (MemoryOperand mem : seq(outputs).ofType(MemoryOperand.class)) {
-      // These are special in that the registers mentioned in the address mode are also usages.
-      usages.add(mem.mode.index);
-      usages.add(mem.mode.base);
+    for (Operand output : outputs) {
+      usages.addAll(output.reads(true));
     }
     return usages;
   }
@@ -114,5 +105,7 @@ public abstract class Instruction {
     default void visit(Ret ret) {}
 
     default void visit(PhiFunction phi) {}
+
+    default void visit(Xchg xchg) {}
   }
 }

@@ -64,7 +64,7 @@ public class LinearScanRegisterAllocator {
       BlockPosition blockedAt = fixed.ranges.firstIntersectionWith(current.ranges);
       if (blockedAt == null) {
         // We freely choose a position after the last usage
-        blockedAt = new BlockPosition(current.lastBlock(), Integer.MAX_VALUE);
+        blockedAt = BlockPosition.endOf(current.lastBlock());
       }
       freeUntil.put(register, blockedAt);
     }
@@ -207,7 +207,7 @@ public class LinearScanRegisterAllocator {
 
     Map<AMD64Register, BlockPosition> nextUse = new HashMap<>();
     for (AMD64Register register : AMD64Register.values()) {
-      nextUse.put(register, new BlockPosition(current.lastBlock(), Integer.MAX_VALUE));
+      nextUse.put(register, BlockPosition.endOf(current.lastBlock()));
     }
 
     for (LifetimeInterval interval : active) {

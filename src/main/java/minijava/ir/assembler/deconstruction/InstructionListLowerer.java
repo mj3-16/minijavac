@@ -263,19 +263,11 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
     return virtualOperand.match(
         imm -> imm,
         reg -> {
-          AMD64Register register = assignedRegisterAt(reg.register, isOutput ? def : use);
-          if (register == null) {
-            // Return a memory operand to the spill slot
-            MemoryOperand spillSlot =
-                allocationResult.spillLocation(reg.width, (VirtualRegister) reg.register);
-            //
-            return spillSlot;
-          }
-          return new RegisterOperand(reg.width, register);
+          return allocationResult.hardwareOperandAt(reg.width, reg.register, isOutput ? def : use);
         },
         mem -> {
-          AMD64Register base = assignedRegisterAt(mem.mode.base, use);
-          AMD64Register index = assignedRegisterAt(mem.mode.index, use);
+          AMD64Register base = allocationResult.assignedRegisterAt(mem.mode.base, use);
+          AMD64Register index = allocationResult.assignedRegisterAt(mem.mode.index, use);
           // We can't handle MemoryOperands where the referenced registers are spilled (yet).
           // That would entail rewriting the MemoryOperand as a series of Push/Pops.
           // Fortunately, this only happens when register pressure is really high and we make use of elaborate
@@ -285,13 +277,6 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
           return new MemoryOperand(
               mem.width, new AddressingMode(mem.mode.displacement, base, index, mem.mode.scale));
         });
-  }
-
-  private AMD64Register assignedRegisterAt(Register register, BlockPosition position) {
-    if (register instanceof AMD64Register) {
-      return (AMD64Register) register;
-    }
-    return allocationResult.assignedRegisterAt((VirtualRegister) register, position);
   }
 
   public static List<Instruction> lowerBlock(CodeBlock block, AllocationResult allocationResult) {

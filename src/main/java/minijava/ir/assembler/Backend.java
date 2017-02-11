@@ -6,6 +6,10 @@ import com.google.common.collect.BiMap;
 import firm.Graph;
 import firm.Program;
 import firm.nodes.Block;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,14 +21,16 @@ import minijava.ir.assembler.instructions.Instruction;
 import minijava.ir.assembler.lifetime.LifetimeAnalysis;
 import minijava.ir.assembler.lifetime.LifetimeAnalysisResult;
 import minijava.ir.assembler.lifetime.LifetimeInterval;
+import minijava.ir.assembler.syntax.GasSyntax;
 import minijava.ir.optimize.ProgramMetrics;
 import minijava.ir.utils.GraphUtils;
 import org.jooq.lambda.Seq;
 
 public class Backend {
 
-  public static String lowerAssembler(String outFile) {
+  public static String lowerAssembler(String outFile) throws IOException {
     ProgramMetrics metrics = ProgramMetrics.analyse(Program.getGraphs());
+    List<Instruction> instructions = new ArrayList<>();
     Map<Block, CodeBlock> blocks = new HashMap<>();
     for (Graph graph : metrics.reachableFromMain()) {
       BiMap<Block, CodeBlock> currentFunction = InstructionSelector.selectInstructions(graph);
@@ -53,10 +59,18 @@ public class Backend {
         System.out.println(interval.register + " -> " + allocationResult.allocation.get(interval));
       }
 
-      List<Instruction> instructions = SsaDeconstruction.assembleInstructionList(allocationResult);
+      instructions.addAll(
+          SsaDeconstruction.assembleInstructionList(linearization, allocationResult));
     }
 
-    return null;
+    String asmFile = outFile + ".s";
+    StringBuilder asm = GasSyntax.formatAssembler(instructions);
+    try (BufferedWriter writer = new BufferedWriter(new FileWriter(asmFile))) {
+      System.out.println(asm);
+      writer.append(asm);
+    }
+
+    return asmFile;
   }
 
   private static List<CodeBlock> linearizeCfg(Map<Block, CodeBlock> blocks, Graph graph) {

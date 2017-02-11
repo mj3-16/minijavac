@@ -29,8 +29,8 @@ public class LinearLiveRanges {
   }
 
   public List<LiveRange> getLiveRanges(CodeBlock block) {
-    BlockPosition from = new BlockPosition(block, 0);
-    BlockPosition to = new BlockPosition(block, Integer.MAX_VALUE);
+    BlockPosition from = BlockPosition.beginOf(block);
+    BlockPosition to = BlockPosition.endOf(block);
     List<LiveRange> ret = new ArrayList<>();
     for (Entry<BlockPosition, Integer> entry : ranges.subMap(from, to).entrySet()) {
       ret.add(new LiveRange(block, entry.getKey().pos, entry.getValue()));
@@ -61,8 +61,8 @@ public class LinearLiveRanges {
   }
 
   public void deleteLiveRanges(CodeBlock block) {
-    BlockPosition from = new BlockPosition(block, 0);
-    BlockPosition to = new BlockPosition(block, Integer.MAX_VALUE);
+    BlockPosition from = BlockPosition.beginOf(block);
+    BlockPosition to = BlockPosition.endOf(block);
     ranges.subMap(from, to).clear();
   }
 
@@ -127,7 +127,7 @@ public class LinearLiveRanges {
   }
 
   private BlockPosition lastTo() {
-    return new BlockPosition(ranges.lastKey().block, Integer.MAX_VALUE);
+    return BlockPosition.endOf(ranges.lastKey().block);
   }
 
   private Iterator<Entry<BlockPosition, Integer>> iterateEntriesInRange(

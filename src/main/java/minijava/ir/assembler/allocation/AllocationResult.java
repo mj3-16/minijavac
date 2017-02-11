@@ -8,10 +8,9 @@ import java.util.*;
 import minijava.ir.assembler.StackLayout;
 import minijava.ir.assembler.lifetime.BlockPosition;
 import minijava.ir.assembler.lifetime.LifetimeInterval;
-import minijava.ir.assembler.operands.AddressingMode;
-import minijava.ir.assembler.operands.MemoryOperand;
-import minijava.ir.assembler.operands.OperandWidth;
+import minijava.ir.assembler.operands.*;
 import minijava.ir.assembler.registers.AMD64Register;
+import minijava.ir.assembler.registers.Register;
 import minijava.ir.assembler.registers.VirtualRegister;
 
 public class AllocationResult {
@@ -57,15 +56,19 @@ public class AllocationResult {
     return events;
   }
 
-  public AMD64Register assignedRegisterAt(VirtualRegister what, BlockPosition where) {
-    for (LifetimeInterval li : getInterval(what)) {
-      if (!li.covers(where)) {
-        continue;
-      }
-      return allocation.get(li);
-    }
+  public AMD64Register assignedRegisterAt(Register what, BlockPosition where) {
+    return what.match(
+        virt -> {
+          for (LifetimeInterval li : getInterval(virt)) {
+            if (!li.covers(where)) {
+              continue;
+            }
+            return allocation.get(li);
+          }
 
-    return null;
+          return null;
+        },
+        hardware -> hardware);
   }
 
   private List<LifetimeInterval> getInterval(VirtualRegister what) {
@@ -80,6 +83,17 @@ public class AllocationResult {
           seq(splits).filter(li -> li.covers(position)).findFirst().ifPresent(live::add);
         });
     return live;
+  }
+
+  public Operand hardwareOperandAt(OperandWidth width, Register register, BlockPosition where) {
+    AMD64Register physical = assignedRegisterAt(register, where);
+
+    if (physical != null) {
+      // There is a physical register assigned at where
+      return new RegisterOperand(width, physical);
+    }
+    // Otherwise we return a reference to the spill location.
+    return spillLocation(width, (VirtualRegister) register);
   }
 
   public MemoryOperand spillLocation(OperandWidth width, VirtualRegister register) {

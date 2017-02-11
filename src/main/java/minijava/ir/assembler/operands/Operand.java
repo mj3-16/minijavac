@@ -1,7 +1,10 @@
 package minijava.ir.assembler.operands;
 
+import com.google.common.collect.Sets;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import minijava.ir.assembler.registers.Register;
 
 /** Operand for an assembler instruction */
 public abstract class Operand {
@@ -42,5 +45,14 @@ public abstract class Operand {
           matchMem.accept(mem);
           return null;
         });
+  }
+
+  public Set<Register> reads(boolean inOutputPosition) {
+    return match(
+        imm -> {
+          return Sets.newHashSet();
+        },
+        reg -> inOutputPosition ? Sets.newHashSet() : Sets.newHashSet(reg.register),
+        mem -> Sets.newHashSet(mem.mode.index, mem.mode.base));
   }
 }

@@ -1,15 +1,11 @@
 package minijava.ir.assembler.lifetime;
 
 import com.google.common.base.Preconditions;
-import java.util.Comparator;
 import java.util.Objects;
 import minijava.ir.assembler.block.CodeBlock;
 
 public class LiveRange {
 
-  public static final Comparator<LiveRange> COMPARING_FROM =
-      Comparator.comparingInt((LiveRange lr) -> lr.block.linearizedOrdinal)
-          .thenComparingInt(lr -> lr.from);
   public final CodeBlock block;
   public final int from; // inclusive, starting at 0 for definitions of PhiFunctions
   public final int to; // inclusive
