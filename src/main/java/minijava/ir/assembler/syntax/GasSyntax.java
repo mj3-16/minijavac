@@ -168,8 +168,13 @@ public class GasSyntax implements Instruction.Visitor {
     indent();
     builder.append(toMnemonic(instruction));
     builder.append(widthToInstructionSuffix(width));
+    boolean first = true;
     for (Operand operand : output) {
-      builder.append(" ");
+      if (!first) {
+        builder.append(',');
+      }
+      first = false;
+      builder.append(' ');
       formatOperand(operand);
     }
     appendLine();
@@ -215,6 +220,7 @@ public class GasSyntax implements Instruction.Visitor {
     int widthIdx = width.ordinal();
     String[][] prefix = {{"", "e", "r"}, {"", "e", "r"}, {"", "", ""}};
     String[][] suffix = {{"l", "x", "x"}, {"l", "", ""}, {"b", "d", ""}};
+    builder.append('%');
     switch (register) {
       case A:
       case B:

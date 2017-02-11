@@ -54,7 +54,8 @@ public class SsaDeconstruction {
         boolean succHasPhis = succ.phis.size() > 0;
         // This check could be more precise if we stored the Preds in the CodeBlock, which we don't.
         // Critical edges without Phis might still slip through, causing trouble for split intervals.
-        assert !succHasPhis || predHasMultipleSuccs : "Found a critical edge";
+        assert !succHasPhis || !predHasMultipleSuccs
+            : "Found a critical edge from " + pred + " to " + succ;
         resolveControlFlowEdge(pred, succ, movesAfterPred);
         // movesAfterPred is the best witness for a critical edge: If there is a move necessary, pred may not have
         // multiple successors. If that was the case, one of the successors could always be scheduled immediately
