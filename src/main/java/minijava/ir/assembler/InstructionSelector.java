@@ -16,6 +16,7 @@ import firm.bindings.binding_irnode;
 import firm.nodes.*;
 import firm.nodes.Call;
 import firm.nodes.Cmp;
+import firm.nodes.Jmp;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,15 +39,13 @@ import org.jooq.lambda.tuple.Tuple2;
 public class InstructionSelector extends NodeVisitor.Default {
 
   private final Graph graph;
-  private final ActivationRecord activationRecord;
   private final VirtualRegisterMapping mapping = new VirtualRegisterMapping();
   private final BiMap<Block, CodeBlock> blocks = HashBiMap.create();
   private final Map<Block, Node> currentlyVisibleModeb = new HashMap<>();
   private final TreeMatcher matcher = new TreeMatcher(mapping);
 
-  private InstructionSelector(Graph graph, ActivationRecord activationRecord) {
+  private InstructionSelector(Graph graph) {
     this.graph = graph;
-    this.activationRecord = activationRecord;
   }
 
   @Override
@@ -327,9 +326,8 @@ public class InstructionSelector extends NodeVisitor.Default {
         > 0;
   }
 
-  public static BiMap<Block, CodeBlock> selectInstructions(
-      Graph graph, ActivationRecord activationRecord) {
-    InstructionSelector selector = new InstructionSelector(graph, activationRecord);
+  public static BiMap<Block, CodeBlock> selectInstructions(Graph graph) {
+    InstructionSelector selector = new InstructionSelector(graph);
     List<Node> topologicalOrder = GraphUtils.topologicalOrder(graph);
     Tuple2<Seq<Node>, Seq<Node>> partition =
         seq(topologicalOrder).partition(InstructionSelector::isToBeRetained);

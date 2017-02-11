@@ -18,12 +18,12 @@ public class BlockPosition implements Comparable<BlockPosition> {
     this.pos = pos;
   }
 
-  static int definedBy(int instructionIndex) {
+  public static int definedBy(int instructionIndex) {
     instructionIndex++; // account for Phis
     return instructionIndex * 2;
   }
 
-  static int usedBy(int instructionIndex) {
+  public static int usedBy(int instructionIndex) {
     instructionIndex++; // account for Phis
     return instructionIndex * 2 - 1;
   }

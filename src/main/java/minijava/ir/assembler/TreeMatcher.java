@@ -223,7 +223,7 @@ class TreeMatcher extends NodeVisitor.Default {
   }
 
   private RegisterOperand cltd(Operand op) {
-    instructions.add(new CLTD(op.width));
+    instructions.add(new Cltd(op.width));
     return new RegisterOperand(op.width, AMD64Register.A);
   }
 
@@ -287,9 +287,9 @@ class TreeMatcher extends NodeVisitor.Default {
   }
 
   private void unaryOperator(
-      firm.nodes.Node node, Function2<Operand, VirtualRegister, Instruction> factory) {
+      firm.nodes.Node node, Function2<RegisterOperand, VirtualRegister, Instruction> factory) {
     assert node.getPredCount() == 1;
-    Operand op = operandForNode(node.getPred(0));
+    RegisterOperand op = operandForNode(node.getPred(0));
     VirtualRegister result = mapping.registerForNode(node);
     instructions.add(factory.apply(op, result));
   }
@@ -311,7 +311,7 @@ class TreeMatcher extends NodeVisitor.Default {
   }
 
   private RegisterOperand copyOperand(Operand src) {
-    return moveIntoRegister(src, mapping.freshTemporary());
+    return moveIntoRegister(src, mapping.freshTemporary(src.width));
   }
 
   @NotNull

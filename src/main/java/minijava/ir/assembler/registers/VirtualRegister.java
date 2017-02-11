@@ -1,7 +1,10 @@
 package minijava.ir.assembler.registers;
 
+import static minijava.ir.utils.FirmUtils.modeToWidth;
+
 import firm.nodes.Node;
 import java.util.function.Function;
+import minijava.ir.assembler.operands.OperandWidth;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -11,16 +14,20 @@ import org.jetbrains.annotations.Nullable;
 public class VirtualRegister implements Register {
 
   public final int id;
+  /** We need this for doing opaque reloads when spilling registers. */
+  public final OperandWidth defWidth;
   /** Null iff it's a temporary. */
   @Nullable public final Node value;
 
-  public VirtualRegister(int id) {
+  public VirtualRegister(int id, OperandWidth defWidth) {
     this.id = id;
+    this.defWidth = defWidth;
     this.value = null;
   }
 
   public VirtualRegister(int id, Node value) {
     this.id = id;
+    this.defWidth = modeToWidth(value.getMode());
     this.value = value;
   }
 

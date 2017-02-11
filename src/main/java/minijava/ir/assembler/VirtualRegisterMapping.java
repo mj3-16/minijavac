@@ -6,6 +6,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import minijava.ir.assembler.instructions.Instruction;
+import minijava.ir.assembler.operands.OperandWidth;
 import minijava.ir.assembler.registers.VirtualRegister;
 
 public class VirtualRegisterMapping {
@@ -21,8 +22,8 @@ public class VirtualRegisterMapping {
     return mapping.computeIfAbsent(node, d -> new VirtualRegister(nextFreeId++, d));
   }
 
-  public VirtualRegister freshTemporary() {
-    return new VirtualRegister(nextFreeId++);
+  public VirtualRegister freshTemporary(OperandWidth width) {
+    return new VirtualRegister(nextFreeId++, width);
   }
 
   public void markNeverDefined(Node node) {

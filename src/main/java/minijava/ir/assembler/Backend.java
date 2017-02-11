@@ -12,6 +12,8 @@ import java.util.Map;
 import minijava.ir.assembler.allocation.AllocationResult;
 import minijava.ir.assembler.allocation.LinearScanRegisterAllocator;
 import minijava.ir.assembler.block.CodeBlock;
+import minijava.ir.assembler.deconstruction.SsaDeconstruction;
+import minijava.ir.assembler.instructions.Instruction;
 import minijava.ir.assembler.lifetime.LifetimeAnalysis;
 import minijava.ir.assembler.lifetime.LifetimeAnalysisResult;
 import minijava.ir.assembler.lifetime.LifetimeInterval;
@@ -25,9 +27,7 @@ public class Backend {
     ProgramMetrics metrics = ProgramMetrics.analyse(Program.getGraphs());
     Map<Block, CodeBlock> blocks = new HashMap<>();
     for (Graph graph : metrics.reachableFromMain()) {
-      ActivationRecord activationRecord = new ActivationRecord();
-      BiMap<Block, CodeBlock> currentFunction =
-          InstructionSelector.selectInstructions(graph, activationRecord);
+      BiMap<Block, CodeBlock> currentFunction = InstructionSelector.selectInstructions(graph);
       blocks.putAll(currentFunction);
       List<CodeBlock> linearization = linearizeCfg(blocks, graph);
       for (CodeBlock block : linearization) {
@@ -52,6 +52,8 @@ public class Backend {
           seq(allocationResult.allocation.keySet()).sorted(li -> li.register.id)) {
         System.out.println(interval.register + " -> " + allocationResult.allocation.get(interval));
       }
+
+      List<Instruction> instructions = SsaDeconstruction.assembleInstructionList(allocationResult);
     }
 
     return null;

@@ -60,6 +60,8 @@ public abstract class Instruction {
     return seq(outputs).ofType(RegisterOperand.class).map(def -> def.register).toSet();
   }
 
+  public abstract void accept(Visitor visitor);
+
   protected static List<Operand> toOperands(Iterable<? extends Register> registers) {
     return toOperands(OperandWidth.Quad, registers);
   }
@@ -89,5 +91,47 @@ public abstract class Instruction {
       hints.add(operand.register);
     }
     return hints;
+  }
+
+  public interface Visitor {
+    default void visit(Add add) {}
+
+    default void visit(And and) {}
+
+    default void visit(Call call) {}
+
+    default void visit(Cltd cltd) {}
+
+    default void visit(Cmp cmp) {}
+
+    default void visit(Enter enter) {}
+
+    default void visit(IDiv idiv) {}
+
+    default void visit(IMul imul) {}
+
+    default void visit(Jcc jcc) {}
+
+    default void visit(Jmp jmp) {}
+
+    default void visit(Label label) {}
+
+    default void visit(Leave leave) {}
+
+    default void visit(Mov mov) {}
+
+    default void visit(Neg neg) {}
+
+    default void visit(Pop pop) {}
+
+    default void visit(Push push) {}
+
+    default void visit(Ret ret) {}
+
+    default void visit(Setcc setcc) {}
+
+    default void visit(Sub sub) {}
+
+    default void visit(Test test) {}
   }
 }

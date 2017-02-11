@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import minijava.ir.assembler.instructions.Instruction;
 
 public class CodeBlock {
@@ -47,10 +48,18 @@ public class CodeBlock {
   public interface ExitArity {
     Set<CodeBlock> getSuccessors();
 
+    <T> T match(Function<Zero, T> matchZero, Function<One, T> matchOne, Function<Two, T> matchTwo);
+
     class Zero implements ExitArity {
       @Override
       public Set<CodeBlock> getSuccessors() {
         return new HashSet<>();
+      }
+
+      @Override
+      public <T> T match(
+          Function<Zero, T> matchZero, Function<One, T> matchOne, Function<Two, T> matchTwo) {
+        return matchZero.apply(this);
       }
 
       @Override
@@ -69,6 +78,12 @@ public class CodeBlock {
       @Override
       public Set<CodeBlock> getSuccessors() {
         return Sets.newHashSet(target);
+      }
+
+      @Override
+      public <T> T match(
+          Function<Zero, T> matchZero, Function<One, T> matchOne, Function<Two, T> matchTwo) {
+        return matchOne.apply(this);
       }
 
       @Override
@@ -91,6 +106,12 @@ public class CodeBlock {
       @Override
       public Set<CodeBlock> getSuccessors() {
         return Sets.newHashSet(trueTarget, falseTarget);
+      }
+
+      @Override
+      public <T> T match(
+          Function<Zero, T> matchZero, Function<One, T> matchOne, Function<Two, T> matchTwo) {
+        return matchTwo.apply(this);
       }
 
       @Override

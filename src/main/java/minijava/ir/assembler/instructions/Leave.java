@@ -10,4 +10,9 @@ public class Leave extends Instruction {
   public Leave() {
     super(new ArrayList<>(), new ArrayList<>());
   }
+
+  @Override
+  public void accept(Visitor visitor) {
+    visitor.visit(this);
+  }
 }

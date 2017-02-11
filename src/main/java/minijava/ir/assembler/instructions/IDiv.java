@@ -9,9 +9,17 @@ import org.jooq.lambda.Seq;
 
 public class IDiv extends Instruction {
 
+  public final Operand divisor;
+
   public IDiv(Operand divisor) {
     super(
         newArrayList(new RegisterOperand(divisor.width, AMD64Register.A), divisor),
         toOperands(divisor.width, Seq.of(AMD64Register.A, AMD64Register.D)));
+    this.divisor = divisor;
+  }
+
+  @Override
+  public void accept(Visitor visitor) {
+    visitor.visit(this);
   }
 }

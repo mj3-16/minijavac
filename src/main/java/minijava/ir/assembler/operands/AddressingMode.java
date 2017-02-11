@@ -31,6 +31,10 @@ public class AddressingMode {
     this.scale = scale;
   }
 
+  public AddressingMode(int displacement, Register base) {
+    this(displacement, base, null, 0);
+  }
+
   public static AddressingMode atRegister(Register base) {
     return new AddressingMode(0, base, null, 0);
   }
