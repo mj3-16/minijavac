@@ -233,7 +233,6 @@ public class InstructionSelector extends NodeVisitor.Default {
       assert setcc instanceof Setcc; // Just to be sure
       getCodeBlock(irBlock).instructions.remove(setcc);
     }
-    System.out.println("hi");
     currentlyVisibleModeb.put(irBlock, node);
   }
 
@@ -337,7 +336,6 @@ public class InstructionSelector extends NodeVisitor.Default {
     List<Node> withoutRetained = partition.v2.toList();
     // This will only visit nodes which were retained previously. See isToBeRetained.
     List<Node> onlyRetained = partition.v1.toList();
-    System.out.println(onlyRetained);
     return FirmUtils.withBackEdges(
         graph,
         () -> {

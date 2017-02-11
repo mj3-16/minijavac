@@ -13,6 +13,8 @@ import java.util.Set;
 import minijava.ir.assembler.block.CodeBlock;
 import minijava.ir.assembler.block.PhiFunction;
 import minijava.ir.assembler.instructions.Instruction;
+import minijava.ir.assembler.operands.Operand;
+import minijava.ir.assembler.operands.RegisterOperand;
 import minijava.ir.assembler.registers.AMD64Register;
 import minijava.ir.assembler.registers.Register;
 import minijava.ir.assembler.registers.VirtualRegister;
@@ -70,7 +72,10 @@ public class LifetimeAnalysis {
         defined.match(
             vr -> {
               getInterval(vr).setDef(block, idx);
-              getInterval(vr).fromHints = instruction.registerHints();
+              Set<Register> hints = instruction.registerHints();
+              if (hints.contains(vr)) {
+                getInterval(vr).fromHints.addAll(hints);
+              }
               live.remove(defined);
             },
             hr -> {
@@ -82,9 +87,10 @@ public class LifetimeAnalysis {
         used.match(
             vr -> {
               getInterval(vr).addUse(block, idx);
-              if (!live.contains(vr)) {
+              Set<Register> hints = instruction.registerHints();
+              if (!live.contains(vr) && hints.contains(vr)) {
                 // This was the last usage.
-                getInterval(vr).toHints = instruction.registerHints();
+                getInterval(vr).toHints.addAll(hints);
               }
               live.add(vr);
             },
@@ -127,13 +133,29 @@ public class LifetimeAnalysis {
 
     for (CodeBlock successor : block.exit.getSuccessors()) {
       for (PhiFunction phi : successor.phis) {
-        Set<Register> reads = phi.inputs.get(block).reads(false);
+        Operand input = phi.inputs.get(block);
+        Set<Register> reads = input.reads(false);
         reads.addAll(phi.output.reads(true));
         for (Register alive : reads) {
           if (alive instanceof VirtualRegister) {
             VirtualRegister aliveVirtual = (VirtualRegister) alive;
-            getInterval(aliveVirtual).toHints = phi.registerHints();
             live.add(aliveVirtual);
+          }
+        }
+
+        if (input instanceof RegisterOperand) {
+          RegisterOperand op = (RegisterOperand) input;
+          if (op.register instanceof VirtualRegister) {
+            Set<Register> toHints = getInterval((VirtualRegister) op.register).toHints;
+            for (Register register : phi.registerHints(block)) {
+              register.match(
+                  virt -> {
+                    LifetimeInterval connectedInterval = getInterval(virt);
+                    toHints.addAll(connectedInterval.toHints);
+                    toHints.addAll(connectedInterval.fromHints);
+                  },
+                  mem -> {});
+            }
           }
         }
       }

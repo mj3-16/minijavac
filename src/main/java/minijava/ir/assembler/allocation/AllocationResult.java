@@ -57,6 +57,8 @@ public class AllocationResult {
   }
 
   public AMD64Register assignedRegisterAt(Register what, BlockPosition where) {
+    System.out.println("what = " + what);
+    System.out.println("where = " + where);
     return what.match(
         virt -> {
           for (LifetimeInterval li : getInterval(virt)) {

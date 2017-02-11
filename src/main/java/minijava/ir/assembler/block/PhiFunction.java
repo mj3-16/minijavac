@@ -4,13 +4,13 @@ import static com.google.common.collect.Lists.newArrayList;
 import static org.jooq.lambda.Seq.seq;
 
 import firm.nodes.Phi;
-import java.util.ArrayList;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import minijava.ir.assembler.instructions.Instruction;
 import minijava.ir.assembler.operands.MemoryOperand;
 import minijava.ir.assembler.operands.Operand;
 import minijava.ir.assembler.operands.RegisterOperand;
+import minijava.ir.assembler.registers.Register;
+import org.jooq.lambda.Seq;
 
 public class PhiFunction extends Instruction {
   public final Map<CodeBlock, Operand> inputs;
@@ -32,6 +32,13 @@ public class PhiFunction extends Instruction {
 
   public PhiFunction(Map<CodeBlock, Operand> inputs, MemoryOperand output, Phi phi) {
     this(inputs, (Operand) output, phi);
+  }
+
+  public Set<Register> registerHints(CodeBlock pred) {
+    return Seq.of(output, inputs.get(pred))
+        .ofType(RegisterOperand.class)
+        .map(reg -> reg.register)
+        .toSet();
   }
 
   @Override

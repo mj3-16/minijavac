@@ -38,9 +38,9 @@ public class Backend {
       List<CodeBlock> linearization = linearizeCfg(blocks, graph);
       for (CodeBlock block : linearization) {
         System.out.println(block.label + ":");
-        block.phis.forEach(System.out::println);
-        block.instructions.forEach(System.out::println);
-        System.out.println(block.exit);
+        block.phis.forEach(phi -> System.out.println("  " + phi));
+        block.instructions.forEach(i -> System.out.println("  " + i));
+        System.out.println("  " + block.exit);
       }
       LifetimeAnalysisResult lifetimes = LifetimeAnalysis.analyse(currentFunction, linearization);
 

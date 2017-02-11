@@ -84,7 +84,7 @@ public abstract class Instruction {
 
   public Set<Register> registerHints() {
     Set<Register> hints = new HashSet<>();
-    for (RegisterOperand operand : seq(hints).ofType(RegisterOperand.class)) {
+    for (RegisterOperand operand : seq(this.hints).ofType(RegisterOperand.class)) {
       hints.add(operand.register);
     }
     return hints;

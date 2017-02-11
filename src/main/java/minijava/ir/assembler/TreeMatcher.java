@@ -332,10 +332,8 @@ class TreeMatcher extends NodeVisitor.Default {
 
   private void saveDefinitions() {
     for (Instruction definingInstruction : instructions) {
-      System.out.println("definingInstruction = " + definingInstruction);
       for (VirtualRegister register :
           seq(definingInstruction.definitions()).ofType(VirtualRegister.class)) {
-        System.out.println("Defining " + register + " at " + definingInstruction);
         mapping.setDefinition(register, definingInstruction);
       }
     }
