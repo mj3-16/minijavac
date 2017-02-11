@@ -33,7 +33,7 @@ import org.jooq.lambda.function.Function3;
 class TreeMatcher extends NodeVisitor.Default {
 
   private final VirtualRegisterMapping mapping;
-  private List<Instruction> instructions;
+  private List<CodeBlockInstruction> instructions;
 
   TreeMatcher(VirtualRegisterMapping mapping) {
     this.mapping = mapping;
@@ -287,7 +287,8 @@ class TreeMatcher extends NodeVisitor.Default {
   }
 
   private void unaryOperator(
-      firm.nodes.Node node, Function2<RegisterOperand, VirtualRegister, Instruction> factory) {
+      firm.nodes.Node node,
+      Function2<RegisterOperand, VirtualRegister, CodeBlockInstruction> factory) {
     assert node.getPredCount() == 1;
     RegisterOperand op = operandForNode(node.getPred(0));
     VirtualRegister result = mapping.registerForNode(node);
@@ -302,7 +303,7 @@ class TreeMatcher extends NodeVisitor.Default {
    */
   private void binaryOperator(
       firm.nodes.Binop node,
-      Function3<Operand, RegisterOperand, VirtualRegister, Instruction> factory) {
+      Function3<Operand, RegisterOperand, VirtualRegister, CodeBlockInstruction> factory) {
     Operand left = operandForNode(node.getLeft());
     Operand right = operandForNode(node.getRight());
     RegisterOperand copiedRight = copyOperand(right);
@@ -340,7 +341,7 @@ class TreeMatcher extends NodeVisitor.Default {
     }
   }
 
-  public List<Instruction> match(firm.nodes.Node node) {
+  public List<CodeBlockInstruction> match(firm.nodes.Node node) {
     return FirmUtils.withBackEdges(
         node.getGraph(),
         () -> {

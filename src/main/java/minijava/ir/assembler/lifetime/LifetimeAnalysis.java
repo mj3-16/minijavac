@@ -96,8 +96,9 @@ public class LifetimeAnalysis {
 
     for (PhiFunction phi : block.phis) {
       // N.B.: phi output registers aren't visible before the begin of the block, as aren't inputs.
-      if (live.remove(phi.output)) {
-        getInterval((VirtualRegister) phi.output).fromHints = phi.registerHints();
+      Register written = phi.output.writes();
+      if (live.remove(written)) {
+        getInterval((VirtualRegister) written).fromHints = phi.registerHints();
       }
     }
   }
@@ -126,11 +127,14 @@ public class LifetimeAnalysis {
 
     for (CodeBlock successor : block.exit.getSuccessors()) {
       for (PhiFunction phi : successor.phis) {
-        Register alive = phi.inputs.get(block);
-        if (alive instanceof VirtualRegister) {
-          VirtualRegister aliveVirtual = (VirtualRegister) alive;
-          getInterval(aliveVirtual).toHints = phi.registerHints();
-          live.add(aliveVirtual);
+        Set<Register> reads = phi.inputs.get(block).reads(false);
+        reads.addAll(phi.output.reads(true));
+        for (Register alive : reads) {
+          if (alive instanceof VirtualRegister) {
+            VirtualRegister aliveVirtual = (VirtualRegister) alive;
+            getInterval(aliveVirtual).toHints = phi.registerHints();
+            live.add(aliveVirtual);
+          }
         }
       }
     }

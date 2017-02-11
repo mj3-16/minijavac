@@ -25,6 +25,7 @@ import minijava.ir.assembler.block.CodeBlock.ExitArity;
 import minijava.ir.assembler.block.CodeBlock.ExitArity.One;
 import minijava.ir.assembler.block.PhiFunction;
 import minijava.ir.assembler.instructions.*;
+import minijava.ir.assembler.operands.Operand;
 import minijava.ir.assembler.operands.OperandWidth;
 import minijava.ir.assembler.operands.RegisterOperand;
 import minijava.ir.assembler.registers.VirtualRegister;
@@ -68,7 +69,7 @@ public class InstructionSelector extends NodeVisitor.Default {
   }
 
   private void invokeTreeMatcher(Node node) {
-    List<Instruction> newInstructions = matcher.match(node);
+    List<CodeBlockInstruction> newInstructions = matcher.match(node);
     CodeBlock block = getCodeBlockOfNode(node);
     block.instructions.addAll(newInstructions);
   }
@@ -139,16 +140,17 @@ public class InstructionSelector extends NodeVisitor.Default {
     // For the sake of breaking cycles we will note the register values we are interested in
     // and do nothing except for noting the Phi in its code-block.
     // SSA form deconstruction happens after/while register allocation.
-    VirtualRegister result = mapping.registerForNode(phi);
-    Map<CodeBlock, VirtualRegister> args = new HashMap<>();
+    OperandWidth width = modeToWidth(phi.getMode());
+    RegisterOperand result = new RegisterOperand(width, mapping.registerForNode(phi));
+    Map<CodeBlock, Operand> args = new HashMap<>();
     for (int i = 0; i < phi.getPredCount(); ++i) {
       Node pred = phi.getPred(i);
       Block predBlock = (Block) phi.getBlock().getPred(i).getBlock();
-      args.put(getCodeBlock(predBlock), mapping.registerForNode(pred));
+      VirtualRegister register = mapping.registerForNode(pred);
+      args.put(getCodeBlock(predBlock), new RegisterOperand(width, register));
     }
-    OperandWidth width = modeToWidth(phi.getMode());
     CodeBlock block = getCodeBlockOfNode(phi);
-    block.phis.add(new PhiFunction(args, result, width, phi));
+    block.phis.add(new PhiFunction(args, result, phi));
   }
 
   @Override

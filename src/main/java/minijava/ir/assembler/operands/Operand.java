@@ -55,4 +55,8 @@ public abstract class Operand {
         reg -> inOutputPosition ? Sets.newHashSet() : Sets.newHashSet(reg.register),
         mem -> Sets.newHashSet(mem.mode.index, mem.mode.base));
   }
+
+  public Register writes() {
+    return match(imm -> null, reg -> reg.register, mem -> null);
+  }
 }
