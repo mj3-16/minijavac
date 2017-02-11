@@ -6,7 +6,7 @@ import minijava.ir.assembler.operands.MemoryOperand;
 import minijava.ir.assembler.operands.Operand;
 import minijava.ir.assembler.operands.RegisterOperand;
 
-public class Mov extends Instruction {
+public class Mov extends CodeBlockInstruction {
   public final Operand src;
   public final Operand dest;
 

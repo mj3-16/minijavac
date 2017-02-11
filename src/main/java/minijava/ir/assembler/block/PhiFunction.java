@@ -1,26 +1,37 @@
 package minijava.ir.assembler.block;
 
+import static com.google.common.collect.Lists.newArrayList;
+import static org.jooq.lambda.Seq.seq;
+
 import firm.nodes.Phi;
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import minijava.ir.assembler.operands.OperandWidth;
-import minijava.ir.assembler.registers.Register;
+import minijava.ir.assembler.instructions.Instruction;
+import minijava.ir.assembler.operands.MemoryOperand;
+import minijava.ir.assembler.operands.Operand;
+import minijava.ir.assembler.operands.RegisterOperand;
 
-public class PhiFunction {
-  public final Map<CodeBlock, ? extends Register> inputs;
-  public final Register output;
-  public final OperandWidth width;
+public class PhiFunction extends Instruction {
+  public final Map<CodeBlock, Operand> inputs;
+  public final Operand output;
   /** We need this just for equality and hashing. */
-  private final Phi phi;
+  public final Phi phi;
 
-  public PhiFunction(
-      Map<CodeBlock, ? extends Register> inputs, Register output, OperandWidth width, Phi phi) {
+  private PhiFunction(Map<CodeBlock, Operand> inputs, Operand output, Phi phi) {
+    super(new ArrayList<>(inputs.values()), newArrayList(output));
     this.inputs = inputs;
     this.output = output;
-    this.width = width;
     this.phi = phi;
+    setHints(seq(inputs.values()).append(output));
+  }
+
+  public PhiFunction(Map<CodeBlock, Operand> inputs, RegisterOperand output, Phi phi) {
+    this(inputs, (Operand) output, phi);
+  }
+
+  public PhiFunction(Map<CodeBlock, Operand> inputs, MemoryOperand output, Phi phi) {
+    this(inputs, (Operand) output, phi);
   }
 
   @Override
@@ -41,13 +52,7 @@ public class PhiFunction {
   }
 
   @Override
-  public String toString() {
-    return "Phi" + width.sizeInBytes * 8 + inputs + "-> " + output;
-  }
-
-  public Set<Register> registerHints() {
-    Set<Register> hints = new HashSet<>(inputs.values());
-    hints.add(output);
-    return hints;
+  public void accept(Visitor visitor) {
+    visitor.visit(this);
   }
 }

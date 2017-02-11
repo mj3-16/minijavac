@@ -2,6 +2,7 @@ package minijava.ir.assembler.allocation;
 
 import static minijava.ir.assembler.allocation.AllocationResult.SpillEvent.Kind.RELOAD;
 import static minijava.ir.assembler.allocation.AllocationResult.SpillEvent.Kind.SPILL;
+import static org.jooq.lambda.Seq.seq;
 
 import java.util.*;
 import minijava.ir.assembler.StackLayout;
@@ -70,6 +71,15 @@ public class AllocationResult {
   private List<LifetimeInterval> getInterval(VirtualRegister what) {
     List<LifetimeInterval> lis = splitLifetimes.get(what);
     return lis != null ? lis : new ArrayList<>();
+  }
+
+  public List<LifetimeInterval> liveIntervalsAt(BlockPosition position) {
+    List<LifetimeInterval> live = new ArrayList<>();
+    splitLifetimes.forEach(
+        (vr, splits) -> {
+          seq(splits).filter(li -> li.covers(position)).findFirst().ifPresent(live::add);
+        });
+    return live;
   }
 
   public MemoryOperand spillLocation(OperandWidth width, VirtualRegister register) {

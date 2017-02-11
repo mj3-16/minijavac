@@ -9,7 +9,7 @@ import minijava.ir.assembler.operands.MemoryOperand;
 import minijava.ir.assembler.operands.Operand;
 import minijava.ir.assembler.operands.RegisterOperand;
 
-public class Setcc extends Instruction {
+public class Setcc extends CodeBlockInstruction {
   public final Operand output;
   public final Relation relation;
 

@@ -5,10 +5,13 @@ import static minijava.ir.assembler.allocation.AllocationResult.SpillEvent.Kind.
 import static org.jooq.lambda.Seq.seq;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import minijava.ir.assembler.StackLayout;
 import minijava.ir.assembler.allocation.AllocationResult;
 import minijava.ir.assembler.block.CodeBlock;
+import minijava.ir.assembler.block.PhiFunction;
 import minijava.ir.assembler.instructions.*;
 import minijava.ir.assembler.lifetime.BlockPosition;
 import minijava.ir.assembler.operands.*;
@@ -18,21 +21,22 @@ import minijava.ir.assembler.registers.VirtualRegister;
 import org.jooq.lambda.function.Function2;
 import org.jooq.lambda.function.Function3;
 
-public class InstructionListLowerer implements Instruction.Visitor {
+public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
   private final CodeBlock block;
   private final AllocationResult allocationResult;
-  private final List<Instruction> highLevel;
   private final ArrayList<Instruction> lowered = new ArrayList<>();
   private int instructionCounter;
 
-  private InstructionListLowerer(
-      CodeBlock block, AllocationResult allocationResult, List<Instruction> highLevel) {
+  private InstructionListLowerer(CodeBlock block, AllocationResult allocationResult) {
     this.block = block;
     this.allocationResult = allocationResult;
-    this.highLevel = highLevel;
   }
 
-  public List<Instruction> lower() {
+  public List<Instruction> lowerBlock() {
+    Label label = new Label(block.label, seq(block.phis).map(this::substitutePhi).toList());
+    lowered.add(label);
+
+    List<CodeBlockInstruction> highLevel = block.instructions;
     for (int i = 0; i < highLevel.size(); ++i) {
       instructionCounter = i;
       BlockPosition def = new BlockPosition(block, BlockPosition.definedBy(i));
@@ -70,6 +74,23 @@ public class InstructionListLowerer implements Instruction.Visitor {
     MemoryOperand src = allocationResult.spillLocation(slotWidth, virtual);
     RegisterOperand dest = new RegisterOperand(slotWidth, assigned);
     lowered.add(new Mov(src, dest));
+  }
+
+  public PhiFunction substitutePhi(PhiFunction phi) {
+    Map<CodeBlock, Operand> inputs = new HashMap<>();
+    phi.inputs.forEach(
+        (block, input) -> inputs.put(block, substituteHardwareRegisters(input, false)));
+    Operand output = substituteHardwareRegisters(phi.output, true);
+    return output.match(
+        imm -> {
+          throw new UnsupportedOperationException("Can't Mov into an immediate");
+        },
+        reg -> {
+          return new PhiFunction(inputs, reg, phi.phi);
+        },
+        mem -> {
+          return new PhiFunction(inputs, mem, phi.phi);
+        });
   }
 
   @Override
@@ -155,24 +176,6 @@ public class InstructionListLowerer implements Instruction.Visitor {
   }
 
   @Override
-  public void visit(Jcc jcc) {
-    // Jumps shouldn't yet be there at this point. It's pretty clear how to handle them, though.
-    lowered.add(jcc);
-  }
-
-  @Override
-  public void visit(Jmp jmp) {
-    // Jumps shouldn't yet be there at this point. It's pretty clear how to handle them, though.
-    lowered.add(jmp);
-  }
-
-  @Override
-  public void visit(Label label) {
-    // Labels shouldn't yet be there at this point. It's pretty clear how to handle them, though.
-    lowered.add(label);
-  }
-
-  @Override
   public void visit(Leave leave) {
     RegisterOperand rsp = wholeRegister(AMD64Register.SP);
     RegisterOperand rbp = wholeRegister(AMD64Register.BP);
@@ -217,33 +220,6 @@ public class InstructionListLowerer implements Instruction.Visitor {
               return new Neg(mem);
             });
     lowered.add(substituted);
-  }
-
-  @Override
-  public void visit(Pop pop) {
-    Operand output = substituteHardwareRegisters(pop.output, true);
-    Pop substituted =
-        output.match(
-            imm -> {
-              throw new UnsupportedOperationException("Can't Pop into an immediate");
-            },
-            reg -> {
-              return new Pop(reg);
-            },
-            mem -> {
-              return new Pop(mem);
-            });
-    lowered.add(substituted);
-  }
-
-  @Override
-  public void visit(Push push) {
-    lowered.add(new Push(substituteHardwareRegisters(push.input, false)));
-  }
-
-  @Override
-  public void visit(Ret ret) {
-    lowered.add(ret);
   }
 
   @Override
@@ -318,8 +294,7 @@ public class InstructionListLowerer implements Instruction.Visitor {
     return allocationResult.assignedRegisterAt((VirtualRegister) register, position);
   }
 
-  public static List<Instruction> lower(
-      CodeBlock block, AllocationResult allocationResult, List<Instruction> highLevelInstructions) {
-    return new InstructionListLowerer(block, allocationResult, highLevelInstructions).lower();
+  public static List<Instruction> lowerBlock(CodeBlock block, AllocationResult allocationResult) {
+    return new InstructionListLowerer(block, allocationResult).lowerBlock();
   }
 }

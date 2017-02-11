@@ -6,11 +6,13 @@ import com.google.common.base.Preconditions;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import minijava.ir.assembler.block.PhiFunction;
 import minijava.ir.assembler.operands.MemoryOperand;
 import minijava.ir.assembler.operands.Operand;
 import minijava.ir.assembler.operands.OperandWidth;
 import minijava.ir.assembler.operands.RegisterOperand;
 import minijava.ir.assembler.registers.Register;
+import org.jooq.lambda.Seq;
 
 public abstract class Instruction {
   // We need to separate input from output operands in order to differentiate usages from defs.
@@ -30,6 +32,10 @@ public abstract class Instruction {
   }
 
   protected void setHints(Operand... shouldBeAssignedTheSameRegister) {
+    setHints(Seq.of(shouldBeAssignedTheSameRegister));
+  }
+
+  protected void setHints(Iterable<Operand> shouldBeAssignedTheSameRegister) {
     for (Operand operand : shouldBeAssignedTheSameRegister) {
       assert inputs.contains(operand) || outputs.contains(operand)
           : "Can only hint connections between input and output operands";
@@ -93,22 +99,7 @@ public abstract class Instruction {
     return hints;
   }
 
-  public interface Visitor {
-    default void visit(Add add) {}
-
-    default void visit(And and) {}
-
-    default void visit(Call call) {}
-
-    default void visit(Cltd cltd) {}
-
-    default void visit(Cmp cmp) {}
-
-    default void visit(Enter enter) {}
-
-    default void visit(IDiv idiv) {}
-
-    default void visit(IMul imul) {}
+  public interface Visitor extends CodeBlockInstruction.Visitor {
 
     default void visit(Jcc jcc) {}
 
@@ -116,22 +107,12 @@ public abstract class Instruction {
 
     default void visit(Label label) {}
 
-    default void visit(Leave leave) {}
-
-    default void visit(Mov mov) {}
-
-    default void visit(Neg neg) {}
-
     default void visit(Pop pop) {}
 
     default void visit(Push push) {}
 
     default void visit(Ret ret) {}
 
-    default void visit(Setcc setcc) {}
-
-    default void visit(Sub sub) {}
-
-    default void visit(Test test) {}
+    default void visit(PhiFunction phi) {}
   }
 }

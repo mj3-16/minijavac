@@ -7,7 +7,7 @@ import minijava.ir.assembler.operands.Operand;
 import minijava.ir.assembler.operands.RegisterOperand;
 import minijava.ir.assembler.registers.VirtualRegister;
 
-public class Neg extends Instruction {
+public class Neg extends CodeBlockInstruction {
   public final Operand input;
   public final Operand output;
 

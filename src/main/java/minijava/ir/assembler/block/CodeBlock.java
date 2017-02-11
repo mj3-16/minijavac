@@ -8,12 +8,12 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
-import minijava.ir.assembler.instructions.Instruction;
+import minijava.ir.assembler.instructions.CodeBlockInstruction;
 
 public class CodeBlock {
   public final String label;
   public final Set<PhiFunction> phis = new HashSet<>();
-  public final List<Instruction> instructions = new ArrayList<>();
+  public final List<CodeBlockInstruction> instructions = new ArrayList<>();
   public ExitArity exit;
   /** This is the index in the linearization of the CFG. */
   public int linearizedOrdinal;

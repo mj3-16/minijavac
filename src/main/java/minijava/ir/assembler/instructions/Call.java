@@ -8,7 +8,7 @@ import minijava.ir.assembler.operands.RegisterOperand;
 import minijava.ir.assembler.registers.AMD64Register;
 import minijava.ir.assembler.registers.VirtualRegister;
 
-public class Call extends Instruction {
+public class Call extends CodeBlockInstruction {
   public String label;
 
   public Call(String label, List<Operand> arguments) {

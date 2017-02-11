@@ -6,7 +6,7 @@ import minijava.ir.assembler.operands.MemoryOperand;
 import minijava.ir.assembler.operands.Operand;
 import minijava.ir.assembler.operands.RegisterOperand;
 
-public class Test extends Instruction {
+public class Test extends CodeBlockInstruction {
   public final Operand left;
   public final Operand right;
   // We could also handle the FLAGS register as constraints, I guess... But this gets awkward

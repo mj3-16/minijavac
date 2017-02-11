@@ -11,7 +11,7 @@ import minijava.ir.assembler.registers.Register;
  * A binary instruction, where the right of the two input operands is also an output operand. The
  * destination is modeled by an additional Register dest,
  */
-public abstract class TwoAddressInstruction extends Instruction {
+public abstract class TwoAddressInstruction extends CodeBlockInstruction {
   public final Operand left;
   public final Operand rightIn;
   public final Operand rightOut;

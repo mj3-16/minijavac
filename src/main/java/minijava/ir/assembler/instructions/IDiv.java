@@ -7,7 +7,7 @@ import minijava.ir.assembler.operands.RegisterOperand;
 import minijava.ir.assembler.registers.AMD64Register;
 import org.jooq.lambda.Seq;
 
-public class IDiv extends Instruction {
+public class IDiv extends CodeBlockInstruction {
 
   public final Operand divisor;
 
