@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.NavigableMap;
 import java.util.Objects;
-import java.util.SortedMap;
 import java.util.TreeMap;
 import minijava.ir.assembler.block.CodeBlock;
 import org.jetbrains.annotations.Nullable;
@@ -24,15 +23,15 @@ public class LinearLiveRanges {
     this(new TreeMap<>());
   }
 
-  private LinearLiveRanges(SortedMap<BlockPosition, Integer> ranges) {
-    this.ranges = new TreeMap<>(ranges);
+  private LinearLiveRanges(TreeMap<BlockPosition, Integer> ranges) {
+    this.ranges = ranges;
   }
 
   public List<LiveRange> getLiveRanges(CodeBlock block) {
     BlockPosition from = BlockPosition.beginOf(block);
     BlockPosition to = BlockPosition.endOf(block);
     List<LiveRange> ret = new ArrayList<>();
-    for (Entry<BlockPosition, Integer> entry : ranges.subMap(from, to).entrySet()) {
+    for (Entry<BlockPosition, Integer> entry : ranges.subMap(from, true, to, true).entrySet()) {
       ret.add(new LiveRange(block, entry.getKey().pos, entry.getValue()));
     }
     return ret;
@@ -67,9 +66,23 @@ public class LinearLiveRanges {
   }
 
   public Split<LinearLiveRanges> splitBefore(BlockPosition beforePos) {
-    LinearLiveRanges before = new LinearLiveRanges(ranges.headMap(beforePos));
-    LinearLiveRanges after = new LinearLiveRanges(ranges.tailMap(beforePos));
-    return new Split<>(before, after);
+    TreeMap<BlockPosition, Integer> before = new TreeMap<>(this.ranges.headMap(beforePos, false));
+    TreeMap<BlockPosition, Integer> after = new TreeMap<>(this.ranges.tailMap(beforePos, true));
+
+    LiveRange needsSplit = getLiveRangeContaining(beforePos);
+    if (needsSplit != null && needsSplit.fromPosition().compareTo(beforePos) < 0) {
+      // There is a range containing beforePos that is currently only assigned to before. We need to split that up.
+      // beforePos.pos can't be 0: Otherwise needsSplit would be in after since LiveRanges don't span across
+      // block borders and it would have to start at beforePos.
+      assert beforePos.pos > 0 : "beforePos.pos shouldn't be 0";
+      LiveRange beforeRange = needsSplit.to(beforePos.pos - 1);
+      LiveRange afterRange = needsSplit.from(beforePos.pos);
+      before.remove(needsSplit.fromPosition());
+      before.put(beforeRange.fromPosition(), beforeRange.to);
+      after.put(afterRange.fromPosition(), afterRange.to);
+    }
+
+    return new Split<>(new LinearLiveRanges(before), new LinearLiveRanges(after));
   }
 
   public BlockPosition firstIntersectionWith(LinearLiveRanges other) {

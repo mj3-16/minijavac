@@ -12,7 +12,7 @@ public class LifetimeInterval {
   public static final Comparator<LifetimeInterval> COMPARING_DEF =
       Comparator.comparing(LifetimeInterval::definition).thenComparingInt(li -> li.register.id);
   public final VirtualRegister register;
-  public final SortedSet<BlockPosition> defAndUses;
+  public final NavigableSet<BlockPosition> defAndUses;
   public final LinearLiveRanges ranges;
   public Set<Register> fromHints = new HashSet<>();
   public Set<Register> toHints = new HashSet<>();
@@ -22,7 +22,7 @@ public class LifetimeInterval {
   }
 
   private LifetimeInterval(
-      VirtualRegister register, SortedSet<BlockPosition> defAndUses, LinearLiveRanges ranges) {
+      VirtualRegister register, NavigableSet<BlockPosition> defAndUses, LinearLiveRanges ranges) {
     this.register = register;
     this.defAndUses = defAndUses;
     this.ranges = ranges;
@@ -103,15 +103,15 @@ public class LifetimeInterval {
   }
 
   public Split<LifetimeInterval> splitBefore(BlockPosition pos) {
-    checkArgument(ranges.from().compareTo(pos) < 0, "pos must lie after the interval's def");
-    checkArgument(ranges.to().compareTo(pos) > 0, "pos must be before the interval dies");
+    checkArgument(ranges.from().compareTo(pos) <= 0, "pos must lie after the interval's def");
+    checkArgument(ranges.to().compareTo(pos) >= 0, "pos must be before the interval dies");
     // Note that the after split interval has a use as its first defAndUses... This might bring
     // confusion later on, but there is no sensible def index to choose.
     Split<LinearLiveRanges> splitRanges = ranges.splitBefore(pos);
     LifetimeInterval before =
-        new LifetimeInterval(register, defAndUses.headSet(pos), splitRanges.before);
+        new LifetimeInterval(register, defAndUses.headSet(pos, false), splitRanges.before);
     LifetimeInterval after =
-        new LifetimeInterval(register, defAndUses.tailSet(pos), splitRanges.after);
+        new LifetimeInterval(register, defAndUses.tailSet(pos, true), splitRanges.after);
     before.fromHints = fromHints;
     after.toHints = toHints;
 
@@ -120,6 +120,8 @@ public class LifetimeInterval {
     // That's why we only modify the from part for the after split.
     // This also destroys SSA form of the intervals: If we split within a loop, both the before and
     // after definitions are reaching.
+    System.out.println("before = " + before);
+    System.out.println("after = " + after);
     shortenFromRange(before);
     shortenToRange(before);
     shortenFromRange(after);
