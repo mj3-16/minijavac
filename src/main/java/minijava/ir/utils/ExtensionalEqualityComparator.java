@@ -5,15 +5,7 @@ import com.sun.jna.Pointer;
 import firm.ArrayType;
 import firm.Mode;
 import firm.TargetValue;
-import firm.nodes.Cmp;
-import firm.nodes.Const;
-import firm.nodes.Load;
-import firm.nodes.Member;
-import firm.nodes.Node;
-import firm.nodes.NodeVisitor;
-import firm.nodes.Phi;
-import firm.nodes.Proj;
-import firm.nodes.Sel;
+import firm.nodes.*;
 import java.util.Comparator;
 
 /**
@@ -102,6 +94,11 @@ public class ExtensionalEqualityComparator implements Comparator<Node> {
 
     TieBreakingCompareVisitor(Node other) {
       this.other = other;
+    }
+
+    @Override
+    public void visit(NoMem node) {
+      cmp = 0;
     }
 
     @Override

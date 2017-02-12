@@ -4,30 +4,7 @@ import static org.jooq.lambda.Seq.seq;
 
 import firm.Graph;
 import firm.Mode;
-import firm.nodes.Add;
-import firm.nodes.Address;
-import firm.nodes.And;
-import firm.nodes.Block;
-import firm.nodes.Cmp;
-import firm.nodes.Cond;
-import firm.nodes.Const;
-import firm.nodes.Conv;
-import firm.nodes.Div;
-import firm.nodes.Load;
-import firm.nodes.Member;
-import firm.nodes.Minus;
-import firm.nodes.Mod;
-import firm.nodes.Mul;
-import firm.nodes.Node;
-import firm.nodes.Not;
-import firm.nodes.Or;
-import firm.nodes.Proj;
-import firm.nodes.Sel;
-import firm.nodes.Shl;
-import firm.nodes.Shr;
-import firm.nodes.Shrs;
-import firm.nodes.Size;
-import firm.nodes.Sub;
+import firm.nodes.*;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -254,6 +231,11 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
   @Override
   public void visit(Mul node) {
     binaryNode(node);
+  }
+
+  @Override
+  public void visit(NoMem node) {
+    hashWithSalt(node.getClass().hashCode()).ifPresent(hash -> updateHashMapping(node, hash));
   }
 
   @Override
