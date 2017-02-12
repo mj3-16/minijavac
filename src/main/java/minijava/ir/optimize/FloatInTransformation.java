@@ -1,14 +1,10 @@
 package minijava.ir.optimize;
 
-import static firm.bindings.binding_irnode.ir_opcode.iro_Anchor;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Phi;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Proj;
 import static org.jooq.lambda.Seq.seq;
 
 import firm.BackEdges;
 import firm.Graph;
-import firm.nodes.Block;
-import firm.nodes.Node;
+import firm.nodes.*;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -17,7 +13,6 @@ import minijava.ir.Dominance;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
 import minijava.ir.utils.NodeUtils;
-import org.jooq.lambda.tuple.Tuple2;
 
 /**
  * Floats definitions as near as possible to their uses, to lower register pressure and enable
@@ -36,7 +31,7 @@ public class FloatInTransformation extends BaseOptimizer {
 
   private void moveProjsToPred(ArrayList<Node> order) {
     for (Node proj : order) {
-      if (proj.getOpCode() != iro_Proj) {
+      if (!(proj instanceof Proj)) {
         continue;
       }
 
@@ -59,26 +54,14 @@ public class FloatInTransformation extends BaseOptimizer {
 
     Set<Block> uses = findUses(node);
 
-    List<List<Block>> reverseDominatorPaths =
-        seq(uses)
-            .map(
-                use ->
-                    Dominance.dominatorPath(use)
-                        // We'll hit the original block at one point, which we exclude!
-                        .limitUntil(b -> b.equals(originalBlock))
-                        .reverse()
-                        .toList())
-            .toList();
-
-    if (reverseDominatorPaths.isEmpty()) {
-      // This is somewhat unlikely, as it would not be reached in the graph walk.
-      // We can't handle this in any useful manner.
-      return;
-    }
-
     // We now compute the longest common dominator path. This is easiest done in reverse, by just
     // intersecting all paths.
-    List<Block> reverseCommonDominatorPath = intersectPaths(reverseDominatorPaths);
+    Block deepestCommonDom = seq(uses).reduce(Dominance::deepestCommonDominator).get();
+    List<Block> reverseCommonDominatorPath =
+        Dominance.dominatorPath(deepestCommonDom)
+            .limitUntil(b -> b.equals(originalBlock))
+            .reverse()
+            .toList();
 
     // All these dominators are candidates where to move the block. We have to be careful that
     // we don't move stuff into a loop, though! That's why we take the 'most immediate' dominator
@@ -93,20 +76,10 @@ public class FloatInTransformation extends BaseOptimizer {
       candidate = b;
     }
 
-    if (!candidate.equals(originalBlock) && candidate.getOpCode() != iro_Proj) {
+    if (!candidate.equals(originalBlock)) {
       hasChanged = true;
       node.setBlock(candidate);
     }
-  }
-
-  private static List<Block> intersectPaths(List<List<Block>> paths) {
-    assert !paths.isEmpty();
-
-    List<Block> ret = paths.get(0);
-    for (int i = 1; i < paths.size(); ++i) {
-      ret = seq(ret).zip(paths.get(i)).limitWhile(t -> t.v1.equals(t.v2)).map(Tuple2::v1).toList();
-    }
-    return ret;
   }
 
   private static Set<Block> findUses(Node node) {
@@ -116,7 +89,7 @@ public class FloatInTransformation extends BaseOptimizer {
           Set<Block> ret = new HashSet<>();
           for (BackEdges.Edge be : BackEdges.getOuts(node)) {
             Node n = be.node;
-            if (n.getOpCode().equals(iro_Anchor)) {
+            if (n instanceof Anchor) {
               // ... whatever
               continue;
             }
@@ -126,7 +99,7 @@ public class FloatInTransformation extends BaseOptimizer {
               continue;
             }
 
-            if (n.getOpCode().equals(iro_Phi)) {
+            if (n instanceof Phi) {
               // This is a tricky one: we use the referenced predecessor as the use
               // (like it would be lowered)
               n = n.getBlock().getPred(be.pos);

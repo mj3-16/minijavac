@@ -5,8 +5,6 @@ import com.sun.jna.Pointer;
 import firm.ArrayType;
 import firm.Mode;
 import firm.TargetValue;
-import firm.bindings.binding_irnode;
-import firm.bindings.binding_irnode.ir_opcode;
 import firm.nodes.Cmp;
 import firm.nodes.Const;
 import firm.nodes.Load;
@@ -45,15 +43,15 @@ public class ExtensionalEqualityComparator implements Comparator<Node> {
 
     Comparator<Node> constNodesLast =
         (a, b) -> {
-          if (a.getOpCode().equals(b.getOpCode())) {
+          if (a.getClass().equals(b.getClass())) {
             return 0;
           }
-          return a.getOpCode().equals(binding_irnode.ir_opcode.iro_Const) ? -1 : 1;
+          return a instanceof Const ? -1 : b instanceof Const ? 1 : 0;
         };
 
     Comparator<Node> predComparator =
         (a, b) -> {
-          if (a.getOpCode() == ir_opcode.iro_Phi) {
+          if (a instanceof Phi) {
             // We have to break loops here before we may access the preds.
             return a.getNr() - b.getNr();
           }
@@ -77,7 +75,7 @@ public class ExtensionalEqualityComparator implements Comparator<Node> {
 
     return Comparator.nullsFirst(
             constNodesLast
-                .thenComparing(Node::getOpCode)
+                .thenComparing(n -> n.getClass().getSimpleName())
                 .thenComparing(Node::getPredCount)
                 .thenComparingLong(n -> Pointer.nativeValue(n.getMode().ptr))
                 .thenComparing(predComparator)

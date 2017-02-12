@@ -29,7 +29,11 @@ public class ConstantControlFlowOptimizer extends BaseOptimizer {
   public boolean optimize(Graph graph) {
     this.graph = graph;
     hasChanged = false;
-    return fixedPointIteration(GraphUtils.reverseTopologicalOrder(graph));
+    hasChanged = fixedPointIteration(GraphUtils.reverseTopologicalOrder(graph));
+    if (hasChanged) {
+      Dominance.invalidateDominace();
+    }
+    return hasChanged;
   }
 
   @Override

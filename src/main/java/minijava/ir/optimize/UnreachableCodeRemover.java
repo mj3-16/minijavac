@@ -2,6 +2,7 @@ package minijava.ir.optimize;
 
 import firm.Graph;
 import firm.bindings.binding_irgopt;
+import minijava.ir.Dominance;
 
 public class UnreachableCodeRemover implements Optimizer {
 
@@ -17,6 +18,7 @@ public class UnreachableCodeRemover implements Optimizer {
 
     binding_irgopt.remove_bads(graph.ptr);
     // checking whether a change on the graph occurred doesn't seem to be possible
+    Dominance.invalidateDominace();
     return false;
   }
 }

@@ -61,14 +61,12 @@ public class ConstantFolder extends BaseOptimizer {
   }
 
   private Optional<Node> getInputMem(Node node) {
-    switch (node.getOpCode()) {
-      case iro_Div:
-        return Optional.of(((Div) node).getMem());
-      case iro_Mod:
-        return Optional.of(((Mod) node).getMem());
-      default:
-        return Optional.empty();
+    if (node instanceof Div) {
+      return Optional.of(((Div) node).getMem());
+    } else if (node instanceof Mod) {
+      return Optional.of(((Mod) node).getMem());
     }
+    return Optional.empty();
   }
 
   private Optional<Proj> getOutputMemProj(Node node) {

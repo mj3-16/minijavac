@@ -1,6 +1,5 @@
 package minijava.ir.optimize;
 
-import static firm.bindings.binding_irnode.ir_opcode.iro_Minus;
 import static minijava.ir.utils.NodeUtils.asConst;
 
 import firm.Graph;
@@ -73,7 +72,7 @@ public class AlgebraicSimplifier extends BaseOptimizer {
     // Only rule we can make use of is associativity. For that we need the left arg to be Const
     // E.g. reassociate c_1 $ (c_2 $ x) = (c_1 $ c_2) $ x and let constant folding do the rest
     Optional<Const> first = asConst(node.getLeft());
-    if (first.isPresent() && node.getOpCode().equals(node.getRight().getOpCode())) {
+    if (first.isPresent() && node.getClass().equals(node.getRight().getClass())) {
       Binop right = (Binop) node.getRight();
       Optional<Const> second = asConst(right.getLeft());
       if (second.isPresent()) {
@@ -156,7 +155,7 @@ public class AlgebraicSimplifier extends BaseOptimizer {
 
     @Override
     public boolean isInverseNode(Node node) {
-      return node.getOpCode().equals(iro_Minus);
+      return node instanceof Minus;
     }
 
     @Override

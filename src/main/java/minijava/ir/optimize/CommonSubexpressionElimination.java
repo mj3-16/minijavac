@@ -36,6 +36,7 @@ import java.util.Optional;
 import java.util.Set;
 import minijava.ir.Dominance;
 import minijava.ir.utils.ExtensionalEqualityComparator;
+import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
 import minijava.ir.utils.NodeUtils;
 
@@ -73,7 +74,7 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
     this.hashes.clear();
     this.similarNodes.clear();
     fixedPointIteration(GraphUtils.topologicalOrder(graph));
-    return transform();
+    return FirmUtils.withBackEdges(graph, this::transform);
   }
 
   /**
@@ -193,7 +194,7 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
 
   @Override
   public void visit(Address node) {
-    int hash = node.getOpCode().hashCode() ^ node.getEntity().hashCode();
+    int hash = node.getClass().hashCode() ^ node.getEntity().hashCode();
     hashes.put(node, new HashedNode(node, hash));
     // As with Const nodes, we don't add an entry to similarNodes.
   }
@@ -215,7 +216,7 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
 
   @Override
   public void visit(Const node) {
-    int hash = node.getOpCode().hashCode() ^ node.getTarval().hashCode();
+    int hash = node.getClass().hashCode() ^ node.getTarval().hashCode();
     hashes.put(node, new HashedNode(node, hash));
     // We don't add an entry to similarNodes, because consts are cheap to duplicate
     // and shouldn't block registers when shared.
@@ -224,7 +225,7 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
 
   @Override
   public void visit(Conv node) {
-    hashWithSalt(Objects.hash(node.getOpCode(), node.getMode()), node.getOp())
+    hashWithSalt(Objects.hash(node.getClass(), node.getMode()), node.getOp())
         .ifPresent(hash -> hashes.put(node, new HashedNode(node, hash)));
     // As with Const nodes, we don't add an entry to similarNodes.
   }
@@ -236,7 +237,7 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
 
   @Override
   public void visit(Member node) {
-    hashWithSalt(Objects.hash(node.getOpCode(), node.getEntity()), node.getPred(0))
+    hashWithSalt(Objects.hash(node.getClass(), node.getEntity()), node.getPred(0))
         .ifPresent(hash -> updateHashMapping(node, hash));
   }
 
@@ -267,7 +268,7 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
 
   @Override
   public void visit(Proj node) {
-    hashWithSalt(node.getOpCode().hashCode() ^ node.getNum(), node.getPred(0))
+    hashWithSalt(node.getClass().hashCode() ^ node.getNum(), node.getPred(0))
         .ifPresent(hash -> updateHashMapping(node, hash));
   }
 
@@ -293,7 +294,7 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
 
   @Override
   public void visit(Size node) {
-    int hash = node.getOpCode().hashCode() ^ node.getType().hashCode();
+    int hash = node.getClass().hashCode() ^ node.getType().hashCode();
     hashes.put(node, new HashedNode(node, hash));
     // As with Const nodes, we don't add an entry to similarNodes.
   }
@@ -315,7 +316,7 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
    * type and preds) unary nodes.
    */
   private void unaryNode(Node node) {
-    hashWithSalt(node.getOpCode().hashCode(), node.getPred(0))
+    hashWithSalt(node.getClass().hashCode(), node.getPred(0))
         .ifPresent(hash -> updateHashMapping(node, hash));
   }
 
@@ -324,7 +325,7 @@ public class CommonSubexpressionElimination extends BaseOptimizer {
    * type and preds) binary nodes.
    */
   private void binaryNode(Node node) {
-    hashWithSalt(node.getOpCode().hashCode(), node.getPred(0), node.getPred(1))
+    hashWithSalt(node.getClass().hashCode(), node.getPred(0), node.getPred(1))
         .ifPresent(hash -> updateHashMapping(node, hash));
   }
 

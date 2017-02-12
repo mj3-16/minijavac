@@ -7,6 +7,7 @@ import firm.Graph;
 import firm.nodes.Node;
 import firm.nodes.Sync;
 import java.util.Set;
+import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
 import minijava.ir.utils.NodeUtils;
 import minijava.ir.utils.SideEffects;
@@ -25,7 +26,7 @@ public class SyncOptimizer extends BaseOptimizer {
   public boolean optimize(Graph graph) {
     this.graph = graph;
     this.hasChanged = false;
-    GraphUtils.topologicalOrder(graph).forEach(this::visit);
+    FirmUtils.withBackEdges(graph, () -> GraphUtils.topologicalOrder(graph).forEach(this::visit));
     return hasChanged;
   }
 

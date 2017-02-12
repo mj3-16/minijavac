@@ -10,12 +10,26 @@ import java.util.Optional;
 import org.jooq.lambda.Seq;
 
 public class Dominance {
+  private static boolean needsToRecomputeDominance = false;
+  private static boolean needsToRecomputePostDominance = false;
+
+  public static void invalidateDominace() {
+    needsToRecomputeDominance = true;
+    needsToRecomputePostDominance = true;
+  }
+
   private static void computeDoms(Graph g) {
-    binding_irdom.compute_doms(g.ptr);
+    if (needsToRecomputeDominance) {
+      binding_irdom.compute_doms(g.ptr);
+      needsToRecomputeDominance = false;
+    }
   }
 
   private static void computePostDoms(Graph g) {
-    binding_irdom.compute_postdoms(g.ptr);
+    if (needsToRecomputePostDominance) {
+      binding_irdom.compute_postdoms(g.ptr);
+      needsToRecomputePostDominance = false;
+    }
   }
 
   private static void computeDomFrontiers(Graph g) {
@@ -59,5 +73,10 @@ public class Dominance {
 
   public static boolean strictlyPostDominates(Block dominator, Block dominated) {
     return !dominator.equals(dominated) && postDominates(dominator, dominated);
+  }
+
+  public static Block deepestCommonDominator(Block a, Block b) {
+    computeDoms(a.getGraph());
+    return new Block(binding_irdom.ir_deepest_common_dominator(a.ptr, b.ptr));
   }
 }
