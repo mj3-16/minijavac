@@ -6,6 +6,7 @@ import java.util.*;
 import minijava.ir.assembler.block.CodeBlock;
 import minijava.ir.assembler.registers.Register;
 import minijava.ir.assembler.registers.VirtualRegister;
+import org.jetbrains.annotations.Nullable;
 
 public class LifetimeInterval {
 
@@ -28,6 +29,12 @@ public class LifetimeInterval {
     this.ranges = ranges;
   }
 
+  @Nullable
+  public BlockPosition nextUseAfter(BlockPosition start) {
+    return defAndUses.tailSet(start).first();
+  }
+
+  @Nullable
   public LiveRange getLifetimeInBlock(CodeBlock block) {
     List<LiveRange> ranges = this.ranges.getLiveRanges(block);
     assert ranges.size() <= 1
@@ -97,9 +104,7 @@ public class LifetimeInterval {
 
   public boolean covers(BlockPosition position) {
     LiveRange analogInterval = getLifetimeInBlock(position.block);
-    return analogInterval != null
-        && analogInterval.from <= position.pos
-        && analogInterval.to >= position.pos;
+    return analogInterval != null && analogInterval.contains(position);
   }
 
   public Split<LifetimeInterval> splitBefore(BlockPosition pos) {

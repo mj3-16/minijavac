@@ -44,6 +44,7 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
       BlockPosition use = BlockPosition.usedBy(block, i);
       AllocationResult.SpillEvent beforeUse = allocationResult.spillEvents.get(use);
       if (beforeUse != null) {
+        System.out.println(use);
         addReload(beforeUse);
       }
       highLevel.get(i).accept(this);
@@ -67,6 +68,7 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
   }
 
   private void addReload(AllocationResult.SpillEvent beforeUse) {
+    System.out.println("beforeUse = " + beforeUse.interval.register);
     assert beforeUse.kind == RELOAD;
     AMD64Register assigned = allocationResult.allocation.get(beforeUse.interval);
     assert assigned != null;
@@ -124,7 +126,7 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
     Operand rightOut = substituteHardwareRegisters(instruction.rightOut, currentDef());
     // After allocation both rightIn and rightOut MUST be the same Operands, otherwise we can't use a 2-address
     // instruction.
-    assert rightIn.equals(rightOut);
+    assert rightIn.equals(rightOut) : rightIn + " vs. " + rightOut;
 
     return rightIn.match(
         imm -> {

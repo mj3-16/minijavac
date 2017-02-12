@@ -37,12 +37,15 @@ public class AllocationResult {
             // No spilling needed.
             return;
           }
+          System.out.println("splits = " + seq(splits).map(s -> s.ranges).toList());
           // otherwise we have to spill within the first interval and reload at the begin of every following.
           Iterator<LifetimeInterval> it = splits.iterator();
           LifetimeInterval first = it.next();
           // Spill immediately after the definition to avoid spilling more often than the value is defined (e.g. not in
           // loops).
-          spillEvents.put(first.defAndUses.first(), new SpillEvent(SPILL, first));
+          BlockPosition def = first.defAndUses.first();
+          assert def.isDef() : "The first interval of a split was not a def";
+          events.put(def, new SpillEvent(SPILL, first));
           while (it.hasNext()) {
             LifetimeInterval following = it.next();
             if (allocation.get(following) == null) {
@@ -50,8 +53,15 @@ public class AllocationResult {
               // We don't (and can't) reload.
               continue;
             }
-            spillEvents.put(following.defAndUses.first(), new SpillEvent(RELOAD, following));
+            BlockPosition use = following.defAndUses.first();
+            assert use.isUse() : "A following use wasn't really a use";
+            events.put(use, new SpillEvent(RELOAD, following));
           }
+          System.out.println(
+              "events = "
+                  + seq(events)
+                      .map(evt -> evt.v1 + " " + evt.v2.kind + " " + evt.v2.interval.register)
+                      .toList());
         });
     return events;
   }

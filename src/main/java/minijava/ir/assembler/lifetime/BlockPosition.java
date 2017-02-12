@@ -18,6 +18,14 @@ public class BlockPosition implements Comparable<BlockPosition> {
     this.pos = pos;
   }
 
+  public boolean isUse() {
+    return pos % 2 == 1;
+  }
+
+  public boolean isDef() {
+    return pos % 2 == 0;
+  }
+
   public static BlockPosition definedBy(CodeBlock block, int instructionIndex) {
     instructionIndex++; // account for Phis
     int pos = instructionIndex * 2;
