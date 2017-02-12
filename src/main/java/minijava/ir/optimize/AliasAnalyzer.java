@@ -1,9 +1,5 @@
 package minijava.ir.optimize;
 
-import static firm.bindings.binding_irnode.ir_opcode.iro_Load;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Proj;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Store;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Sync;
 import static org.jooq.lambda.Seq.seq;
 
 import com.google.common.collect.Lists;
@@ -17,17 +13,7 @@ import firm.MethodType;
 import firm.Mode;
 import firm.PointerType;
 import firm.Type;
-import firm.nodes.Address;
-import firm.nodes.Call;
-import firm.nodes.Load;
-import firm.nodes.Member;
-import firm.nodes.Node;
-import firm.nodes.Phi;
-import firm.nodes.Proj;
-import firm.nodes.Sel;
-import firm.nodes.Start;
-import firm.nodes.Store;
-import firm.nodes.Sync;
+import firm.nodes.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -107,19 +93,16 @@ public class AliasAnalyzer extends BaseOptimizer {
       return false;
     }
     LoadStoreAliasingTransformation transformation = new LoadStoreAliasingTransformation();
-    return FirmUtils.withBackEdges(graph, transformation::transform);
+    Boolean aBoolean = FirmUtils.withBackEdges(graph, transformation::transform);
+    return aBoolean;
   }
 
   private static boolean isRelevantNode(Node node) {
-    switch (node.getOpCode()) {
-      case iro_Store:
-      case iro_Load:
-      case iro_Call:
-      case iro_Phi:
-      case iro_Sync:
-        return true;
-    }
-    return false;
+    return node instanceof Store
+        || node instanceof Load
+        || node instanceof Call
+        || node instanceof Phi
+        || node instanceof Sync;
   }
 
   private Set<IndirectAccess> getPointsTo(Node node) {
@@ -288,7 +271,7 @@ public class AliasAnalyzer extends BaseOptimizer {
   @Override
   public void visit(Proj proj) {
     mergeMemoryFromPreds(proj);
-    if (proj.getPred().getOpCode() == iro_Proj) {
+    if (proj.getPred() instanceof Proj) {
       transferProjOnProj(proj, (Proj) proj.getPred());
     } else {
       updatePointsTo(proj, getPointsTo(proj.getPred()));
@@ -412,26 +395,25 @@ public class AliasAnalyzer extends BaseOptimizer {
   }
 
   private static Type getReferencedTypeHelper(Node node, Set<Phi> visited) {
-    switch (node.getOpCode()) {
-      case iro_Member:
-        return ((Member) node).getEntity().getType();
-      case iro_Sel:
-        // Yay for jFirms inaccurate return types
-        return ((ArrayType) ((Sel) node).getType()).getElementType();
-      case iro_Phi:
-        if (visited.contains(node)) {
-          return null;
-        }
-        visited.add((Phi) node);
-        for (Node pred : node.getPreds()) {
-          Type ret = getReferencedTypeHelper(pred, visited);
-          if (ret != null) {
-            return ret;
-          }
-        }
+    if (node instanceof Member) {
+      return ((Member) node).getEntity().getType();
+    } else if (node instanceof Sel) {
+      // Yay for jFirms inaccurate return types
+      return ((ArrayType) ((Sel) node).getType()).getElementType();
+    } else if (node instanceof Phi) {
+      if (visited.contains(node)) {
         return null;
-      default:
-        throw new AssertionError("Could not find out referenced type of " + node + ".");
+      }
+      visited.add((Phi) node);
+      for (Node pred : node.getPreds()) {
+        Type ret = getReferencedTypeHelper(pred, visited);
+        if (ret != null) {
+          return ret;
+        }
+      }
+      return null;
+    } else {
+      throw new AssertionError("Could not find out referenced type of " + node + ".");
     }
   }
 
@@ -863,14 +845,14 @@ public class AliasAnalyzer extends BaseOptimizer {
       // That's at least the case for Load and Store.
       Node ptr = sideEffect.getPred(1);
       Set<IndirectAccess> aliasClass = getPointsTo(ptr);
-      boolean isLoad = sideEffect.getOpCode() == iro_Load;
+      boolean isLoad = sideEffect instanceof Load;
       // This can really happen, e.g. if an array element or field is accessed before initialized
       // with a value. We may potentially replace the Load with a null/0 or do anything on a Store
       // because of of undefined behavior.
       //assert !aliasClass.isEmpty() : "Empty alias class at " + sideEffect;
       Predicate<Node> affectsSideEffect =
           se -> {
-            if (isLoad && se.getOpCode() == iro_Load) {
+            if (isLoad && se instanceof Load) {
               // This is handled specially for the LoadStoreOptimizer.
               // Since loads have no observable side-effect, to move them past each other.
               // We will do so if they don't have the same pointer.
@@ -884,28 +866,26 @@ public class AliasAnalyzer extends BaseOptimizer {
     }
 
     private Set<IndirectAccess> aliasClass(Node node) {
-      switch (node.getOpCode()) {
-        case iro_Load:
-        case iro_Store:
-          Node ptr = node.getPred(1);
-          return getPointsTo(ptr);
-        case iro_Call:
-          return getPointsTo(node);
-        case iro_Start:
-          // Clearly, we can't move stuff before the Start node. But there is no way
-          // to state this just by its alias class.
-          throw new UnsupportedOperationException("The alias class of Start can't be computed.");
-        case iro_Phi:
-          // Similarly, dominance is a bitch. Don't even try to move beyond Phis.
-          // If we really need that last bit of precision: MEMO: we'd have to make a new
-          // phi and start tracing again from the preds. Not worth it though if no transformation
-          // makes use of that infomration.
-          LOGGER.warn("The alias class of a Phi shouldn't be computed, as we never move beyond.");
-          return getPointsTo(node);
-        default:
-          // I wonder what other side-effects we might hit...
-          // Div/Mod are never reachable.
-          throw new UnsupportedOperationException("Can't handle side effect " + node);
+      if (node instanceof Load || node instanceof Store) {
+        Node ptr = node.getPred(1);
+        return getPointsTo(ptr);
+      } else if (node instanceof Call) {
+        return getPointsTo(node);
+      } else if (node instanceof Start) {
+        // Clearly, we can't move stuff before the Start node. But there is no way
+        // to state this just by its alias class.
+        throw new UnsupportedOperationException("The alias class of Start can't be computed.");
+      } else if (node instanceof Phi) {
+        // Similarly, dominance is a bitch. Don't even try to move beyond Phis.
+        // If we really need that last bit of precision: MEMO: we'd have to make a new
+        // phi and start tracing again from the preds. Not worth it though if no transformation
+        // makes use of that infomration.
+        LOGGER.warn("The alias class of a Phi shouldn't be computed, as we never move beyond.");
+        return getPointsTo(node);
+      } else {
+        // I wonder what other side-effects we might hit...
+        // Div/Mod are never reachable.
+        throw new UnsupportedOperationException("Can't handle side effect " + node);
       }
     }
 
@@ -959,8 +939,7 @@ public class AliasAnalyzer extends BaseOptimizer {
 
     private void removeSyncOnSync(Sync node) {
       List<Edge> usages = Lists.newArrayList(BackEdges.getOuts(node));
-      boolean optimizationMakesSense =
-          usages.size() == 1 && usages.get(0).node.getOpCode() == iro_Sync;
+      boolean optimizationMakesSense = usages.size() == 1 && usages.get(0).node instanceof Sync;
       if (!optimizationMakesSense) {
         // We could in theory also do this if there was more than one usage.
         // But then we'd have to deduplicate all preds to those Sync nodes, and
@@ -1010,7 +989,7 @@ public class AliasAnalyzer extends BaseOptimizer {
     }
 
     private boolean isLoadOrStore(Node node) {
-      return node.getOpCode() == iro_Load || node.getOpCode() == iro_Store;
+      return node instanceof Load || node instanceof Store;
     }
   }
 

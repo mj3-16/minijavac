@@ -62,7 +62,12 @@ public class Compiler {
     ast.acceptVisitor(new SemanticLinter());
   }
 
-  public static void optimize() {
+  public static void optimize(int level) {
+    if (level == 0) {
+      // We do constant folding and algebraic simplification just before emitting code, which should
+      // be enough.
+      return;
+    }
     dumpGraphsIfNeeded("before-optimizations");
     Optimizer constantFolder = new ConstantFolder();
     Optimizer floatInTransformation = new FloatInTransformation();
@@ -79,16 +84,27 @@ public class Compiler {
     Optimizer loadStoreOptimizer = new LoadStoreOptimizer();
     Optimizer criticalEdgeDetector = new CriticalEdgeDetector();
     Optimizer duplicateProjDetector = new DuplicateProjDetector();
-    OptimizerFramework perGraphFramework =
+
+    OptimizerFramework.Builder builder =
         new OptimizerFramework.Builder()
             .add(unreachableCodeRemover)
-            .dependsOn(controlFlowOptimizer, jmpBlockRemover, loopInvariantCodeMotion)
-            .add(criticalEdgeDetector)
-            .dependsOn(controlFlowOptimizer, jmpBlockRemover)
-            .add(duplicateProjDetector)
-            .dependsOn(loadStoreOptimizer, commonSubexpressionElimination)
-            .add(syncOptimizer)
-            .dependsOn(aliasAnalyzer)
+            .dependsOn(controlFlowOptimizer, jmpBlockRemover, loopInvariantCodeMotion);
+
+    if (EnvVar.MJ_DBG.isSetToOne()) {
+      builder =
+          builder
+              .add(criticalEdgeDetector)
+              .dependsOn(controlFlowOptimizer, jmpBlockRemover)
+              .add(duplicateProjDetector)
+              .dependsOn(loadStoreOptimizer, commonSubexpressionElimination);
+    }
+
+    if (level > 1) {
+      builder = builder.add(syncOptimizer).dependsOn(aliasAnalyzer);
+    }
+
+    builder =
+        builder
             .add(phiOptimizer)
             .dependsOn(controlFlowOptimizer, loopInvariantCodeMotion)
             .add(constantFolder)
@@ -141,12 +157,18 @@ public class Compiler {
                 controlFlowOptimizer,
                 floatInTransformation,
                 loopInvariantCodeMotion,
-                loadStoreOptimizer)
-            .add(aliasAnalyzer)
-            .dependsOn() // It's quite expensive to run the alias analysis, so we do so only once.
-            //.add(loopInvariantCodeMotion)
-            //.dependsOn() // Dito
-            .build();
+                loadStoreOptimizer);
+
+    if (level > 2) {
+      builder =
+          builder
+              .add(aliasAnalyzer)
+              .dependsOn(); // It's expensive to run alias analysis, so we do so only after inlining
+      //.add(loopInvariantCodeMotion)
+      //.dependsOn() // Dito
+    }
+
+    OptimizerFramework framework = builder.build();
 
     ProgramMetrics metrics = ProgramMetrics.analyse(Program.getGraphs());
     Set<Graph> intraproceduralCandidates = Sets.newHashSet(Program.getGraphs());
@@ -157,7 +179,7 @@ public class Compiler {
       Set<Graph> reachable = metrics.reachableFromMain();
 
       for (Graph graph : Sets.intersection(intraproceduralCandidates, reachable)) {
-        perGraphFramework.optimizeUntilFixedpoint(graph);
+        framework.optimizeUntilFixedpoint(graph);
       }
 
       // Here comes the interprocedural stuff... This is method is really turning into a mess
@@ -180,6 +202,9 @@ public class Compiler {
         }
       }
     }
+
+    framework.logPerformanceStats();
+
     dumpGraphsIfNeeded("after-optimizations");
   }
 
@@ -189,7 +214,7 @@ public class Compiler {
     Compiler.verifySemanticAnnotations(ast);
     Compiler.emitIR(ast);
     if (optimizationLevel > 0) {
-      optimize();
+      optimize(optimizationLevel);
     }
   }
 

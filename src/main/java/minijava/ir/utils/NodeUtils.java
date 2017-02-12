@@ -1,25 +1,16 @@
 package minijava.ir.utils;
 
-import static firm.bindings.binding_irnode.ir_opcode.iro_Block;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Const;
 import static firm.bindings.binding_irnode.ir_opcode.iro_Jmp;
 import static firm.bindings.binding_irnode.ir_opcode.iro_Proj;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Return;
 import static org.jooq.lambda.Seq.seq;
 import static org.jooq.lambda.Seq.zipWithIndex;
 
-import com.google.common.collect.ImmutableSet;
 import com.sun.jna.Pointer;
 import firm.BackEdges;
 import firm.Graph;
 import firm.Mode;
 import firm.bindings.binding_irnode;
-import firm.nodes.Block;
-import firm.nodes.Cond;
-import firm.nodes.Const;
-import firm.nodes.Load;
-import firm.nodes.Node;
-import firm.nodes.Proj;
+import firm.nodes.*;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -30,15 +21,12 @@ import org.jooq.lambda.Seq;
 
 /** For lack of a better name */
 public class NodeUtils {
-  private static final Set<binding_irnode.ir_opcode> SINGLE_EXIT =
-      ImmutableSet.of(iro_Jmp, iro_Return);
-
   public static Optional<Const> asConst(Node node) {
-    return node.getOpCode().equals(iro_Const) ? Optional.of((Const) node) : Optional.empty();
+    return node instanceof Const ? Optional.of((Const) node) : Optional.empty();
   }
 
   public static Optional<Proj> asProj(Node node) {
-    return node.getOpCode().equals(iro_Proj) ? Optional.of((Proj) node) : Optional.empty();
+    return node instanceof Proj ? Optional.of((Proj) node) : Optional.empty();
   }
 
   public static Optional<ProjPair> determineProjectionNodes(Cond node) {
@@ -57,14 +45,12 @@ public class NodeUtils {
   }
 
   public static Set<Node> getNodesInBlock(Block block) {
-    return FirmUtils.withBackEdges(
-        block.getGraph(),
-        () -> seq(BackEdges.getOuts(block)).filter(be -> be.pos == -1).map(be -> be.node).toSet());
+    return seq(BackEdges.getOuts(block)).filter(be -> be.pos == -1).map(be -> be.node).toSet();
   }
 
   /** Single exit control flow nodes are Jmp, Return, ..., but not a Proj X. */
   public static boolean isSingleExitNode(Node node) {
-    return SINGLE_EXIT.contains(node.getOpCode());
+    return node instanceof Jmp || node instanceof Return;
   }
 
   public static Seq<BackEdges.Edge> criticalEdges(Block block) {
@@ -88,6 +74,7 @@ public class NodeUtils {
     Graph graph = source.getGraph();
     Block splitter = (Block) graph.newBlock(new Node[] {target});
     source.setPred(pos, graph.newJmp(splitter));
+    Dominance.invalidateDominace();
     return Optional.of(splitter);
   }
 
@@ -108,27 +95,26 @@ public class NodeUtils {
    */
   public static void mergeProjsWithNum(Node node, int num) {
     List<Proj> projs = new ArrayList<>();
-    FirmUtils.withBackEdges(
-        node.getGraph(),
-        () -> {
-          for (BackEdges.Edge be : BackEdges.getOuts(node)) {
-            asProj(be.node)
-                .ifPresent(
-                    proj -> {
-                      if (proj.getNum() == num) {
-                        projs.add(proj);
-                      }
-                    });
-          }
-          // this will do the right thing in case there aren't any projs as well as when there are 1 or more.
-          for (Proj proj : seq(projs).skip(1)) {
-            Proj survivor = projs.get(0);
-            for (BackEdges.Edge be : BackEdges.getOuts(proj)) {
-              be.node.setPred(be.pos, survivor);
-            }
-            Graph.killNode(proj);
-          }
-        });
+    for (BackEdges.Edge be : BackEdges.getOuts(node)) {
+      asProj(be.node)
+          .ifPresent(
+              proj -> {
+                if (proj.getNum() == num) {
+                  projs.add(proj);
+                }
+              });
+    }
+    // this will do the right thing in case there aren't any projs as well as when there are 1 or more.
+    for (Proj proj : seq(projs).skip(1)) {
+      Proj survivor = projs.get(0);
+      for (BackEdges.Edge be : BackEdges.getOuts(proj)) {
+        be.node.setPred(be.pos, survivor);
+        if (be.node instanceof Block) {
+          Dominance.invalidateDominace();
+        }
+      }
+      Graph.killNode(proj);
+    }
   }
 
   /**
@@ -138,19 +124,15 @@ public class NodeUtils {
   public static void redirectProjsOnto(Node oldTarget, Node newTarget) {
     Set<Integer> usedNums = new HashSet<>();
 
-    FirmUtils.withBackEdges(
-        oldTarget.getGraph(),
-        () -> {
-          for (BackEdges.Edge be : BackEdges.getOuts(oldTarget)) {
-            // Point the projs to newTarget
-            if (be.node.getOpCode() != iro_Proj) {
-              continue;
-            }
-            be.node.setPred(be.pos, newTarget);
-            be.node.setBlock(newTarget.getBlock());
-            usedNums.add(((Proj) be.node).getNum());
-          }
-        });
+    for (BackEdges.Edge be : BackEdges.getOuts(oldTarget)) {
+      // Point the projs to newTarget
+      if (!(be.node instanceof Proj)) {
+        continue;
+      }
+      be.node.setPred(be.pos, newTarget);
+      be.node.setBlock(newTarget.getBlock());
+      usedNums.add(((Proj) be.node).getNum());
+    }
 
     usedNums.forEach(num -> mergeProjsWithNum(newTarget, num));
   }
@@ -222,29 +204,22 @@ public class NodeUtils {
 
   /** Returns the unique Proj of mode M depending on {@param sideEffect} or creates one. */
   public static Proj getMemProjSuccessor(Node sideEffect) {
-    return FirmUtils.withBackEdges(
-        sideEffect.getGraph(),
-        () ->
-            seq(BackEdges.getOuts(sideEffect))
-                .map(be -> be.node)
-                .ofType(Proj.class)
-                .filter(p -> p.getMode().equals(Mode.getM()))
-                .findFirst()
-                .orElseGet(
-                    () -> (Proj) sideEffect.getGraph().newProj(sideEffect, Mode.getM(), Load.pnM)));
+    return seq(BackEdges.getOuts(sideEffect))
+        .map(be -> be.node)
+        .ofType(Proj.class)
+        .filter(p -> p.getMode().equals(Mode.getM()))
+        .findFirst()
+        .orElseGet(() -> (Proj) sideEffect.getGraph().newProj(sideEffect, Mode.getM(), Load.pnM));
   }
 
   /** This returns reverse edges to successor blocks. */
   public static Seq<BackEdges.Edge> getControlFlowSuccessors(Block block) {
-    return FirmUtils.withBackEdges(
-        block.getGraph(),
-        () ->
-            seq(BackEdges.getOuts(block))
-                .map(be -> be.node)
-                .filter(n -> n.getMode().equals(Mode.getX()))
-                .map(BackEdges::getOuts)
-                .flatMap(Seq::seq)
-                .filter(be -> be.node.getOpCode() == iro_Block));
+    return seq(BackEdges.getOuts(block))
+        .map(be -> be.node)
+        .filter(n -> n.getMode().equals(Mode.getX()))
+        .map(BackEdges::getOuts)
+        .flatMap(Seq::seq)
+        .filter(be -> be.node instanceof Block);
   }
 
   public static Seq<Block> getPredecessorBlocks(Block cur) {

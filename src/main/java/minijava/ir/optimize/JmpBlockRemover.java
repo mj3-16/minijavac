@@ -11,6 +11,7 @@ import firm.nodes.Node;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import minijava.ir.Dominance;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
 import minijava.ir.utils.NodeUtils;
@@ -70,6 +71,7 @@ public class JmpBlockRemover extends BaseOptimizer {
   // To implement this, the Phi nodes in the target block must also be adjusted.
   private void remove(Block redirected, Redirection redirection) {
     redirection.target.setPred(redirection.predIndex, redirection.source);
+    Dominance.invalidateDominace();
     Graph.killNode(redirected);
   }
 

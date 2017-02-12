@@ -1,26 +1,22 @@
 package minijava.ir.optimize;
 
-import static firm.bindings.binding_irnode.ir_opcode.*;
 import static org.jooq.lambda.Seq.seq;
 
-import com.google.common.collect.ImmutableSet;
 import firm.BackEdges;
 import firm.Graph;
 import firm.MethodType;
 import firm.Mode;
-import firm.bindings.binding_irnode.ir_opcode;
 import firm.nodes.*;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
+import minijava.ir.Dominance;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
 import minijava.ir.utils.NodeUtils;
 import org.jooq.lambda.tuple.Tuple2;
 
 public class Inliner extends BaseOptimizer {
-  private static final Set<ir_opcode> ALWAYS_IN_START_BLOCK =
-      ImmutableSet.of(iro_Const, iro_Address, iro_Size, iro_Bad, iro_NoMem);
   private static final int MAX_NODES = 1000;
   /**
    * Specifies the maximal number of nodes a leaf method can have to always be inlined, regardless
@@ -45,7 +41,11 @@ public class Inliner extends BaseOptimizer {
     metrics.updateGraphInfo(graph);
     // Not sure if we really need more than one pass here, but better be safe.
     fixedPointIteration(GraphUtils.topologicalOrder(graph));
-    return inlineCandidates();
+    boolean inlinedAny = inlineCandidates();
+    if (inlinedAny) {
+      Dominance.invalidateDominace();
+    }
+    return inlinedAny;
   }
 
   private boolean inlineCandidates() {
@@ -77,7 +77,7 @@ public class Inliner extends BaseOptimizer {
 
     Consumer<Node> onFinish =
         node -> {
-          if (ALWAYS_IN_START_BLOCK.contains(node.getOpCode())) {
+          if (isTiedToStart(node)) {
             // Const and Address nodes must always be placed in the start block.
             node.setBlock(graph.getStartBlock());
           } else if (startBlock.equals(node.getBlock())) {
@@ -149,6 +149,15 @@ public class Inliner extends BaseOptimizer {
         });
 
     afterCallBlock.setPred(0, graph.newJmp(endBlock));
+    Dominance.invalidateDominace();
+  }
+
+  private boolean isTiedToStart(Node node) {
+    return node instanceof Const
+        || node instanceof Address
+        || node instanceof Size
+        || node instanceof Bad
+        || node instanceof NoMem;
   }
 
   private Block moveDependenciesIntoNewBlock(Call call) {
@@ -199,7 +208,7 @@ public class Inliner extends BaseOptimizer {
             }
             visited.add(move);
 
-            if (move.getOpCode().equals(iro_Phi)) {
+            if (move instanceof Phi) {
               // We may not move Phis, as they are tied to their block.
               // That's not even bad, because we also don't have to move any successors.
               continue;
@@ -226,6 +235,12 @@ public class Inliner extends BaseOptimizer {
       return;
     }
     ProgramMetrics.GraphInfo calleeInfo = metrics.graphInfos.get(callee(call));
+    if (calleeInfo.isLoopBreaker) {
+      // We try hard not to inline recursion too much, as it's not really beneficial.
+      // We do want to inline other non-leaf nodes though! We identified loop breakers (e.g. nodes
+      // with back-edges) in the call graph before, so we don't inline those and should be good.
+      return;
+    }
     if (onlyLeafs && !calleeInfo.calls.isEmpty()) {
       // We only inline if the callee itself doesn't call any other functions for now
       return;
@@ -233,7 +248,6 @@ public class Inliner extends BaseOptimizer {
     if (calleeInfo.diverges) {
       // We could potentially inline this, but it won't bring any benefit, as the diverging loop
       // dominates the method call overhead.
-      // In case we do want this though, we have to graph.keepAlive(end.getPred(1));
       return;
     }
     if (calleeInfo.size > 1000) {

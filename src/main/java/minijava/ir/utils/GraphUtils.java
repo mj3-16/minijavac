@@ -1,15 +1,11 @@
 package minijava.ir.utils;
 
-import static firm.bindings.binding_irnode.ir_opcode.iro_Block;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Phi;
 import static org.jooq.lambda.tuple.Tuple.tuple;
 
 import firm.Graph;
 import firm.bindings.binding_irgraph;
 import firm.bindings.binding_irgraph.ir_resources_t;
-import firm.nodes.End;
-import firm.nodes.Node;
-import firm.nodes.Start;
+import firm.nodes.*;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -18,6 +14,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import minijava.ir.Dominance;
 import org.jooq.lambda.tuple.Tuple2;
 
 public class GraphUtils {
@@ -55,6 +52,9 @@ public class GraphUtils {
       for (int i = 0; i < n; ++i) {
         Node pred = copy.getPred(i);
         copy.setPred(i, copyNode(pred));
+      }
+      if (copy instanceof Block) {
+        Dominance.invalidateDominace();
       }
       return copy;
     }
@@ -148,7 +148,7 @@ public class GraphUtils {
 
       // we only add this node to the discovered set when it's a loop breaker.
       // This way, loops are always broken at what are back edges in the firm graph.
-      boolean isLoopBreaker = node.getOpCode() == iro_Block || node.getOpCode() == iro_Phi;
+      boolean isLoopBreaker = node instanceof Block || node instanceof Phi;
 
       if (counter < 0) {
         if (isLoopBreaker) {

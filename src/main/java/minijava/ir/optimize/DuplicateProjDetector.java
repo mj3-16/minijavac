@@ -1,6 +1,5 @@
 package minijava.ir.optimize;
 
-import static firm.bindings.binding_irnode.ir_opcode.iro_Proj;
 import static minijava.ir.utils.GraphUtils.topologicalOrder;
 
 import firm.BackEdges;
@@ -22,7 +21,7 @@ public class DuplicateProjDetector extends BaseOptimizer {
   public void visit(Proj node) {
     // make sure there is no other Proj with the same num on the pred
     for (BackEdges.Edge be : BackEdges.getOuts(node.getPred())) {
-      if (be.node.getOpCode() != iro_Proj || be.node.equals(node)) {
+      if (!(be.node instanceof Proj) || be.node.equals(node)) {
         continue;
       }
       int num = ((Proj) be.node).getNum();

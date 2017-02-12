@@ -2,6 +2,7 @@ package minijava.ir.optimize;
 
 import static org.jooq.lambda.Seq.seq;
 
+import com.google.common.base.Stopwatch;
 import com.google.common.collect.Iterables;
 import firm.Graph;
 import java.util.List;
@@ -22,10 +23,15 @@ public class OptimizerFramework {
   private static final Logger LOGGER = LoggerFactory.getLogger("OptimizerFramework");
   private final Optimizer[] idToOptimizers;
   private final List<Integer>[] referrers;
+  private final Stopwatch[] stopwatches;
 
   private OptimizerFramework(Optimizer[] idToOptimizers, List<Integer>[] referrers) {
     this.idToOptimizers = idToOptimizers;
     this.referrers = referrers;
+    this.stopwatches =
+        Seq.generate(Stopwatch::createUnstarted)
+            .limit(idToOptimizers.length)
+            .toArray(Stopwatch[]::new);
   }
 
   /**
@@ -41,7 +47,11 @@ public class OptimizerFramework {
       Optimizer chosenOptimizer = idToOptimizers[next];
       LOGGER.debug(chosenOptimizer.getClass().getSimpleName() + " on " + graph);
       Cli.dumpGraphIfNeeded(graph, "before-" + chosenOptimizer.getClass().getSimpleName());
-      if (chosenOptimizer.optimize(graph)) {
+      Stopwatch watch = stopwatches[next];
+      watch.start();
+      boolean hasChanged = chosenOptimizer.optimize(graph);
+      watch.stop();
+      if (hasChanged) {
         // The optimizer changed something, so we enqueue all dependent optimizers
         List<Integer> needRerun = referrers[next];
         LOGGER.debug(
@@ -50,6 +60,13 @@ public class OptimizerFramework {
                     seq(needRerun).map(i -> idToOptimizers[i].getClass().getSimpleName())));
         toVisit.addAll(needRerun);
       }
+    }
+  }
+
+  public void logPerformanceStats() {
+    for (int i = 0; i < idToOptimizers.length; ++i) {
+      LOGGER.info(
+          idToOptimizers[i].getClass().getSimpleName() + " took " + stopwatches[i] + " total.");
     }
   }
 
@@ -82,11 +99,11 @@ public class OptimizerFramework {
 
     private List<Integer>[] invert(
         Optimizer[] idToOptimizer, PMap<Optimizer, PSet<Optimizer>> edges) {
-      List<Integer>[] inverted = (List<Integer>[]) new List[edges.size()];
+      List<Integer>[] inverted = (List<Integer>[]) new List[idToOptimizer.length];
       for (int i = 0; i < inverted.length; ++i) {
         Optimizer current = idToOptimizer[i];
         inverted[i] =
-            Seq.range(0, inverted.length)
+            Seq.range(0, idToOptimizer.length)
                 .filter(
                     j ->
                         seq(edges.get(idToOptimizer[j]))

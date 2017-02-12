@@ -1,9 +1,6 @@
 package minijava.ir.optimize;
 
 import static firm.bindings.binding_irnode.ir_opcode.iro_Bad;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Block;
-import static firm.bindings.binding_irnode.ir_opcode.iro_End;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Phi;
 import static minijava.ir.utils.NodeUtils.incomingBackEdges;
 import static org.jooq.lambda.Seq.seq;
 
@@ -13,6 +10,7 @@ import firm.BackEdges.Edge;
 import firm.Graph;
 import firm.Mode;
 import firm.nodes.Block;
+import firm.nodes.End;
 import firm.nodes.Node;
 import firm.nodes.Phi;
 import java.util.ArrayList;
@@ -71,12 +69,7 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
   private LoopNestTree buildLoopNestTree(ArrayList<Node> allNodes) {
     Map<Block, Set<Block>> loopBlocks = new HashMap<>();
     Set<Block> allBlocks = new HashSet<>();
-    for (Node node : allNodes) {
-      if (node.getOpCode() != iro_Block) {
-        continue;
-      }
-
-      Block header = (Block) node;
+    for (Block header : seq(allNodes).ofType(Block.class)) {
       allBlocks.add(header);
       if (!isLoopHeader(header)) {
         continue;
@@ -293,7 +286,7 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
   @Nullable
   private static Block getUsageBlock(Edge usage) {
     Block usageBlock = (Block) usage.node.getBlock();
-    if (usage.node.getOpCode() == iro_Phi) {
+    if (usage.node instanceof Phi) {
       Node pred = usageBlock.getPred(usage.pos);
       if (pred.getOpCode() == iro_Bad) {
         return null;
@@ -373,16 +366,17 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
       NodeUtils.splitCriticalEdge(landingBlock, 0);
       NodeUtils.splitCriticalEdge(landingBlock, 1);
     }
+    Dominance.invalidateDominace();
   }
 
   /** Reconstructs SSA form for a set of usages pointing to the original of a duplicate node. */
   private void reconstructSSA(Set<Block> toDuplicate, List<BackEdges.Edge> unduplicatedUsages) {
     for (BackEdges.Edge usage : unduplicatedUsages) {
-      if (usage.node.getOpCode() == iro_End) {
+      if (usage.node instanceof End) {
         // We ignore keep edges here
         continue;
       }
-      if (usage.node.getOpCode() == iro_Block) {
+      if (usage.node instanceof Block) {
         // Blocks have already been handled
         continue;
       }
@@ -408,6 +402,7 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
           searchDefinitionInsertingPhis(usageBlock, mode, duplicateDef, defsInBlock, false);
       usage.node.setPred(usage.pos, mergedDef);
     }
+    Dominance.invalidateDominace();
   }
 
   private Node searchDefinitionInsertingPhis(
@@ -480,6 +475,7 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
         originalHeader.setPred(i, graph.newBad(Mode.getX()));
       }
     }
+    Dominance.invalidateDominace();
   }
 
   private Optional<Block> postdominatorBeforeLoop(Block header) {
@@ -531,6 +527,11 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
       Node pred = copy.getPred(i);
       copy.setPred(i, copyNode(pred, blocksToDuplicate));
     }
+
+    if (copy instanceof Block) {
+      Dominance.invalidateDominace();
+    }
+
     return copy;
   }
 }

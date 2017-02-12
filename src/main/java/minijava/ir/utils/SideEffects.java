@@ -1,14 +1,14 @@
 package minijava.ir.utils;
 
 import static firm.bindings.binding_irnode.ir_opcode.iro_Phi;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Start;
 import static org.jooq.lambda.Seq.seq;
 
 import com.google.common.collect.Sets;
 import firm.Mode;
-import firm.bindings.binding_irnode.ir_opcode;
 import firm.nodes.Block;
 import firm.nodes.Node;
+import firm.nodes.Phi;
+import firm.nodes.Start;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashSet;
@@ -70,12 +70,10 @@ public class SideEffects {
       }
       visited.add(prevSideEffect);
 
-      ir_opcode opCode = prevSideEffect.getOpCode();
-
-      if (opCode == iro_Start) {
+      if (prevSideEffect instanceof Start) {
         // We can't extend beyond a Start node.
         ret.add(prevSideEffect);
-      } else if (opCode == iro_Phi) {
+      } else if (prevSideEffect instanceof Phi) {
         // We try to extend beyond that Phi
         Set<Node> sideEffectsPrecedingPhi =
             seq(prevSideEffect.getPreds())
@@ -144,7 +142,7 @@ public class SideEffects {
 
   private static boolean isSink(Node n) {
     // We don't optimize beyond Phis.
-    return n.getOpCode() == ir_opcode.iro_Start;
+    return n instanceof Start;
   }
 
   private static Set<Node> reachableSideEffects(Set<Node> sources) {
@@ -166,7 +164,7 @@ public class SideEffects {
 
   private static Seq<Set<Node>> getPrecedingSideEffects(Node n) {
     Set<Node> mems;
-    if (n.getOpCode() == iro_Phi) {
+    if (n instanceof Phi) {
       // We have to be careful to not follow back edges. We might reach actual sources through
       // them, so that they aren't sources anymore.
       // So we only return those mems where the blocks aren't dominated by the Phi's.

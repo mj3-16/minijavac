@@ -1,6 +1,5 @@
 package minijava.ir.optimize;
 
-import static firm.bindings.binding_irnode.ir_opcode.iro_Phi;
 import static org.jooq.lambda.Seq.seq;
 
 import firm.BackEdges;
@@ -31,7 +30,7 @@ public class PhiOptimizer extends BaseOptimizer {
     this.graph = graph;
     this.replacements.clear();
     fixedPointIteration(GraphUtils.reverseTopologicalOrder(graph));
-    return transform();
+    return FirmUtils.withBackEdges(graph, this::transform);
   }
 
   /** Essentially follows replacements, but also compresses paths. */
@@ -80,7 +79,7 @@ public class PhiOptimizer extends BaseOptimizer {
       return;
     }
 
-    assert pred.getOpCode() != iro_Phi || !pred.getBlock().equals(phi.getBlock());
+    assert !(pred instanceof Phi) || !pred.getBlock().equals(phi.getBlock());
     updateReplacement(phi, pred);
   }
 
@@ -92,16 +91,12 @@ public class PhiOptimizer extends BaseOptimizer {
   }
 
   private boolean transform() {
-    return FirmUtils.withBackEdges(
-        graph,
-        () -> {
-          for (Node phi : replacements.keySet()) {
-            Node replacement = followReplacements(phi);
-            for (BackEdges.Edge usage : BackEdges.getOuts(phi)) {
-              usage.node.setPred(usage.pos, replacement);
-            }
-          }
-          return !replacements.isEmpty();
-        });
+    for (Node phi : replacements.keySet()) {
+      Node replacement = followReplacements(phi);
+      for (BackEdges.Edge usage : BackEdges.getOuts(phi)) {
+        usage.node.setPred(usage.pos, replacement);
+      }
+    }
+    return !replacements.isEmpty();
   }
 }
