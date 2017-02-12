@@ -158,4 +158,17 @@ public class LinearLiveRanges {
   public String toString() {
     return Iterables.toString(seq(ranges.entrySet()).map(LinearLiveRanges::toRange));
   }
+
+  public CodeBlock lastBlock() {
+    return null;
+  }
+
+  public BlockPosition from() {
+    return ranges.firstKey();
+  }
+
+  public BlockPosition to() {
+    Entry<BlockPosition, Integer> entry = ranges.lastEntry();
+    return new BlockPosition(entry.getKey().block, entry.getValue());
+  }
 }

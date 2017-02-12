@@ -68,34 +68,37 @@ public class LifetimeAnalysis {
     for (int i = block.instructions.size() - 1; i >= 0; --i) {
       int idx = i;
       Instruction instruction = block.instructions.get(i);
+      BlockPosition def = BlockPosition.definedBy(block, idx);
+      BlockPosition use = BlockPosition.usedBy(block, idx);
       for (Register defined : instruction.definitions()) {
         defined.match(
             vr -> {
-              getInterval(vr).setDef(block, idx);
+              LifetimeInterval interval = getInterval(vr);
+              interval.setDef(def);
               Set<Register> hints = instruction.registerHints();
               if (hints.contains(vr)) {
-                getInterval(vr).fromHints.addAll(hints);
+                addTransitiveHints(vr, interval.fromHints, hints);
               }
-              live.remove(defined);
+              live.remove(vr);
             },
             hr -> {
-              getFixedInterval(hr).addDef(block, idx);
+              getFixedInterval(hr).addDef(def);
             });
       }
 
       for (Register used : instruction.usages()) {
         used.match(
             vr -> {
-              getInterval(vr).addUse(block, idx);
+              LifetimeInterval interval = getInterval(vr);
+              interval.addUse(use);
               Set<Register> hints = instruction.registerHints();
-              if (!live.contains(vr) && hints.contains(vr)) {
+              if (live.add(vr) && hints.contains(vr)) {
                 // This was the last usage.
-                getInterval(vr).toHints.addAll(hints);
+                addTransitiveHints(vr, interval.toHints, hints);
               }
-              live.add(vr);
             },
             hr -> {
-              getFixedInterval(hr).addUse(block, idx);
+              getFixedInterval(hr).addUse(use);
             });
       }
     }
@@ -104,7 +107,10 @@ public class LifetimeAnalysis {
       // N.B.: phi output registers aren't visible before the begin of the block, as aren't inputs.
       Register written = phi.output.writes();
       if (live.remove(written)) {
-        getInterval((VirtualRegister) written).fromHints = phi.registerHints();
+        VirtualRegister vr = (VirtualRegister) written;
+        LifetimeInterval interval = getInterval(vr);
+        interval.setDef(BlockPosition.beginOf(block));
+        addTransitiveHints(vr, interval.fromHints, phi.registerHints());
       }
     }
   }
@@ -140,25 +146,35 @@ public class LifetimeAnalysis {
           if (alive instanceof VirtualRegister) {
             VirtualRegister aliveVirtual = (VirtualRegister) alive;
             live.add(aliveVirtual);
+            getInterval(aliveVirtual).addUse(BlockPosition.endOf(block));
           }
         }
 
         if (input instanceof RegisterOperand) {
           RegisterOperand op = (RegisterOperand) input;
           if (op.register instanceof VirtualRegister) {
-            Set<Register> toHints = getInterval((VirtualRegister) op.register).toHints;
-            for (Register register : phi.registerHints(block)) {
-              register.match(
-                  virt -> {
-                    LifetimeInterval connectedInterval = getInterval(virt);
-                    toHints.addAll(connectedInterval.toHints);
-                    toHints.addAll(connectedInterval.fromHints);
-                  },
-                  mem -> {});
-            }
+            VirtualRegister inputReg = (VirtualRegister) op.register;
+            addTransitiveHints(inputReg, getInterval(inputReg).toHints, phi.registerHints(block));
           }
         }
       }
+    }
+  }
+
+  private void addTransitiveHints(
+      VirtualRegister self, Set<Register> intervalHints, Set<Register> instructionHints) {
+    intervalHints.add(self);
+    for (Register register : instructionHints) {
+      if (register.equals(self)) {
+        continue;
+      }
+      register.match(
+          virt -> {
+            LifetimeInterval connectedInterval = getInterval(virt);
+            intervalHints.addAll(connectedInterval.toHints);
+            intervalHints.addAll(connectedInterval.fromHints);
+          },
+          intervalHints::add);
     }
   }
 

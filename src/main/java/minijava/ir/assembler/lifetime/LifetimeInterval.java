@@ -10,7 +10,7 @@ import minijava.ir.assembler.registers.VirtualRegister;
 public class LifetimeInterval {
 
   public static final Comparator<LifetimeInterval> COMPARING_DEF =
-      Comparator.comparing(LifetimeInterval::definition);
+      Comparator.comparing(LifetimeInterval::definition).thenComparingInt(li -> li.register.id);
   public final VirtualRegister register;
   public final SortedSet<BlockPosition> defAndUses;
   public final LinearLiveRanges ranges;
@@ -47,11 +47,11 @@ public class LifetimeInterval {
   }
 
   public CodeBlock firstBlock() {
-    return defAndUses.first().block;
+    return ranges.from().block;
   }
 
   public CodeBlock lastBlock() {
-    return defAndUses.last().block;
+    return ranges.to().block;
   }
 
   public void makeAliveInWholeBlock(CodeBlock block) {
@@ -64,22 +64,20 @@ public class LifetimeInterval {
     ranges.addLiveRange(range);
   }
 
-  public void setDef(CodeBlock block, int instructionIndex) {
-    LiveRange lifetime = getLifetimeInBlock(block);
-    int def = BlockPosition.definedBy(instructionIndex);
-    defAndUses.add(new BlockPosition(block, def));
+  public void setDef(BlockPosition position) {
+    assert position.pos % 2 == 0 : "Was not a definition";
+    LiveRange lifetime = getLifetimeInBlock(position.block);
+    defAndUses.add(position);
     assert lifetime != null : "There should be no defs without a later use.";
-    setLiveRange(lifetime.from(def));
+    setLiveRange(lifetime.from(position.pos));
   }
 
-  public void addUse(CodeBlock block, int instructionIndex) {
-    int usage = BlockPosition.usedBy(instructionIndex);
-    defAndUses.add(new BlockPosition(block, usage));
-    LiveRange lifetime = getLifetimeInBlock(block);
+  public void addUse(BlockPosition position) {
+    assert position.pos % 2 == 1 : "Was not a definition";
+    defAndUses.add(position);
+    LiveRange lifetime = getLifetimeInBlock(position.block);
     if (lifetime == null) {
-      setLiveRange(new LiveRange(block, 0, usage));
-    } else {
-      setLiveRange(lifetime.to(Math.max(lifetime.to, usage)));
+      setLiveRange(new LiveRange(position.block, 0, position.pos));
     }
   }
 
@@ -105,8 +103,8 @@ public class LifetimeInterval {
   }
 
   public Split<LifetimeInterval> splitBefore(BlockPosition pos) {
-    checkArgument(defAndUses.first().compareTo(pos) < 0, "pos must lie after the interval's def");
-    checkArgument(defAndUses.last().compareTo(pos) > 0, "pos must lie before the last use");
+    checkArgument(ranges.from().compareTo(pos) < 0, "pos must lie after the interval's def");
+    checkArgument(ranges.to().compareTo(pos) > 0, "pos must be before the interval dies");
     // Note that the after split interval has a use as its first defAndUses... This might bring
     // confusion later on, but there is no sensible def index to choose.
     Split<LinearLiveRanges> splitRanges = ranges.splitBefore(pos);

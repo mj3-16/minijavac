@@ -45,7 +45,6 @@ public class Backend {
       LifetimeAnalysisResult lifetimes = LifetimeAnalysis.analyse(currentFunction, linearization);
 
       System.out.println();
-      System.out.println("Lifetimes:");
       lifetimes.fixedIntervals.values().forEach(System.out::println);
       for (LifetimeInterval interval : lifetimes.virtualIntervals) {
         System.out.println(interval);

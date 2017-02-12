@@ -40,8 +40,8 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
     List<CodeBlockInstruction> highLevel = block.instructions;
     for (int i = 0; i < highLevel.size(); ++i) {
       instructionCounter = i;
-      BlockPosition def = new BlockPosition(block, BlockPosition.definedBy(i));
-      BlockPosition use = new BlockPosition(block, BlockPosition.usedBy(i));
+      BlockPosition def = BlockPosition.definedBy(block, i);
+      BlockPosition use = BlockPosition.usedBy(block, i);
       AllocationResult.SpillEvent beforeUse = allocationResult.spillEvents.get(use);
       if (beforeUse != null) {
         addReload(beforeUse);
@@ -260,11 +260,11 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
   }
 
   private BlockPosition currentUse() {
-    return new BlockPosition(block, BlockPosition.usedBy(instructionCounter));
+    return BlockPosition.usedBy(block, instructionCounter);
   }
 
   private BlockPosition currentDef() {
-    return new BlockPosition(block, BlockPosition.definedBy(instructionCounter));
+    return BlockPosition.definedBy(block, instructionCounter);
   }
 
   private Operand substituteHardwareRegisters(Operand virtualOperand, BlockPosition position) {

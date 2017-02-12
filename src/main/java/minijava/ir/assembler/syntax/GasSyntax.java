@@ -183,7 +183,7 @@ public class GasSyntax implements Instruction.Visitor {
   private void formatOperand(Operand output) {
     output.match(
         imm -> {
-          builder.append('$');
+          builder.append("$0x");
           builder.append(Long.toHexString(imm.value));
         },
         reg -> {

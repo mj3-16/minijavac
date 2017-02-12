@@ -19,8 +19,8 @@ public class LiveRange {
   }
 
   static LiveRange everywhere(CodeBlock block) {
-    int from = 0;
-    int to = BlockPosition.usedBy(block.instructions.size());
+    int from = BlockPosition.beginOf(block).pos;
+    int to = BlockPosition.endOf(block).pos;
     return new LiveRange(block, from, to);
   }
 

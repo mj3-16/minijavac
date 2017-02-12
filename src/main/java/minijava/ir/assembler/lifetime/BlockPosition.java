@@ -18,14 +18,16 @@ public class BlockPosition implements Comparable<BlockPosition> {
     this.pos = pos;
   }
 
-  public static int definedBy(int instructionIndex) {
+  public static BlockPosition definedBy(CodeBlock block, int instructionIndex) {
     instructionIndex++; // account for Phis
-    return instructionIndex * 2;
+    int pos = instructionIndex * 2;
+    return new BlockPosition(block, pos);
   }
 
-  public static int usedBy(int instructionIndex) {
+  public static BlockPosition usedBy(CodeBlock block, int instructionIndex) {
     instructionIndex++; // account for Phis
-    return instructionIndex * 2 - 1;
+    int pos = instructionIndex * 2 - 1;
+    return new BlockPosition(block, pos);
   }
 
   public static BlockPosition beginOf(CodeBlock block) {
@@ -34,7 +36,7 @@ public class BlockPosition implements Comparable<BlockPosition> {
 
   public static BlockPosition endOf(CodeBlock block) {
     // interpret as a use by a pseudo instruction after the last actual instruction
-    return new BlockPosition(block, usedBy(block.instructions.size()));
+    return usedBy(block, block.instructions.size());
   }
 
   @Override

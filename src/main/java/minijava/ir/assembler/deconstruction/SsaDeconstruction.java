@@ -4,6 +4,7 @@ import static com.google.common.collect.Lists.newArrayList;
 import static org.jooq.lambda.Seq.seq;
 
 import com.google.common.collect.Sets;
+import firm.Relation;
 import java.util.*;
 import java.util.function.Function;
 import minijava.ir.assembler.allocation.AllocationResult;
@@ -256,15 +257,6 @@ public class SsaDeconstruction {
     instructions.add(mov);
   }
 
-  private void moveViaScratchRegister(
-      List<Instruction> instructions, AMD64Register scratch, Move move) {
-    RegisterOperand scratchOp = new RegisterOperand(move.dest.width, scratch);
-    instructions.add(new Mov(move.src, scratchOp));
-    instructions.add(new Mov(scratchOp, (MemoryOperand) move.dest));
-  }
-
-  private void moveViaPushPop(List<Instruction> instructions, Move breaker) {}
-
   private List<LifetimeInterval> liveAtBegin(CodeBlock succ) {
     return liveAtBegin.computeIfAbsent(
         succ, k -> allocationResult.liveIntervalsAt(BlockPosition.beginOf(k)));
@@ -325,10 +317,15 @@ public class SsaDeconstruction {
                 : two.trueTarget.equals(next)
                     ? newArrayList(
                         new Jcc(
-                            two.falseTarget.label, two.relation.inversed())) // fall through to true
+                            two.falseTarget.label,
+                            negatedWithoutUnordered(two.relation))) // fall through to true
                     : newArrayList(
                         new Jcc(two.trueTarget.label, two.relation),
                         new Jmp(two.falseTarget.label)));
+  }
+
+  private static Relation negatedWithoutUnordered(Relation relation) {
+    return Relation.fromValue(relation.negated().value() & ~Relation.Unordered.value());
   }
 
   public static List<Instruction> assembleInstructionList(

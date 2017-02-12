@@ -1,6 +1,5 @@
 package minijava.ir.assembler.lifetime;
 
-import minijava.ir.assembler.block.CodeBlock;
 import minijava.ir.assembler.registers.AMD64Register;
 
 public class FixedInterval {
@@ -11,9 +10,7 @@ public class FixedInterval {
     this.register = register;
   }
 
-  public void addDef(CodeBlock block, int idx) {
-    int def = BlockPosition.definedBy(idx);
-    BlockPosition position = new BlockPosition(block, def);
+  public void addDef(BlockPosition position) {
     LiveRange live = ranges.getLiveRangeContaining(position);
     if (live == null) {
       // A write without a later read. Happens for register constraints at Calls. We just assume an interval of
@@ -21,17 +18,15 @@ public class FixedInterval {
       live = new LiveRange(position.block, position.pos, position.pos);
     } else {
       ranges.deleteLiveRange(live);
-      live = live.from(def);
+      live = live.from(position.pos);
     }
     ranges.addLiveRange(live);
   }
 
-  public void addUse(CodeBlock block, int idx) {
-    int use = BlockPosition.usedBy(idx);
-    BlockPosition position = new BlockPosition(block, use);
+  public void addUse(BlockPosition position) {
     if (ranges.getLiveRangeContaining(position) == null) {
       // This is a new use for which we haven't yet started an interval
-      ranges.addLiveRange(LiveRange.everywhere(block).to(use));
+      ranges.addLiveRange(LiveRange.everywhere(position.block).to(position.pos));
       // Register constraints will never reach over block borders, so we should eventually find a definition.
       // This is something we should assert when building fixed intervals!
     }

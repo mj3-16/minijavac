@@ -104,7 +104,9 @@ class TreeMatcher extends NodeVisitor.Default {
     // Sharing a Mode b value if necessary is done in the InstructionSelector.
     Operand left = operandForNode(node.getLeft());
     Operand right = operandForNode(node.getRight());
-    instructions.add(new Cmp(left, right));
+    // node.getRelatioin() relates left to right, but Cmp relates right to left (by subtracting left from right).
+    // This is why we flip the operands.
+    instructions.add(new Cmp(right, left));
     // We generate a register for the mode b node by default. In cases where this isn't necessary (immediate Jcc),
     // we just delete the defining instruction.
     OperandWidth width = modeToWidth(Mode.getb());

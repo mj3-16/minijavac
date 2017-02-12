@@ -328,17 +328,19 @@ public class InstructionSelector extends NodeVisitor.Default {
   }
 
   public static BiMap<Block, CodeBlock> selectInstructions(Graph graph) {
-    InstructionSelector selector = new InstructionSelector(graph);
-    List<Node> topologicalOrder = GraphUtils.topologicalOrder(graph);
-    Tuple2<Seq<Node>, Seq<Node>> partition =
-        seq(topologicalOrder).partition(InstructionSelector::isToBeRetained);
-    // This will not visit Cond(Cmp) when in the same block.
-    List<Node> withoutRetained = partition.v2.toList();
-    // This will only visit nodes which were retained previously. See isToBeRetained.
-    List<Node> onlyRetained = partition.v1.toList();
     return FirmUtils.withBackEdges(
         graph,
         () -> {
+          InstructionSelector selector = new InstructionSelector(graph);
+          List<Node> topologicalOrder = GraphUtils.topologicalOrder(graph);
+
+          Tuple2<Seq<Node>, Seq<Node>> partition =
+              seq(topologicalOrder).partition(InstructionSelector::isToBeRetained);
+          // This will not visit Cond(Cmp) when in the same block.
+          List<Node> withoutRetained = partition.v2.toList();
+          // This will only visit nodes which were retained previously. See isToBeRetained.
+          List<Node> onlyRetained = partition.v1.toList();
+
           withoutRetained.forEach(n -> n.accept(selector));
           // This split is necessary because of the side-effects of instruction ordering on the flags register.
           onlyRetained.forEach(n -> n.accept(selector));

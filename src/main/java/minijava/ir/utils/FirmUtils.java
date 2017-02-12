@@ -97,7 +97,7 @@ public class FirmUtils {
       case LessGreater:
         return "ne";
       default:
-        throw new RuntimeException();
+        throw new RuntimeException(relation.toString());
     }
   }
 }

@@ -39,6 +39,7 @@ public class LinearScanRegisterAllocator {
 
   private AllocationResult allocate() {
     System.out.println();
+    System.out.println(unhandled);
     for (LifetimeInterval current : unhandled) {
       System.out.println();
       System.out.println(current);
@@ -69,7 +70,10 @@ public class LinearScanRegisterAllocator {
       BlockPosition blockedAt = fixed.ranges.firstIntersectionWith(current.ranges);
       if (blockedAt == null) {
         // We freely choose a position after the last usage
+        // We don't use BlockPosition.endOf here, because that might coincide with uses of successor phis.
         blockedAt = BlockPosition.endOf(current.lastBlock());
+        // We need to offset further because there might be uses of successor phis
+        blockedAt = new BlockPosition(blockedAt.block, blockedAt.pos + 1);
       }
       freeUntil.put(register, blockedAt);
     }
@@ -91,6 +95,7 @@ public class LinearScanRegisterAllocator {
     }
 
     Tuple2<AMD64Register, BlockPosition> bestCandidate = determineBestCandidate(freeUntil, current);
+    System.out.println(bestCandidate + " for " + current.register);
     AMD64Register assignedRegister = bestCandidate.v1;
     BlockPosition spillBefore = bestCandidate.v2;
 
