@@ -22,6 +22,7 @@ import minijava.ir.assembler.instructions.Instruction;
 import minijava.ir.assembler.lifetime.LifetimeAnalysis;
 import minijava.ir.assembler.lifetime.LifetimeAnalysisResult;
 import minijava.ir.assembler.lifetime.LifetimeInterval;
+import minijava.ir.assembler.registers.VirtualRegister;
 import minijava.ir.assembler.syntax.GasSyntax;
 import minijava.ir.optimize.ProgramMetrics;
 import minijava.ir.utils.GraphUtils;
@@ -57,6 +58,15 @@ public class Backend {
       for (LifetimeInterval interval :
           seq(allocationResult.allocation.keySet()).sorted(li -> li.register.id)) {
         System.out.println(interval.register + " -> " + allocationResult.allocation.get(interval));
+        for (LifetimeInterval splitPart : allocationResult.splitLifetimes.get(interval.register)) {
+          System.out.println("  " + splitPart.ranges.from());
+        }
+      }
+      System.out.println();
+      System.out.println("Spill slots:");
+      for (Map.Entry<VirtualRegister, Integer> entry :
+          seq(allocationResult.spillSlots.entrySet()).sorted(s -> s.getKey().id)) {
+        System.out.println(entry.getKey() + " -> " + entry.getValue());
       }
 
       instructions.addAll(

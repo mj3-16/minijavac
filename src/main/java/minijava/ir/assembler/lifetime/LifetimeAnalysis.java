@@ -33,9 +33,7 @@ public class LifetimeAnalysis {
   }
 
   public LifetimeAnalysisResult analyse() {
-    for (AMD64Register allocatable : AMD64Register.values()) {
-      // We can mostly ignore not allocatable registers (BP, SP), but we track them nontheless
-      // to avoid special cases.
+    for (AMD64Register allocatable : AMD64Register.allocatable) {
       fixedIntervals.put(allocatable, new FixedInterval(allocatable));
     }
 
@@ -66,10 +64,9 @@ public class LifetimeAnalysis {
 
   private void walkInstructionsBackwards(CodeBlock block, Set<VirtualRegister> live) {
     for (int i = block.instructions.size() - 1; i >= 0; --i) {
-      int idx = i;
       Instruction instruction = block.instructions.get(i);
-      BlockPosition def = BlockPosition.definedBy(block, idx);
-      BlockPosition use = BlockPosition.usedBy(block, idx);
+      BlockPosition def = BlockPosition.definedBy(block, i);
+      BlockPosition use = BlockPosition.usedBy(block, i);
       for (Register defined : instruction.definitions()) {
         defined.match(
             vr -> {
@@ -82,8 +79,9 @@ public class LifetimeAnalysis {
               live.remove(vr);
             },
             hr -> {
-              System.out.println("def for " + hr + ": " + def);
-              getFixedInterval(hr).addDef(def);
+              if (AMD64Register.allocatable.contains(hr)) {
+                getFixedInterval(hr).addDef(def);
+              }
             });
       }
 
@@ -99,8 +97,9 @@ public class LifetimeAnalysis {
               }
             },
             hr -> {
-              System.out.println("use for " + hr + ": " + use);
-              getFixedInterval(hr).addUse(use);
+              if (AMD64Register.allocatable.contains(hr)) {
+                getFixedInterval(hr).addUse(use);
+              }
             });
       }
     }

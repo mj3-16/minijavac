@@ -103,11 +103,16 @@ public class AllocationResult {
       return new RegisterOperand(width, physical);
     }
     // Otherwise we return a reference to the spill location.
-    return spillLocation(width, (VirtualRegister) register);
+    MemoryOperand spill = spillLocation(width, (VirtualRegister) register);
+    if (spill == null) {
+      throw new AssertionError(
+          "There was no register assigned but also no spill slot for " + register + " at " + where);
+    }
+    return spill;
   }
 
   public MemoryOperand spillLocation(OperandWidth width, VirtualRegister register) {
-    int offset = spillSlots.get(register) * StackLayout.BYTES_PER_STACK_SLOT;
+    int offset = (spillSlots.get(register) + 1) * StackLayout.BYTES_PER_STACK_SLOT;
     return new MemoryOperand(width, new AddressingMode(-offset, AMD64Register.BP));
   }
 

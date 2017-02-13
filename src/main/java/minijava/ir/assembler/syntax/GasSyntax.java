@@ -181,32 +181,32 @@ public class GasSyntax implements Instruction.Visitor {
   private void formatOperand(Operand output) {
     output.match(
         imm -> {
-          builder.append("$0x");
-          builder.append(Long.toHexString(imm.value));
+          builder.append('$');
+          builder.append(imm.value);
         },
         reg -> {
           formatRegister(reg.width, (AMD64Register) reg.register);
         },
         mem -> {
+          System.out.println("mem.mode = " + mem.mode);
           formatAddressMode(mem.mode);
         });
   }
 
   private void formatAddressMode(AddressingMode mode) {
-    StringBuilder builder = new StringBuilder();
     if (mode.displacement != 0) {
-      builder.append(Integer.toHexString(mode.displacement));
+      builder.append(mode.displacement);
     }
     boolean hasBase = mode.base != null;
     boolean hasIndex = mode.index != null;
     if (hasBase || hasIndex) {
       builder.append('(');
       if (hasBase) {
-        builder.append(mode.base);
+        formatRegister(OperandWidth.Quad, (AMD64Register) mode.base);
       }
       if (hasIndex) {
         builder.append(',');
-        builder.append(mode.index);
+        formatRegister(OperandWidth.Quad, (AMD64Register) mode.index);
         builder.append(',');
         builder.append(mode.scale);
       }

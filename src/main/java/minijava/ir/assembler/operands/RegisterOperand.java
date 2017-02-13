@@ -1,5 +1,7 @@
 package minijava.ir.assembler.operands;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import java.util.Objects;
 import java.util.function.Function;
 import minijava.ir.assembler.registers.Register;
@@ -10,6 +12,7 @@ public class RegisterOperand extends Operand {
 
   public RegisterOperand(OperandWidth width, Register register) {
     super(width);
+    checkArgument(register != null, "register was null");
     this.register = register;
   }
 

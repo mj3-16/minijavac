@@ -59,8 +59,9 @@ public class SsaDeconstruction {
         // movesAfterPred is the best witness for a critical edge: If there is a move necessary, pred may not have
         // multiple successors. If that was the case, one of the successors could always be scheduled immediately
         // after the pred, since it would not have multiple preds and therefore the edge can't be a back edge.
+        System.out.println(movesAfterPred);
         assert !predHasMultipleSuccs || movesAfterPred.isEmpty()
-            : "multiple successors => no moves necessary";
+            : "'multiple successors => no moves necessary' was hurt. " + pred + " to " + succ;
       }
 
       resolvedBlocks.get(pred).addAll(resolveMoves(movesAfterPred));
@@ -281,6 +282,8 @@ public class SsaDeconstruction {
       }
 
       if (!src.equals(dest)) {
+        System.out.println("endOfPred = " + endOfPred);
+        System.out.println("beginOfSucc = " + beginOfSucc);
         movesAfterPred.add(new Move(src, dest));
       }
     }
@@ -351,16 +354,17 @@ public class SsaDeconstruction {
       this.dest = dest;
     }
 
-    public Move flipped() {
-      return new Move(dest, src);
-    }
-
     public boolean isMemToMem() {
       return dest instanceof MemoryOperand && src instanceof MemoryOperand;
     }
 
     public boolean isRegToReg() {
       return dest instanceof RegisterOperand && src instanceof RegisterOperand;
+    }
+
+    @Override
+    public String toString() {
+      return src + " -> " + dest;
     }
   }
 

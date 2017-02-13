@@ -66,6 +66,7 @@ public class LinearScanRegisterAllocator {
 
   private boolean tryAllocateFreeRegister(LifetimeInterval current) {
     BlockPosition definition = startOf(current);
+    System.out.println("definition = " + definition);
     BlockPosition lastUsage = lastUsage(current);
     Map<AMD64Register, BlockPosition> freeUntil = new TreeMap<>();
 
@@ -116,7 +117,7 @@ public class LinearScanRegisterAllocator {
 
     // Otherwise we can assign an unused register, but we have to spill it before the original
     // usage kicks in. Thus, we have to split the lifetime interval.
-    LifetimeInterval before = splitAndSuspendAfterHalf(current, spillBefore).before;
+    LifetimeInterval before = splitAndSuspendAfterHalf(current, spillBefore);
     assignRegister(before, assignedRegister);
     return true;
   }
@@ -142,9 +143,7 @@ public class LinearScanRegisterAllocator {
       if (!AMD64Register.allocatable.contains(locked)) {
         continue;
       }
-      System.out.println(locked);
       BlockPosition blocked = nextBlocked.get(locked);
-      System.out.println(blocked);
       boolean goodEnough = current.endsBefore(blocked);
       boolean notWorseThanBest = bestCandidate.v2.equals(blocked);
       if (goodEnough || notWorseThanBest) {
@@ -234,13 +233,17 @@ public class LinearScanRegisterAllocator {
     System.out.println("start = " + start);
 
     Map<AMD64Register, BlockPosition> nextUse = new HashMap<>();
-    for (AMD64Register register : AMD64Register.values()) {
+    for (AMD64Register register : AMD64Register.allocatable) {
       nextUse.put(register, BlockPosition.endOf(current.lastBlock()));
     }
 
     for (LifetimeInterval interval : Seq.concat(active, inactive)) {
       AMD64Register register = allocation.get(interval);
+      System.out.println("register = " + register);
+      System.out.println("interval.ranges = " + interval.ranges);
+      System.out.println("current.ranges = " + current.ranges);
       BlockPosition conflict = interval.ranges.firstIntersectionWith(current.ranges);
+      System.out.println("conflict = " + conflict);
       if (conflict == null) {
         // Must be an non-conflicting inactive interval
         continue;
@@ -258,7 +261,9 @@ public class LinearScanRegisterAllocator {
       }
     }
 
+    System.out.println("nextUse = " + nextUse);
     Tuple2<AMD64Register, BlockPosition> bestCandidate = determineBestCandidate(nextUse, current);
+    System.out.println("bestCandidate = " + bestCandidate);
     AMD64Register assignedRegister = bestCandidate.v1;
     BlockPosition farthestNextUse = bestCandidate.v2;
 
@@ -278,7 +283,7 @@ public class LinearScanRegisterAllocator {
       // Note that it's crucial that we use a MemoryOperand instruction when spilling, because
       // we don't have enough registers.
       // Actually we should split before the next use which needs a RegisterOperand.
-      LifetimeInterval before = splitAndSuspendAfterHalf(current, nextUsage).before;
+      LifetimeInterval before = splitAndSuspendAfterHalf(current, nextUsage);
       // This will have assigned a spill slot, but the before part is not present anywhere in our data structures.
       // We don't assign it a register, but we still have to note that it's part of the splits.
       getLifetimeIntervals(before.register).add(before);
@@ -288,7 +293,7 @@ public class LinearScanRegisterAllocator {
       // If I ever come around to fixing those TODOs above, this shouldn't be needed any more.
       // We try to split at the next usage, where we try to assign a register again.
       if (nextUsage != null) {
-        current = splitAndSuspendAfterHalf(current, nextUsage).before;
+        current = splitAndSuspendAfterHalf(current, nextUsage);
         // For the remaining interval, we have to do everything with MemoryOperands.
       }
       spillSlotAllocator.allocateSpillSlot(current.register);
@@ -299,8 +304,8 @@ public class LinearScanRegisterAllocator {
       // This will delete the unsplit interval and instead re-add the first split part, assigned
       // to the old register, but will re-insert the other conflicting split half into unhandled.
       for (LifetimeInterval interval : filterByAllocatedRegister(active, assignedRegister)) {
-        System.out.println(interval.register + ": " + farthestNextUse);
-        LifetimeInterval before = splitAndSuspendAfterHalf(interval, farthestNextUse).before;
+        System.out.println("Splitting " + interval.register + " at " + farthestNextUse);
+        LifetimeInterval before = splitAndSuspendAfterHalf(interval, farthestNextUse);
         renameInterval(interval, before);
       }
 
@@ -312,7 +317,7 @@ public class LinearScanRegisterAllocator {
         if (endOfLifetimeHole == null) {
           continue;
         }
-        LifetimeInterval before = splitAndSuspendAfterHalf(interval, endOfLifetimeHole).before;
+        LifetimeInterval before = splitAndSuspendAfterHalf(interval, endOfLifetimeHole);
         renameInterval(interval, before);
       }
 
@@ -339,13 +344,21 @@ public class LinearScanRegisterAllocator {
    * Splits {@param current} at {@param splitPos}, reallocates registers to the first split half and
    * suspends the allocation decision for the second, conflicting split graph by inserting it into
    * the {@link #unhandled} set.
+   *
+   * @return The first part of the split.
    */
-  private Split<LifetimeInterval> splitAndSuspendAfterHalf(
+  private LifetimeInterval splitAndSuspendAfterHalf(
       LifetimeInterval current, BlockPosition splitPos) {
     spillSlotAllocator.allocateSpillSlot(current.register);
     Split<LifetimeInterval> split = current.splitBefore(splitPos);
-    unhandled.add(split.after);
-    return split;
+    if (!split.after.defAndUses.isEmpty()) {
+      // Consider the case where we split an interval used in the loop header (e.g. the n in `i < n`) that we
+      // chose to split in the body. The after part will have no uses, although it is somewhat alive, a zombie.
+      // we discard these and handle them when resolving phis, because we have to spill them and move their value
+      // back into its register right before jump back to the header.
+      unhandled.add(split.after);
+    }
+    return split.before;
   }
 
   private static BlockPosition startOf(LifetimeInterval interval) {

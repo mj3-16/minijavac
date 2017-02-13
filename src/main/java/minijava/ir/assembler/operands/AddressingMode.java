@@ -51,7 +51,7 @@ public class AddressingMode {
   public String toString() {
     StringBuilder builder = new StringBuilder();
     if (displacement != 0) {
-      builder.append(Integer.toHexString(displacement));
+      builder.append(displacement);
     }
     boolean hasBase = base != null;
     boolean hasIndex = index != null;

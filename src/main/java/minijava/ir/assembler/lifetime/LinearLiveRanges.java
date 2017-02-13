@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map.Entry;
-import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.TreeMap;
 import minijava.ir.assembler.block.CodeBlock;
@@ -145,9 +144,13 @@ public class LinearLiveRanges {
 
   private Iterator<Entry<BlockPosition, Integer>> iterateEntriesInRange(
       BlockPosition first, BlockPosition last) {
-    NavigableMap<BlockPosition, Integer> subMapA =
-        ranges.subMap(first, true, last, true); // both inclusive
-    return subMapA.entrySet().iterator();
+    LiveRange range = getLiveRangeContaining(first);
+    if (range != null) {
+      // There's a live range which starts before first that contains it.
+      // We also have to iterate over that.
+      first = range.fromPosition();
+    }
+    return ranges.subMap(first, true, last, true).entrySet().iterator();
   }
 
   @Override

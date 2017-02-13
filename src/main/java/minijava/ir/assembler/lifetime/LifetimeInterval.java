@@ -31,7 +31,8 @@ public class LifetimeInterval {
 
   @Nullable
   public BlockPosition nextUseAfter(BlockPosition start) {
-    return defAndUses.tailSet(start).first();
+    Iterator<BlockPosition> it = defAndUses.tailSet(start).iterator();
+    return it.hasNext() ? it.next() : null;
   }
 
   @Nullable
@@ -134,6 +135,10 @@ public class LifetimeInterval {
   }
 
   private static void shortenFromRange(LifetimeInterval li) {
+    if (li.defAndUses.isEmpty()) {
+      // A zombie interval... See the comment in LinearScanRegisterAllocation
+      return;
+    }
     BlockPosition first = li.defAndUses.first();
     LiveRange range = li.getLifetimeInBlock(first.block);
     assert range != null; // It's the block with the first usage after all
@@ -141,6 +146,10 @@ public class LifetimeInterval {
   }
 
   private static void shortenToRange(LifetimeInterval li) {
+    if (li.defAndUses.isEmpty()) {
+      // A zombie interval... See the comment in LinearScanRegisterAllocation
+      return;
+    }
     BlockPosition last = li.defAndUses.last();
     LiveRange range = li.getLifetimeInBlock(last.block);
     assert range != null; // It's the block with the last usage after all

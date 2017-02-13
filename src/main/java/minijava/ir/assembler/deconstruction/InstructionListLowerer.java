@@ -44,12 +44,15 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
       BlockPosition use = BlockPosition.usedBy(block, i);
       AllocationResult.SpillEvent beforeUse = allocationResult.spillEvents.get(use);
       if (beforeUse != null) {
-        System.out.println(use);
+        System.out.println("use = " + use);
+        System.out.println("beforeUse = " + beforeUse);
         addReload(beforeUse);
       }
       highLevel.get(i).accept(this);
       AllocationResult.SpillEvent afterDef = allocationResult.spillEvents.get(def);
       if (afterDef != null) {
+        System.out.println("def = " + def);
+        System.out.println("afterDef = " + afterDef);
         addSpill(afterDef);
       }
     }
@@ -140,10 +143,19 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
     RegisterOperand rbp = wholeRegister(AMD64Register.BP);
     lowered.add(new Push(rbp));
     lowered.add(new Mov(rsp, rbp));
-    int maxNumberOfSpills = seq(allocationResult.spillSlots.values()).max().orElse(0);
-    int activationRecordSize = StackLayout.BYTES_PER_STACK_SLOT * maxNumberOfSpills;
+    int activationRecordSize = activationRecordSize(allocationResult);
     ImmediateOperand minuend = new ImmediateOperand(OperandWidth.Quad, activationRecordSize);
     lowered.add(new Sub(minuend, rsp));
+  }
+
+  private static int activationRecordSize(AllocationResult allocationResult) {
+    int maxNumberOfSpills = seq(allocationResult.spillSlots.values()).max().orElse(0) + 1;
+    // We will always use an even number of spill slots, so that we don't have to take the activation record size
+    // into account when realizing the System V ABI.
+    if (maxNumberOfSpills % 2 == 1) {
+      maxNumberOfSpills++;
+    }
+    return StackLayout.BYTES_PER_STACK_SLOT * maxNumberOfSpills;
   }
 
   private static RegisterOperand wholeRegister(Register register) {

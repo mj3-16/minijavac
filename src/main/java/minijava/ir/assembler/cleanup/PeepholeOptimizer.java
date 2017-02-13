@@ -33,7 +33,6 @@ public class PeepholeOptimizer {
   public PeepholeOptimizer(List<Instruction> instructions) {
     this.instructions = instructions;
     usedLabels.add(NameMangler.mangledMainMethodName());
-    System.out.println("usedLabels = " + usedLabels);
   }
 
   private List<Instruction> optimize() {
