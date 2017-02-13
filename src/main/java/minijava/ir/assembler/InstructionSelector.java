@@ -188,9 +188,8 @@ public class InstructionSelector extends NodeVisitor.Default {
       // 2. sel is not a Cmp. In this case we can't see the value in the flags register and also have to rematerialize.
 
       // We have to rematerialize the flags register with the node's value.
+      assert mapping.hasRegisterAssigned(sel) : "Didn't find the definition for the selector node";
       VirtualRegister selResult = mapping.registerForNode(sel);
-      assert mapping.getDefinition(selResult) != null
-          : "Didn't find the definition for the selector node";
       OperandWidth width = modeToWidth(Mode.getb());
       RegisterOperand op = new RegisterOperand(width, selResult);
       block.instructions.add(new Test(op, op));
@@ -258,8 +257,8 @@ public class InstructionSelector extends NodeVisitor.Default {
       Node retVal = node.getPred(1);
       // Important invariant: we arrange the calls to the TreeMatcher so that retVal has a
       // VirtualRegister.
+      assert mapping.hasRegisterAssigned(retVal) : "retVal was not in a register " + retVal;
       VirtualRegister register = mapping.registerForNode(retVal);
-      assert mapping.getDefinition(register) != null : "retVal was not in a register " + retVal;
       OperandWidth width = modeToWidth(retVal.getMode());
       RegisterOperand source = new RegisterOperand(width, register);
       RegisterOperand dest = new RegisterOperand(width, mapping.registerForNode(node));

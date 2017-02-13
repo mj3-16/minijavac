@@ -6,7 +6,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import minijava.ir.assembler.instructions.Instruction;
-import minijava.ir.assembler.operands.OperandWidth;
 import minijava.ir.assembler.registers.VirtualRegister;
 
 public class VirtualRegisterMapping {
@@ -15,15 +14,15 @@ public class VirtualRegisterMapping {
   private final Set<Node> neverDefined = new HashSet<>();
   private int nextFreeId = 0;
 
+  public boolean hasRegisterAssigned(Node node) {
+    return mapping.containsKey(node);
+  }
+
   public VirtualRegister registerForNode(Node node) {
     if (neverDefined.contains(node)) {
       throw new UndefinedNodeException(node);
     }
     return mapping.computeIfAbsent(node, d -> new VirtualRegister(nextFreeId++, d));
-  }
-
-  public VirtualRegister freshTemporary(OperandWidth width) {
-    return new VirtualRegister(nextFreeId++, width);
   }
 
   public void markNeverDefined(Node node) {
@@ -39,9 +38,5 @@ public class VirtualRegisterMapping {
 
   public Instruction getDefinition(VirtualRegister register) {
     return definitions.get(register);
-  }
-
-  public void deleteDefinition(VirtualRegister register) {
-    definitions.remove(register);
   }
 }

@@ -22,13 +22,10 @@ import minijava.ir.assembler.operands.Operand;
 import minijava.ir.assembler.operands.OperandWidth;
 import minijava.ir.assembler.operands.RegisterOperand;
 import minijava.ir.assembler.registers.AMD64Register;
-import minijava.ir.assembler.registers.Register;
 import minijava.ir.assembler.registers.VirtualRegister;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.MethodInformation;
-import org.jetbrains.annotations.NotNull;
 import org.jooq.lambda.function.Function2;
-import org.jooq.lambda.function.Function3;
 
 class TreeMatcher extends NodeVisitor.Default {
 
@@ -46,7 +43,7 @@ class TreeMatcher extends NodeVisitor.Default {
 
   @Override
   public void visit(firm.nodes.Add node) {
-    binaryOperator(node, Add::new);
+    twoAddressInstruction(node, Add::new);
   }
 
   @Override
@@ -56,7 +53,7 @@ class TreeMatcher extends NodeVisitor.Default {
 
   @Override
   public void visit(firm.nodes.And node) {
-    binaryOperator(node, And::new);
+    twoAddressInstruction(node, And::new);
   }
 
   @Override
@@ -94,8 +91,11 @@ class TreeMatcher extends NodeVisitor.Default {
   private void allocateStackSpace(int bytes) {
     ImmediateOperand size = new ImmediateOperand(OperandWidth.Quad, bytes);
     RegisterOperand sp = new RegisterOperand(OperandWidth.Quad, AMD64Register.SP);
-    instructions.add(
-        bytes > 0 ? new Sub(size, sp, AMD64Register.SP) : new Add(size, sp, AMD64Register.SP));
+    if (bytes > 0) {
+      instructions.add(new Sub(size, sp));
+    } else if (bytes < 0) {
+      instructions.add(new Add(size, sp));
+    }
   }
 
   @Override
@@ -104,7 +104,7 @@ class TreeMatcher extends NodeVisitor.Default {
     // Sharing a Mode b value if necessary is done in the InstructionSelector.
     Operand left = operandForNode(node.getLeft());
     Operand right = operandForNode(node.getRight());
-    // node.getRelatioin() relates left to right, but Cmp relates right to left (by subtracting left from right).
+    // node.getRelation() relates left to right, but Cmp relates right to left (by subtracting left from right).
     // This is why we flip the operands.
     instructions.add(new Cmp(right, left));
     // We generate a register for the mode b node by default. In cases where this isn't necessary (immediate Jcc),
@@ -119,7 +119,7 @@ class TreeMatcher extends NodeVisitor.Default {
     defineAsCopy(imm(node.getTarval()), node);
   }
 
-  public ImmediateOperand imm(TargetValue tarval) {
+  private ImmediateOperand imm(TargetValue tarval) {
     Mode mode = tarval.getMode();
     OperandWidth width = modeToWidth(mode);
     if (mode.equals(Mode.getb())) {
@@ -131,8 +131,9 @@ class TreeMatcher extends NodeVisitor.Default {
   @Override
   public void visit(firm.nodes.Conv node) {
     OperandWidth width = modeToWidth(node.getMode());
-    unaryOperator(
-        node, (op, reg) -> new Mov(op.withChangedWidth(width), new RegisterOperand(width, reg)));
+    Operand op = operandForNode(node.getPred(0));
+    VirtualRegister reg = mapping.registerForNode(node);
+    instructions.add(new Mov(op.withChangedWidth(width), new RegisterOperand(width, reg)));
   }
 
   @Override
@@ -147,7 +148,10 @@ class TreeMatcher extends NodeVisitor.Default {
 
   @Override
   public void visit(firm.nodes.Minus node) {
-    unaryOperator(node, Neg::new);
+    RegisterOperand op = operandForNode(node.getPred(0));
+    Operand result = defineAsCopy(op, node);
+    // Same trick as for TwoAddressInstructions, where we have to connect the input with the output operand.
+    instructions.add(new Neg(result));
   }
 
   @Override
@@ -157,7 +161,7 @@ class TreeMatcher extends NodeVisitor.Default {
 
   @Override
   public void visit(firm.nodes.Mul node) {
-    binaryOperator(node, IMul::new);
+    twoAddressInstruction(node, IMul::new);
   }
 
   @Override
@@ -266,7 +270,7 @@ class TreeMatcher extends NodeVisitor.Default {
 
   @Override
   public void visit(firm.nodes.Sub node) {
-    binaryOperator(node, Sub::new);
+    twoAddressInstruction(node, Sub::new);
   }
 
   /**
@@ -274,27 +278,15 @@ class TreeMatcher extends NodeVisitor.Default {
    * later be an Operand, but then we'll have to handle the different cases.
    */
   private RegisterOperand operandForNode(firm.nodes.Node value) {
+    // The only case register hasn't been defined yet is when value is a Phi node, in which case we won't generate code
+    // (they are handled by the InstructionSelector). Otherwise, the topological order takes care of the definition
+    // of operands.
+    if (!mapping.hasRegisterAssigned(value)) {
+      value.accept(this);
+    }
     OperandWidth width = modeToWidth(value.getMode());
     VirtualRegister register = mapping.registerForNode(value);
-    if (mapping.getDefinition(register) == null) {
-      // There was no definition before this invocation of TreeMatcher.match().
-      // We have to generate code for value.
-      value.accept(this);
-      // This will have defined the value, but we only store the definition mapping after we
-      // matched the whole sub-tree.
-      // Note that this implies we duplicate definitions which haven't been prior to this call to
-      // TreeMatcher.match().
-    }
     return new RegisterOperand(width, register);
-  }
-
-  private void unaryOperator(
-      firm.nodes.Node node,
-      Function2<RegisterOperand, VirtualRegister, CodeBlockInstruction> factory) {
-    assert node.getPredCount() == 1;
-    RegisterOperand op = operandForNode(node.getPred(0));
-    VirtualRegister result = mapping.registerForNode(node);
-    instructions.add(factory.apply(op, result));
   }
 
   /**
@@ -303,25 +295,14 @@ class TreeMatcher extends NodeVisitor.Default {
    * Add/Sub destroy the RHS. Thus, we have to make sure we destroy the last use of the RHS.
    * Redundant moves can easily be deleted later on.
    */
-  private void binaryOperator(
-      firm.nodes.Binop node,
-      Function3<Operand, RegisterOperand, VirtualRegister, CodeBlockInstruction> factory) {
+  private void twoAddressInstruction(
+      firm.nodes.Binop node, Function2<Operand, Operand, TwoAddressInstruction> factory) {
     Operand left = operandForNode(node.getLeft());
     Operand right = operandForNode(node.getRight());
-    RegisterOperand copiedRight = copyOperand(right);
-    VirtualRegister result = mapping.registerForNode(node);
-    instructions.add(factory.apply(left, copiedRight, result));
-  }
-
-  private RegisterOperand copyOperand(Operand src) {
-    return moveIntoRegister(src, mapping.freshTemporary(src.width));
-  }
-
-  @NotNull
-  private RegisterOperand moveIntoRegister(Operand src, Register copy) {
-    RegisterOperand dest = new RegisterOperand(src.width, copy);
-    instructions.add(new Mov(src, dest));
-    return dest;
+    // This is a little like cheating: To ensure the right argument (which is input and output) gets
+    // assigned the same register, we write to it after its actual definition.
+    RegisterOperand result = defineAsCopy(right, node);
+    instructions.add(factory.apply(left, result));
   }
 
   private RegisterOperand defineAsCopy(Operand src, Node value) {
@@ -333,10 +314,16 @@ class TreeMatcher extends NodeVisitor.Default {
   }
 
   private void saveDefinitions() {
-    for (Instruction definingInstruction : instructions) {
+    for (Instruction instruction : instructions) {
       for (VirtualRegister register :
-          seq(definingInstruction.definitions()).ofType(VirtualRegister.class)) {
-        mapping.setDefinition(register, definingInstruction);
+          seq(instruction.definitions()).ofType(VirtualRegister.class)) {
+        if (mapping.getDefinition(register) == null) {
+          // There may be multiple instructions 'defining' a register (e.g. 2-adress code overwriting its right op).
+          // This means we don't truly have SSA form, but nothing relies on the fact that the values don't change.
+          // The only thing that matters is that they need to be assigned a single memory location.
+          // We always take the first definition as the actual definition.
+          mapping.setDefinition(register, instruction);
+        }
       }
     }
   }

@@ -1,6 +1,7 @@
 package minijava.ir.assembler.deconstruction;
 
 import static com.google.common.collect.Lists.newArrayList;
+import static minijava.ir.utils.FirmUtils.modeToWidth;
 import static org.jooq.lambda.Seq.seq;
 
 import com.google.common.collect.Sets;
@@ -13,10 +14,7 @@ import minijava.ir.assembler.block.PhiFunction;
 import minijava.ir.assembler.instructions.*;
 import minijava.ir.assembler.lifetime.BlockPosition;
 import minijava.ir.assembler.lifetime.LifetimeInterval;
-import minijava.ir.assembler.operands.ImmediateOperand;
-import minijava.ir.assembler.operands.MemoryOperand;
-import minijava.ir.assembler.operands.Operand;
-import minijava.ir.assembler.operands.RegisterOperand;
+import minijava.ir.assembler.operands.*;
 import minijava.ir.assembler.registers.AMD64Register;
 import org.jooq.lambda.Seq;
 
@@ -268,8 +266,8 @@ public class SsaDeconstruction {
     BlockPosition beginOfSucc = BlockPosition.beginOf(succ);
     for (LifetimeInterval li : liveAtBegin(succ)) {
       boolean startsAtSucc = li.defAndUses.first().block.equals(succ);
-      Operand dest =
-          allocationResult.hardwareOperandAt(li.register.defWidth, li.register, beginOfSucc);
+      OperandWidth width = modeToWidth(li.register.value.getMode());
+      Operand dest = allocationResult.hardwareOperandAt(width, li.register, beginOfSucc);
       Operand src;
       if (startsAtSucc) {
         // li is the interval of a Phi of succ. We don't go through the virtual Phis of succ, but to the allocated
@@ -279,7 +277,7 @@ public class SsaDeconstruction {
             seq(label.physicalPhis).filter(phi -> phi.output.equals(dest)).findFirst().get();
         src = def.inputs.get(pred);
       } else {
-        src = allocationResult.hardwareOperandAt(li.register.defWidth, li.register, endOfPred);
+        src = allocationResult.hardwareOperandAt(width, li.register, endOfPred);
       }
 
       if (!src.equals(dest)) {

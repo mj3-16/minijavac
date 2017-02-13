@@ -1,12 +1,13 @@
 package minijava.ir.assembler.block;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.Lists.newArrayList;
 import static org.jooq.lambda.Seq.seq;
 
 import firm.nodes.Phi;
 import java.util.*;
 import minijava.ir.assembler.instructions.Instruction;
-import minijava.ir.assembler.operands.MemoryOperand;
+import minijava.ir.assembler.operands.ImmediateOperand;
 import minijava.ir.assembler.operands.Operand;
 import minijava.ir.assembler.operands.RegisterOperand;
 import minijava.ir.assembler.registers.Register;
@@ -18,20 +19,14 @@ public class PhiFunction extends Instruction {
   /** We need this just for equality and hashing. */
   public final Phi phi;
 
-  private PhiFunction(Map<CodeBlock, Operand> inputs, Operand output, Phi phi) {
+  public PhiFunction(Map<CodeBlock, Operand> inputs, Operand output, Phi phi) {
     super(new ArrayList<>(inputs.values()), newArrayList(output));
+    checkArgument(
+        !(output instanceof ImmediateOperand), "The output of a Phi can't be an immediate");
     this.inputs = inputs;
     this.output = output;
     this.phi = phi;
     setHints(seq(inputs.values()).append(output));
-  }
-
-  public PhiFunction(Map<CodeBlock, Operand> inputs, RegisterOperand output, Phi phi) {
-    this(inputs, (Operand) output, phi);
-  }
-
-  public PhiFunction(Map<CodeBlock, Operand> inputs, MemoryOperand output, Phi phi) {
-    this(inputs, (Operand) output, phi);
   }
 
   public Set<Register> registerHints(CodeBlock pred) {

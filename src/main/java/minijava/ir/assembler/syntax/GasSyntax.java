@@ -125,8 +125,7 @@ public class GasSyntax implements Instruction.Visitor {
 
   @Override
   public void visit(Neg neg) {
-    assert neg.input.equals(neg.output);
-    formatInstruction(neg, neg.input.width, neg.input);
+    formatInstruction(neg, neg.inout.width, neg.inout);
   }
 
   @Override
@@ -150,8 +149,7 @@ public class GasSyntax implements Instruction.Visitor {
   }
 
   private void formatTwoAddressInstruction(TwoAddressInstruction tai) {
-    assert tai.rightIn.equals(tai.rightOut);
-    formatInstruction(tai, tai.left.width, tai.left, tai.rightIn);
+    formatInstruction(tai, tai.left.width, tai.left, tai.right);
   }
 
   private void formatInstruction(Instruction instruction) {

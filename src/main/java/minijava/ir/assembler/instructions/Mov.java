@@ -1,25 +1,19 @@
 package minijava.ir.assembler.instructions;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.Lists.newArrayList;
 
-import minijava.ir.assembler.operands.MemoryOperand;
+import minijava.ir.assembler.operands.ImmediateOperand;
 import minijava.ir.assembler.operands.Operand;
-import minijava.ir.assembler.operands.RegisterOperand;
 
 public class Mov extends CodeBlockInstruction {
   public final Operand src;
   public final Operand dest;
 
-  public Mov(Operand src, MemoryOperand dest) {
+  public Mov(Operand src, Operand dest) {
     super(newArrayList(src, dest), newArrayList(dest));
-    assert src.width == dest.width;
-    this.src = src;
-    this.dest = dest;
-  }
-
-  public Mov(Operand src, RegisterOperand dest) {
-    super(newArrayList(src), newArrayList(dest));
-    assert src.width == dest.width;
+    checkArgument(src.width == dest.width, "Mov can't widen a value");
+    checkArgument(!(dest instanceof ImmediateOperand), "Can't move into an immediate");
     this.src = src;
     this.dest = dest;
     setHints(src, dest);

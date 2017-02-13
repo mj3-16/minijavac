@@ -1,30 +1,19 @@
 package minijava.ir.assembler.instructions;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.Lists.newArrayList;
 
-import minijava.ir.assembler.operands.MemoryOperand;
+import minijava.ir.assembler.operands.ImmediateOperand;
 import minijava.ir.assembler.operands.Operand;
-import minijava.ir.assembler.operands.RegisterOperand;
-import minijava.ir.assembler.registers.VirtualRegister;
 
 public class Neg extends CodeBlockInstruction {
-  public final Operand input;
-  public final Operand output;
+  public final Operand inout;
 
-  public Neg(RegisterOperand operand, VirtualRegister result) {
-    this(operand, new RegisterOperand(operand.width, result));
-  }
-
-  public Neg(RegisterOperand input, RegisterOperand output) {
-    super(newArrayList(input), newArrayList(output));
-    this.input = input;
-    this.output = output;
-  }
-
-  public Neg(MemoryOperand inout) {
+  public Neg(Operand inout) {
     super(newArrayList(inout), newArrayList(inout));
-    this.input = inout;
-    this.output = inout;
+    checkArgument(
+        !(inout instanceof ImmediateOperand), "Can't negate an immedate since it's not writable");
+    this.inout = inout;
   }
 
   @Override

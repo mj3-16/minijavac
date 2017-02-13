@@ -2,6 +2,7 @@ package minijava.ir.assembler.deconstruction;
 
 import static minijava.ir.assembler.allocation.AllocationResult.SpillEvent.Kind.RELOAD;
 import static minijava.ir.assembler.allocation.AllocationResult.SpillEvent.Kind.SPILL;
+import static minijava.ir.utils.FirmUtils.modeToWidth;
 import static org.jooq.lambda.Seq.seq;
 
 import java.util.ArrayList;
@@ -19,7 +20,6 @@ import minijava.ir.assembler.registers.AMD64Register;
 import minijava.ir.assembler.registers.Register;
 import minijava.ir.assembler.registers.VirtualRegister;
 import org.jooq.lambda.function.Function2;
-import org.jooq.lambda.function.Function3;
 
 public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
   private final CodeBlock block;
@@ -61,7 +61,7 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
     AMD64Register assigned = allocationResult.allocation.get(afterDef.interval);
     assert assigned != null;
     VirtualRegister virtual = afterDef.interval.register;
-    OperandWidth slotWidth = virtual.defWidth;
+    OperandWidth slotWidth = modeToWidth(virtual.value.getMode());
     RegisterOperand src = new RegisterOperand(slotWidth, assigned);
     MemoryOperand dest = allocationResult.spillLocation(slotWidth, virtual);
     lowered.add(new Mov(src, dest));
@@ -73,7 +73,7 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
     AMD64Register assigned = allocationResult.allocation.get(beforeUse.interval);
     assert assigned != null;
     VirtualRegister virtual = beforeUse.interval.register;
-    OperandWidth slotWidth = virtual.defWidth;
+    OperandWidth slotWidth = modeToWidth(virtual.value.getMode());
     MemoryOperand src = allocationResult.spillLocation(slotWidth, virtual);
     RegisterOperand dest = new RegisterOperand(slotWidth, assigned);
     lowered.add(new Mov(src, dest));
@@ -85,59 +85,35 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
         (block, input) ->
             inputs.put(block, substituteHardwareRegisters(input, BlockPosition.endOf(block))));
     Operand output = substituteHardwareRegisters(phi.output, BlockPosition.beginOf(this.block));
-    return output.match(
-        imm -> {
-          throw new UnsupportedOperationException("Can't Mov into an immediate");
-        },
-        reg -> {
-          return new PhiFunction(inputs, reg, phi.phi);
-        },
-        mem -> {
-          return new PhiFunction(inputs, mem, phi.phi);
-        });
+    return new PhiFunction(inputs, output, phi.phi);
   }
 
   @Override
   public void visit(Add add) {
-    lowered.add(substitutedTwoAddressInstruction(add, Add::new, Add::new));
+    lowered.add(substitutedBinaryInstruction(add, Add::new));
   }
 
   @Override
   public void visit(And and) {
-    lowered.add(substitutedTwoAddressInstruction(and, And::new, And::new));
+    lowered.add(substitutedBinaryInstruction(and, And::new));
   }
 
   @Override
   public void visit(IMul imul) {
-    lowered.add(substitutedTwoAddressInstruction(imul, IMul::new, IMul::new));
+    lowered.add(substitutedBinaryInstruction(imul, IMul::new));
   }
 
   @Override
   public void visit(Sub sub) {
-    lowered.add(substitutedTwoAddressInstruction(sub, Sub::new, Sub::new));
+    lowered.add(substitutedBinaryInstruction(sub, Sub::new));
   }
 
-  private TwoAddressInstruction substitutedTwoAddressInstruction(
+  private TwoAddressInstruction substitutedBinaryInstruction(
       TwoAddressInstruction instruction,
-      Function3<Operand, RegisterOperand, RegisterOperand, TwoAddressInstruction> regFactory,
-      Function2<Operand, MemoryOperand, TwoAddressInstruction> memFactory) {
+      Function2<Operand, Operand, TwoAddressInstruction> factory) {
     Operand left = substituteHardwareRegisters(instruction.left, currentUse());
-    Operand rightIn = substituteHardwareRegisters(instruction.rightIn, currentUse());
-    Operand rightOut = substituteHardwareRegisters(instruction.rightOut, currentDef());
-    // After allocation both rightIn and rightOut MUST be the same Operands, otherwise we can't use a 2-address
-    // instruction.
-    assert rightIn.equals(rightOut) : rightIn + " vs. " + rightOut;
-
-    return rightIn.match(
-        imm -> {
-          throw new UnsupportedOperationException("Can't output into an immediate operand");
-        },
-        reg -> {
-          return regFactory.apply(left, reg, reg);
-        },
-        mem -> {
-          return memFactory.apply(left, mem);
-        });
+    Operand right = substituteHardwareRegisters(instruction.right, currentUse());
+    return factory.apply(left, right);
   }
 
   @Override
@@ -167,7 +143,7 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
     int maxNumberOfSpills = seq(allocationResult.spillSlots.values()).max().orElse(0);
     int activationRecordSize = StackLayout.BYTES_PER_STACK_SLOT * maxNumberOfSpills;
     ImmediateOperand minuend = new ImmediateOperand(OperandWidth.Quad, activationRecordSize);
-    lowered.add(new Sub(minuend, rsp, rsp));
+    lowered.add(new Sub(minuend, rsp));
   }
 
   private static RegisterOperand wholeRegister(Register register) {
@@ -191,74 +167,26 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
   public void visit(Mov mov) {
     Operand src = substituteHardwareRegisters(mov.src, currentUse());
     Operand dest = substituteHardwareRegisters(mov.dest, currentDef());
-    Mov substituted =
-        dest.match(
-            imm -> {
-              throw new UnsupportedOperationException("Can't Mov into an immediate");
-            },
-            reg -> {
-              return new Mov(src, reg);
-            },
-            mem -> {
-              return new Mov(src, mem);
-            });
-    lowered.add(substituted);
+    lowered.add(new Mov(src, dest));
   }
 
   @Override
   public void visit(Neg neg) {
-    Operand input = substituteHardwareRegisters(neg.input, currentUse());
-    Operand output = substituteHardwareRegisters(neg.input, currentDef());
-    // After allocation, the input should be the same operand as the output (as we can't translate it to AMD64 code
-    // otherwise).
-    assert input.equals(output);
-    Neg substituted =
-        output.match(
-            imm -> {
-              throw new UnsupportedOperationException("Can't Neg an immediate");
-            },
-            reg -> {
-              return new Neg(reg, reg);
-            },
-            mem -> {
-              return new Neg(mem);
-            });
-    lowered.add(substituted);
+    Operand inout = substituteHardwareRegisters(neg.inout, currentUse());
+    lowered.add(new Neg(inout));
   }
 
   @Override
   public void visit(Setcc setcc) {
     Operand output = substituteHardwareRegisters(setcc.output, currentDef());
-    Setcc substituted =
-        output.match(
-            imm -> {
-              throw new UnsupportedOperationException("Can't Setcc an immediate");
-            },
-            reg -> {
-              return new Setcc(reg, setcc.relation);
-            },
-            mem -> {
-              return new Setcc(mem, setcc.relation);
-            });
-    lowered.add(substituted);
+    lowered.add(new Setcc(output, setcc.relation));
   }
 
   @Override
   public void visit(Test test) {
     Operand left = substituteHardwareRegisters(test.left, currentUse());
     Operand right = substituteHardwareRegisters(test.right, currentUse());
-    Test substituted =
-        left.match(
-            imm -> {
-              throw new UnsupportedOperationException("Can't Test an immediate left");
-            },
-            reg -> {
-              return new Test(reg, right);
-            },
-            mem -> {
-              return new Test(mem, right);
-            });
-    lowered.add(substituted);
+    lowered.add(new Test(left, right));
   }
 
   private BlockPosition currentUse() {

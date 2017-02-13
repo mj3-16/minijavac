@@ -21,7 +21,7 @@ public abstract class Instruction {
   // not have the information needed for lowering.
   private final List<Operand> inputs;
   private final List<Operand> outputs;
-  private final Set<Operand> hints = new HashSet<>();
+  private final Set<Register> hints = new HashSet<>();
 
   protected Instruction(List<Operand> inputs, List<Operand> outputs) {
     Preconditions.checkArgument(!inputs.contains(null), "null input operand");
@@ -35,10 +35,11 @@ public abstract class Instruction {
   }
 
   protected void setHints(Iterable<Operand> shouldBeAssignedTheSameRegister) {
-    for (Operand operand : shouldBeAssignedTheSameRegister) {
+    for (RegisterOperand operand :
+        seq(shouldBeAssignedTheSameRegister).ofType(RegisterOperand.class)) {
       assert inputs.contains(operand) || outputs.contains(operand)
           : "Can only hint connections between input and output operands";
-      hints.add(operand);
+      hints.add(operand.register);
     }
   }
 
@@ -83,11 +84,7 @@ public abstract class Instruction {
   }
 
   public Set<Register> registerHints() {
-    Set<Register> hints = new HashSet<>();
-    for (RegisterOperand operand : seq(this.hints).ofType(RegisterOperand.class)) {
-      hints.add(operand.register);
-    }
-    return hints;
+    return new HashSet<>(hints);
   }
 
   public interface Visitor extends CodeBlockInstruction.Visitor {
