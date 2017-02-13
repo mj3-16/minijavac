@@ -33,7 +33,7 @@ public class AllocationResult {
     TreeMap<BlockPosition, SpillEvent> events = new TreeMap<>();
     splitLifetimes.forEach(
         (reg, splits) -> {
-          if (splits.size() < 2) {
+          if (!spillSlots.containsKey(reg)) {
             // No spilling needed.
             return;
           }

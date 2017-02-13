@@ -188,7 +188,6 @@ public class GasSyntax implements Instruction.Visitor {
           formatRegister(reg.width, (AMD64Register) reg.register);
         },
         mem -> {
-          System.out.println("mem.mode = " + mem.mode);
           formatAddressMode(mem.mode);
         });
   }
