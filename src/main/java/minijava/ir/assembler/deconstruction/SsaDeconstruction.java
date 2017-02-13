@@ -133,11 +133,11 @@ public class SsaDeconstruction {
   private void moveViaStack(List<Instruction> instructions, AMD64Register scratch, Move move) {
     if (scratch == null) {
       instructions.add(new Push(move.src));
-      instructions.add(pop(move.dest));
+      instructions.add(new Pop(move.dest));
     } else {
       RegisterOperand tmp = new RegisterOperand(move.dest.width, scratch);
       instructions.add(new Mov(move.src, tmp));
-      instructions.add(op(move.dest, reg -> new Mov(tmp, reg), mem -> new Mov(tmp, mem)));
+      instructions.add(new Mov(tmp, move.dest));
     }
   }
 
@@ -172,8 +172,8 @@ public class SsaDeconstruction {
   private void swapViaStack(List<Instruction> instructions, Move move) {
     instructions.add(new Push(move.src));
     instructions.add(new Push(move.dest));
-    instructions.add(pop(move.src));
-    instructions.add(pop(move.dest));
+    instructions.add(new Pop(move.src));
+    instructions.add(new Pop(move.dest));
   }
 
   private Pop pop(Operand operand) {

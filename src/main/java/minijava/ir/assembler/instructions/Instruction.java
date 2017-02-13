@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import minijava.ir.assembler.block.PhiFunction;
+import minijava.ir.assembler.operands.ImmediateOperand;
 import minijava.ir.assembler.operands.Operand;
 import minijava.ir.assembler.operands.OperandWidth;
 import minijava.ir.assembler.operands.RegisterOperand;
@@ -26,6 +27,8 @@ public abstract class Instruction {
   protected Instruction(List<Operand> inputs, List<Operand> outputs) {
     Preconditions.checkArgument(!inputs.contains(null), "null input operand");
     Preconditions.checkArgument(!outputs.contains(null), "null output register");
+    Preconditions.checkArgument(
+        seq(outputs).ofType(ImmediateOperand.class).isEmpty(), "Can't output into an immediate");
     this.inputs = inputs;
     this.outputs = outputs;
   }

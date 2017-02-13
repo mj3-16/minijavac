@@ -16,6 +16,7 @@ import java.util.Map;
 import minijava.ir.assembler.allocation.AllocationResult;
 import minijava.ir.assembler.allocation.LinearScanRegisterAllocator;
 import minijava.ir.assembler.block.CodeBlock;
+import minijava.ir.assembler.cleanup.PeepholeOptimizer;
 import minijava.ir.assembler.deconstruction.SsaDeconstruction;
 import minijava.ir.assembler.instructions.Instruction;
 import minijava.ir.assembler.lifetime.LifetimeAnalysis;
@@ -61,6 +62,8 @@ public class Backend {
       instructions.addAll(
           SsaDeconstruction.assembleInstructionList(linearization, allocationResult));
     }
+
+    instructions = PeepholeOptimizer.optimize(instructions);
 
     String asmFile = outFile + ".s";
     StringBuilder asm = GasSyntax.formatAssembler(instructions);

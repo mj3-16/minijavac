@@ -82,6 +82,7 @@ public class LifetimeAnalysis {
               live.remove(vr);
             },
             hr -> {
+              System.out.println("def for " + hr + ": " + def);
               getFixedInterval(hr).addDef(def);
             });
       }
@@ -98,6 +99,7 @@ public class LifetimeAnalysis {
               }
             },
             hr -> {
+              System.out.println("use for " + hr + ": " + use);
               getFixedInterval(hr).addUse(use);
             });
       }
