@@ -351,13 +351,7 @@ public class LinearScanRegisterAllocator {
       LifetimeInterval current, BlockPosition splitPos) {
     spillSlotAllocator.allocateSpillSlot(current.register);
     Split<LifetimeInterval> split = current.splitBefore(splitPos);
-    if (!split.after.defAndUses.isEmpty()) {
-      // Consider the case where we split an interval used in the loop header (e.g. the n in `i < n`) that we
-      // chose to split in the body. The after part will have no uses, although it is somewhat alive, a zombie.
-      // we discard these and handle them when resolving phis, because we have to spill them and move their value
-      // back into its register right before jump back to the header.
-      unhandled.add(split.after);
-    }
+    unhandled.add(split.after);
     return split.before;
   }
 

@@ -38,6 +38,7 @@ public class AllocationResult {
             return;
           }
           System.out.println("splits = " + seq(splits).map(s -> s.ranges).toList());
+          System.out.println("splits = " + seq(splits).map(s -> s.defAndUses).toList());
           // otherwise we have to spill within the first interval and reload at the begin of every following.
           Iterator<LifetimeInterval> it = splits.iterator();
           LifetimeInterval first = it.next();
