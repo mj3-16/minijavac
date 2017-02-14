@@ -4,7 +4,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static java.util.Comparator.comparing;
 import static java.util.Comparator.naturalOrder;
-import static java.util.Comparator.nullsFirst;
+import static java.util.Comparator.nullsLast;
 
 import java.util.Comparator;
 import java.util.Objects;
@@ -14,7 +14,7 @@ import org.jetbrains.annotations.Nullable;
 class ConflictSite implements Comparable<ConflictSite> {
 
   public static Comparator<ConflictSite> BY_POSITION =
-      comparing(u -> u.position, nullsFirst(naturalOrder()));
+      comparing(u -> u.position, nullsLast(naturalOrder()));
   private static final ConflictSite NEVER = new ConflictSite(null);
   @Nullable private final BlockPosition position;
 
@@ -69,6 +69,10 @@ class ConflictSite implements Comparable<ConflictSite> {
 
   @Override
   public String toString() {
-    return "ConflictSite{" + "position=" + position + '}';
+    if (doesConflictAtAll()) {
+      return "ConflicSite.at(" + position + ')';
+    } else {
+      return "ConflictSite.never()";
+    }
   }
 }

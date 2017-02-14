@@ -157,12 +157,17 @@ public class SsaDeconstruction {
     // referencing swap.src.
     // It's safe to say that there are no further writes to swap.dest.
     moves.remove(swap);
+    List<Move> noops = new ArrayList<>();
     for (Move move : moves) {
       if (move.src.equals(swap.dest)) {
         move.src = swap.src;
       }
+      if (move.isNoop()) {
+        noops.add(move);
+      }
     }
     swap.src = swap.dest;
+    noops.forEach(moves::remove);
     removeDestRegister(swap, scratchRegisters);
   }
 
@@ -329,6 +334,10 @@ public class SsaDeconstruction {
 
     public boolean isRegToReg() {
       return dest instanceof RegisterOperand && src instanceof RegisterOperand;
+    }
+
+    public boolean isNoop() {
+      return src.equals(dest);
     }
 
     @Override

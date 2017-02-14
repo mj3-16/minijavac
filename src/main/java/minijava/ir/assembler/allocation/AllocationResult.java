@@ -37,8 +37,11 @@ public class AllocationResult {
             // No spilling needed.
             return;
           }
-          System.out.println("splits = " + seq(splits).map(s -> s.ranges).toList());
-          System.out.println("splits = " + seq(splits).map(s -> s.defAndUses).toList());
+          System.out.println();
+          System.out.println("AllocationResult.determineWhereToSpillAndReload");
+          System.out.println("reg = " + reg);
+          System.out.println("splits.ranges = " + seq(splits).map(s -> s.ranges).toList());
+          System.out.println("splits.defAndUses = " + seq(splits).map(s -> s.defAndUses).toList());
           // otherwise we have to spill within the first interval and reload at the begin of every following.
           Iterator<LifetimeInterval> it = splits.iterator();
           LifetimeInterval first = it.next();
@@ -127,6 +130,11 @@ public class AllocationResult {
     private SpillEvent(Kind kind, LifetimeInterval interval) {
       this.kind = kind;
       this.interval = interval;
+    }
+
+    @Override
+    public String toString() {
+      return kind + " " + interval.register;
     }
 
     public enum Kind {
