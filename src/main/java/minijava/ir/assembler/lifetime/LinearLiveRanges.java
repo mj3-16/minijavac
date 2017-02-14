@@ -26,6 +26,15 @@ public class LinearLiveRanges {
     this.ranges = ranges;
   }
 
+  public BlockPosition from() {
+    return ranges.firstKey();
+  }
+
+  public BlockPosition to() {
+    Entry<BlockPosition, Integer> entry = ranges.lastEntry();
+    return new BlockPosition(entry.getKey().block, entry.getValue());
+  }
+
   public List<LiveRange> getLiveRanges(CodeBlock block) {
     BlockPosition from = BlockPosition.beginOf(block);
     BlockPosition to = BlockPosition.endOf(block);
@@ -89,8 +98,8 @@ public class LinearLiveRanges {
       return null;
     }
 
-    BlockPosition first = Seq.of(firstFrom(), other.firstFrom()).max().get();
-    BlockPosition last = Seq.of(lastTo(), other.lastTo()).min().get();
+    BlockPosition first = Seq.of(from(), other.from()).max().get();
+    BlockPosition last = Seq.of(to(), other.to()).min().get();
 
     if (first.compareTo(last) > 0) {
       return null;
@@ -134,14 +143,6 @@ public class LinearLiveRanges {
     return new LiveRange(entry.getKey().block, entry.getKey().pos, entry.getValue());
   }
 
-  private BlockPosition firstFrom() {
-    return ranges.firstKey();
-  }
-
-  private BlockPosition lastTo() {
-    return BlockPosition.endOf(ranges.lastKey().block);
-  }
-
   private Iterator<Entry<BlockPosition, Integer>> iterateEntriesInRange(
       BlockPosition first, BlockPosition last) {
     LiveRange range = getLiveRangeContaining(first);
@@ -173,18 +174,5 @@ public class LinearLiveRanges {
   @Override
   public String toString() {
     return Iterables.toString(seq(ranges.entrySet()).map(LinearLiveRanges::toRange));
-  }
-
-  public CodeBlock lastBlock() {
-    return null;
-  }
-
-  public BlockPosition from() {
-    return ranges.firstKey();
-  }
-
-  public BlockPosition to() {
-    Entry<BlockPosition, Integer> entry = ranges.lastEntry();
-    return new BlockPosition(entry.getKey().block, entry.getValue());
   }
 }

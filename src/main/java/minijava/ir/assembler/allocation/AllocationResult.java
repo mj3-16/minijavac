@@ -44,7 +44,8 @@ public class AllocationResult {
           LifetimeInterval first = it.next();
           // Spill immediately after the definition to avoid spilling more often than the value is defined (e.g. not in
           // loops).
-          BlockPosition def = first.defAndUses.first();
+          BlockPosition def = first.firstDefOrUse();
+          assert def != null;
           assert def.isDef() : "The first interval of a split was not a def";
           events.put(def, new SpillEvent(SPILL, first));
           while (it.hasNext()) {
@@ -54,7 +55,9 @@ public class AllocationResult {
               // We don't (and can't) reload.
               continue;
             }
-            BlockPosition use = following.defAndUses.first();
+            BlockPosition use = following.firstDefOrUse();
+            System.out.println(following + " -> " + allocation.get(following));
+            assert use != null;
             assert use.isUse() : "A following use wasn't really a use";
             events.put(use, new SpillEvent(RELOAD, following));
           }

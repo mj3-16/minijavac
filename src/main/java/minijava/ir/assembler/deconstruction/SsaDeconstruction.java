@@ -7,7 +7,6 @@ import static org.jooq.lambda.Seq.seq;
 import com.google.common.collect.Sets;
 import firm.Relation;
 import java.util.*;
-import java.util.function.Function;
 import minijava.ir.assembler.allocation.AllocationResult;
 import minijava.ir.assembler.block.CodeBlock;
 import minijava.ir.assembler.block.PhiFunction;
@@ -142,6 +141,11 @@ public class SsaDeconstruction {
     }
   }
 
+  private void moveViaMov(
+      List<Instruction> instructions, Set<AMD64Register> scratchRegisters, Move move) {
+    instructions.add(new Mov(move.src, move.dest));
+  }
+
   private void recordMov(Move move, Set<Move> moves, Set<AMD64Register> scratchRegisters) {
     moves.remove(move);
     removeDestRegister(move, scratchRegisters);
@@ -175,24 +179,6 @@ public class SsaDeconstruction {
     instructions.add(new Push(move.dest));
     instructions.add(new Pop(move.src));
     instructions.add(new Pop(move.dest));
-  }
-
-  private Pop pop(Operand operand) {
-    return op(operand, Pop::new, Pop::new);
-  }
-
-  private <T> T op(
-      Operand operand, Function<RegisterOperand, T> fromReg, Function<MemoryOperand, T> fromMem) {
-    return operand.match(
-        imm -> {
-          throw new UnsupportedOperationException("Can't Pop into an immediate");
-        },
-        reg -> {
-          return fromReg.apply(reg);
-        },
-        mem -> {
-          return fromMem.apply(mem);
-        });
   }
 
   private void swapViaXchg(List<Instruction> instructions, Move move) {
@@ -239,23 +225,6 @@ public class SsaDeconstruction {
         .get();
   }
 
-  private void moveViaMov(
-      List<Instruction> instructions, Set<AMD64Register> scratchRegisters, Move move) {
-    Mov mov =
-        move.dest.match(
-            imm -> {
-              throw new UnsupportedOperationException("Can't Mov into an immediate");
-            },
-            reg -> {
-              scratchRegisters.remove(reg.register);
-              return new Mov(move.src, reg);
-            },
-            mem -> {
-              return new Mov(move.src, mem);
-            });
-    instructions.add(mov);
-  }
-
   private List<LifetimeInterval> liveAtBegin(CodeBlock succ) {
     return liveAtBegin.computeIfAbsent(
         succ, k -> allocationResult.liveIntervalsAt(BlockPosition.beginOf(k)));
@@ -266,7 +235,7 @@ public class SsaDeconstruction {
     BlockPosition endOfPred = BlockPosition.endOf(pred);
     BlockPosition beginOfSucc = BlockPosition.beginOf(succ);
     for (LifetimeInterval li : liveAtBegin(succ)) {
-      boolean startsAtSucc = li.defAndUses.first().block.equals(succ);
+      boolean startsAtSucc = succ.equals(li.firstBlock());
       OperandWidth width = modeToWidth(li.register.value.getMode());
       Operand dest = allocationResult.hardwareOperandAt(width, li.register, beginOfSucc);
       Operand src;

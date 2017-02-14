@@ -11,7 +11,7 @@ import org.jetbrains.annotations.Nullable;
 public class LifetimeInterval {
 
   public static final Comparator<LifetimeInterval> COMPARING_DEF =
-      Comparator.comparing(LifetimeInterval::definition).thenComparingInt(li -> li.register.id);
+      Comparator.comparing(LifetimeInterval::from).thenComparingInt(li -> li.register.id);
   public final VirtualRegister register;
   public final NavigableSet<BlockPosition> defAndUses;
   public final LinearLiveRanges ranges;
@@ -30,6 +30,16 @@ public class LifetimeInterval {
   }
 
   @Nullable
+  public BlockPosition firstDefOrUse() {
+    return defAndUses.isEmpty() ? null : defAndUses.first();
+  }
+
+  @Nullable
+  public BlockPosition lastDefOrUse() {
+    return defAndUses.isEmpty() ? null : defAndUses.last();
+  }
+
+  @Nullable
   public BlockPosition nextUseAfter(BlockPosition start) {
     Iterator<BlockPosition> it = defAndUses.tailSet(start).iterator();
     return it.hasNext() ? it.next() : null;
@@ -43,15 +53,12 @@ public class LifetimeInterval {
     return ranges.size() == 0 ? null : ranges.get(0);
   }
 
-  public BlockPosition definition() {
-    // In the case that the interval has been split, defAndUses.first() is a use! We simulate a def
-    // by decrementing its pos by one.
-    BlockPosition first = defAndUses.first();
-    boolean isDef = first.pos % 2 == 0;
-    if (!isDef) {
-      return new BlockPosition(first.block, first.pos - 1);
-    }
-    return first;
+  public BlockPosition from() {
+    return ranges.from();
+  }
+
+  public BlockPosition to() {
+    return ranges.to();
   }
 
   public CodeBlock firstBlock() {
@@ -73,7 +80,7 @@ public class LifetimeInterval {
   }
 
   public void setDef(BlockPosition position) {
-    assert position.pos % 2 == 0 : "Was not a definition";
+    assert position.isDef() : "Was not a definition";
     LiveRange lifetime = getLifetimeInBlock(position.block);
     defAndUses.add(position);
     assert lifetime != null : "There should be no defs without a later use.";
@@ -81,7 +88,7 @@ public class LifetimeInterval {
   }
 
   public void addUse(BlockPosition position) {
-    assert position.pos % 2 == 1 : "Was not a definition";
+    assert position.isUse() : "Was not a use";
     defAndUses.add(position);
     LiveRange lifetime = getLifetimeInBlock(position.block);
     if (lifetime == null) {
@@ -128,32 +135,7 @@ public class LifetimeInterval {
     // after definitions are reaching.
     System.out.println("before = " + before);
     System.out.println("after = " + after);
-    shortenFromRange(before);
-    shortenToRange(before);
-    shortenFromRange(after);
     return new Split<>(before, after);
-  }
-
-  private static void shortenFromRange(LifetimeInterval li) {
-    if (li.defAndUses.isEmpty()) {
-      // A zombie interval... See the comment in LinearScanRegisterAllocation
-      return;
-    }
-    BlockPosition first = li.defAndUses.first();
-    LiveRange range = li.getLifetimeInBlock(first.block);
-    assert range != null; // It's the block with the first usage after all
-    li.setLiveRange(range.from(first.pos));
-  }
-
-  private static void shortenToRange(LifetimeInterval li) {
-    if (li.defAndUses.isEmpty()) {
-      // A zombie interval... See the comment in LinearScanRegisterAllocation
-      return;
-    }
-    BlockPosition last = li.defAndUses.last();
-    LiveRange range = li.getLifetimeInBlock(last.block);
-    assert range != null; // It's the block with the last usage after all
-    li.setLiveRange(range.to(last.pos));
   }
 
   @Override

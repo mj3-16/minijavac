@@ -149,7 +149,8 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
   }
 
   private static int activationRecordSize(AllocationResult allocationResult) {
-    int maxNumberOfSpills = seq(allocationResult.spillSlots.values()).max().orElse(0) + 1;
+    int maxNumberOfSpills =
+        seq(allocationResult.spillSlots.values()).map(i -> i + 1).max().orElse(0);
     // We will always use an even number of spill slots, so that we don't have to take the activation record size
     // into account when realizing the System V ABI.
     if (maxNumberOfSpills % 2 == 1) {
