@@ -1,10 +1,6 @@
 package minijava.backend.lifetime;
 
-import com.google.common.collect.BiMap;
 import com.google.common.collect.Lists;
-import firm.nodes.Block;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -18,17 +14,14 @@ import minijava.backend.operands.RegisterOperand;
 import minijava.backend.registers.AMD64Register;
 import minijava.backend.registers.Register;
 import minijava.backend.registers.VirtualRegister;
-import minijava.ir.utils.NodeUtils;
 
 public class LifetimeAnalysis {
   private final Map<CodeBlock, Set<VirtualRegister>> liveIn = new HashMap<>();
   private final Map<VirtualRegister, LifetimeInterval> intervals = new HashMap<>();
   private final Map<AMD64Register, FixedInterval> fixedIntervals = new HashMap<>();
-  private final BiMap<Block, CodeBlock> blocks;
   private final List<CodeBlock> linearization;
 
-  public LifetimeAnalysis(BiMap<Block, CodeBlock> blocks, List<CodeBlock> linearization) {
-    this.blocks = blocks;
+  public LifetimeAnalysis(List<CodeBlock> linearization) {
     this.linearization = linearization;
   }
 
@@ -38,26 +31,22 @@ public class LifetimeAnalysis {
     }
 
     for (CodeBlock block : Lists.reverse(linearization)) {
-      Block irBlock = blocks.inverse().get(block);
       Set<VirtualRegister> live = new HashSet<>();
       addLiveInFromSuccessors(block, live);
       makeAliveInWholeBlock(block, live);
       walkInstructionsBackwards(block, live);
-      handleBackEdges(irBlock, live);
+      handleBackEdges(block, live);
       liveIn.put(block, live);
     }
-    return new LifetimeAnalysisResult(new ArrayList<>(intervals.values()), fixedIntervals);
+    return new LifetimeAnalysisResult(intervals, fixedIntervals);
   }
 
-  private void handleBackEdges(Block irBlock, Set<VirtualRegister> live) {
-    for (int predNum : NodeUtils.incomingBackEdges(irBlock)) {
-      // We have a back edge from pred with predNum. For these we have to be conservative:
-      // Every register in live is alive for the complete loop.
-      Block irLoopFooter = (Block) irBlock.getPred(predNum).getBlock();
+  private void handleBackEdges(CodeBlock loopHeader, Set<VirtualRegister> live) {
+    // For back-edges we have to be conservative:
+    // Every register in live is alive for the complete loop.
+    for (CodeBlock partOfLoop : loopHeader.associatedLoopBody) {
       for (VirtualRegister alive : live) {
-        for (Block irLoopBlock : allBlocksBetween(irLoopFooter, irBlock)) {
-          getInterval(alive).makeAliveInWholeBlock(blocks.get(irLoopBlock));
-        }
+        getInterval(alive).makeAliveInWholeBlock(partOfLoop);
       }
     }
   }
@@ -179,29 +168,11 @@ public class LifetimeAnalysis {
     }
   }
 
-  private Set<Block> allBlocksBetween(Block source, Block target) {
-    Set<Block> reachable = new HashSet<>();
-    ArrayDeque<Block> toVisit = new ArrayDeque<>();
-    toVisit.add(source);
-    while (!toVisit.isEmpty()) {
-      Block cur = toVisit.removeFirst();
-      if (reachable.contains(cur)) {
-        continue;
-      }
-      reachable.add(cur);
-      if (!target.equals(source)) {
-        NodeUtils.getPredecessorBlocks(cur).forEach(toVisit::add);
-      }
-    }
-    return reachable;
-  }
-
   private LifetimeInterval getInterval(VirtualRegister alive) {
     return intervals.computeIfAbsent(alive, LifetimeInterval::new);
   }
 
-  public static LifetimeAnalysisResult analyse(
-      BiMap<Block, CodeBlock> blocks, List<CodeBlock> linearization) {
-    return new LifetimeAnalysis(blocks, linearization).analyse();
+  public static LifetimeAnalysisResult analyse(List<CodeBlock> linearization) {
+    return new LifetimeAnalysis(linearization).analyse();
   }
 }

@@ -34,7 +34,7 @@ import org.slf4j.impl.SimpleLogger;
 
 public class Cli {
 
-  static final String usage =
+  public static final String usage =
       Joiner.on(System.lineSeparator())
           .join(
               Stream.concat(
@@ -65,13 +65,13 @@ public class Cli {
   private final PrintStream err;
   private final FileSystem fileSystem;
 
-  Cli(OutputStream out, OutputStream err, FileSystem fileSystem) {
+  public Cli(OutputStream out, OutputStream err, FileSystem fileSystem) {
     this.out = new PrintStream(out);
     this.err = new PrintStream(err);
     this.fileSystem = fileSystem;
   }
 
-  int run(String... args) {
+  public int run(String... args) {
     Parameters params = Parameters.parse(args);
     setLogLevel(params.verbosity);
     if (!params.valid()) {

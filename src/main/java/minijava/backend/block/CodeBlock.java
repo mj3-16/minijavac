@@ -15,6 +15,12 @@ public class CodeBlock {
   public final Set<PhiFunction> phis = new HashSet<>();
   public final List<CodeBlockInstruction> instructions = new ArrayList<>();
   public ExitArity exit;
+  /**
+   * This is only non-empty iff this is a loop header block (e.g. has an incoming back-edge).
+   * Important for the lifetime analysis, where we may have to extends lifetimes to whole loop
+   * bodies.
+   */
+  public final Set<CodeBlock> associatedLoopBody = new HashSet<>();
   /** This is the index in the linearization of the CFG. */
   public int linearizedOrdinal;
 

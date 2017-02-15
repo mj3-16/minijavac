@@ -1,20 +1,18 @@
 package minijava.backend.selection;
 
 import static minijava.ir.utils.FirmUtils.modeToWidth;
-import static minijava.ir.utils.FirmUtils.withBackEdges;
-import static org.jooq.lambda.Seq.seq;
 
 import firm.Mode;
 import firm.TargetValue;
-import firm.nodes.*;
+import firm.nodes.Node;
+import firm.nodes.NodeVisitor;
+import firm.nodes.Phi;
+import firm.nodes.Proj;
+import firm.nodes.Start;
 import java.util.ArrayList;
 import java.util.List;
 import minijava.backend.SystemVAbi;
-import minijava.backend.instructions.Add;
-import minijava.backend.instructions.And;
-import minijava.backend.instructions.Call;
-import minijava.backend.instructions.Cmp;
-import minijava.backend.instructions.Sub;
+import minijava.backend.instructions.*;
 import minijava.backend.operands.AddressingMode;
 import minijava.backend.operands.ImmediateOperand;
 import minijava.backend.operands.MemoryOperand;
@@ -31,7 +29,7 @@ import org.jooq.lambda.function.Function2;
 class TreeMatcher extends NodeVisitor.Default {
 
   private final VirtualRegisterMapping mapping;
-  private List<minijava.ir.assembler.instructions.CodeBlockInstruction> instructions;
+  private List<CodeBlockInstruction> instructions;
 
   TreeMatcher(VirtualRegisterMapping mapping) {
     this.mapping = mapping;
@@ -78,11 +76,7 @@ class TreeMatcher extends NodeVisitor.Default {
       // + 2 accounts for mem pred and callee address
       Operand src = operandForNode(call.getPred(i + 2));
       Operand dest = SystemVAbi.parameter(i, src.width);
-      if (dest instanceof RegisterOperand) {
-        instructions.add(new minijava.ir.assembler.instructions.Mov(src, (RegisterOperand) dest));
-      } else {
-        instructions.add(new minijava.ir.assembler.instructions.Mov(src, (MemoryOperand) dest));
-      }
+      instructions.add(new Mov(src, dest));
       arguments.add(dest);
     }
     instructions.add(new Call(calleeLabel, arguments));
@@ -112,7 +106,7 @@ class TreeMatcher extends NodeVisitor.Default {
     // we just delete the defining instruction.
     OperandWidth width = modeToWidth(Mode.getb());
     RegisterOperand op = new RegisterOperand(width, mapping.registerForNode(node));
-    instructions.add(new minijava.ir.assembler.instructions.Setcc(op, node.getRelation()));
+    instructions.add(new Setcc(op, node.getRelation()));
   }
 
   @Override
@@ -134,9 +128,7 @@ class TreeMatcher extends NodeVisitor.Default {
     OperandWidth width = modeToWidth(node.getMode());
     Operand op = operandForNode(node.getPred(0));
     VirtualRegister reg = mapping.registerForNode(node);
-    instructions.add(
-        new minijava.ir.assembler.instructions.Mov(
-            op.withChangedWidth(width), new RegisterOperand(width, reg)));
+    instructions.add(new Mov(op.withChangedWidth(width), new RegisterOperand(width, reg)));
   }
 
   @Override
@@ -154,7 +146,7 @@ class TreeMatcher extends NodeVisitor.Default {
     RegisterOperand op = operandForNode(node.getPred(0));
     Operand result = defineAsCopy(op, node);
     // Same trick as for TwoAddressInstructions, where we have to connect the input with the output operand.
-    instructions.add(new minijava.ir.assembler.instructions.Neg(result));
+    instructions.add(new Neg(result));
   }
 
   @Override
@@ -164,7 +156,7 @@ class TreeMatcher extends NodeVisitor.Default {
 
   @Override
   public void visit(firm.nodes.Mul node) {
-    twoAddressInstruction(node, minijava.ir.assembler.instructions.IMul::new);
+    twoAddressInstruction(node, IMul::new);
   }
 
   @Override
@@ -219,7 +211,7 @@ class TreeMatcher extends NodeVisitor.Default {
     assert dividend.register == AMD64Register.A;
     Operand divisor = operandForNode(node.getPred(2));
 
-    instructions.add(new minijava.ir.assembler.instructions.IDiv(divisor));
+    instructions.add(new IDiv(divisor));
 
     // We immediately copy the hardware register into a virtual register, so that register allocation can decide
     // what's best.
@@ -232,7 +224,7 @@ class TreeMatcher extends NodeVisitor.Default {
   }
 
   private RegisterOperand cltd(Operand op) {
-    instructions.add(new minijava.ir.assembler.instructions.Cltd(op.width));
+    instructions.add(new Cltd(op.width));
     return new RegisterOperand(op.width, AMD64Register.A);
   }
 
@@ -268,7 +260,7 @@ class TreeMatcher extends NodeVisitor.Default {
     Operand value = operandForNode(store.getValue());
     OperandWidth width = modeToWidth(store.getValue().getMode());
     MemoryOperand dest = new MemoryOperand(width, address);
-    instructions.add(new minijava.ir.assembler.instructions.Mov(value, dest));
+    instructions.add(new Mov(value, dest));
   }
 
   @Override
@@ -299,9 +291,7 @@ class TreeMatcher extends NodeVisitor.Default {
    * Redundant moves can easily be deleted later on.
    */
   private void twoAddressInstruction(
-      firm.nodes.Binop node,
-      Function2<Operand, Operand, minijava.ir.assembler.instructions.TwoAddressInstruction>
-          factory) {
+      firm.nodes.Binop node, Function2<Operand, Operand, TwoAddressInstruction> factory) {
     Operand left = operandForNode(node.getLeft());
     Operand right = operandForNode(node.getRight());
     // This is a little like cheating: To ensure the right argument (which is input and output) gets
@@ -314,12 +304,12 @@ class TreeMatcher extends NodeVisitor.Default {
     VirtualRegister register = mapping.registerForNode(value);
     OperandWidth width = modeToWidth(value.getMode());
     RegisterOperand dest = new RegisterOperand(width, register);
-    instructions.add(new minijava.ir.assembler.instructions.Mov(src.withChangedWidth(width), dest));
+    instructions.add(new Mov(src.withChangedWidth(width), dest));
     return dest;
   }
 
   private void saveDefinitions() {
-    for (minijava.ir.assembler.instructions.Instruction instruction : instructions) {
+    for (Instruction instruction : instructions) {
       for (VirtualRegister register :
           Seq.seq(instruction.definitions()).ofType(VirtualRegister.class)) {
         if (mapping.getDefinition(register) == null) {
@@ -333,7 +323,7 @@ class TreeMatcher extends NodeVisitor.Default {
     }
   }
 
-  public List<minijava.ir.assembler.instructions.CodeBlockInstruction> match(firm.nodes.Node node) {
+  public List<CodeBlockInstruction> match(firm.nodes.Node node) {
     return FirmUtils.withBackEdges(
         node.getGraph(),
         () -> {

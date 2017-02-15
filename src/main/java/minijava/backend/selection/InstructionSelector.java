@@ -1,6 +1,8 @@
 package minijava.backend.selection;
 
-import static firm.bindings.binding_irnode.ir_opcode.*;
+import static firm.bindings.binding_irnode.ir_opcode.iro_Block;
+import static firm.bindings.binding_irnode.ir_opcode.iro_Cmp;
+import static firm.bindings.binding_irnode.ir_opcode.iro_Cond;
 import static minijava.ir.utils.FirmUtils.modeToWidth;
 import static org.jooq.lambda.Seq.seq;
 
@@ -13,16 +15,25 @@ import firm.Graph;
 import firm.Mode;
 import firm.Relation;
 import firm.bindings.binding_irnode;
-import firm.nodes.*;
+import firm.nodes.Block;
 import firm.nodes.Call;
 import firm.nodes.Cmp;
+import firm.nodes.Cond;
+import firm.nodes.End;
 import firm.nodes.Jmp;
+import firm.nodes.Node;
+import firm.nodes.NodeVisitor;
+import firm.nodes.Phi;
+import firm.nodes.Proj;
+import firm.nodes.Return;
+import firm.nodes.Start;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import minijava.backend.block.CodeBlock;
 import minijava.backend.block.CodeBlock.ExitArity.One;
 import minijava.backend.block.PhiFunction;
+import minijava.backend.instructions.*;
 import minijava.backend.operands.Operand;
 import minijava.backend.operands.OperandWidth;
 import minijava.backend.operands.RegisterOperand;
@@ -67,8 +78,7 @@ public class InstructionSelector extends NodeVisitor.Default {
   }
 
   private void invokeTreeMatcher(Node node) {
-    List<minijava.ir.assembler.instructions.CodeBlockInstruction> newInstructions =
-        matcher.match(node);
+    List<CodeBlockInstruction> newInstructions = matcher.match(node);
     CodeBlock block = getCodeBlockOfNode(node);
     block.instructions.addAll(newInstructions);
   }
@@ -78,6 +88,18 @@ public class InstructionSelector extends NodeVisitor.Default {
   }
 
   private CodeBlock getCodeBlock(Block block) {
+    CodeBlock codeBlock = blocks.get(block);
+    if (codeBlock == null) {
+      codeBlock = new CodeBlock(getLabelForBlock(block));
+      blocks.put(block, codeBlock);
+      // We also have to add all blocks of the loop body, it it's a header.
+      for (int predNum : NodeUtils.incomingBackEdges(block)) {
+        Block loopFooter = (Block) block.getPred(predNum).getBlock();
+        for (Block bodyBlock : GraphUtils.allBlocksBetween(loopFooter, block)) {
+          codeBlock.associatedLoopBody.add(getCodeBlock(bodyBlock));
+        }
+      }
+    }
     return blocks.computeIfAbsent(block, b -> new CodeBlock(getLabelForBlock(b)));
   }
 
@@ -191,7 +213,7 @@ public class InstructionSelector extends NodeVisitor.Default {
       VirtualRegister selResult = mapping.registerForNode(sel);
       OperandWidth width = modeToWidth(Mode.getb());
       RegisterOperand op = new RegisterOperand(width, selResult);
-      block.instructions.add(new minijava.ir.assembler.instructions.Test(op, op));
+      block.instructions.add(new Test(op, op));
       currentlyVisibleModeb.put(irBlock, sel);
       relation = Relation.LessGreater; // Should output in a jnz/jne
     }
@@ -227,8 +249,8 @@ public class InstructionSelector extends NodeVisitor.Default {
     if (!usedMultipleTimes(node) && isMatchedOnInSameBlock(node)) {
       // We can omit the Setcc virtual register, which is the defining instruction
       VirtualRegister register = mapping.registerForNode(node);
-      minijava.ir.assembler.instructions.Instruction setcc = mapping.getDefinition(register);
-      assert setcc instanceof minijava.ir.assembler.instructions.Setcc; // Just to be sure
+      Instruction setcc = mapping.getDefinition(register);
+      assert setcc instanceof Setcc; // Just to be sure
       getCodeBlock(irBlock).instructions.remove(setcc);
     }
     currentlyVisibleModeb.put(irBlock, node);
@@ -261,9 +283,9 @@ public class InstructionSelector extends NodeVisitor.Default {
       OperandWidth width = modeToWidth(retVal.getMode());
       RegisterOperand source = new RegisterOperand(width, register);
       RegisterOperand dest = new RegisterOperand(width, mapping.registerForNode(node));
-      block.instructions.add(new minijava.ir.assembler.instructions.Mov(source, dest));
+      block.instructions.add(new Mov(source, dest));
     }
-    block.instructions.add(new minijava.ir.assembler.instructions.Leave());
+    block.instructions.add(new Leave());
     block.exit = new CodeBlock.ExitArity.Zero();
   }
 
@@ -274,9 +296,7 @@ public class InstructionSelector extends NodeVisitor.Default {
 
   @Override
   public void visit(Start node) {
-    getCodeBlock(graph.getStartBlock())
-        .instructions
-        .add(0, new minijava.ir.assembler.instructions.Enter());
+    getCodeBlock(graph.getStartBlock()).instructions.add(0, new Enter());
   }
 
   @Override

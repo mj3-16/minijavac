@@ -46,11 +46,11 @@ public class Backend {
         block.instructions.forEach(i -> System.out.println("  " + i));
         System.out.println("  " + block.exit);
       }
-      LifetimeAnalysisResult lifetimes = LifetimeAnalysis.analyse(currentFunction, linearization);
+      LifetimeAnalysisResult lifetimes = LifetimeAnalysis.analyse(linearization);
 
       System.out.println();
       lifetimes.fixedIntervals.values().forEach(System.out::println);
-      for (LifetimeInterval interval : lifetimes.virtualIntervals) {
+      for (LifetimeInterval interval : lifetimes.virtualIntervals.values()) {
         System.out.println(interval);
       }
 

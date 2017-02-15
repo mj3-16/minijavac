@@ -73,6 +73,23 @@ public class GraphUtils {
     return connected[0];
   }
 
+  public static Set<Block> allBlocksBetween(Block source, Block target) {
+    Set<Block> reachable = new HashSet<>();
+    ArrayDeque<Block> toVisit = new ArrayDeque<>();
+    toVisit.add(source);
+    while (!toVisit.isEmpty()) {
+      Block cur = toVisit.removeFirst();
+      if (reachable.contains(cur)) {
+        continue;
+      }
+      reachable.add(cur);
+      if (!target.equals(source)) {
+        NodeUtils.getPredecessorBlocks(cur).forEach(toVisit::add);
+      }
+    }
+    return reachable;
+  }
+
   /**
    * Computes a topological order on the predecessor (!) graph. This is the right traversal for
    * things that change control flow. You can assume (except for back edges) that the nodes are

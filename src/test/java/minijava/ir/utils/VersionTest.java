@@ -1,4 +1,4 @@
-package minijava.ir;
+package minijava.ir.utils;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.IsEqual.equalTo;

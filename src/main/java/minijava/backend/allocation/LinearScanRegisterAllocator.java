@@ -49,7 +49,7 @@ public class LinearScanRegisterAllocator {
     this.fixedIntervals = lifetimes.fixedIntervals;
     this.allocatable = allocatable;
     this.unhandled = new ConcurrentSkipListSet<>(LifetimeInterval.COMPARING_DEF);
-    this.unhandled.addAll(lifetimes.virtualIntervals);
+    this.unhandled.addAll(lifetimes.virtualIntervals.values());
   }
 
   private AllocationResult allocate() {
