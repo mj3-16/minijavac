@@ -7,7 +7,7 @@ import firm.nodes.Node;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
-import minijava.ir.Dominance;
+import minijava.ir.utils.Dominance;
 
 public class MoveInfo {
 

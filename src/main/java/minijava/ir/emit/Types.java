@@ -13,7 +13,7 @@ import java.util.HashMap;
 import java.util.Map;
 import minijava.ast.BuiltinType;
 import minijava.ast.Class;
-import minijava.ir.InitFirm;
+import minijava.ir.utils.InitFirm;
 
 public class Types {
 

@@ -11,9 +11,9 @@ import minijava.ast.*;
 import minijava.ast.Class;
 import minijava.token.Terminal;
 import minijava.token.Token;
-import minijava.util.LookAheadIterator;
-import minijava.util.SourcePosition;
-import minijava.util.SourceRange;
+import minijava.utils.LookAheadIterator;
+import minijava.utils.SourcePosition;
+import minijava.utils.SourceRange;
 
 public class Parser {
   private static final Token EOF_TOKEN = new Token(EOF, SourceRange.FIRST_CHAR, null);

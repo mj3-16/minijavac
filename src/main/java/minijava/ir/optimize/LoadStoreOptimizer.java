@@ -12,7 +12,7 @@ import firm.nodes.Node;
 import firm.nodes.Proj;
 import firm.nodes.Store;
 import java.util.List;
-import minijava.ir.Dominance;
+import minijava.ir.utils.Dominance;
 import minijava.ir.utils.GraphUtils;
 import minijava.ir.utils.NodeUtils;
 

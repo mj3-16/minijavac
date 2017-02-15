@@ -1,7 +1,7 @@
 package minijava;
 
 import static firm.bindings.binding_irgraph.ir_resources_t.IR_RESOURCE_IRN_LINK;
-import static minijava.Cli.dumpGraphsIfNeeded;
+import static minijava.cli.Cli.dumpGraphsIfNeeded;
 
 import com.google.common.collect.Sets;
 import com.google.common.io.Files;
@@ -17,6 +17,8 @@ import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import minijava.cli.Cli;
+import minijava.cli.EnvVar;
 import minijava.ir.emit.IREmitter;
 import minijava.ir.optimize.*;
 import minijava.ir.utils.GraphUtils;
@@ -25,7 +27,7 @@ import minijava.parser.Parser;
 import minijava.semantic.SemanticAnalyzer;
 import minijava.semantic.SemanticLinter;
 import minijava.token.Token;
-import minijava.util.PrettyPrinter;
+import minijava.utils.PrettyPrinter;
 import org.apache.commons.io.FileUtils;
 import org.jetbrains.annotations.NotNull;
 
@@ -317,7 +319,7 @@ public class Compiler {
   public static class OwnBackend implements Backend {
     @Override
     public String lowerToAssembler(String outFile) throws IOException {
-      minijava.ir.assembler.Backend.lowerAssembler(outFile);
+      minijava.backend.Backend.lowerAssembler(outFile);
       File asm = new File(outFile + ".s");
       asm.createNewFile();
       File preAsm = new File(outFile + ".pre");

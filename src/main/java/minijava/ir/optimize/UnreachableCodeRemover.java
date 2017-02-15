@@ -2,7 +2,7 @@ package minijava.ir.optimize;
 
 import firm.Graph;
 import firm.bindings.binding_irgopt;
-import minijava.ir.Dominance;
+import minijava.ir.utils.Dominance;
 
 public class UnreachableCodeRemover implements Optimizer {
 

@@ -10,7 +10,7 @@ import firm.nodes.*;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
-import minijava.ir.Dominance;
+import minijava.ir.utils.Dominance;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
 import minijava.ir.utils.NodeUtils;

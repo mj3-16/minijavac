@@ -16,8 +16,8 @@ import java.util.Iterator;
 import minijava.MJError;
 import minijava.token.Terminal;
 import minijava.token.Token;
-import minijava.util.SourcePosition;
-import minijava.util.SourceRange;
+import minijava.utils.SourcePosition;
+import minijava.utils.SourceRange;
 
 /** SLL(1) parser style lexer implementation. */
 public class Lexer implements Iterator<Token> {

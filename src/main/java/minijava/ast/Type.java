@@ -1,8 +1,8 @@
 package minijava.ast;
 
 import com.google.common.collect.ImmutableList;
-import minijava.util.PrettyPrinter;
-import minijava.util.SourceRange;
+import minijava.utils.PrettyPrinter;
+import minijava.utils.SourceRange;
 
 /** A compound type, like int[][]. */
 public class Type extends Node {

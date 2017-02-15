@@ -11,7 +11,7 @@ import firm.nodes.Jmp;
 import firm.nodes.Node;
 import firm.nodes.Proj;
 import java.util.Optional;
-import minijava.ir.Dominance;
+import minijava.ir.utils.Dominance;
 import minijava.ir.utils.GraphUtils;
 import minijava.ir.utils.NodeUtils;
 import minijava.ir.utils.ProjPair;

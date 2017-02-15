@@ -1,7 +1,7 @@
 package minijava.ast;
 
 import java.util.Optional;
-import minijava.util.SourceRange;
+import minijava.utils.SourceRange;
 import org.jetbrains.annotations.Nullable;
 
 /*

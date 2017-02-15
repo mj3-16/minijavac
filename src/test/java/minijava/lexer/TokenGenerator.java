@@ -8,7 +8,7 @@ import java.util.Set;
 import java.util.stream.IntStream;
 import minijava.token.Terminal;
 import minijava.token.Token;
-import minijava.util.SourceRange;
+import minijava.utils.SourceRange;
 import org.jooq.lambda.Seq;
 
 /**

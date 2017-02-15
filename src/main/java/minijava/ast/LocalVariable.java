@@ -1,6 +1,6 @@
 package minijava.ast;
 
-import minijava.util.SourceRange;
+import minijava.utils.SourceRange;
 
 public class LocalVariable extends Node implements Definition {
   public final Type type;

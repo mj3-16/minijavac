@@ -1,8 +1,8 @@
 package minijava.ast;
 
 import java.util.Optional;
-import minijava.util.SourceCodeReferable;
-import minijava.util.SourceRange;
+import minijava.utils.SourceCodeReferable;
+import minijava.utils.SourceRange;
 import org.jetbrains.annotations.Nullable;
 
 public interface BlockStatement extends SourceCodeReferable {

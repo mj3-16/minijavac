@@ -11,7 +11,7 @@ import firm.nodes.Node;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import minijava.ir.Dominance;
+import minijava.ir.utils.Dominance;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;
 import minijava.ir.utils.NodeUtils;

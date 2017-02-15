@@ -2,7 +2,7 @@ package minijava.ast;
 
 import java.util.Collections;
 import java.util.List;
-import minijava.util.SourceRange;
+import minijava.utils.SourceRange;
 
 public class Class extends Node implements BasicType {
   private final String name;

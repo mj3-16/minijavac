@@ -8,7 +8,7 @@ import firm.Graph;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import minijava.Cli;
+import minijava.cli.Cli;
 import org.jooq.lambda.Seq;
 import org.pcollections.HashTreePMap;
 import org.pcollections.HashTreePSet;

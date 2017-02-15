@@ -14,7 +14,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
-import minijava.ir.Dominance;
 import org.jooq.lambda.tuple.Tuple2;
 
 public class GraphUtils {

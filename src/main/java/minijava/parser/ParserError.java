@@ -5,7 +5,7 @@ import java.util.List;
 import minijava.MJError;
 import minijava.token.Terminal;
 import minijava.token.Token;
-import minijava.util.SourceRange;
+import minijava.utils.SourceRange;
 
 class ParserError extends MJError {
 

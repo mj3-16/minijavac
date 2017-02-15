@@ -1,7 +1,7 @@
 package minijava.ast;
 
-import minijava.util.SourceCodeReferable;
-import minijava.util.SourceRange;
+import minijava.utils.SourceCodeReferable;
+import minijava.utils.SourceRange;
 
 /** This abstract class stores information that is common between all non-abstract AST nodes. */
 abstract class Node implements SourceCodeReferable {

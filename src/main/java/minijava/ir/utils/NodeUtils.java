@@ -1,7 +1,6 @@
 package minijava.ir.utils;
 
 import static firm.bindings.binding_irnode.ir_opcode.iro_Jmp;
-import static firm.bindings.binding_irnode.ir_opcode.iro_Proj;
 import static org.jooq.lambda.Seq.seq;
 import static org.jooq.lambda.Seq.zipWithIndex;
 
@@ -16,7 +15,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import minijava.ir.Dominance;
 import org.jooq.lambda.Seq;
 
 /** For lack of a better name */

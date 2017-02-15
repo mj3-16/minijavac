@@ -9,7 +9,7 @@ import minijava.ast.Definition;
 import minijava.ast.Field;
 import minijava.ast.Ref;
 import minijava.ast.Type;
-import minijava.util.SourceRange;
+import minijava.utils.SourceRange;
 import org.junit.Before;
 import org.junit.Test;
 

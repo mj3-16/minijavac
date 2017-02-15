@@ -7,8 +7,8 @@ import com.pholser.junit.quickcheck.runner.JUnitQuickcheck;
 import java.util.ArrayList;
 import java.util.List;
 import minijava.token.Token;
-import minijava.util.SourcePosition;
-import minijava.util.SourceRange;
+import minijava.utils.SourcePosition;
+import minijava.utils.SourceRange;
 import org.junit.runner.RunWith;
 
 @RunWith(JUnitQuickcheck.class)

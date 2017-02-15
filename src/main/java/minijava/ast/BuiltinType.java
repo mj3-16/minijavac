@@ -1,6 +1,6 @@
 package minijava.ast;
 
-import minijava.util.SourceRange;
+import minijava.utils.SourceRange;
 
 /**
  * Think of this as an enum. We can't make it an enum however, because Java's enum defines a

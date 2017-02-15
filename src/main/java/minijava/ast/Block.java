@@ -1,7 +1,7 @@
 package minijava.ast;
 
 import java.util.List;
-import minijava.util.SourceRange;
+import minijava.utils.SourceRange;
 
 public class Block extends Node implements Statement {
 

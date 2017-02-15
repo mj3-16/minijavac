@@ -12,7 +12,7 @@ import minijava.ast.Expression.NewArray;
 import minijava.ast.Expression.NewObject;
 import minijava.ast.LocalVariable;
 import minijava.ast.Statement.ExpressionStatement;
-import minijava.util.SourceRange;
+import minijava.utils.SourceRange;
 import org.jetbrains.annotations.NotNull;
 
 /**

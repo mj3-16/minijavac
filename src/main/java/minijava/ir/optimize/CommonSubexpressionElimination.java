@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import minijava.ir.Dominance;
+import minijava.ir.utils.Dominance;
 import minijava.ir.utils.ExtensionalEqualityComparator;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.GraphUtils;

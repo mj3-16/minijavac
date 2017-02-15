@@ -5,7 +5,7 @@ import firm.Graph;
 import firm.Mode;
 import firm.Relation;
 import java.util.function.Supplier;
-import minijava.ir.assembler.operands.OperandWidth;
+import minijava.backend.operands.OperandWidth;
 
 public class FirmUtils {
 

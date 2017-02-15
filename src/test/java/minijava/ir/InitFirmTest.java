@@ -1,6 +1,7 @@
 package minijava.ir;
 
 import firm.Mode;
+import minijava.ir.utils.InitFirm;
 import org.junit.Test;
 
 public class InitFirmTest {

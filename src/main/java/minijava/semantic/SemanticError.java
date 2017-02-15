@@ -2,7 +2,7 @@ package minijava.semantic;
 
 import java.util.List;
 import minijava.MJError;
-import minijava.util.SourceRange;
+import minijava.utils.SourceRange;
 
 public class SemanticError extends MJError {
   public final SourceRange range;

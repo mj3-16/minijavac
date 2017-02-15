@@ -1,6 +1,6 @@
 package minijava.ast;
 
-import minijava.util.SourceCodeReferable;
+import minijava.utils.SourceCodeReferable;
 
 public interface Definition extends Nameable, SourceCodeReferable {
   <T> T acceptVisitor(Visitor<T> visitor);

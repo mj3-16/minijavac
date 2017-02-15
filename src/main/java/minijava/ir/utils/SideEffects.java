@@ -1,6 +1,5 @@
 package minijava.ir.utils;
 
-import static firm.bindings.binding_irnode.ir_opcode.iro_Phi;
 import static org.jooq.lambda.Seq.seq;
 
 import com.google.common.collect.Sets;
@@ -14,7 +13,6 @@ import java.util.Deque;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Predicate;
-import minijava.ir.Dominance;
 import minijava.ir.optimize.AliasAnalyzer;
 import org.jooq.lambda.Seq;
 import org.slf4j.Logger;

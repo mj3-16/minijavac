@@ -1,7 +1,7 @@
 package minijava.ast;
 
 import java.util.List;
-import minijava.util.SourceRange;
+import minijava.utils.SourceRange;
 
 public class Program extends Node {
   public final List<Class> declarations;

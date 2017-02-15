@@ -4,8 +4,8 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static minijava.token.Terminal.*;
 
 import java.util.Arrays;
-import minijava.util.SourceCodeReferable;
-import minijava.util.SourceRange;
+import minijava.utils.SourceCodeReferable;
+import minijava.utils.SourceRange;
 import org.jetbrains.annotations.Nullable;
 
 /** Instances of this class are immutable. */

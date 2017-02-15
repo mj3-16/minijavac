@@ -1,7 +1,7 @@
 package minijava.lexer;
 
 import minijava.MJError;
-import minijava.util.SourcePosition;
+import minijava.utils.SourcePosition;
 
 class LexerError extends MJError {
 
