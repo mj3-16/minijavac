@@ -21,6 +21,7 @@ public class Setcc extends CodeBlockInstruction {
     checkArgument(!(op instanceof ImmediateOperand), "Can't set an immediate");
     this.relation = relation;
     this.output = op;
+    setMayBeMemory(op);
   }
 
   @Override

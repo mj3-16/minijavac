@@ -16,6 +16,7 @@ public class IDiv extends CodeBlockInstruction {
         newArrayList(new RegisterOperand(divisor.width, AMD64Register.A), divisor),
         toOperands(divisor.width, Seq.of(AMD64Register.A, AMD64Register.D)));
     this.divisor = divisor;
+    setMayBeMemory(divisor);
   }
 
   @Override

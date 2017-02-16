@@ -2,6 +2,7 @@ package minijava.backend.instructions;
 
 import static com.google.common.collect.Lists.newArrayList;
 
+import minijava.backend.operands.MemoryOperand;
 import minijava.backend.operands.Operand;
 
 public class Cmp extends CodeBlockInstruction {
@@ -14,6 +15,9 @@ public class Cmp extends CodeBlockInstruction {
     super(newArrayList(left, right), newArrayList());
     this.left = left;
     this.right = right;
+    if (!(right instanceof MemoryOperand)) {
+      setMayBeMemory(left);
+    }
   }
 
   @Override

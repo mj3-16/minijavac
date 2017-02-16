@@ -13,6 +13,7 @@ public class Pop extends Instruction {
     super(newArrayList(), newArrayList(output));
     checkArgument(!(output instanceof ImmediateOperand), "Can't pop into an immediate");
     this.output = output;
+    setMayBeMemory(output);
   }
 
   @Override

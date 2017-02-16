@@ -10,6 +10,7 @@ public class Push extends Instruction {
   public Push(Operand input) {
     super(newArrayList(input), newArrayList());
     this.input = input;
+    setMayBeMemory(input);
   }
 
   @Override

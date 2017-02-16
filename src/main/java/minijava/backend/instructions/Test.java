@@ -4,6 +4,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.Lists.newArrayList;
 
 import minijava.backend.operands.ImmediateOperand;
+import minijava.backend.operands.MemoryOperand;
 import minijava.backend.operands.Operand;
 
 public class Test extends CodeBlockInstruction {
@@ -18,6 +19,9 @@ public class Test extends CodeBlockInstruction {
     checkArgument(!(left instanceof ImmediateOperand), "Test's left operand can't be an immediate");
     this.left = left;
     this.right = right;
+    if (!(right instanceof MemoryOperand)) {
+      setMayBeMemory(right);
+    }
   }
 
   @Override
