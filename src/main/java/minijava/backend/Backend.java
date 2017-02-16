@@ -1,5 +1,6 @@
 package minijava.backend;
 
+import static com.google.common.collect.Sets.newHashSet;
 import static org.jooq.lambda.Seq.seq;
 
 import com.google.common.collect.BiMap;
@@ -22,7 +23,7 @@ import minijava.backend.instructions.Instruction;
 import minijava.backend.lifetime.LifetimeAnalysis;
 import minijava.backend.lifetime.LifetimeAnalysisResult;
 import minijava.backend.lifetime.LifetimeInterval;
-import minijava.backend.registers.VirtualRegister;
+import minijava.backend.registers.AMD64Register;
 import minijava.backend.selection.InstructionSelector;
 import minijava.backend.syntax.GasSyntax;
 import minijava.ir.optimize.ProgramMetrics;
@@ -40,12 +41,7 @@ public class Backend {
       BiMap<Block, CodeBlock> currentFunction = InstructionSelector.selectInstructions(graph);
       blocks.putAll(currentFunction);
       List<CodeBlock> linearization = linearizeCfg(blocks, graph);
-      for (CodeBlock block : linearization) {
-        System.out.println(block.label + ":");
-        block.phis.forEach(phi -> System.out.println("  " + phi));
-        block.instructions.forEach(i -> System.out.println("  " + i));
-        System.out.println("  " + block.exit);
-      }
+      linearization.forEach(CodeBlock::printDebugInfo);
       LifetimeAnalysisResult lifetimes = LifetimeAnalysis.analyse(linearization);
 
       System.out.println();
@@ -54,22 +50,9 @@ public class Backend {
         System.out.println(interval);
       }
 
-      AllocationResult allocationResult = LinearScanRegisterAllocator.allocateRegisters(lifetimes);
-      System.out.println();
-      System.out.println("Allocation results:");
-      for (LifetimeInterval interval :
-          seq(allocationResult.allocation.keySet()).sorted(li -> li.register.id)) {
-        System.out.println(interval.register + " -> " + allocationResult.allocation.get(interval));
-        for (LifetimeInterval splitPart : allocationResult.splitLifetimes.get(interval.register)) {
-          System.out.println("  " + splitPart.ranges.from());
-        }
-      }
-      System.out.println();
-      System.out.println("Spill slots:");
-      for (Map.Entry<VirtualRegister, Integer> entry :
-          seq(allocationResult.spillSlots.entrySet()).sorted(s -> s.getKey().id)) {
-        System.out.println(entry.getKey() + " -> " + entry.getValue());
-      }
+      AllocationResult allocationResult =
+          LinearScanRegisterAllocator.allocateRegisters(lifetimes, newHashSet(AMD64Register.DI));
+      allocationResult.printDebugInfo();
 
       instructions.addAll(
           SsaDeconstruction.assembleInstructionList(linearization, allocationResult));

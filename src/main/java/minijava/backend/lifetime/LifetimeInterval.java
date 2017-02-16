@@ -4,6 +4,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 import java.util.*;
 import minijava.backend.block.CodeBlock;
+import minijava.backend.operands.Use;
 import minijava.backend.registers.Register;
 import minijava.backend.registers.VirtualRegister;
 import org.jetbrains.annotations.Nullable;
@@ -13,36 +14,43 @@ public class LifetimeInterval {
   public static final Comparator<LifetimeInterval> COMPARING_DEF =
       Comparator.comparing(LifetimeInterval::from).thenComparingInt(li -> li.register.id);
   public final VirtualRegister register;
-  public final NavigableSet<BlockPosition> defAndUses;
+  public final NavigableMap<BlockPosition, UseSite> uses;
   public final LinearLiveRanges ranges;
   public Set<Register> fromHints = new HashSet<>();
   public Set<Register> toHints = new HashSet<>();
 
   public LifetimeInterval(VirtualRegister register) {
-    this(register, new TreeSet<>(), new LinearLiveRanges());
+    this(register, new TreeMap<>(), new LinearLiveRanges());
   }
 
   private LifetimeInterval(
-      VirtualRegister register, NavigableSet<BlockPosition> defAndUses, LinearLiveRanges ranges) {
+      VirtualRegister register,
+      NavigableMap<BlockPosition, UseSite> uses,
+      LinearLiveRanges ranges) {
     this.register = register;
-    this.defAndUses = defAndUses;
+    this.uses = uses;
     this.ranges = ranges;
   }
 
   @Nullable
-  public BlockPosition firstDefOrUse() {
-    return defAndUses.isEmpty() ? null : defAndUses.first();
+  public BlockPosition firstUse() {
+    return uses.isEmpty() ? null : uses.firstKey();
   }
 
   @Nullable
-  public BlockPosition lastDefOrUse() {
-    return defAndUses.isEmpty() ? null : defAndUses.last();
-  }
-
-  @Nullable
-  public BlockPosition nextUseAfter(BlockPosition start) {
-    Iterator<BlockPosition> it = defAndUses.tailSet(start).iterator();
+  public BlockPosition nextUseAfter(BlockPosition pos) {
+    Iterator<BlockPosition> it = uses.tailMap(pos).keySet().iterator();
     return it.hasNext() ? it.next() : null;
+  }
+
+  @Nullable
+  public BlockPosition firstUseNeedingARegister() {
+    for (UseSite use : uses.values()) {
+      if (!use.mayBeReplacedByMemoryAccess) {
+        return use.position;
+      }
+    }
+    return null;
   }
 
   @Nullable
@@ -79,17 +87,17 @@ public class LifetimeInterval {
     ranges.addLiveRange(range);
   }
 
-  public void setDef(BlockPosition position) {
+  public void setDef(BlockPosition position, Use def) {
     assert position.isDef() : "Was not a definition";
     LiveRange lifetime = getLifetimeInBlock(position.block);
-    defAndUses.add(position);
+    uses.put(position, new UseSite(position, def.mayBeReplacedByMemoryAccess));
     assert lifetime != null : "There should be no defs without a later use.";
     setLiveRange(lifetime.from(position.pos));
   }
 
-  public void addUse(BlockPosition position) {
+  public void addUse(BlockPosition position, Use use) {
     assert position.isUse() : "Was not a use";
-    defAndUses.add(position);
+    uses.put(position, new UseSite(position, use.mayBeReplacedByMemoryAccess));
     LiveRange lifetime = getLifetimeInBlock(position.block);
     if (lifetime == null) {
       setLiveRange(new LiveRange(position.block, 0, position.pos));
@@ -118,13 +126,13 @@ public class LifetimeInterval {
   public Split<LifetimeInterval> splitBefore(BlockPosition pos) {
     checkArgument(ranges.from().compareTo(pos) <= 0, "pos must lie after the interval's def");
     checkArgument(ranges.to().compareTo(pos) >= 0, "pos must be before the interval dies");
-    // Note that the after split interval has a use as its first defAndUses... This might bring
+    // Note that the after split interval has a use as its first uses... This might bring
     // confusion later on, but there is no sensible def index to choose.
     Split<LinearLiveRanges> splitRanges = ranges.splitBefore(pos);
     LifetimeInterval before =
-        new LifetimeInterval(register, defAndUses.headSet(pos, false), splitRanges.before);
+        new LifetimeInterval(register, uses.headMap(pos, false), splitRanges.before);
     LifetimeInterval after =
-        new LifetimeInterval(register, defAndUses.tailSet(pos, true), splitRanges.after);
+        new LifetimeInterval(register, uses.tailMap(pos, true), splitRanges.after);
     before.fromHints = fromHints;
     after.toHints = toHints;
 
@@ -148,13 +156,13 @@ public class LifetimeInterval {
     }
     LifetimeInterval that = (LifetimeInterval) o;
     return Objects.equals(register, that.register)
-        && Objects.equals(defAndUses, that.defAndUses)
+        && Objects.equals(uses, that.uses)
         && Objects.equals(ranges, that.ranges);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(register, defAndUses, ranges);
+    return Objects.hash(register, uses, ranges);
   }
 
   @Override
@@ -162,8 +170,8 @@ public class LifetimeInterval {
     return "LifetimeInterval{"
         + "register="
         + register
-        + ", defAndUses="
-        + defAndUses
+        + ", uses="
+        + uses
         + ", ranges="
         + ranges
         + ", fromHints="

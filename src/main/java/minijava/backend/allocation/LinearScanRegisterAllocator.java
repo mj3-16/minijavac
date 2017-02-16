@@ -239,12 +239,12 @@ public class LinearScanRegisterAllocator {
   private void allocateBlockedRegister(LifetimeInterval current) {
     System.out.println();
     System.out.println("LinearScanRegisterAllocator.allocateBlockedRegister");
+    System.out.println("current = " + current);
     BlockPosition start = current.from();
-    System.out.println("start = " + start);
 
-    Map<AMD64Register, ConflictSite> nextUse = new HashMap<>();
+    Map<AMD64Register, ConflictSite> nextUses = new HashMap<>();
     for (AMD64Register register : allocatable) {
-      putEarliest(nextUse, register, ConflictSite.never());
+      putEarliest(nextUses, register, ConflictSite.never());
     }
 
     for (LifetimeInterval interval : Seq.concat(active, inactive)) {
@@ -269,45 +269,32 @@ public class LinearScanRegisterAllocator {
         continue;
       }
 
-      putEarliest(nextUse, register, ConflictSite.at(nextUseAfterCurrentDef));
+      putEarliest(nextUses, register, ConflictSite.at(nextUseAfterCurrentDef));
     }
 
-    System.out.println("nextUse = " + nextUse);
-    Tuple2<AMD64Register, ConflictSite> bestCandidate = determineBestCandidate(nextUse, current);
+    System.out.println("nextUses = " + nextUses);
+    Tuple2<AMD64Register, ConflictSite> bestCandidate = determineBestCandidate(nextUses, current);
     System.out.println("bestCandidate = " + bestCandidate);
     AMD64Register assignedRegister = bestCandidate.v1;
     ConflictSite farthestNextUse = bestCandidate.v2;
 
-    // nextUsage might not conflict if start was the last usage (which can only happen if current was split)
-    ConflictSite nextUsage = ConflictSite.atOrNever(current.nextUseAfter(start));
-    if (false && nextUsage.doesConflictAtAll()) {
-      // TODO: We don't do this yet, because we can't say if the next use needs a RegisterOperand or not.
-      // This happens when current is the result of the split. Otherwise we should always have a definition and at least
-      // one use.
-      assert current.firstDefOrUse().isUse() : "Assumed the register was split";
-      // When this interval was split, it was also assigned a spill slot.
-      // By not assigning any register, we can make the lowering step use a MemoryOperand for the use instead.
-    } else if (false && nextUsage.compareTo(farthestNextUse) > 0) {
-      // TODO: We don't do this yet, because we can't say if the next use needs a RegisterOperand or not.
+    // firstUse might not conflict if there aren't any further uses (e.g. if the interval was split)
+    ConflictSite firstUse = ConflictSite.atOrNever(current.firstUse());
+    if (!firstUse.doesConflictAtAll()) {
+      // There were no uses in the interval, so we can just lay it dormant in a spill slot.
+      // TODO: does this even happen?
+      spillSlotAllocator.allocateSpillSlot(current.register);
+      getLifetimeIntervals(current.register).add(current);
+    } else if (firstUse.compareTo(farthestNextUse) > 0) {
       // first usage is after any other conflicting interval's next usage.
-      // current is to be spilled immediately after its definition.
-      // Note that it's crucial that we use a MemoryOperand instruction when spilling, because
-      // we don't have enough registers.
-      // Actually we should split before the next use which needs a RegisterOperand.
-      LifetimeInterval before = spillSplitAndSuspendBeforeConflict(current, nextUsage);
+      // current is to be spilled immediately after its definition (which probably is in a prior
+      // interval).
+      // We can use a MemoryOperand as long as uses don't need a register.
+      ConflictSite nextRegUse = ConflictSite.atOrNever(current.firstUseNeedingARegister());
+      LifetimeInterval before = spillSplitAndSuspendBeforeConflict(current, nextRegUse);
       // This will have assigned a spill slot, but the before part is not present anywhere in our data structures.
       // We don't assign it a register, but we still have to note that it's part of the splits.
       getLifetimeIntervals(before.register).add(before);
-    } else if (farthestNextUse.doesConflictAtAll()
-        && start.equals(farthestNextUse.conflictingPosition())) {
-      // Note that it holds that start = farthestNextUse => nextUsage > farthestNextUse.
-      // We need this fallback for massive numbers of Phis, so that all hardware registers are needed simultaneously.
-      // If I ever come around to fixing those TODOs above, this shouldn't be needed any more.
-      // We try to split at the next usage, where we try to assign a register again.
-      current = spillSplitAndSuspendBeforeConflict(current, nextUsage);
-      // For the remaining interval, we have to do everything with MemoryOperands.
-      spillSlotAllocator.allocateSpillSlot(current.register);
-      getLifetimeIntervals(current.register).add(current);
     } else {
       // spill intervals that block the assignedRegister
       // First we split the active interval for assignedRegister.

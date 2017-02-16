@@ -243,7 +243,7 @@ public class InstructionSelector extends NodeVisitor.Default {
     // This is not the case if the Cmp node is only used in another block than node.getBlock(), in which case we
     // generate the 'spill' to a general purpose register directly.
     invokeTreeMatcher(node);
-    // This will only insert instructions set the flags register (e.g. Cmp, Test). If there are later usages,
+    // This will only insert instructions set the flags register (e.g. Cmp, Test). If there are later uses,
     // we also have to do the 'spill'.
     Block irBlock = (Block) node.getBlock();
     if (!usedMultipleTimes(node) && isMatchedOnInSameBlock(node)) {

@@ -1,6 +1,7 @@
 package minijava.backend.lifetime;
 
-import com.google.common.base.Preconditions;
+import static com.google.common.base.Preconditions.checkArgument;
+
 import java.util.Objects;
 import minijava.backend.block.CodeBlock;
 
@@ -11,8 +12,8 @@ public class LiveRange {
   public final int to; // inclusive
 
   public LiveRange(CodeBlock block, int from, int to) {
-    Preconditions.checkArgument(from >= 0, "ConsecutiveRange: from < 0");
-    Preconditions.checkArgument(from <= to, "ConsecutiveRange: from > to");
+    checkArgument(from >= 0, "ConsecutiveRange: from < 0");
+    checkArgument(from <= to, "ConsecutiveRange: from > to");
     this.block = block;
     this.from = from;
     this.to = to;
@@ -22,6 +23,11 @@ public class LiveRange {
     int from = BlockPosition.beginOf(block).pos;
     int to = BlockPosition.endOf(block).pos;
     return new LiveRange(block, from, to);
+  }
+
+  static LiveRange fromBlockPositions(BlockPosition from, BlockPosition to) {
+    checkArgument(from.block.equals(to.block), "from and to must be in the same block");
+    return new LiveRange(from.block, from.pos, to.pos);
   }
 
   public LiveRange from(int from) {

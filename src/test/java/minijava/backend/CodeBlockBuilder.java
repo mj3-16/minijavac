@@ -1,5 +1,8 @@
 package minijava.backend;
 
+import com.google.common.collect.Sets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 import minijava.backend.block.CodeBlock;
@@ -23,9 +26,25 @@ public class CodeBlockBuilder {
     return this;
   }
 
+  public CodeBlockBuilder addNullInstructions(int howMany) {
+    for (int i = 0; i < howMany; i++) {
+      block.instructions.add(null);
+    }
+    return this;
+  }
+
+  public CodeBlockBuilder setOrdinal(int ordinal) {
+    block.linearizedOrdinal = ordinal;
+    return this;
+  }
+
   public CodeBlockBuilder addLoopBody(Set<CodeBlock> body) {
     block.associatedLoopBody.addAll(body);
     return this;
+  }
+
+  public CodeBlockBuilder addLoopBody(CodeBlock... body) {
+    return addLoopBody(Sets.newHashSet(body));
   }
 
   public CodeBlockBuilder addPhi(Operand output, Function<PhiFunctionBuilder, PhiFunction> build) {
@@ -35,5 +54,15 @@ public class CodeBlockBuilder {
 
   public static CodeBlockBuilder newBlock(String label) {
     return new CodeBlockBuilder(new CodeBlock(label));
+  }
+
+  public static List<CodeBlock> asLinearization(CodeBlock... blocks) {
+    List<CodeBlock> ret = new ArrayList<>();
+    for (int i = 0; i < blocks.length; i++) {
+      CodeBlock block = blocks[i];
+      block.linearizedOrdinal = i;
+      ret.add(block);
+    }
+    return ret;
   }
 }

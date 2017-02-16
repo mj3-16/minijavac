@@ -4,7 +4,6 @@ import com.google.common.collect.Sets;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import minijava.backend.registers.Register;
 
 /** Operand for an assembler instruction */
 public abstract class Operand {
@@ -47,16 +46,28 @@ public abstract class Operand {
         });
   }
 
-  public Set<Register> reads(boolean inOutputPosition) {
+  public Set<Use> reads(boolean inOutputPosition) {
+    return reads(inOutputPosition, false);
+  }
+
+  public Set<Use> reads(boolean inOutputPosition, boolean mayBeMemoryAccess) {
+    // mayBeMemoryAccess can be ignored (e.g. always false) if it is not needed.
     return match(
         imm -> {
           return Sets.newHashSet();
         },
-        reg -> inOutputPosition ? Sets.newHashSet() : Sets.newHashSet(reg.register),
-        mem -> Sets.newHashSet(mem.mode.index, mem.mode.base));
+        reg ->
+            inOutputPosition
+                ? Sets.newHashSet()
+                : Sets.newHashSet(new Use(reg.register, mayBeMemoryAccess)),
+        mem -> Sets.newHashSet(new Use(mem.mode.index, false), new Use(mem.mode.base, false)));
   }
 
-  public Register writes() {
-    return match(imm -> null, reg -> reg.register, mem -> null);
+  public Use writes() {
+    return writes(false);
+  }
+
+  public Use writes(boolean mayBeMemoryAccess) {
+    return match(imm -> null, reg -> new Use(reg.register, mayBeMemoryAccess), mem -> null);
   }
 }

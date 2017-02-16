@@ -8,8 +8,9 @@ import static org.hamcrest.Matchers.nullValue;
 
 import com.beust.jcommander.internal.Lists;
 import firm.Relation;
-import java.util.ArrayList;
 import java.util.List;
+import minijava.backend.CodeBlockBuilder;
+import minijava.backend.ExampleProgram;
 import minijava.backend.VirtualRegisterSupply;
 import minijava.backend.block.CodeBlock;
 import minijava.backend.block.CodeBlock.ExitArity.One;
@@ -31,7 +32,7 @@ public class LifetimeAnalysisTest {
   private final VirtualRegisterSupply supply = new VirtualRegisterSupply();
 
   @Test
-  public void testIfElse() {
+  public void ifElse() {
     VirtualRegister a = supply.next();
     VirtualRegister b = supply.next();
     VirtualRegister c = supply.next();
@@ -57,7 +58,7 @@ public class LifetimeAnalysisTest {
     greaterEqual.exit = new One(exit);
     exit.exit = new Zero();
 
-    List<CodeBlock> codeBlocks = asLinearization(entry, less, greaterEqual, exit);
+    List<CodeBlock> codeBlocks = CodeBlockBuilder.asLinearization(entry, less, greaterEqual, exit);
     LifetimeAnalysisResult result = LifetimeAnalysis.analyse(codeBlocks);
 
     LifetimeInterval liA = result.virtualIntervals.get(a);
@@ -77,6 +78,20 @@ public class LifetimeAnalysisTest {
     Assert.assertThat("Propagates hint from Call", liB.toHints, hasItem(DI));
   }
 
+  @Test
+  public void loopCountingToFive_invariantDefAliveInWholeBody() {
+    ExampleProgram example = ExampleProgram.loopCountingToFive();
+    LifetimeAnalysisResult result = LifetimeAnalysis.analyse(example.program);
+
+    // r2 is the constant 1 argument to an Add in the loop body.
+    VirtualRegister r2 = example.registers.get(2);
+    // footer is the loop footer in the example.
+    CodeBlock footer = example.program.get(3);
+    Assert.assertTrue(
+        "The invariant definition should be alive in the whole loop body",
+        result.virtualIntervals.get(r2).covers(BlockPosition.endOf(footer)));
+  }
+
   private static void assertAliveIn(LifetimeInterval li, String name, CodeBlock where) {
     Assert.assertThat(
         String.format("%s is alive in '%s'", name, where.label),
@@ -89,16 +104,6 @@ public class LifetimeAnalysisTest {
         String.format("%s is dead in '%s'", name, where.label),
         li.getLifetimeInBlock(where),
         nullValue());
-  }
-
-  private static List<CodeBlock> asLinearization(CodeBlock... blocks) {
-    List<CodeBlock> ret = new ArrayList<>();
-    for (int i = 0; i < blocks.length; i++) {
-      CodeBlock block = blocks[i];
-      block.linearizedOrdinal = i;
-      ret.add(block);
-    }
-    return ret;
   }
 
   private static Operand imm(long value) {

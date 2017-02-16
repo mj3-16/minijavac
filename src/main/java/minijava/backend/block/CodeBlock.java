@@ -126,4 +126,11 @@ public class CodeBlock {
       }
     }
   }
+
+  public void printDebugInfo() {
+    System.out.println(label + ":");
+    phis.forEach(phi -> System.out.println("  " + phi));
+    instructions.forEach(i -> System.out.println("  " + i));
+    System.out.println("  " + exit);
+  }
 }

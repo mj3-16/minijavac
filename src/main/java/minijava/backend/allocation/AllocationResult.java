@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.TreeMap;
 import minijava.backend.SystemVAbi;
 import minijava.backend.lifetime.BlockPosition;
@@ -49,13 +50,13 @@ public class AllocationResult {
           System.out.println("AllocationResult.determineWhereToSpillAndReload");
           System.out.println("reg = " + reg);
           System.out.println("splits.ranges = " + seq(splits).map(s -> s.ranges).toList());
-          System.out.println("splits.defAndUses = " + seq(splits).map(s -> s.defAndUses).toList());
+          System.out.println("splits.uses = " + seq(splits).map(s -> s.uses).toList());
           // otherwise we have to spill within the first interval and reload at the begin of every following.
           Iterator<LifetimeInterval> it = splits.iterator();
           LifetimeInterval first = it.next();
           // Spill immediately after the definition to avoid spilling more often than the value is defined (e.g. not in
           // loops).
-          BlockPosition def = first.firstDefOrUse();
+          BlockPosition def = first.firstUse();
           assert def != null;
           assert def.isDef() : "The first interval of a split was not a def";
           events.put(def, new SpillEvent(SPILL, first));
@@ -66,7 +67,7 @@ public class AllocationResult {
               // We don't (and can't) reload.
               continue;
             }
-            BlockPosition use = following.firstDefOrUse();
+            BlockPosition use = following.firstUse();
             System.out.println(following + " -> " + allocation.get(following));
             assert use != null;
             assert use.isUse() : "A following use wasn't really a use";
@@ -149,5 +150,26 @@ public class AllocationResult {
       SPILL,
       RELOAD
     }
+  }
+
+  public void printDebugInfo() {
+    System.out.println();
+    System.out.println("AllocationResult.printDebugInfo");
+    System.out.println("Split lifetimes:");
+    for (Entry<VirtualRegister, List<LifetimeInterval>> entry : splitLifetimes.entrySet()) {
+      System.out.print(entry.getKey() + " -> [");
+      for (LifetimeInterval li : entry.getValue()) {
+        System.out.println();
+        System.out.print("  uses=" + li.uses.values());
+        System.out.print(", ranges=" + li.ranges);
+        System.out.print(", assigned register=" + allocation.get(li));
+      }
+      System.out.println();
+      System.out.println("]");
+    }
+
+    System.out.println("spillSlots = " + spillSlots);
+    System.out.println("spillEvents = " + spillEvents);
+    System.out.println();
   }
 }

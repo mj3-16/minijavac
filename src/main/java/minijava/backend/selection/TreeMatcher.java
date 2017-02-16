@@ -311,7 +311,7 @@ class TreeMatcher extends NodeVisitor.Default {
   private void saveDefinitions() {
     for (Instruction instruction : instructions) {
       for (VirtualRegister register :
-          Seq.seq(instruction.definitions()).ofType(VirtualRegister.class)) {
+          Seq.seq(instruction.defs()).map(use -> use.register).ofType(VirtualRegister.class)) {
         if (mapping.getDefinition(register) == null) {
           // There may be multiple instructions 'defining' a register (e.g. 2-adress code overwriting its right op).
           // This means we don't truly have SSA form, but nothing relies on the fact that the values don't change.

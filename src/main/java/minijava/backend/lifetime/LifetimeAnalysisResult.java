@@ -8,7 +8,7 @@ public class LifetimeAnalysisResult {
   public final Map<VirtualRegister, LifetimeInterval> virtualIntervals;
   public final Map<AMD64Register, FixedInterval> fixedIntervals;
 
-  LifetimeAnalysisResult(
+  public LifetimeAnalysisResult(
       Map<VirtualRegister, LifetimeInterval> virtualIntervals,
       Map<AMD64Register, FixedInterval> fixedIntervals) {
     this.virtualIntervals = virtualIntervals;

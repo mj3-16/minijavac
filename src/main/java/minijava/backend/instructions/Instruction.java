@@ -11,11 +11,12 @@ import minijava.backend.operands.ImmediateOperand;
 import minijava.backend.operands.Operand;
 import minijava.backend.operands.OperandWidth;
 import minijava.backend.operands.RegisterOperand;
+import minijava.backend.operands.Use;
 import minijava.backend.registers.Register;
 import org.jooq.lambda.Seq;
 
 public abstract class Instruction {
-  // We need to separate input from output operands in order to differentiate usages from defs.
+  // We need to separate input from output operands in order to differentiate uses from defs.
   // Mostly input operands subsume output operands but there are cases such as Mov, where
   // the RHS is not an input if it's a RegisterOperand.
   // We need to store output operands as operands rather than registers, because otherwise we would
@@ -23,6 +24,7 @@ public abstract class Instruction {
   private final List<Operand> inputs;
   private final List<Operand> outputs;
   private final Set<Register> hints = new HashSet<>();
+  private final Set<Operand> mayBeMemory = new HashSet<>();
 
   protected Instruction(List<Operand> inputs, List<Operand> outputs) {
     Preconditions.checkArgument(!inputs.contains(null), "null input operand");
@@ -46,19 +48,26 @@ public abstract class Instruction {
     }
   }
 
-  public Set<Register> usages() {
-    Set<Register> usages = new HashSet<>();
-    for (Operand input : inputs) {
-      usages.addAll(input.reads(false));
-    }
-    for (Operand output : outputs) {
-      usages.addAll(output.reads(true));
-    }
-    return usages;
+  protected void setMayBeMemory(Operand which) {
+    mayBeMemory.add(which);
   }
 
-  public Set<Register> definitions() {
-    return seq(outputs).ofType(RegisterOperand.class).map(def -> def.register).toSet();
+  public Set<Use> uses() {
+    Set<Use> uses = new HashSet<>();
+    for (Operand input : inputs) {
+      uses.addAll(input.reads(false, mayBeMemory.contains(input)));
+    }
+    for (Operand output : outputs) {
+      uses.addAll(output.reads(true, mayBeMemory.contains(output)));
+    }
+    return uses;
+  }
+
+  public Set<Use> defs() {
+    return seq(outputs)
+        .ofType(RegisterOperand.class)
+        .map(def -> new Use(def.register, mayBeMemory.contains(def)))
+        .toSet();
   }
 
   public abstract void accept(Visitor visitor);

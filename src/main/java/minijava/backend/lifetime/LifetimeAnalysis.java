@@ -11,6 +11,7 @@ import minijava.backend.block.PhiFunction;
 import minijava.backend.instructions.Instruction;
 import minijava.backend.operands.Operand;
 import minijava.backend.operands.RegisterOperand;
+import minijava.backend.operands.Use;
 import minijava.backend.registers.AMD64Register;
 import minijava.backend.registers.Register;
 import minijava.backend.registers.VirtualRegister;
@@ -56,11 +57,11 @@ public class LifetimeAnalysis {
       Instruction instruction = block.instructions.get(i);
       BlockPosition def = BlockPosition.definedBy(block, i);
       BlockPosition use = BlockPosition.usedBy(block, i);
-      for (Register defined : instruction.definitions()) {
-        defined.match(
+      for (Use definition : instruction.defs()) {
+        definition.register.match(
             vr -> {
               LifetimeInterval interval = getInterval(vr);
-              interval.setDef(def);
+              interval.setDef(def, definition);
               Set<Register> hints = instruction.registerHints();
               if (hints.contains(vr)) {
                 addTransitiveHints(vr, interval.fromHints, hints);
@@ -74,11 +75,11 @@ public class LifetimeAnalysis {
             });
       }
 
-      for (Register used : instruction.usages()) {
-        used.match(
+      for (Use usage : instruction.uses()) {
+        usage.register.match(
             vr -> {
               LifetimeInterval interval = getInterval(vr);
-              interval.addUse(use);
+              interval.addUse(use, usage);
               Set<Register> hints = instruction.registerHints();
               if (live.add(vr) && hints.contains(vr)) {
                 // This was the last usage.
@@ -95,11 +96,11 @@ public class LifetimeAnalysis {
 
     for (PhiFunction phi : block.phis) {
       // N.B.: phi output registers aren't visible before the begin of the block, as aren't inputs.
-      Register written = phi.output.writes();
-      if (live.remove(written)) {
-        VirtualRegister vr = (VirtualRegister) written;
+      Use def = phi.output.writes(true);
+      if (def != null && live.remove(def.register)) {
+        VirtualRegister vr = (VirtualRegister) def.register;
         LifetimeInterval interval = getInterval(vr);
-        interval.setDef(BlockPosition.beginOf(block));
+        interval.setDef(BlockPosition.beginOf(block), def);
         addTransitiveHints(vr, interval.fromHints, phi.registerHints());
       }
     }
@@ -130,13 +131,13 @@ public class LifetimeAnalysis {
     for (CodeBlock successor : block.exit.getSuccessors()) {
       for (PhiFunction phi : successor.phis) {
         Operand input = phi.inputs.get(block);
-        Set<Register> reads = input.reads(false);
-        reads.addAll(phi.output.reads(true));
-        for (Register alive : reads) {
-          if (alive instanceof VirtualRegister) {
-            VirtualRegister aliveVirtual = (VirtualRegister) alive;
+        Set<Use> reads = input.reads(false, true);
+        reads.addAll(phi.output.reads(true, true));
+        for (Use use : reads) {
+          if (use.register instanceof VirtualRegister) {
+            VirtualRegister aliveVirtual = (VirtualRegister) use.register;
             live.add(aliveVirtual);
-            getInterval(aliveVirtual).addUse(BlockPosition.endOf(block));
+            getInterval(aliveVirtual).addUse(BlockPosition.endOf(block), use);
           }
         }
 

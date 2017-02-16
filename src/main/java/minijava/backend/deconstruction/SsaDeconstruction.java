@@ -126,6 +126,7 @@ public class SsaDeconstruction {
     return seq(moves)
         .map(m -> Sets.union(m.src.reads(false), m.dest.reads(true)))
         .flatMap(Seq::seq)
+        .map(use -> use.register)
         .cast(AMD64Register.class)
         .toSet();
   }
