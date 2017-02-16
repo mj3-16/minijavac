@@ -16,9 +16,9 @@ import minijava.backend.block.PhiFunction;
 import minijava.backend.instructions.Add;
 import minijava.backend.instructions.And;
 import minijava.backend.instructions.Call;
-import minijava.backend.instructions.Cltd;
 import minijava.backend.instructions.Cmp;
 import minijava.backend.instructions.CodeBlockInstruction;
+import minijava.backend.instructions.Cqto;
 import minijava.backend.instructions.Enter;
 import minijava.backend.instructions.IDiv;
 import minijava.backend.instructions.IMul;
@@ -149,8 +149,8 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
   }
 
   @Override
-  public void visit(Cltd cltd) {
-    lowered.add(cltd);
+  public void visit(Cqto cqto) {
+    lowered.add(cqto);
   }
 
   @Override

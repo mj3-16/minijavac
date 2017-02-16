@@ -207,7 +207,7 @@ class TreeMatcher extends NodeVisitor.Default {
   }
 
   private void projectDivOrMod(Proj proj, Node node) {
-    RegisterOperand dividend = cltd(operandForNode(node.getPred(1)));
+    RegisterOperand dividend = cqto(operandForNode(node.getPred(1)));
     assert dividend.register == AMD64Register.A;
     Operand divisor = operandForNode(node.getPred(2));
 
@@ -223,9 +223,11 @@ class TreeMatcher extends NodeVisitor.Default {
     }
   }
 
-  private RegisterOperand cltd(Operand op) {
-    instructions.add(new Cltd(op.width));
-    return new RegisterOperand(op.width, AMD64Register.A);
+  private RegisterOperand cqto(Operand op) {
+    RegisterOperand a = new RegisterOperand(op.width, AMD64Register.A);
+    instructions.add(new Mov(op, a));
+    instructions.add(new Cqto(op.width));
+    return a;
   }
 
   private void projectLoad(Proj proj, Node pred) {

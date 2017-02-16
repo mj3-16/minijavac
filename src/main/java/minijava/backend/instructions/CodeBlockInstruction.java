@@ -44,7 +44,7 @@ public abstract class CodeBlockInstruction extends Instruction {
 
     default void visit(Call call) {}
 
-    default void visit(Cltd cltd) {}
+    default void visit(Cqto cqto) {}
 
     default void visit(Cmp cmp) {}
 

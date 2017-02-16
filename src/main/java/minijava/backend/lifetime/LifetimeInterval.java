@@ -171,7 +171,7 @@ public class LifetimeInterval {
         + "register="
         + register
         + ", uses="
-        + uses
+        + uses.values()
         + ", ranges="
         + ranges
         + ", fromHints="

@@ -4,8 +4,8 @@ import minijava.backend.operands.OperandWidth;
 import minijava.backend.registers.AMD64Register;
 import org.jooq.lambda.Seq;
 
-public class Cltd extends CodeBlockInstruction {
-  public Cltd(OperandWidth width) {
+public class Cqto extends CodeBlockInstruction {
+  public Cqto(OperandWidth width) {
     super(
         toOperands(width, Seq.of(AMD64Register.A)),
         toOperands(width, Seq.of(AMD64Register.A, AMD64Register.D)));

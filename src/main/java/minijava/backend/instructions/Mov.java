@@ -3,6 +3,7 @@ package minijava.backend.instructions;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.Lists.newArrayList;
 
+import minijava.backend.operands.MemoryOperand;
 import minijava.backend.operands.Operand;
 
 public class Mov extends CodeBlockInstruction {
@@ -15,6 +16,9 @@ public class Mov extends CodeBlockInstruction {
     this.src = src;
     this.dest = dest;
     setHints(src, dest);
+    if (!(dest instanceof MemoryOperand)) {
+      setMayBeMemory(src);
+    }
   }
 
   @Override

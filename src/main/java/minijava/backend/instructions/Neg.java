@@ -10,6 +10,7 @@ public class Neg extends CodeBlockInstruction {
   public Neg(Operand inout) {
     super(newArrayList(inout), newArrayList(inout));
     this.inout = inout;
+    setMayBeMemory(inout);
   }
 
   @Override

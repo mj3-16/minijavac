@@ -87,8 +87,8 @@ public class GasSyntax implements Instruction.Visitor {
   }
 
   @Override
-  public void visit(Cltd cltd) {
-    appendLine("cltd", true);
+  public void visit(Cqto cqto) {
+    appendLine("cqto", true);
   }
 
   @Override
