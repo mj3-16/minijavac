@@ -70,7 +70,7 @@ class ConflictSite implements Comparable<ConflictSite> {
   @Override
   public String toString() {
     if (doesConflictAtAll()) {
-      return "ConflicSite.at(" + position + ')';
+      return "ConflictSite.at(" + position + ')';
     } else {
       return "ConflictSite.never()";
     }

@@ -71,6 +71,8 @@ public class LinearScanRegisterAllocator {
   private boolean tryAllocateFreeRegister(LifetimeInterval current) {
     BlockPosition start = current.from();
     BlockPosition end = current.to();
+    System.out.println();
+    System.out.println("LinearScanRegisterAllocator.tryAllocateFreeRegister");
     System.out.println("start = " + start);
     Map<AMD64Register, ConflictSite> freeUntil = new TreeMap<>();
 
@@ -121,7 +123,6 @@ public class LinearScanRegisterAllocator {
 
   private void putEarliest(
       Map<AMD64Register, ConflictSite> freeUntil, AMD64Register register, ConflictSite newSite) {
-    System.out.println("newSite = " + newSite);
     ConflictSite old = freeUntil.computeIfAbsent(register, k -> ConflictSite.never());
     if (old.compareTo(newSite) > 0) {
       freeUntil.put(register, newSite);
@@ -280,6 +281,11 @@ public class LinearScanRegisterAllocator {
 
     // firstUse might not conflict if there aren't any further uses (e.g. if the interval was split)
     ConflictSite firstUse = ConflictSite.atOrNever(current.firstUse());
+    assert !firstUse.doesConflictAtAll()
+            || !firstUse.conflictingPosition().equals(start)
+            || !firstUse.equals(farthestNextUse)
+        : "We can't make any progress when all registers are in use at first use of the interval. "
+            + "There aren't enough allocatable registers for the architecture.";
     if (!firstUse.doesConflictAtAll()) {
       // There were no uses in the interval, so we can just lay it dormant in a spill slot.
       // TODO: does this even happen?
@@ -301,8 +307,11 @@ public class LinearScanRegisterAllocator {
       // This will delete the unsplit interval and instead re-add the first split part, assigned
       // to the old register, but will re-insert the other conflicting split half into unhandled.
       for (LifetimeInterval interval : filterByAllocatedRegister(active, assignedRegister)) {
-        System.out.println("Splitting " + interval.register + " at " + farthestNextUse);
-        LifetimeInterval before = spillSplitAndSuspendBeforeConflict(interval, farthestNextUse);
+        System.out.println("Splitting " + interval.register + " at " + start);
+        // We split it at start, reflecting the fact that at this position there is no longer
+        // a register assigned.
+        LifetimeInterval before =
+            spillSplitAndSuspendBeforeConflict(interval, ConflictSite.at(start));
         renameInterval(interval, before);
       }
 
@@ -348,6 +357,8 @@ public class LinearScanRegisterAllocator {
    */
   private LifetimeInterval spillSplitAndSuspendBeforeConflict(
       LifetimeInterval current, ConflictSite conflict) {
+    assert !conflict.doesConflictAtAll()
+        || conflict.conflictingPosition().compareTo(current.from()) >= 0;
     System.out.println("conflict = " + conflict);
     spillSlotAllocator.allocateSpillSlot(current.register);
     if (!conflict.doesConflictAtAll()
@@ -361,7 +372,7 @@ public class LinearScanRegisterAllocator {
       return current;
     }
     Split<LifetimeInterval> split = current.splitBefore(conflict.conflictingPosition());
-    unhandled.add(split.after);
+    assert unhandled.add(split.after);
     return split.before;
   }
 
