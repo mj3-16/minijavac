@@ -19,6 +19,7 @@ import minijava.backend.lifetime.BlockPosition;
 import minijava.backend.lifetime.FixedInterval;
 import minijava.backend.lifetime.LifetimeAnalysisResult;
 import minijava.backend.lifetime.LifetimeInterval;
+import minijava.backend.lifetime.LiveRange;
 import minijava.backend.lifetime.Split;
 import minijava.backend.registers.AMD64Register;
 import minijava.backend.registers.Register;
@@ -59,7 +60,9 @@ public class LinearScanRegisterAllocator {
       System.out.println("LinearScanRegisterAllocator.allocate");
       System.out.println(current);
       CodeBlock first = current.firstBlock();
-      BlockPosition startPosition = current.getLifetimeInBlock(first).fromPosition();
+      LiveRange rangeInFirstBlock = current.getLifetimeInBlock(first);
+      assert rangeInFirstBlock != null : "The interval should be alive in its first block";
+      BlockPosition startPosition = rangeInFirstBlock.fromPosition();
 
       moveHandledAndInactiveFromActive(startPosition);
       moveHandledAndActiveFromInactive(startPosition);
@@ -68,6 +71,8 @@ public class LinearScanRegisterAllocator {
         allocateBlockedRegister(current);
       }
     }
+
+    optimizeSplitPositions();
 
     return new AllocationResult(allocation, splitLifetimes, spillSlotAllocator.spillSlots);
   }
@@ -399,6 +404,31 @@ public class LinearScanRegisterAllocator {
         inactive.add(li);
       }
     }
+  }
+
+  private void optimizeSplitPositions() {
+    for (List<LifetimeInterval> splits : splitLifetimes.values()) {
+      // We may always move the start of spilled intervals further to the front.
+      // There are two useful heuristics:
+      // 1. Move splits out of loops
+      // 2. Move splits to block boundaries
+      for (int i = 0; i < splits.size() - 1; i++) {
+        LifetimeInterval previous = splits.get(i);
+        LifetimeInterval current = splits.get(i + 1);
+        if (isSpilled(current)) {
+          BlockPosition lastUse = previous.lastUse();
+          assert lastUse != null
+              : "The current interval was spilled, so the previous must have a use";
+          BlockPosition bestCandidate = current.from();
+          // TODO x) Needs some elaborate guess work (or bloat in CodeBlock) to identify loop
+          // nesting levels
+        }
+      }
+    }
+  }
+
+  private boolean isSpilled(LifetimeInterval current) {
+    return allocation.get(current) == null;
   }
 
   public static AllocationResult allocateRegisters(LifetimeAnalysisResult lifetimes) {

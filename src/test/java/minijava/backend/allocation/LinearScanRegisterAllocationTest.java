@@ -97,6 +97,10 @@ public class LinearScanRegisterAllocationTest {
         Assert.assertTrue(
             "Splits of the same register may not have holes",
             !endPrev.block.equals(startNext.block) || endPrev.pos + 1 == startNext.pos);
+
+        Assert.assertTrue(
+            "Consecutive splits which are spilled should be merged",
+            result.allocation.get(prev) != null || result.allocation.get(next) != null);
       }
 
       LifetimeInterval first = splits.get(0);

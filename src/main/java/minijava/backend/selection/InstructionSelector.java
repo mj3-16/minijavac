@@ -95,8 +95,9 @@ public class InstructionSelector extends NodeVisitor.Default {
       // We also have to add all blocks of the loop body, it it's a header.
       for (int predNum : NodeUtils.incomingBackEdges(block)) {
         Block loopFooter = (Block) block.getPred(predNum).getBlock();
-        for (Block bodyBlock : GraphUtils.allBlocksBetween(loopFooter, block)) {
-          codeBlock.associatedLoopBody.add(getCodeBlock(bodyBlock));
+        for (Block irBodyBlock : GraphUtils.allBlocksBetween(loopFooter, block)) {
+          CodeBlock bodyBlock = getCodeBlock(irBodyBlock);
+          codeBlock.associatedLoopBody.add(bodyBlock);
         }
       }
     }

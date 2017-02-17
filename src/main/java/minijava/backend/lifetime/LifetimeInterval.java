@@ -38,6 +38,11 @@ public class LifetimeInterval {
   }
 
   @Nullable
+  public BlockPosition lastUse() {
+    return uses.isEmpty() ? null : uses.lastKey();
+  }
+
+  @Nullable
   public BlockPosition nextUseAfter(BlockPosition pos) {
     Iterator<BlockPosition> it = uses.tailMap(pos).keySet().iterator();
     return it.hasNext() ? it.next() : null;
