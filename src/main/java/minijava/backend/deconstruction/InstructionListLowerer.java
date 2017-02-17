@@ -62,6 +62,13 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
     lowered.add(label);
 
     List<CodeBlockInstruction> highLevel = block.instructions;
+    BlockPosition phiDef = BlockPosition.definedBy(block, -1);
+    AllocationResult.SpillEvent afterPhiDef = allocationResult.spillEvents.get(phiDef);
+    if (afterPhiDef != null) {
+      System.out.println("phiDef = " + phiDef);
+      System.out.println("afterPhiDef = " + afterPhiDef);
+      addSpill(afterPhiDef);
+    }
     for (int i = 0; i < highLevel.size(); ++i) {
       instructionCounter = i;
       BlockPosition def = BlockPosition.definedBy(block, i);
