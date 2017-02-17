@@ -13,7 +13,6 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.function.Function;
 import minijava.backend.block.CodeBlock;
 import minijava.backend.lifetime.BlockPosition;
@@ -48,12 +47,17 @@ public class LinearScanRegisterAllocator {
       LifetimeAnalysisResult lifetimes, Set<AMD64Register> allocatable) {
     this.fixedIntervals = lifetimes.fixedIntervals;
     this.allocatable = allocatable;
-    this.unhandled = new ConcurrentSkipListSet<>(LifetimeInterval.COMPARING_DEF);
+    this.unhandled = new TreeSet<>(LifetimeInterval.COMPARING_DEF);
     this.unhandled.addAll(lifetimes.virtualIntervals.values());
   }
 
   private AllocationResult allocate() {
-    for (LifetimeInterval current : unhandled) {
+    while (!unhandled.isEmpty()) {
+      LifetimeInterval current = unhandled.first();
+      unhandled.remove(current);
+      System.out.println();
+      System.out.println("LinearScanRegisterAllocator.allocate");
+      System.out.println(current);
       CodeBlock first = current.firstBlock();
       BlockPosition startPosition = current.getLifetimeInBlock(first).fromPosition();
 
@@ -281,23 +285,18 @@ public class LinearScanRegisterAllocator {
 
     // firstUse might not conflict if there aren't any further uses (e.g. if the interval was split)
     ConflictSite firstUse = ConflictSite.atOrNever(current.firstUse());
-    assert !firstUse.doesConflictAtAll()
-            || !firstUse.conflictingPosition().equals(start)
-            || !firstUse.equals(farthestNextUse)
-        : "We can't make any progress when all registers are in use at first use of the interval. "
-            + "There aren't enough allocatable registers for the architecture.";
+    ConflictSite firstRegUse = ConflictSite.atOrNever(current.firstUseNeedingARegister());
     if (!firstUse.doesConflictAtAll()) {
       // There were no uses in the interval, so we can just lay it dormant in a spill slot.
-      // TODO: does this even happen?
       spillSlotAllocator.allocateSpillSlot(current.register);
       getLifetimeIntervals(current.register).add(current);
-    } else if (firstUse.compareTo(farthestNextUse) > 0) {
-      // first usage is after any other conflicting interval's next usage.
+    } else if (firstUse.compareTo(farthestNextUse) > 0
+        || firstUse.equals(farthestNextUse) && firstRegUse.compareTo(farthestNextUse) > 0) {
+      // first usage is after any other conflicting interval's next usage, or it is used at
+      // any other interval's next usage but we can use a MemoryOperand.
       // current is to be spilled immediately after its definition (which probably is in a prior
       // interval).
-      // We can use a MemoryOperand as long as uses don't need a register.
-      ConflictSite nextRegUse = ConflictSite.atOrNever(current.firstUseNeedingARegister());
-      LifetimeInterval before = spillSplitAndSuspendBeforeConflict(current, nextRegUse);
+      LifetimeInterval before = spillSplitAndSuspendBeforeConflict(current, firstRegUse);
       // This will have assigned a spill slot, but the before part is not present anywhere in our data structures.
       // We don't assign it a register, but we still have to note that it's part of the splits.
       getLifetimeIntervals(before.register).add(before);

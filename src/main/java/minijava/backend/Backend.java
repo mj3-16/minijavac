@@ -51,8 +51,7 @@ public class Backend {
       }
 
       AllocationResult allocationResult =
-          LinearScanRegisterAllocator.allocateRegisters(
-              lifetimes, newHashSet(AMD64Register.A, AMD64Register.DI));
+          LinearScanRegisterAllocator.allocateRegisters(lifetimes, newHashSet(AMD64Register.DI));
       allocationResult.printDebugInfo();
 
       instructions.addAll(
