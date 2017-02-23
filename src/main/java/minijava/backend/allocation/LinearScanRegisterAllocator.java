@@ -279,6 +279,7 @@ public class LinearScanRegisterAllocator {
         continue;
       }
 
+      System.out.println("nextUseAfterCurrentDef = " + nextUseAfterCurrentDef);
       putEarliest(nextUses, register, ConflictSite.at(nextUseAfterCurrentDef));
     }
 
@@ -311,7 +312,10 @@ public class LinearScanRegisterAllocator {
       // This will delete the unsplit interval and instead re-add the first split part, assigned
       // to the old register, but will re-insert the other conflicting split half into unhandled.
       for (LifetimeInterval interval : filterByAllocatedRegister(active, assignedRegister)) {
+        // FIXME: what if interval starts at
+        System.out.println(interval);
         System.out.println("Splitting " + interval.register + " at " + start);
+        System.out.println(current.ranges.firstIntersectionWith(interval.ranges));
         // We split it at start, reflecting the fact that at this position there is no longer
         // a register assigned.
         LifetimeInterval before =
