@@ -94,6 +94,9 @@ public class AllocationResult {
   }
 
   public AMD64Register assignedRegisterAt(Register what, BlockPosition where) {
+    if (what == null) {
+      return null;
+    }
     return what.match(
         virt -> {
           for (LifetimeInterval li : getInterval(virt)) {

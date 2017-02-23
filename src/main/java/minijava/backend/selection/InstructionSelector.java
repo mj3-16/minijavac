@@ -27,6 +27,7 @@ import firm.nodes.Phi;
 import firm.nodes.Proj;
 import firm.nodes.Return;
 import firm.nodes.Start;
+import firm.nodes.Store;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -303,6 +304,12 @@ public class InstructionSelector extends NodeVisitor.Default {
   }
 
   @Override
+  public void visit(Store node) {
+    // These are only forced by their side-effects, which we completely ignore everywhere else.
+    invokeTreeMatcher(node);
+  }
+
+  @Override
   public void visit(Start node) {
     getCodeBlock(graph.getStartBlock()).instructions.add(0, new Enter());
   }
@@ -368,6 +375,7 @@ public class InstructionSelector extends NodeVisitor.Default {
           List<Node> withoutRetained = partition.v2.toList();
           // This will only visit nodes which were retained previously. See isToBeRetained.
           List<Node> onlyRetained = partition.v1.toList();
+          withoutRetained.forEach(System.out::println);
 
           withoutRetained.forEach(n -> n.accept(selector));
           // This split is necessary because of the side-effects of instruction ordering on the flags register.

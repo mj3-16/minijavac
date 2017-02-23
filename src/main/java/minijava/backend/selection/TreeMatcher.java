@@ -262,6 +262,7 @@ class TreeMatcher extends NodeVisitor.Default {
     Operand value = operandForNode(store.getValue());
     OperandWidth width = modeToWidth(store.getValue().getMode());
     MemoryOperand dest = new MemoryOperand(width, address);
+    System.out.println("hi");
     instructions.add(new Mov(value, dest));
   }
 

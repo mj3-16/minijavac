@@ -1,7 +1,10 @@
 package minijava.backend.operands;
 
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
+import org.jetbrains.annotations.Nullable;
 
 /** An operand loaded from memory via a specified addressing mode. */
 public class MemoryOperand extends Operand {
@@ -24,6 +27,24 @@ public class MemoryOperand extends Operand {
       Function<RegisterOperand, T> matchReg,
       Function<MemoryOperand, T> matchMem) {
     return matchMem.apply(this);
+  }
+
+  @Override
+  public Set<Use> reads(boolean inOutputPosition, boolean mayBeMemoryAccess) {
+    Set<Use> reads = new HashSet<>();
+    if (mode.base != null) {
+      reads.add(new Use(mode.base, false));
+    }
+    if (mode.index != null) {
+      reads.add(new Use(mode.index, false));
+    }
+    return reads;
+  }
+
+  @Nullable
+  @Override
+  public Use writes(boolean mayBeMemoryAccess) {
+    return null;
   }
 
   @Override

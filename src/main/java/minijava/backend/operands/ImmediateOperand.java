@@ -1,7 +1,10 @@
 package minijava.backend.operands;
 
+import com.google.common.collect.Sets;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
+import org.jetbrains.annotations.Nullable;
 
 /** Constant operand for assembler instructions */
 public class ImmediateOperand extends Operand {
@@ -50,5 +53,16 @@ public class ImmediateOperand extends Operand {
       Function<RegisterOperand, T> matchReg,
       Function<MemoryOperand, T> matchMem) {
     return matchImm.apply(this);
+  }
+
+  @Override
+  public Set<Use> reads(boolean inOutputPosition, boolean mayBeMemoryAccess) {
+    return Sets.newHashSet();
+  }
+
+  @Nullable
+  @Override
+  public Use writes(boolean mayBeMemoryAccess) {
+    return null;
   }
 }

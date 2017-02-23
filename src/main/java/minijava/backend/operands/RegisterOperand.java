@@ -2,7 +2,9 @@ package minijava.backend.operands;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
+import com.google.common.collect.Sets;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import minijava.backend.registers.Register;
 
@@ -27,6 +29,18 @@ public class RegisterOperand extends Operand {
       Function<RegisterOperand, T> matchReg,
       Function<MemoryOperand, T> matchMem) {
     return matchReg.apply(this);
+  }
+
+  @Override
+  public Set<Use> reads(boolean inOutputPosition, boolean mayBeMemoryAccess) {
+    return inOutputPosition
+        ? Sets.newHashSet()
+        : Sets.newHashSet(new Use(register, mayBeMemoryAccess));
+  }
+
+  @Override
+  public Use writes(boolean mayBeMemoryAccess) {
+    return new Use(register, mayBeMemoryAccess);
   }
 
   @Override

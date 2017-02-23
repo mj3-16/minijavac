@@ -249,8 +249,17 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
           return allocationResult.hardwareOperandAt(reg.width, reg.register, position);
         },
         mem -> {
-          AMD64Register base = allocationResult.assignedRegisterAt(mem.mode.base, position);
-          AMD64Register index = allocationResult.assignedRegisterAt(mem.mode.index, position);
+          System.out.println("mem = " + mem);
+          BlockPosition use = position;
+          if (position.isDef()) {
+            // Register access to memory operands counts as a use before the actual def.
+            // this is relevant for mov sth, (%reg), where reg is a use, not a def.
+            use = new BlockPosition(position.block, position.pos - 1);
+          }
+          AMD64Register base = allocationResult.assignedRegisterAt(mem.mode.base, use);
+          AMD64Register index = allocationResult.assignedRegisterAt(mem.mode.index, use);
+          System.out.println("base = " + base);
+          System.out.println("index = " + index);
           // We can't handle MemoryOperands where the referenced registers are spilled (yet).
           // That would entail rewriting the MemoryOperand as a series of Push/Pops.
           // Fortunately, this only happens when register pressure is really high and we make use of elaborate
