@@ -1,6 +1,7 @@
 package minijava.backend.lifetime;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static org.jooq.lambda.Seq.seq;
 
 import java.util.*;
 import minijava.backend.block.CodeBlock;
@@ -40,6 +41,14 @@ public class LifetimeInterval {
   @Nullable
   public BlockPosition lastUse() {
     return uses.isEmpty() ? null : uses.lastKey();
+  }
+
+  @Nullable
+  public BlockPosition lastDef() {
+    return seq(uses.navigableKeySet().descendingSet())
+        .filter(BlockPosition::isDef)
+        .findFirst()
+        .orElse(null);
   }
 
   @Nullable

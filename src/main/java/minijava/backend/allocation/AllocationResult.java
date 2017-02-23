@@ -1,15 +1,18 @@
 package minijava.backend.allocation;
 
+import static java.util.Comparator.comparing;
+import static java.util.Comparator.naturalOrder;
 import static minijava.backend.allocation.AllocationResult.SpillEvent.Kind.RELOAD;
 import static minijava.backend.allocation.AllocationResult.SpillEvent.Kind.SPILL;
 import static org.jooq.lambda.Seq.seq;
 
+import com.google.common.collect.TreeMultimap;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.TreeMap;
 import minijava.backend.SystemVAbi;
 import minijava.backend.lifetime.BlockPosition;
 import minijava.backend.lifetime.LifetimeInterval;
@@ -26,7 +29,7 @@ public class AllocationResult {
   public final Map<LifetimeInterval, AMD64Register> allocation;
   public final Map<VirtualRegister, List<LifetimeInterval>> splitLifetimes;
   public final Map<VirtualRegister, Integer> spillSlots;
-  public final TreeMap<BlockPosition, SpillEvent> spillEvents;
+  public final TreeMultimap<BlockPosition, SpillEvent> spillEvents;
 
   public AllocationResult(
       Map<LifetimeInterval, AMD64Register> allocation,
@@ -38,8 +41,9 @@ public class AllocationResult {
     this.spillEvents = determineWhereToSpillAndReload();
   }
 
-  private TreeMap<BlockPosition, SpillEvent> determineWhereToSpillAndReload() {
-    TreeMap<BlockPosition, SpillEvent> events = new TreeMap<>();
+  private TreeMultimap<BlockPosition, SpillEvent> determineWhereToSpillAndReload() {
+    TreeMultimap<BlockPosition, SpillEvent> events =
+        TreeMultimap.create(naturalOrder(), SpillEvent.COMPARATOR);
     splitLifetimes.forEach(
         (reg, splits) -> {
           if (!spillSlots.containsKey(reg)) {
@@ -54,10 +58,12 @@ public class AllocationResult {
           // otherwise we have to spill within the first interval and reload at the begin of every following.
           Iterator<LifetimeInterval> it = splits.iterator();
           LifetimeInterval first = it.next();
-          // Spill immediately after the definition to avoid spilling more often than the value is defined (e.g. not in
-          // loops).
-          BlockPosition def = first.firstUse();
-          assert def != null;
+          // Spill immediately after the last definition to avoid spilling more often than the value
+          // is defined (e.g. not in loops). The only case where there are multiple definitions
+          // (which violates SSA form) is for two-address instructions such as add and imul.
+          // Instruction selection made sure that the interval isn't split between the two defs.
+          BlockPosition def = first.lastDef();
+          assert def != null : "The first interval of a split had no def";
           assert def.isDef() : "The first interval of a split was not a def";
           events.put(def, new SpillEvent(SPILL, first));
           while (it.hasNext()) {
@@ -75,8 +81,13 @@ public class AllocationResult {
           }
           System.out.println(
               "events = "
-                  + seq(events)
-                      .map(evt -> evt.v1 + " " + evt.v2.kind + " " + evt.v2.interval.register)
+                  + seq(events.asMap())
+                      .flatMap(
+                          evts ->
+                              seq(evts.v2)
+                                  .map(
+                                      evt ->
+                                          evts.v1 + " " + evt.kind + " " + evt.interval.register))
                       .toList());
         });
     return events;
@@ -133,6 +144,9 @@ public class AllocationResult {
   }
 
   public static class SpillEvent {
+    private static final Comparator<SpillEvent> COMPARATOR =
+        comparing((SpillEvent se) -> se.kind)
+            .thenComparing((SpillEvent se) -> se.interval.register.id);
     public final Kind kind;
     public final LifetimeInterval interval;
 

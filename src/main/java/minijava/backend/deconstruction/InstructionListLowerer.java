@@ -63,8 +63,7 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
 
     List<CodeBlockInstruction> highLevel = block.instructions;
     BlockPosition phiDef = BlockPosition.definedBy(block, -1);
-    AllocationResult.SpillEvent afterPhiDef = allocationResult.spillEvents.get(phiDef);
-    if (afterPhiDef != null) {
+    for (AllocationResult.SpillEvent afterPhiDef : allocationResult.spillEvents.get(phiDef)) {
       System.out.println("phiDef = " + phiDef);
       System.out.println("afterPhiDef = " + afterPhiDef);
       addSpill(afterPhiDef);
@@ -73,27 +72,29 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
       instructionCounter = i;
       BlockPosition def = BlockPosition.definedBy(block, i);
       BlockPosition use = BlockPosition.usedBy(block, i);
-      AllocationResult.SpillEvent beforeUse = allocationResult.spillEvents.get(use);
-      if (beforeUse != null) {
+      for (AllocationResult.SpillEvent beforeUse : allocationResult.spillEvents.get(use)) {
         System.out.println("use = " + use);
         System.out.println("beforeUse = " + beforeUse);
         addReload(beforeUse);
       }
       highLevel.get(i).accept(this);
-      AllocationResult.SpillEvent afterDef = allocationResult.spillEvents.get(def);
-      if (afterDef != null) {
+      for (AllocationResult.SpillEvent afterDef : allocationResult.spillEvents.get(def)) {
         System.out.println("def = " + def);
         System.out.println("afterDef = " + afterDef);
         addSpill(afterDef);
       }
     }
+    // TODO: reload before phi?
     return lowered;
   }
 
   private void addSpill(AllocationResult.SpillEvent afterDef) {
     assert afterDef.kind == SPILL;
     AMD64Register assigned = allocationResult.allocation.get(afterDef.interval);
-    assert assigned != null;
+    if (assigned == null) {
+      // Nothing to do, the value is already stored at its spill location
+      return;
+    }
     VirtualRegister virtual = afterDef.interval.register;
     OperandWidth slotWidth = modeToWidth(virtual.value.getMode());
     RegisterOperand src = new RegisterOperand(slotWidth, assigned);
