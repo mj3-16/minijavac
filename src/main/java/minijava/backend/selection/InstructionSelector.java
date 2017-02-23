@@ -30,10 +30,17 @@ import firm.nodes.Start;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import minijava.backend.SystemVAbi;
 import minijava.backend.block.CodeBlock;
 import minijava.backend.block.CodeBlock.ExitArity.One;
 import minijava.backend.block.PhiFunction;
-import minijava.backend.instructions.*;
+import minijava.backend.instructions.CodeBlockInstruction;
+import minijava.backend.instructions.Enter;
+import minijava.backend.instructions.Instruction;
+import minijava.backend.instructions.Leave;
+import minijava.backend.instructions.Mov;
+import minijava.backend.instructions.Setcc;
+import minijava.backend.instructions.Test;
 import minijava.backend.operands.Operand;
 import minijava.backend.operands.OperandWidth;
 import minijava.backend.operands.RegisterOperand;
@@ -283,7 +290,7 @@ public class InstructionSelector extends NodeVisitor.Default {
       VirtualRegister register = mapping.registerForNode(retVal);
       OperandWidth width = modeToWidth(retVal.getMode());
       RegisterOperand source = new RegisterOperand(width, register);
-      RegisterOperand dest = new RegisterOperand(width, mapping.registerForNode(node));
+      RegisterOperand dest = new RegisterOperand(width, SystemVAbi.RETURN_REGISTER);
       block.instructions.add(new Mov(source, dest));
     }
     block.instructions.add(new Leave());

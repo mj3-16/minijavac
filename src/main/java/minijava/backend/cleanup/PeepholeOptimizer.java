@@ -41,6 +41,7 @@ public class PeepholeOptimizer {
     for (Instruction instruction : instructions) {
       ifCanBeCastTo(Jmp.class, instruction, jmp -> usedLabels.add(jmp.label));
       ifCanBeCastTo(Jcc.class, instruction, jcc -> usedLabels.add(jcc.label));
+      ifCanBeCastTo(Call.class, instruction, call -> usedLabels.add(call.label));
       for (Rule rule : RULES) {
         if (rule.predicate.test(instruction)) {
           rule.replace.apply(instruction).forEach(optimized::add);
