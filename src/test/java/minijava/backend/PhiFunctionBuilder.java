@@ -1,24 +1,26 @@
 package minijava.backend;
 
 import java.util.HashMap;
+import java.util.Map;
 import minijava.backend.block.CodeBlock;
 import minijava.backend.block.PhiFunction;
 import minijava.backend.operands.Operand;
 
 public class PhiFunctionBuilder {
 
-  private final PhiFunction phi;
+  private final Operand output;
+  private final Map<CodeBlock, Operand> inputs = new HashMap<>();
 
   private PhiFunctionBuilder(Operand output) {
-    this.phi = new PhiFunction(new HashMap<>(), output, null);
+    this.output = output;
   }
 
   public PhiFunction build() {
-    return phi;
+    return new PhiFunction(inputs, output, null);
   }
 
   public PhiFunctionBuilder from(CodeBlock pred, Operand input) {
-    phi.inputs.put(pred, input);
+    inputs.put(pred, input);
     return this;
   }
 

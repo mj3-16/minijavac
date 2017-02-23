@@ -8,55 +8,65 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
 import com.google.common.collect.Sets;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import minijava.backend.ExampleProgram;
+import minijava.backend.block.CodeBlock;
 import minijava.backend.lifetime.BlockPosition;
 import minijava.backend.lifetime.LifetimeAnalysis;
 import minijava.backend.lifetime.LifetimeAnalysisResult;
 import minijava.backend.lifetime.LifetimeInterval;
 import minijava.backend.registers.AMD64Register;
-import minijava.backend.registers.VirtualRegister;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
+@RunWith(Parameterized.class)
 public class LinearScanRegisterAllocationTest {
   private static Set<AMD64Register> ONE_REG = Sets.newHashSet(DI);
   private static Set<AMD64Register> TWO_REGS = Sets.newHashSet(A, DI);
   private static Set<AMD64Register> THREE_REGS = Sets.newHashSet(A, B, DI);
+  private final ExampleProgram example;
+  private final Set<AMD64Register> allocatable;
+  private final int maxSpills;
 
-  @Test
-  public void loopCountingToFiveThreeRegs_doesntSpill() {
-    ExampleProgram example = ExampleProgram.loopCountingToFive();
-    LifetimeAnalysisResult lifetimes = LifetimeAnalysis.analyse(example.program);
-    AllocationResult result = LinearScanRegisterAllocator.allocateRegisters(lifetimes, THREE_REGS);
+  @Parameters(name = "{index}: {0}, max spill {3}")
+  public static Collection<Object[]> data() {
+    ExampleProgram countToFive = ExampleProgram.loopCountingToFive();
+    ExampleProgram doubleFib = ExampleProgram.doubleFib();
+    return Arrays.asList(
+        new Object[][] {
+          {"countToFive(1)", countToFive, ONE_REG, 4},
+          {"countToFive(2)", countToFive, TWO_REGS, 2},
+          {"countToFive(3)", countToFive, THREE_REGS, 0},
+          {"doubleFib(1)", doubleFib, ONE_REG, 9},
+          {"doubleFib(2)", doubleFib, TWO_REGS, 6},
+          //{ "doubleFib(3)", doubleFib, THREE_REGS, 0 },
+        });
+  }
 
-    assertLifetimesMatch(lifetimes, result);
-
-    assertNumberOfSpills(result, 0);
+  public LinearScanRegisterAllocationTest(
+      String name, ExampleProgram example, Set<AMD64Register> allocatable, int maxSpills) {
+    this.example = example;
+    this.allocatable = allocatable;
+    this.maxSpills = maxSpills;
   }
 
   @Test
-  public void loopCountingToFiveTwoRegs_spills() {
-    ExampleProgram example = ExampleProgram.loopCountingToFive();
+  public void test() {
+    example.program.forEach(CodeBlock::printDebugInfo);
     LifetimeAnalysisResult lifetimes = LifetimeAnalysis.analyse(example.program);
-    AllocationResult result = LinearScanRegisterAllocator.allocateRegisters(lifetimes, TWO_REGS);
+    AllocationResult result = LinearScanRegisterAllocator.allocateRegisters(lifetimes, allocatable);
 
-    result.printDebugInfo();
+    //result.printDebugInfo();
 
     assertLifetimesMatch(lifetimes, result);
 
-    // r0 is the constant 5, which is the argument to the Cmp
-    VirtualRegister r0 = example.registers.get(0);
-    // I'm afraid that testing for specific splits is too brittle.
-    //assertIsReloadedOnce(result, r0);
-
-    // r2 is the constant 1, which is the argument to the Add instruction in the loop
-    VirtualRegister r2 = example.registers.get(2);
-    //assertIsReloadedOnce(result, r2);
-
-    // All other registers shouldn't have been split.
-    assertNumberOfSpills(result, 2);
+    assertNumberOfSpills(result, maxSpills);
   }
 
   private void assertNumberOfSpills(AllocationResult result, int spills) {
@@ -64,21 +74,6 @@ public class LinearScanRegisterAllocationTest {
         "Shouldn't have split more than " + spills + " registers",
         result.spillSlots.size(),
         is(lessThanOrEqualTo(spills)));
-  }
-
-  @Test
-  public void loopCountingToFiveOneReg_spills() {
-    ExampleProgram example = ExampleProgram.loopCountingToFive();
-    LifetimeAnalysisResult lifetimes = LifetimeAnalysis.analyse(example.program);
-    AllocationResult result = LinearScanRegisterAllocator.allocateRegisters(lifetimes, ONE_REG);
-
-    result.printDebugInfo();
-
-    assertLifetimesMatch(lifetimes, result);
-
-    // Not really sure what to verify. There are many ways this has a correct outcome, most of which
-    // are not simply stated.
-    assertNumberOfSpills(result, 4);
   }
 
   private void assertLifetimesMatch(LifetimeAnalysisResult lifetimes, AllocationResult result) {

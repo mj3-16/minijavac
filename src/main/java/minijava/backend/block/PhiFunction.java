@@ -16,7 +16,7 @@ import org.jooq.lambda.Seq;
 public class PhiFunction extends Instruction {
   public final Map<CodeBlock, Operand> inputs;
   public final Operand output;
-  /** We need this just for equality and hashing. */
+  /** We need this just for debugging purposes. */
   public final Phi phi;
 
   public PhiFunction(Map<CodeBlock, Operand> inputs, Operand output, Phi phi) {
@@ -34,23 +34,6 @@ public class PhiFunction extends Instruction {
         .ofType(RegisterOperand.class)
         .map(reg -> reg.register)
         .toSet();
-  }
-
-  @Override
-  public boolean equals(Object o) {
-    if (this == o) {
-      return true;
-    }
-    if (o == null || getClass() != o.getClass()) {
-      return false;
-    }
-    PhiFunction that = (PhiFunction) o;
-    return Objects.equals(phi, that.phi);
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hash(phi);
   }
 
   @Override

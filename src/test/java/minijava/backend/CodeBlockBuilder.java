@@ -26,18 +26,6 @@ public class CodeBlockBuilder {
     return this;
   }
 
-  public CodeBlockBuilder addNullInstructions(int howMany) {
-    for (int i = 0; i < howMany; i++) {
-      block.instructions.add(null);
-    }
-    return this;
-  }
-
-  public CodeBlockBuilder setOrdinal(int ordinal) {
-    block.linearizedOrdinal = ordinal;
-    return this;
-  }
-
   public CodeBlockBuilder addLoopBody(Set<CodeBlock> body) {
     block.associatedLoopBody.addAll(body);
     return this;
@@ -49,6 +37,7 @@ public class CodeBlockBuilder {
 
   public CodeBlockBuilder addPhi(Operand output, Function<PhiFunctionBuilder, PhiFunction> build) {
     block.phis.add(build.apply(PhiFunctionBuilder.newPhi(output)));
+    System.out.println("block.phis.size() = " + block.phis.size());
     return this;
   }
 

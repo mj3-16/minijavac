@@ -12,7 +12,7 @@ import minijava.backend.instructions.CodeBlockInstruction;
 
 public class CodeBlock {
   public final String label;
-  public final Set<PhiFunction> phis = new HashSet<>();
+  public final List<PhiFunction> phis = new ArrayList<>();
   public final List<CodeBlockInstruction> instructions = new ArrayList<>();
   public ExitArity exit;
   /**
