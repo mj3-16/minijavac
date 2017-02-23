@@ -1,6 +1,5 @@
 package minijava.backend;
 
-import static com.google.common.collect.Sets.newHashSet;
 import static org.jooq.lambda.Seq.seq;
 
 import com.google.common.collect.BiMap;
@@ -23,7 +22,6 @@ import minijava.backend.instructions.Instruction;
 import minijava.backend.lifetime.LifetimeAnalysis;
 import minijava.backend.lifetime.LifetimeAnalysisResult;
 import minijava.backend.lifetime.LifetimeInterval;
-import minijava.backend.registers.AMD64Register;
 import minijava.backend.selection.InstructionSelector;
 import minijava.backend.syntax.GasSyntax;
 import minijava.ir.optimize.ProgramMetrics;
@@ -51,7 +49,8 @@ public class Backend {
       }
 
       AllocationResult allocationResult =
-          LinearScanRegisterAllocator.allocateRegisters(lifetimes, newHashSet(AMD64Register.DI));
+          LinearScanRegisterAllocator.allocateRegisters(
+              lifetimes); //, newHashSet(AMD64Register.DI));
       allocationResult.printDebugInfo();
 
       instructions.addAll(

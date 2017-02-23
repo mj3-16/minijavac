@@ -55,12 +55,7 @@ public class ExampleProgram {
 
     CodeBlock header =
         newBlock("header")
-            .addPhi(
-                reg(r3),
-                builder -> {
-                  System.out.println("hi");
-                  return builder.from(entry, reg(r1)).from(footer, reg(r4)).build();
-                })
+            .addPhi(reg(r3), builder -> builder.from(entry, reg(r1)).from(footer, reg(r4)).build())
             .addLoopBody(footer, loopTrampoline)
             .addInstruction(new Cmp(reg(r3), reg(r0)))
             .build();

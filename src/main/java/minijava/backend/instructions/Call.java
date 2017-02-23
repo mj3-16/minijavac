@@ -12,7 +12,7 @@ public class Call extends CodeBlockInstruction {
   public String label;
 
   public Call(String label, List<Operand> arguments) {
-    super(arguments, toOperands(AMD64Register.allocatable));
+    super(arguments, toOperands(AMD64Register.ALLOCATABLE));
     this.label = label;
     assert seq(arguments)
         .ofType(RegisterOperand.class)

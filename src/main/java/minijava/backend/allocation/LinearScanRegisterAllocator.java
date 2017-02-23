@@ -107,6 +107,8 @@ public class LinearScanRegisterAllocator {
       putEarliest(freeUntil, register, ConflictSite.at(endOfLifetimeHole));
     }
 
+    System.out.println("freeUntil = " + freeUntil);
+
     Tuple2<AMD64Register, ConflictSite> bestCandidate = determineBestCandidate(freeUntil, current);
     System.out.println(bestCandidate + " for " + current.register);
     AMD64Register assignedRegister = bestCandidate.v1;
@@ -254,7 +256,9 @@ public class LinearScanRegisterAllocator {
 
     Map<AMD64Register, ConflictSite> nextUses = new HashMap<>();
     for (AMD64Register register : allocatable) {
-      putEarliest(nextUses, register, ConflictSite.never());
+      BlockPosition conflict =
+          fixedIntervals.get(register).ranges.firstIntersectionWith(current.ranges);
+      putEarliest(nextUses, register, ConflictSite.atOrNever(conflict));
     }
 
     for (LifetimeInterval interval : Seq.concat(active, inactive)) {
@@ -345,6 +349,7 @@ public class LinearScanRegisterAllocator {
             ConflictSite.atOrNever(fixed.ranges.firstIntersectionWith(current.ranges));
         if (constraint.doesConflictAtAll()) {
           // A register constraint kicks in at constraint, so we have to split current (again).
+          System.out.println("Fixed interval split");
           spillSplitAndSuspendBeforeConflict(current, constraint);
         }
       }
@@ -436,7 +441,7 @@ public class LinearScanRegisterAllocator {
   }
 
   public static AllocationResult allocateRegisters(LifetimeAnalysisResult lifetimes) {
-    return allocateRegisters(lifetimes, AMD64Register.allocatable);
+    return allocateRegisters(lifetimes, AMD64Register.ALLOCATABLE);
   }
 
   public static AllocationResult allocateRegisters(

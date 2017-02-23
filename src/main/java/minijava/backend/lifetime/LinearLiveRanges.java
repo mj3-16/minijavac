@@ -93,6 +93,7 @@ public class LinearLiveRanges {
     return new Split<>(new LinearLiveRanges(before), new LinearLiveRanges(after));
   }
 
+  @Nullable
   public BlockPosition firstIntersectionWith(LinearLiveRanges other) {
     if (ranges.isEmpty() || other.ranges.isEmpty()) {
       return null;

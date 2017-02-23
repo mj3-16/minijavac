@@ -37,7 +37,6 @@ public class CodeBlockBuilder {
 
   public CodeBlockBuilder addPhi(Operand output, Function<PhiFunctionBuilder, PhiFunction> build) {
     block.phis.add(build.apply(PhiFunctionBuilder.newPhi(output)));
-    System.out.println("block.phis.size() = " + block.phis.size());
     return this;
   }
 

@@ -30,6 +30,6 @@ public enum AMD64Register implements Register {
     return matchHardware.apply(this);
   }
 
-  public static Set<AMD64Register> allocatable =
+  public static Set<AMD64Register> ALLOCATABLE =
       Sets.newTreeSet(Seq.of(A, B, C, D, SI, DI, R8, R9, R10, R11, R12, R13, R14, R15));
 }

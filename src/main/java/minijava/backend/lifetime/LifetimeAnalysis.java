@@ -27,7 +27,7 @@ public class LifetimeAnalysis {
   }
 
   public LifetimeAnalysisResult analyse() {
-    for (AMD64Register allocatable : AMD64Register.allocatable) {
+    for (AMD64Register allocatable : AMD64Register.ALLOCATABLE) {
       fixedIntervals.put(allocatable, new FixedInterval(allocatable));
     }
 
@@ -69,7 +69,7 @@ public class LifetimeAnalysis {
               live.remove(vr);
             },
             hr -> {
-              if (AMD64Register.allocatable.contains(hr)) {
+              if (AMD64Register.ALLOCATABLE.contains(hr)) {
                 getFixedInterval(hr).addDef(def);
               }
             });
@@ -87,7 +87,7 @@ public class LifetimeAnalysis {
               }
             },
             hr -> {
-              if (AMD64Register.allocatable.contains(hr)) {
+              if (AMD64Register.ALLOCATABLE.contains(hr)) {
                 getFixedInterval(hr).addUse(use);
               }
             });
