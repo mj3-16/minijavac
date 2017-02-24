@@ -7,10 +7,14 @@ import static minijava.backend.registers.AMD64Register.SI;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.jooq.lambda.Seq.seq;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 import com.google.common.collect.Sets;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import minijava.backend.ExampleProgram;
@@ -71,29 +75,51 @@ public class LinearScanRegisterAllocationTest {
     //result.printDebugInfo();
 
     assertLifetimesMatch(lifetimes, result);
-
+    assertSpillSlotsDontOverlap(lifetimes, result);
     assertNumberOfSpills(result, maxSpills);
   }
 
-  private void assertNumberOfSpills(AllocationResult result, int spills) {
-    Assert.assertThat(
+  private static void assertNumberOfSpills(AllocationResult result, int spills) {
+    assertThat(
         "Shouldn't have spilled more than " + spills + " registers",
         result.spillSlots.size(),
         is(lessThanOrEqualTo(spills)));
   }
 
-  private void assertLifetimesMatch(LifetimeAnalysisResult lifetimes, AllocationResult result) {
+  private static void assertSpillSlotsDontOverlap(
+      LifetimeAnalysisResult lifetimes, AllocationResult result) {
+    for (int slot : new HashSet<>(result.spillSlots.values())) {
+      List<LifetimeInterval> sameSlot =
+          seq(result.spillSlots)
+              .filter(t -> t.v2 == slot)
+              .map(t -> lifetimes.virtualIntervals.get(t.v1))
+              .toList();
+      sameSlot.sort(LifetimeInterval.COMPARING_DEF);
+      // now assert that no consecutive intervals with the same spill slot overlap
+      for (int i = 0; i < sameSlot.size() - 1; ++i) {
+        LifetimeInterval cur = sameSlot.get(i);
+        LifetimeInterval next = sameSlot.get(i + 1);
+        assertThat(
+            "Lifetimes of registers with the same spill slot may not overlap",
+            cur.ranges.firstIntersectionWith(next.ranges),
+            nullValue());
+      }
+    }
+  }
+
+  private static void assertLifetimesMatch(
+      LifetimeAnalysisResult lifetimes, AllocationResult result) {
     for (List<LifetimeInterval> splits : result.splitLifetimes.values()) {
       for (int i = 0; i < splits.size() - 1; ++i) {
         LifetimeInterval prev = splits.get(i);
         LifetimeInterval next = splits.get(i + 1);
-        Assert.assertThat(
+        assertThat(
             "Splits of the same register may not overlap",
             prev.ranges.firstIntersectionWith(next.ranges),
             nullValue());
         BlockPosition endPrev = prev.ranges.to();
         BlockPosition startNext = next.ranges.from();
-        Assert.assertTrue(
+        assertTrue(
             "Splits of the same register may not have holes",
             !endPrev.block.equals(startNext.block) || endPrev.pos + 1 == startNext.pos);
 
