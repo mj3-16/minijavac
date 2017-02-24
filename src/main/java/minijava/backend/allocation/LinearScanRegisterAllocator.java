@@ -1,11 +1,13 @@
 package minijava.backend.allocation;
 
+import static minijava.backend.lifetime.LifetimeInterval.coalesceIntervals;
 import static org.jooq.lambda.Seq.seq;
 import static org.jooq.lambda.tuple.Tuple.tuple;
 
 import com.google.common.collect.Sets;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -53,7 +55,9 @@ public class LinearScanRegisterAllocator {
   }
 
   private AllocationResult allocate() {
+    BlockPosition last = null;
     while (!unhandled.isEmpty()) {
+      assert unhandled.size() == seq(unhandled).map(li -> li.register).count();
       LifetimeInterval current = unhandled.first();
       unhandled.remove(current);
       System.out.println();
@@ -63,6 +67,8 @@ public class LinearScanRegisterAllocator {
       LiveRange rangeInFirstBlock = current.getLifetimeInBlock(first);
       assert rangeInFirstBlock != null : "The interval should be alive in its first block";
       BlockPosition startPosition = rangeInFirstBlock.fromPosition();
+      assert last == null || startPosition.compareTo(last) >= 0;
+      last = startPosition;
 
       moveHandledAndInactiveFromActive(startPosition);
       moveHandledAndActiveFromInactive(startPosition);
@@ -72,7 +78,8 @@ public class LinearScanRegisterAllocator {
       }
     }
 
-    optimizeSplitPositions();
+    mergeAndUnassignIntervalsWithoutUsages();
+    //optimizeSplitPositions();
 
     return new AllocationResult(allocation, splitLifetimes, spillSlotAllocator.spillSlots);
   }
@@ -235,6 +242,9 @@ public class LinearScanRegisterAllocator {
     allocation.put(new_, allocation.remove(old));
     List<LifetimeInterval> splits = getLifetimeIntervals(old.register);
     int idx = splits.indexOf(old);
+    System.out.println("idx = " + idx);
+    System.out.println("splits.size() = " + splits.size());
+    System.out.println("splits = " + splits);
     assert idx == -1 || idx == splits.size() - 1;
     replaceIfPresent(splits, old, new_);
     replaceIfPresent(active, old, new_);
@@ -316,7 +326,7 @@ public class LinearScanRegisterAllocator {
       // This will delete the unsplit interval and instead re-add the first split part, assigned
       // to the old register, but will re-insert the other conflicting split half into unhandled.
       for (LifetimeInterval interval : filterByAllocatedRegister(active, assignedRegister)) {
-        // FIXME: what if interval starts at
+        // FIXME: what if interval starts at start?
         System.out.println(interval);
         System.out.println("Splitting " + interval.register + " at " + start);
         System.out.println(current.ranges.firstIntersectionWith(interval.ranges));
@@ -350,7 +360,8 @@ public class LinearScanRegisterAllocator {
         if (constraint.doesConflictAtAll()) {
           // A register constraint kicks in at constraint, so we have to split current (again).
           System.out.println("Fixed interval split");
-          spillSplitAndSuspendBeforeConflict(current, constraint);
+          LifetimeInterval before = spillSplitAndSuspendBeforeConflict(current, constraint);
+          renameInterval(current, before);
         }
       }
     }
@@ -415,6 +426,42 @@ public class LinearScanRegisterAllocator {
     }
   }
 
+  private void mergeAndUnassignIntervalsWithoutUsages() {
+    for (List<LifetimeInterval> splits : splitLifetimes.values()) {
+      List<LifetimeInterval> oldSplits = new ArrayList<>(splits);
+      Iterator<LifetimeInterval> it = oldSplits.iterator();
+      List<LifetimeInterval> toMerge = new ArrayList<>();
+      splits.clear();
+      while (it.hasNext()) {
+        LifetimeInterval current = it.next();
+        if (current.uses.isEmpty()) {
+          // These will not have a register assigned later.
+          toMerge.add(current);
+        } else {
+          // So there are uses and possibly a register assigned.
+          coalesceAndAddUnassignedSplit(splits, toMerge);
+          splits.add(current);
+        }
+      }
+      coalesceAndAddUnassignedSplit(splits, toMerge);
+      System.out.println("oldSplits = " + oldSplits);
+      System.out.println("splits = " + splits);
+    }
+  }
+
+  private void coalesceAndAddUnassignedSplit(
+      List<LifetimeInterval> splits, List<LifetimeInterval> toMerge) {
+    if (!toMerge.isEmpty()) {
+      // First we merge all consecutive intervals without uses into a new one without
+      // an assigned register.
+      LifetimeInterval merged = coalesceIntervals(toMerge);
+      assert merged.uses.isEmpty();
+      splits.add(merged);
+      allocation.remove(merged);
+      toMerge.clear();
+    }
+  }
+
   private void optimizeSplitPositions() {
     for (List<LifetimeInterval> splits : splitLifetimes.values()) {
       // We may always move the start of spilled intervals further to the front.
@@ -424,7 +471,7 @@ public class LinearScanRegisterAllocator {
       for (int i = 0; i < splits.size() - 1; i++) {
         LifetimeInterval previous = splits.get(i);
         LifetimeInterval current = splits.get(i + 1);
-        if (isSpilled(current)) {
+        if (isSpilled(current) && !isSpilled(previous)) {
           BlockPosition lastUse = previous.lastUse();
           assert lastUse != null
               : "The current interval was spilled, so the previous must have a use";

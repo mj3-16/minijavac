@@ -1,9 +1,18 @@
 package minijava.backend.lifetime;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static java.util.Comparator.naturalOrder;
+import static java.util.Comparator.nullsLast;
 import static org.jooq.lambda.Seq.seq;
 
-import java.util.*;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NavigableMap;
+import java.util.Objects;
+import java.util.Set;
+import java.util.TreeMap;
 import minijava.backend.block.CodeBlock;
 import minijava.backend.operands.Use;
 import minijava.backend.registers.Register;
@@ -13,7 +22,9 @@ import org.jetbrains.annotations.Nullable;
 public class LifetimeInterval {
 
   public static final Comparator<LifetimeInterval> COMPARING_DEF =
-      Comparator.comparing(LifetimeInterval::from).thenComparingInt(li -> li.register.id);
+      Comparator.comparing(LifetimeInterval::from)
+          .thenComparing(LifetimeInterval::firstUse, nullsLast(naturalOrder()))
+          .thenComparingInt(li -> li.register.id);
   public final VirtualRegister register;
   public final NavigableMap<BlockPosition, UseSite> uses;
   public final LinearLiveRanges ranges;
@@ -158,6 +169,21 @@ public class LifetimeInterval {
     System.out.println("before = " + before);
     System.out.println("after = " + after);
     return new Split<>(before, after);
+  }
+
+  /** Assumes that the intervals don't overlap. */
+  public static LifetimeInterval coalesceIntervals(List<LifetimeInterval> toMerge) {
+    assert seq(toMerge).map(li -> li.register).distinct().count() == 1
+        : "Can only coalesce intervals of the same register";
+    if (toMerge.size() == 1) {
+      return toMerge.get(0);
+    }
+    VirtualRegister register = toMerge.get(0).register;
+    TreeMap<BlockPosition, UseSite> uses = new TreeMap<>();
+    LinearLiveRanges ranges = new LinearLiveRanges();
+    seq(toMerge).map(li -> li.uses).forEach(uses::putAll);
+    seq(toMerge).map(li -> li.ranges).forEach(ranges::addAllRanges);
+    return new LifetimeInterval(register, uses, ranges);
   }
 
   @Override

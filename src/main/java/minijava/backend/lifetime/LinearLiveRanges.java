@@ -6,6 +6,7 @@ import com.google.common.collect.Iterables;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.TreeMap;
@@ -91,6 +92,33 @@ public class LinearLiveRanges {
     }
 
     return new Split<>(new LinearLiveRanges(before), new LinearLiveRanges(after));
+  }
+
+  public void addAllRanges(LinearLiveRanges other) {
+    ranges.putAll(other.ranges);
+    coalesceAdjacentRanges();
+  }
+
+  private void coalesceAdjacentRanges() {
+    Iterator<Entry<BlockPosition, Integer>> it = new TreeMap<>(ranges).entrySet().iterator();
+    if (!it.hasNext()) {
+      return;
+    }
+    Map.Entry<BlockPosition, Integer> current = it.next();
+    ranges.clear();
+    while (it.hasNext()) {
+      Map.Entry<BlockPosition, Integer> next = it.next();
+      BlockPosition consecutivePos =
+          new BlockPosition(current.getKey().block, current.getValue() + 1);
+      assert consecutivePos.compareTo(next.getKey()) <= 0 : "LiveRanges are overlapping";
+      if (next.getKey().equals(consecutivePos)) {
+        current.setValue(next.getValue());
+      } else {
+        ranges.put(current.getKey(), current.getValue());
+        current = next;
+      }
+    }
+    ranges.put(current.getKey(), current.getValue());
   }
 
   @Nullable
