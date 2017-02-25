@@ -146,4 +146,28 @@ public class ExampleProgram {
         Lists.newArrayList(r0, r1, r2, r3, r4),
         asLinearization(entry, header, loopTrampoline, footer, exitTrampoline, exit));
   }
+
+  public void hitboxTest() {
+    VirtualRegisterSupply supply = new VirtualRegisterSupply();
+    VirtualRegister r0 = supply.next();
+    VirtualRegister r1 = supply.next();
+    VirtualRegister r2 = supply.next();
+    VirtualRegister r3 = supply.next();
+    VirtualRegister r4 = supply.next();
+    VirtualRegister r5 = supply.next();
+    VirtualRegister r6 = supply.next();
+    VirtualRegister r7 = supply.next();
+    VirtualRegister r8 = supply.next();
+    VirtualRegister r9 = supply.next();
+    VirtualRegister r10 = supply.next();
+
+    CodeBlock entry =
+        newBlock("entry")
+            .addInstruction(new Mov(imm(5), reg(r0)))
+            .addInstruction(new Mov(imm(0), reg(r1)))
+            .addInstruction(new Mov(imm(1), reg(r2)))
+            .addInstruction(new Mov(imm(1), reg(r5)))
+            .addInstruction(new Mov(imm(1), reg(r8)))
+            .build();
+  }
 }

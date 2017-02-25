@@ -33,8 +33,8 @@ import org.jooq.lambda.tuple.Tuple2;
 public class LinearScanRegisterAllocator {
 
   // Inputs to the algorithm
+  private final LifetimeAnalysisResult lifetimes;
   private final Set<AMD64Register> allocatable;
-  private final Map<AMD64Register, FixedInterval> fixedIntervals;
   private final SortedSet<LifetimeInterval> unhandled;
 
   // State of the algorithm
@@ -48,7 +48,7 @@ public class LinearScanRegisterAllocator {
 
   private LinearScanRegisterAllocator(
       LifetimeAnalysisResult lifetimes, Set<AMD64Register> allocatable) {
-    this.fixedIntervals = lifetimes.fixedIntervals;
+    this.lifetimes = lifetimes;
     this.allocatable = allocatable;
     this.unhandled = new TreeSet<>(LifetimeInterval.COMPARING_DEF);
     this.unhandled.addAll(lifetimes.virtualIntervals.values());
@@ -93,7 +93,7 @@ public class LinearScanRegisterAllocator {
     Map<AMD64Register, ConflictSite> freeUntil = new TreeMap<>();
 
     for (AMD64Register register : allocatable) {
-      FixedInterval fixed = fixedIntervals.get(register);
+      FixedInterval fixed = lifetimes.fixedIntervals.get(register);
       BlockPosition blockedAt = fixed.ranges.firstIntersectionWith(current.ranges);
       putEarliest(freeUntil, register, ConflictSite.atOrNever(blockedAt));
     }
@@ -267,7 +267,7 @@ public class LinearScanRegisterAllocator {
     Map<AMD64Register, ConflictSite> nextUses = new HashMap<>();
     for (AMD64Register register : allocatable) {
       BlockPosition conflict =
-          fixedIntervals.get(register).ranges.firstIntersectionWith(current.ranges);
+          lifetimes.fixedIntervals.get(register).ranges.firstIntersectionWith(current.ranges);
       putEarliest(nextUses, register, ConflictSite.atOrNever(conflict));
     }
 
@@ -353,7 +353,7 @@ public class LinearScanRegisterAllocator {
       // This will swap out all other intervals currently active for assignedRegister.
       assignRegister(current, assignedRegister);
 
-      FixedInterval fixed = fixedIntervals.get(assignedRegister);
+      FixedInterval fixed = lifetimes.fixedIntervals.get(assignedRegister);
       if (fixed != null) {
         ConflictSite constraint =
             ConflictSite.atOrNever(fixed.ranges.firstIntersectionWith(current.ranges));
@@ -405,7 +405,9 @@ public class LinearScanRegisterAllocator {
       LifetimeInterval li = it.next();
       if (li.endsBefore(position)) {
         it.remove();
-        spillSlotAllocator.freeSpillSlot(li.register);
+        if (lifetimes.virtualIntervals.get(li.register).endsBefore(position)) {
+          spillSlotAllocator.freeSpillSlot(li.register);
+        }
       } else if (li.covers(position)) {
         it.remove();
         active.add(li);
@@ -418,7 +420,9 @@ public class LinearScanRegisterAllocator {
       LifetimeInterval li = it.next();
       if (li.endsBefore(position)) {
         it.remove();
-        spillSlotAllocator.freeSpillSlot(li.register);
+        if (lifetimes.virtualIntervals.get(li.register).endsBefore(position)) {
+          spillSlotAllocator.freeSpillSlot(li.register);
+        }
       } else if (!li.covers(position)) {
         it.remove();
         inactive.add(li);

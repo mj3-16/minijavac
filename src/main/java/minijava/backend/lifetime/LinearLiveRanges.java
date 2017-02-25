@@ -27,11 +27,16 @@ public class LinearLiveRanges {
     this.ranges = ranges;
   }
 
+  @Nullable
   public BlockPosition from() {
-    return ranges.firstKey();
+    return ranges.isEmpty() ? null : ranges.firstKey();
   }
 
+  @Nullable
   public BlockPosition to() {
+    if (ranges.isEmpty()) {
+      return null;
+    }
     Entry<BlockPosition, Integer> entry = ranges.lastEntry();
     return new BlockPosition(entry.getKey().block, entry.getValue());
   }

@@ -21,8 +21,8 @@ public abstract class Instruction {
   // the RHS is not an input if it's a RegisterOperand.
   // We need to store output operands as operands rather than registers, because otherwise we would
   // not have the information needed for lowering.
-  private final List<Operand> inputs;
-  private final List<Operand> outputs;
+  protected final List<Operand> inputs;
+  protected final List<Operand> outputs;
   private final Set<Register> hints = new HashSet<>();
   private final Set<Operand> mayBeMemory = new HashSet<>();
 

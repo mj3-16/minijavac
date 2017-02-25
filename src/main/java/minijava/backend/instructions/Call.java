@@ -23,4 +23,9 @@ public class Call extends CodeBlockInstruction {
   public void accept(Visitor visitor) {
     visitor.visit(this);
   }
+
+  @Override
+  public String toString() {
+    return "Call(" + label + ", " + String.join(", ", seq(inputs).map(Object::toString)) + ")";
+  }
 }
