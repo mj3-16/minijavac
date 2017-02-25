@@ -45,6 +45,12 @@ public class LifetimeAnalysis {
   private void handleBackEdges(CodeBlock loopHeader, Set<VirtualRegister> live) {
     // For back-edges we have to be conservative:
     // Every register in live is alive for the complete loop.
+    if (!loopHeader.associatedLoopBody.isEmpty()) {
+      System.out.println();
+      System.out.println("LifetimeAnalysis.handleBackEdges");
+      System.out.println(loopHeader.associatedLoopBody);
+      System.out.println();
+    }
     for (CodeBlock partOfLoop : loopHeader.associatedLoopBody) {
       for (VirtualRegister alive : live) {
         getInterval(alive).makeAliveInWholeBlock(partOfLoop);

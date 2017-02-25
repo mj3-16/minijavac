@@ -1,7 +1,10 @@
 package minijava.ir.utils;
 
+import static minijava.ir.utils.NodeUtils.getPredecessorBlocks;
+import static minijava.ir.utils.NodeUtils.hasIncomingBackEdge;
 import static org.jooq.lambda.tuple.Tuple.tuple;
 
+import com.google.common.collect.Sets;
 import firm.Graph;
 import firm.bindings.binding_irgraph;
 import firm.bindings.binding_irgraph.ir_resources_t;
@@ -26,6 +29,23 @@ public class GraphUtils {
     CopyWorker worker = new CopyWorker(to);
     return FirmUtils.withoutBackEdges(
         to, () -> tuple(worker.copyNode(from.getStart()), worker.copyNode(from.getEnd())));
+  }
+
+  public static Set<Block> blocksOfLoop(Block header) {
+    assert hasIncomingBackEdge(header);
+    Set<Block> reachable = new HashSet<>();
+    Set<Block> toVisit = Sets.newHashSet(header);
+    while (!toVisit.isEmpty()) {
+      Block cur = toVisit.iterator().next();
+      toVisit.remove(cur);
+      boolean notPartOfLoop = !Dominance.dominates(header, cur);
+      if (reachable.contains(cur) || notPartOfLoop) {
+        continue;
+      }
+      reachable.add(cur);
+      getPredecessorBlocks(cur).forEach(toVisit::add);
+    }
+    return reachable;
   }
 
   private static class CopyWorker {
@@ -71,23 +91,6 @@ public class GraphUtils {
     walkFromNodeDepthFirst(source, visitor, n -> {});
 
     return connected[0];
-  }
-
-  public static Set<Block> allBlocksBetween(Block source, Block target) {
-    Set<Block> reachable = new HashSet<>();
-    ArrayDeque<Block> toVisit = new ArrayDeque<>();
-    toVisit.add(source);
-    while (!toVisit.isEmpty()) {
-      Block cur = toVisit.removeFirst();
-      if (reachable.contains(cur)) {
-        continue;
-      }
-      reachable.add(cur);
-      if (!target.equals(source)) {
-        NodeUtils.getPredecessorBlocks(cur).forEach(toVisit::add);
-      }
-    }
-    return reachable;
   }
 
   /**

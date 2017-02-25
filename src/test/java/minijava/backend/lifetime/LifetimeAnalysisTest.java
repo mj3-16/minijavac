@@ -1,7 +1,10 @@
 package minijava.backend.lifetime;
 
+import static minijava.backend.CodeBlockBuilder.asLinearization;
 import static minijava.backend.CodeBlockBuilder.newBlock;
+import static minijava.backend.registers.AMD64Register.A;
 import static minijava.backend.registers.AMD64Register.DI;
+import static minijava.backend.registers.AMD64Register.SI;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -90,6 +93,29 @@ public class LifetimeAnalysisTest {
     Assert.assertTrue(
         "The invariant definition should be alive in the whole loop body",
         result.virtualIntervals.get(r2).covers(BlockPosition.endOf(footer)));
+  }
+
+  @Test
+  public void callReturnValue_shouldStartAtMov() {
+    VirtualRegisterSupply supply = new VirtualRegisterSupply();
+    VirtualRegister r0 = supply.next();
+
+    CodeBlock block =
+        newBlock("block")
+            .addInstruction(new Mov(imm(1), reg(SI)))
+            .addInstruction(new Call("print_int", Lists.newArrayList(reg(SI))))
+            .addInstruction(new Mov(reg(A), reg(r0)))
+            .addInstruction(new Cmp(reg(r0), reg(r0)))
+            .build();
+    block.exit = new Zero();
+    List<CodeBlock> program = asLinearization(block);
+
+    LifetimeAnalysisResult result = LifetimeAnalysis.analyse(program);
+
+    Assert.assertEquals(
+        "r0 should be defined by its definition site (duh)",
+        BlockPosition.definedBy(block, 2),
+        result.virtualIntervals.get(r0).from());
   }
 
   private static void assertAliveIn(LifetimeInterval li, String name, CodeBlock where) {

@@ -359,7 +359,6 @@ public class LinearScanRegisterAllocator {
             ConflictSite.atOrNever(fixed.ranges.firstIntersectionWith(current.ranges));
         if (constraint.doesConflictAtAll()) {
           // A register constraint kicks in at constraint, so we have to split current (again).
-          System.out.println("Fixed interval split");
           LifetimeInterval before = spillSplitAndSuspendBeforeConflict(current, constraint);
           renameInterval(current, before);
         }
@@ -382,8 +381,8 @@ public class LinearScanRegisterAllocator {
   private LifetimeInterval spillSplitAndSuspendBeforeConflict(
       LifetimeInterval current, ConflictSite conflict) {
     assert !conflict.doesConflictAtAll()
-        || conflict.conflictingPosition().compareTo(current.from()) >= 0;
-    System.out.println("conflict = " + conflict);
+            || conflict.conflictingPosition().compareTo(current.from()) > 0
+        : "Split would not make any progress. There probably weren't enough hardware registers.";
     spillSlotAllocator.allocateSpillSlot(current.register);
     if (!conflict.doesConflictAtAll()
         || current.to().compareTo(conflict.conflictingPosition()) < 0) {
@@ -448,8 +447,6 @@ public class LinearScanRegisterAllocator {
         }
       }
       coalesceAndAddUnassignedSplit(splits, toMerge);
-      System.out.println("oldSplits = " + oldSplits);
-      System.out.println("splits = " + splits);
     }
   }
 

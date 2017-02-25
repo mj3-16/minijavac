@@ -49,7 +49,7 @@ public class Backend {
       }
 
       AllocationResult allocationResult =
-          LinearScanRegisterAllocator.allocateRegisters(lifetimes); //, newHashSet(DI));
+          LinearScanRegisterAllocator.allocateRegisters(lifetimes); //, newHashSet(DI, SI));
       allocationResult.printDebugInfo();
 
       instructions.addAll(

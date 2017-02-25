@@ -95,11 +95,15 @@ public class LifetimeInterval {
   }
 
   public CodeBlock firstBlock() {
-    return ranges.from().block;
+    BlockPosition from = ranges.from();
+    assert from != null : "A lifetime interval may never be empty";
+    return from.block;
   }
 
   public CodeBlock lastBlock() {
-    return ranges.to().block;
+    BlockPosition to = ranges.to();
+    assert to != null : "A lifetime interval may never be empty";
+    return to.block;
   }
 
   public void makeAliveInWholeBlock(CodeBlock block) {
@@ -149,7 +153,7 @@ public class LifetimeInterval {
   }
 
   public Split<LifetimeInterval> splitBefore(BlockPosition pos) {
-    checkArgument(ranges.from().compareTo(pos) <= 0, "pos must lie after the interval's def");
+    checkArgument(ranges.from().compareTo(pos) < 0, "pos must lie after the interval's def");
     checkArgument(ranges.to().compareTo(pos) >= 0, "pos must be before the interval dies");
     // Note that the after split interval has a use as its first uses... This might bring
     // confusion later on, but there is no sensible def index to choose.

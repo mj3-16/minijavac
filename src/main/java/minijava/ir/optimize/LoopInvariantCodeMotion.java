@@ -60,22 +60,21 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
         graph,
         () -> {
           ArrayList<Node> order = GraphUtils.topologicalOrder(graph);
-          loopNestTree = buildLoopNestTree(order);
+          loopNestTree = buildLoopNestTree(Seq.seq(order).ofType(Block.class));
           order.forEach(this::evaluateMovability);
           return moveCode();
         });
   }
 
-  private LoopNestTree buildLoopNestTree(ArrayList<Node> allNodes) {
+  private LoopNestTree buildLoopNestTree(Iterable<Block> blocks) {
     Map<Block, Set<Block>> loopBlocks = new HashMap<>();
-    Set<Block> allBlocks = new HashSet<>();
-    for (Block header : seq(allNodes).ofType(Block.class)) {
-      allBlocks.add(header);
+    Set<Block> allBlocks = Sets.newHashSet(blocks);
+    for (Block header : allBlocks) {
       if (!isLoopHeader(header)) {
         continue;
       }
 
-      Set<Block> body = blocksOfLoop(header);
+      Set<Block> body = GraphUtils.blocksOfLoop(header);
       loopBlocks.put(header, body);
     }
 
@@ -170,27 +169,6 @@ public class LoopInvariantCodeMotion extends BaseOptimizer {
 
   private MoveInfo getMoveInfoOf(Block loopHeader) {
     return moveInfos.computeIfAbsent(loopHeader, MoveInfo::new);
-  }
-
-  private static Set<Block> blocksOfLoop(Block header) {
-    Set<Block> reachable = new HashSet<>();
-    Set<Block> toVisit = Sets.newHashSet(header);
-    while (!toVisit.isEmpty()) {
-      Block cur = toVisit.iterator().next();
-      toVisit.remove(cur);
-      boolean notPartOfLoop = !Dominance.dominates(header, cur);
-      if (reachable.contains(cur) || notPartOfLoop) {
-        continue;
-      }
-      reachable.add(cur);
-      Seq<Block> cfgPreds =
-          seq(cur.getPreds())
-              .filter(n -> n.getMode().equals(Mode.getX()))
-              .map(Node::getBlock)
-              .cast(Block.class);
-      cfgPreds.forEach(toVisit::add);
-    }
-    return reachable;
   }
 
   private Block enclosingLoopHeader(Block block) {
