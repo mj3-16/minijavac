@@ -51,6 +51,8 @@ public class SsaDeconstruction {
 
   private void resolvePhisAndSplitIntervals() {
     // For each control flow edge...
+    Map<CodeBlock, Set<Move>> toResolve = new HashMap<>();
+
     for (CodeBlock pred : linearization) {
       Set<Move> movesAfterPred = new HashSet<>();
       Set<CodeBlock> successors = pred.exit.getSuccessors();
@@ -61,16 +63,34 @@ public class SsaDeconstruction {
         // Critical edges without Phis might still slip through, causing trouble for split intervals.
         assert !succHasPhis || !predHasMultipleSuccs
             : "Found a critical edge from " + pred + " to " + succ;
-        resolveControlFlowEdge(pred, succ, movesAfterPred);
-        // movesAfterPred is the best witness for a critical edge: If there is a move necessary, pred may not have
-        // multiple successors. If that was the case, one of the successors could always be scheduled immediately
-        // after the pred, since it would not have multiple preds and therefore the edge can't be a back edge.
-        System.out.println(movesAfterPred);
-        assert !predHasMultipleSuccs || movesAfterPred.isEmpty()
-            : "'multiple successors => no moves necessary' was hurt. " + pred + " to " + succ;
-      }
 
-      resolvedBlocks.get(pred).addAll(MoveResolver.resolveMoves(movesAfterPred));
+        // Resolving moves are also necessary at the begin (or end) of an else branch,
+        // when an interval was split in the then branch, for example.
+        // Because the blocks inserted to split critical edges conflict are where the preds need
+        // resolving moves, we have the old problem of having to insert resolving moves in blocks
+        // with multiple successors, which is really hard to get right.
+        // Therefore we retain the necessary moves, so that they are inserted in target block instead.
+        // Which should be fine, since they *should* be empty anyway.
+        CodeBlock resolveWhere = pred;
+        if (predHasMultipleSuccs) {
+          assert succ.instructions.isEmpty() : "Can't place resolving moves into a non-empty succ";
+          // We have to check that this indeed the only edge over which succ is reachable.
+          // Checking phis is the closest we can get.
+          assert succ.phis.isEmpty() : "Can't place resolving moves in a block with multiple preds";
+          resolveWhere = succ;
+        }
+
+        resolveControlFlowEdge(
+            pred, succ, toResolve.computeIfAbsent(resolveWhere, k -> new HashSet<>()));
+      }
+    }
+
+    for (CodeBlock block : linearization) {
+      Set<Move> moves = toResolve.get(block);
+      if (moves == null) {
+        continue;
+      }
+      resolvedBlocks.get(block).addAll(MoveResolver.resolveMoves(moves));
     }
   }
 
@@ -79,7 +99,7 @@ public class SsaDeconstruction {
         succ, k -> allocationResult.liveIntervalsAt(BlockPosition.beginOf(k)));
   }
 
-  private void resolveControlFlowEdge(CodeBlock pred, CodeBlock succ, Set<Move> movesAfterPred) {
+  private void resolveControlFlowEdge(CodeBlock pred, CodeBlock succ, Set<Move> toResolve) {
     // For each interval live at the begin of succ
     BlockPosition endOfPred = BlockPosition.endOf(pred);
     BlockPosition beginOfSucc = BlockPosition.beginOf(succ);
@@ -103,7 +123,7 @@ public class SsaDeconstruction {
       if (!src.equals(dest)) {
         System.out.println("endOfPred = " + endOfPred);
         System.out.println("beginOfSucc = " + beginOfSucc);
-        movesAfterPred.add(new Move(src, dest));
+        toResolve.add(new Move(src, dest));
       }
     }
   }
