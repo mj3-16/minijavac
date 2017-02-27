@@ -2,8 +2,8 @@ package minijava.backend.allocation;
 
 import static minijava.backend.CodeBlockBuilder.asLinearization;
 import static minijava.backend.CodeBlockBuilder.newBlock;
-import static minijava.backend.OperandUtils.imm;
-import static minijava.backend.OperandUtils.reg;
+import static minijava.backend.operands.OperandUtils.imm;
+import static minijava.backend.operands.OperandUtils.reg;
 import static minijava.backend.registers.AMD64Register.A;
 import static minijava.backend.registers.AMD64Register.D;
 import static minijava.backend.registers.AMD64Register.DI;

@@ -22,6 +22,9 @@ public class MoveResolver {
 
   /** Resolves a set of moves which are to happen simultaneously. */
   public static List<Instruction> resolveMoves(Set<Move> moves) {
+    assert seq(moves).map(m -> m.dest).distinct().count() == moves.size()
+        : "Can't assign the same destination twice";
+
     List<Instruction> instructions = new ArrayList<>();
     Set<AMD64Register> scratchRegisters = new HashSet<>();
 
@@ -91,7 +94,7 @@ public class MoveResolver {
       instructions.add(new Push(move.src));
       instructions.add(new Pop(move.dest));
     } else {
-      RegisterOperand tmp = new RegisterOperand(move.dest.width, scratch);
+      RegisterOperand tmp = new RegisterOperand(move.dest.irNode, scratch);
       instructions.add(new Mov(move.src, tmp));
       instructions.add(new Mov(tmp, move.dest));
     }

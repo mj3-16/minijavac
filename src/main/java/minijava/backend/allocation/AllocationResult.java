@@ -7,6 +7,7 @@ import static minijava.backend.allocation.AllocationResult.SpillEvent.Kind.SPILL
 import static org.jooq.lambda.Seq.seq;
 
 import com.google.common.collect.TreeMultimap;
+import firm.nodes.Node;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
@@ -19,7 +20,6 @@ import minijava.backend.lifetime.LifetimeInterval;
 import minijava.backend.operands.AddressingMode;
 import minijava.backend.operands.MemoryOperand;
 import minijava.backend.operands.Operand;
-import minijava.backend.operands.OperandWidth;
 import minijava.backend.operands.RegisterOperand;
 import minijava.backend.registers.AMD64Register;
 import minijava.backend.registers.Register;
@@ -50,11 +50,6 @@ public class AllocationResult {
             // No spilling needed.
             return;
           }
-          System.out.println();
-          System.out.println("AllocationResult.determineWhereToSpillAndReload");
-          System.out.println("reg = " + reg);
-          System.out.println("splits.ranges = " + seq(splits).map(s -> s.ranges).toList());
-          System.out.println("splits.uses = " + seq(splits).map(s -> s.uses).toList());
           // otherwise we have to spill within the first interval and reload at the begin of every following.
           Iterator<LifetimeInterval> it = splits.iterator();
           LifetimeInterval first = it.next();
@@ -79,16 +74,6 @@ public class AllocationResult {
             assert use.isUse() : "A following use wasn't really a use";
             events.put(use, new SpillEvent(RELOAD, following));
           }
-          System.out.println(
-              "events = "
-                  + seq(events.asMap())
-                      .flatMap(
-                          evts ->
-                              seq(evts.v2)
-                                  .map(
-                                      evt ->
-                                          evts.v1 + " " + evt.kind + " " + evt.interval.register))
-                      .toList());
         });
     return events;
   }
@@ -125,15 +110,15 @@ public class AllocationResult {
     return live;
   }
 
-  public Operand hardwareOperandAt(OperandWidth width, Register register, BlockPosition where) {
+  public Operand hardwareOperandAt(VirtualRegister register, BlockPosition where) {
     AMD64Register physical = assignedRegisterAt(register, where);
 
     if (physical != null) {
       // There is a physical register assigned at where
-      return new RegisterOperand(width, physical);
+      return new RegisterOperand(register.value, physical);
     }
     // Otherwise we return a reference to the spill location.
-    MemoryOperand spill = spillLocation(width, (VirtualRegister) register);
+    MemoryOperand spill = spillLocation(register);
     if (spill == null) {
       throw new AssertionError(
           "There was no register assigned but also no spill slot for " + register + " at " + where);
@@ -141,9 +126,10 @@ public class AllocationResult {
     return spill;
   }
 
-  public MemoryOperand spillLocation(OperandWidth width, VirtualRegister register) {
+  public MemoryOperand spillLocation(VirtualRegister register) {
+    Node irNode = register.value;
     int offset = (spillSlots.get(register) + 1) * SystemVAbi.BYTES_PER_ACTIVATION_RECORD_SLOT;
-    return new MemoryOperand(width, new AddressingMode(-offset, AMD64Register.BP));
+    return new MemoryOperand(irNode, new AddressingMode(-offset, AMD64Register.BP));
   }
 
   public static class SpillEvent {

@@ -1,5 +1,6 @@
 package minijava.backend;
 
+import firm.nodes.Proj;
 import minijava.backend.operands.AddressingMode;
 import minijava.backend.operands.MemoryOperand;
 import minijava.backend.operands.Operand;
@@ -32,18 +33,19 @@ public class SystemVAbi {
    * The first six (integer/pointer) parameters are passed through ARG_REGISTERS, the others on the
    * stack.
    */
-  public static Operand argument(int index, OperandWidth width) {
+  public static Operand argument(Proj irNode) {
+    int index = irNode.getNum();
     if (index < ARG_REGISTERS.length) {
-      return new RegisterOperand(width, ARG_REGISTERS[index]);
+      return new RegisterOperand(irNode, ARG_REGISTERS[index]);
     }
     index -= ARG_REGISTERS.length;
     index += SLOTS_BETWEEN_BP_AND_ARGS; // Saved BP + return address
     int offset = index * BYTES_PER_ACTIVATION_RECORD_SLOT;
     AddressingMode address = AddressingMode.offsetFromRegister(AMD64Register.BP, offset);
-    return new MemoryOperand(width, address);
+    return new MemoryOperand(irNode, address);
   }
 
-  /** Analogous to {@link #argument}, but addresses stack slots relative from the callees SP. */
+  /** Analogous to {@link #argument}, but addresses stack slots relative from the callers SP. */
   public static Operand parameter(int index, OperandWidth width) {
     if (index < ARG_REGISTERS.length) {
       return new RegisterOperand(width, ARG_REGISTERS[index]);

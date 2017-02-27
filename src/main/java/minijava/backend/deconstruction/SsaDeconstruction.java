@@ -106,7 +106,7 @@ public class SsaDeconstruction {
     for (LifetimeInterval li : liveAtBegin(succ)) {
       boolean isPhiOfSucc = isDefinedByPhi(succ, li);
       OperandWidth width = modeToWidth(li.register.value.getMode());
-      Operand dest = allocationResult.hardwareOperandAt(width, li.register, beginOfSucc);
+      Operand dest = allocationResult.hardwareOperandAt(li.register, beginOfSucc);
       Operand src;
       if (isPhiOfSucc) {
         // li is the interval of a Phi of succ. We don't go through the virtual Phis of succ, but to the allocated
@@ -117,12 +117,15 @@ public class SsaDeconstruction {
             seq(label.physicalPhis).filter(phi -> phi.output.equals(dest)).findFirst().get();
         src = def.inputs.get(pred);
       } else {
-        src = allocationResult.hardwareOperandAt(width, li.register, endOfPred);
+        src = allocationResult.hardwareOperandAt(li.register, endOfPred);
       }
 
       if (!src.equals(dest)) {
+        System.out.println("li = " + li);
         System.out.println("endOfPred = " + endOfPred);
+        System.out.println("src = " + src);
         System.out.println("beginOfSucc = " + beginOfSucc);
+        System.out.println("dest = " + dest);
         toResolve.add(new Move(src, dest));
       }
     }

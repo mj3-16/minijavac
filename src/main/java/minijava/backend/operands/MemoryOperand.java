@@ -1,5 +1,6 @@
 package minijava.backend.operands;
 
+import firm.nodes.Node;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
@@ -16,9 +17,14 @@ public class MemoryOperand extends Operand {
     this.mode = mode;
   }
 
+  public MemoryOperand(Node irNode, AddressingMode mode) {
+    super(irNode);
+    this.mode = mode;
+  }
+
   @Override
-  Operand withChangedWidthImpl(OperandWidth width) {
-    return new MemoryOperand(width, mode);
+  public Operand withChangedNode(Node irNode) {
+    return new MemoryOperand(irNode, this.mode);
   }
 
   @Override

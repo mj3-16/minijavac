@@ -1,5 +1,6 @@
 package minijava.backend.selection;
 
+import static minijava.backend.registers.AMD64Register.SP;
 import static minijava.ir.utils.FirmUtils.modeToWidth;
 
 import firm.Mode;
@@ -12,11 +13,25 @@ import firm.nodes.Start;
 import java.util.ArrayList;
 import java.util.List;
 import minijava.backend.SystemVAbi;
-import minijava.backend.instructions.*;
+import minijava.backend.instructions.Add;
+import minijava.backend.instructions.And;
+import minijava.backend.instructions.Call;
+import minijava.backend.instructions.Cmp;
+import minijava.backend.instructions.CodeBlockInstruction;
+import minijava.backend.instructions.Cqto;
+import minijava.backend.instructions.IDiv;
+import minijava.backend.instructions.IMul;
+import minijava.backend.instructions.Instruction;
+import minijava.backend.instructions.Mov;
+import minijava.backend.instructions.Neg;
+import minijava.backend.instructions.Setcc;
+import minijava.backend.instructions.Sub;
+import minijava.backend.instructions.TwoAddressInstruction;
 import minijava.backend.operands.AddressingMode;
 import minijava.backend.operands.ImmediateOperand;
 import minijava.backend.operands.MemoryOperand;
 import minijava.backend.operands.Operand;
+import minijava.backend.operands.OperandUtils;
 import minijava.backend.operands.OperandWidth;
 import minijava.backend.operands.RegisterOperand;
 import minijava.backend.registers.AMD64Register;
@@ -84,12 +99,10 @@ class TreeMatcher extends NodeVisitor.Default {
   }
 
   private void allocateStackSpace(int bytes) {
-    ImmediateOperand size = new ImmediateOperand(OperandWidth.Quad, bytes);
-    RegisterOperand sp = new RegisterOperand(OperandWidth.Quad, AMD64Register.SP);
     if (bytes > 0) {
-      instructions.add(new Sub(size, sp));
+      instructions.add(new Sub(OperandUtils.imm(bytes), OperandUtils.reg(SP)));
     } else if (bytes < 0) {
-      instructions.add(new Add(size, sp));
+      instructions.add(new Add(OperandUtils.imm(bytes), OperandUtils.reg(SP)));
     }
   }
 
@@ -104,23 +117,22 @@ class TreeMatcher extends NodeVisitor.Default {
     instructions.add(new Cmp(right, left));
     // We generate a register for the mode b node by default. In cases where this isn't necessary (immediate Jcc),
     // we just delete the defining instruction.
-    OperandWidth width = modeToWidth(Mode.getb());
-    RegisterOperand op = new RegisterOperand(width, mapping.registerForNode(node));
+    RegisterOperand op = new RegisterOperand(node, mapping.registerForNode(node));
     instructions.add(new Setcc(op, node.getRelation()));
   }
 
   @Override
   public void visit(firm.nodes.Const node) {
-    defineAsCopy(imm(node.getTarval()), node);
+    defineAsCopy(imm(node), node);
   }
 
-  private ImmediateOperand imm(TargetValue tarval) {
+  private ImmediateOperand imm(firm.nodes.Const node) {
+    TargetValue tarval = node.getTarval();
     Mode mode = tarval.getMode();
-    OperandWidth width = modeToWidth(mode);
     if (mode.equals(Mode.getb())) {
-      return new ImmediateOperand(width, tarval.isOne() ? 1 : 0);
+      return new ImmediateOperand(node, tarval.isOne() ? 1 : 0);
     }
-    return new ImmediateOperand(width, tarval.asLong());
+    return new ImmediateOperand(node, tarval.asLong());
   }
 
   @Override
@@ -128,7 +140,7 @@ class TreeMatcher extends NodeVisitor.Default {
     OperandWidth width = modeToWidth(node.getMode());
     Operand op = operandForNode(node.getPred(0));
     VirtualRegister reg = mapping.registerForNode(node);
-    instructions.add(new Mov(op.withChangedWidth(width), new RegisterOperand(width, reg)));
+    instructions.add(new Mov(op.withChangedNode(node), new RegisterOperand(node, reg)));
   }
 
   @Override
@@ -216,15 +228,15 @@ class TreeMatcher extends NodeVisitor.Default {
     // We immediately copy the hardware register into a virtual register, so that register allocation can decide
     // what's best.
     if (node instanceof firm.nodes.Div) {
-      defineAsCopy(new RegisterOperand(dividend.width, AMD64Register.A), proj);
+      defineAsCopy(new RegisterOperand(proj, AMD64Register.A), proj);
     } else {
       assert node instanceof firm.nodes.Mod : "projectOrDivMod called something else: " + node;
-      defineAsCopy(new RegisterOperand(dividend.width, AMD64Register.D), proj);
+      defineAsCopy(new RegisterOperand(proj, AMD64Register.D), proj);
     }
   }
 
   private RegisterOperand cqto(Operand op) {
-    RegisterOperand a = new RegisterOperand(op.width, AMD64Register.A);
+    RegisterOperand a = new RegisterOperand(op.irNode, AMD64Register.A);
     instructions.add(new Mov(op, a));
     instructions.add(new Cqto(op.width));
     return a;
@@ -233,8 +245,7 @@ class TreeMatcher extends NodeVisitor.Default {
   private void projectLoad(Proj proj, Node pred) {
     Node ptr = pred.getPred(1);
     AddressingMode address = followIndirecion(ptr);
-    OperandWidth width = modeToWidth(proj.getMode());
-    defineAsCopy(new MemoryOperand(width, address), proj);
+    defineAsCopy(new MemoryOperand(proj, address), proj);
   }
 
   private AddressingMode followIndirecion(Node ptrNode) {
@@ -244,15 +255,13 @@ class TreeMatcher extends NodeVisitor.Default {
   }
 
   private void projectReturnValue(Proj proj) {
-    OperandWidth width = modeToWidth(proj.getMode());
-    RegisterOperand operand = new RegisterOperand(width, SystemVAbi.RETURN_REGISTER);
+    RegisterOperand operand = new RegisterOperand(proj, SystemVAbi.RETURN_REGISTER);
     defineAsCopy(operand, proj);
   }
 
   private void projectArgument(Proj proj, Start start) {
     assert proj.getPred().getPred(0).equals(start);
-    OperandWidth width = modeToWidth(proj.getMode());
-    Operand arg = SystemVAbi.argument(proj.getNum(), width);
+    Operand arg = SystemVAbi.argument(proj);
     defineAsCopy(arg, proj);
   }
 
@@ -262,6 +271,11 @@ class TreeMatcher extends NodeVisitor.Default {
     Operand value = operandForNode(store.getValue());
     OperandWidth width = modeToWidth(store.getValue().getMode());
     MemoryOperand dest = new MemoryOperand(width, address);
+    // The irNode is somewhat exceptional: we save the store node in it, so that later
+    // the appropriate comment can be generated by looking up the dest operand of the mov.
+    // We still have to pass in the width of the value, but the actual 'value' represented is
+    // pointed to by the ptr.
+    dest.irNode = store.getPtr();
     instructions.add(new Mov(value, dest));
   }
 
@@ -281,9 +295,8 @@ class TreeMatcher extends NodeVisitor.Default {
     if (!mapping.hasRegisterAssigned(value)) {
       value.accept(this);
     }
-    OperandWidth width = modeToWidth(value.getMode());
     VirtualRegister register = mapping.registerForNode(value);
-    return new RegisterOperand(width, register);
+    return new RegisterOperand(value, register);
   }
 
   /**
@@ -304,9 +317,8 @@ class TreeMatcher extends NodeVisitor.Default {
 
   private RegisterOperand defineAsCopy(Operand src, Node value) {
     VirtualRegister register = mapping.registerForNode(value);
-    OperandWidth width = modeToWidth(value.getMode());
-    RegisterOperand dest = new RegisterOperand(width, register);
-    instructions.add(new Mov(src.withChangedWidth(width), dest));
+    RegisterOperand dest = new RegisterOperand(value, register);
+    instructions.add(new Mov(src, dest));
     return dest;
   }
 

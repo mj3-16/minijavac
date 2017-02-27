@@ -3,6 +3,7 @@ package minijava.backend.operands;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import com.google.common.collect.Sets;
+import firm.nodes.Node;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
@@ -18,9 +19,15 @@ public class RegisterOperand extends Operand {
     this.register = register;
   }
 
+  public RegisterOperand(Node irNode, Register register) {
+    super(irNode);
+    checkArgument(register != null, "register was null");
+    this.register = register;
+  }
+
   @Override
-  Operand withChangedWidthImpl(OperandWidth width) {
-    return new RegisterOperand(width, register);
+  public Operand withChangedNode(Node irNode) {
+    return new RegisterOperand(irNode, register);
   }
 
   @Override

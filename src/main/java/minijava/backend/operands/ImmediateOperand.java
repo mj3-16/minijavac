@@ -1,6 +1,7 @@
 package minijava.backend.operands;
 
 import com.google.common.collect.Sets;
+import firm.nodes.Node;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
@@ -13,6 +14,11 @@ public class ImmediateOperand extends Operand {
 
   public ImmediateOperand(OperandWidth width, long value) {
     super(width);
+    this.value = value;
+  }
+
+  public ImmediateOperand(Node irNode, long value) {
+    super(irNode);
     this.value = value;
   }
 
@@ -43,8 +49,8 @@ public class ImmediateOperand extends Operand {
   }
 
   @Override
-  public Operand withChangedWidthImpl(OperandWidth width) {
-    return new ImmediateOperand(width, this.value);
+  public Operand withChangedNode(Node irNode) {
+    return new ImmediateOperand(irNode, this.value);
   }
 
   @Override

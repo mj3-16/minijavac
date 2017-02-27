@@ -60,9 +60,6 @@ public class LinearScanRegisterAllocator {
       assert unhandled.size() == seq(unhandled).map(li -> li.register).count();
       LifetimeInterval current = unhandled.first();
       unhandled.remove(current);
-      System.out.println();
-      System.out.println("LinearScanRegisterAllocator.allocate");
-      System.out.println(current);
       CodeBlock first = current.firstBlock();
       LiveRange rangeInFirstBlock = current.getLifetimeInBlock(first);
       assert rangeInFirstBlock != null : "The interval should be alive in its first block";
@@ -87,9 +84,6 @@ public class LinearScanRegisterAllocator {
   private boolean tryAllocateFreeRegister(LifetimeInterval current) {
     BlockPosition start = current.from();
     BlockPosition end = current.to();
-    System.out.println();
-    System.out.println("LinearScanRegisterAllocator.tryAllocateFreeRegister");
-    System.out.println("start = " + start);
     Map<AMD64Register, ConflictSite> freeUntil = new TreeMap<>();
 
     for (AMD64Register register : allocatable) {
@@ -114,10 +108,7 @@ public class LinearScanRegisterAllocator {
       putEarliest(freeUntil, register, ConflictSite.at(endOfLifetimeHole));
     }
 
-    System.out.println("freeUntil = " + freeUntil);
-
     Tuple2<AMD64Register, ConflictSite> bestCandidate = determineBestCandidate(freeUntil, current);
-    System.out.println(bestCandidate + " for " + current.register);
     AMD64Register assignedRegister = bestCandidate.v1;
     ConflictSite conflict = bestCandidate.v2;
 
@@ -242,9 +233,6 @@ public class LinearScanRegisterAllocator {
     allocation.put(new_, allocation.remove(old));
     List<LifetimeInterval> splits = getLifetimeIntervals(old.register);
     int idx = splits.indexOf(old);
-    System.out.println("idx = " + idx);
-    System.out.println("splits.size() = " + splits.size());
-    System.out.println("splits = " + splits);
     assert idx == -1 || idx == splits.size() - 1;
     replaceIfPresent(splits, old, new_);
     replaceIfPresent(active, old, new_);
@@ -259,9 +247,6 @@ public class LinearScanRegisterAllocator {
   }
 
   private void allocateBlockedRegister(LifetimeInterval current) {
-    System.out.println();
-    System.out.println("LinearScanRegisterAllocator.allocateBlockedRegister");
-    System.out.println("current = " + current);
     BlockPosition start = current.from();
 
     Map<AMD64Register, ConflictSite> nextUses = new HashMap<>();
@@ -273,11 +258,7 @@ public class LinearScanRegisterAllocator {
 
     for (LifetimeInterval interval : Seq.concat(active, inactive)) {
       AMD64Register register = allocation.get(interval);
-      System.out.println("register = " + register);
-      System.out.println("interval.ranges = " + interval.ranges);
-      System.out.println("current.ranges = " + current.ranges);
       BlockPosition conflict = interval.ranges.firstIntersectionWith(current.ranges);
-      System.out.println("conflict = " + conflict);
       if (conflict == null) {
         // Must be an non-conflicting inactive interval
         continue;
@@ -293,13 +274,10 @@ public class LinearScanRegisterAllocator {
         continue;
       }
 
-      System.out.println("nextUseAfterCurrentDef = " + nextUseAfterCurrentDef);
       putEarliest(nextUses, register, ConflictSite.at(nextUseAfterCurrentDef));
     }
 
-    System.out.println("nextUses = " + nextUses);
     Tuple2<AMD64Register, ConflictSite> bestCandidate = determineBestCandidate(nextUses, current);
-    System.out.println("bestCandidate = " + bestCandidate);
     AMD64Register assignedRegister = bestCandidate.v1;
     ConflictSite farthestNextUse = bestCandidate.v2;
 
@@ -327,9 +305,6 @@ public class LinearScanRegisterAllocator {
       // to the old register, but will re-insert the other conflicting split half into unhandled.
       for (LifetimeInterval interval : filterByAllocatedRegister(active, assignedRegister)) {
         // FIXME: what if interval starts at start?
-        System.out.println(interval);
-        System.out.println("Splitting " + interval.register + " at " + start);
-        System.out.println(current.ranges.firstIntersectionWith(interval.ranges));
         // We split it at start, reflecting the fact that at this position there is no longer
         // a register assigned.
         LifetimeInterval before =

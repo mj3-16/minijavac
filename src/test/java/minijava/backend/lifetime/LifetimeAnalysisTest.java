@@ -2,6 +2,8 @@ package minijava.backend.lifetime;
 
 import static minijava.backend.CodeBlockBuilder.asLinearization;
 import static minijava.backend.CodeBlockBuilder.newBlock;
+import static minijava.backend.operands.OperandUtils.imm;
+import static minijava.backend.operands.OperandUtils.reg;
 import static minijava.backend.registers.AMD64Register.A;
 import static minijava.backend.registers.AMD64Register.DI;
 import static minijava.backend.registers.AMD64Register.SI;
@@ -22,11 +24,6 @@ import minijava.backend.block.CodeBlock.ExitArity.Zero;
 import minijava.backend.instructions.Call;
 import minijava.backend.instructions.Cmp;
 import minijava.backend.instructions.Mov;
-import minijava.backend.operands.ImmediateOperand;
-import minijava.backend.operands.Operand;
-import minijava.backend.operands.OperandWidth;
-import minijava.backend.operands.RegisterOperand;
-import minijava.backend.registers.Register;
 import minijava.backend.registers.VirtualRegister;
 import org.junit.Assert;
 import org.junit.Test;
@@ -130,13 +127,5 @@ public class LifetimeAnalysisTest {
         String.format("%s is dead in '%s'", name, where.label),
         li.getLifetimeInBlock(where),
         nullValue());
-  }
-
-  private static Operand imm(long value) {
-    return new ImmediateOperand(OperandWidth.Quad, value);
-  }
-
-  private static Operand reg(Register reg) {
-    return new RegisterOperand(OperandWidth.Quad, reg);
   }
 }

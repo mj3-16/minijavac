@@ -170,13 +170,13 @@ public class InstructionSelector extends NodeVisitor.Default {
     // and do nothing except for noting the Phi in its code-block.
     // SSA form deconstruction happens after/while register allocation.
     OperandWidth width = modeToWidth(phi.getMode());
-    RegisterOperand result = new RegisterOperand(width, mapping.registerForNode(phi));
+    RegisterOperand result = new RegisterOperand(phi, mapping.registerForNode(phi));
     Map<CodeBlock, Operand> args = new HashMap<>();
     for (int i = 0; i < phi.getPredCount(); ++i) {
       Node pred = phi.getPred(i);
       Block predBlock = (Block) phi.getBlock().getPred(i).getBlock();
       VirtualRegister register = mapping.registerForNode(pred);
-      args.put(getCodeBlock(predBlock), new RegisterOperand(width, register));
+      args.put(getCodeBlock(predBlock), new RegisterOperand(pred, register));
     }
     CodeBlock block = getCodeBlockOfNode(phi);
     block.phis.add(new PhiFunction(args, result, phi));
@@ -219,8 +219,7 @@ public class InstructionSelector extends NodeVisitor.Default {
       // We have to rematerialize the flags register with the node's value.
       assert mapping.hasRegisterAssigned(sel) : "Didn't find the definition for the selector node";
       VirtualRegister selResult = mapping.registerForNode(sel);
-      OperandWidth width = modeToWidth(Mode.getb());
-      RegisterOperand op = new RegisterOperand(width, selResult);
+      RegisterOperand op = new RegisterOperand(sel, selResult);
       block.instructions.add(new Test(op, op));
       currentlyVisibleModeb.put(irBlock, sel);
       relation = Relation.LessGreater; // Should output in a jnz/jne
@@ -289,8 +288,8 @@ public class InstructionSelector extends NodeVisitor.Default {
       assert mapping.hasRegisterAssigned(retVal) : "retVal was not in a register " + retVal;
       VirtualRegister register = mapping.registerForNode(retVal);
       OperandWidth width = modeToWidth(retVal.getMode());
-      RegisterOperand source = new RegisterOperand(width, register);
-      RegisterOperand dest = new RegisterOperand(width, SystemVAbi.RETURN_REGISTER);
+      RegisterOperand source = new RegisterOperand(retVal, register);
+      RegisterOperand dest = new RegisterOperand(retVal, SystemVAbi.RETURN_REGISTER);
       block.instructions.add(new Mov(source, dest));
     }
     block.instructions.add(new Leave());
@@ -374,7 +373,6 @@ public class InstructionSelector extends NodeVisitor.Default {
           List<Node> withoutRetained = partition.v2.toList();
           // This will only visit nodes which were retained previously. See isToBeRetained.
           List<Node> onlyRetained = partition.v1.toList();
-          withoutRetained.forEach(System.out::println);
 
           withoutRetained.forEach(n -> n.accept(selector));
           // This split is necessary because of the side-effects of instruction ordering on the flags register.

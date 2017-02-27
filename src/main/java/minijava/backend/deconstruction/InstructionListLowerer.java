@@ -1,8 +1,10 @@
 package minijava.backend.deconstruction;
 
+import static com.google.common.base.Objects.equal;
 import static minijava.backend.allocation.AllocationResult.SpillEvent.Kind.RELOAD;
 import static minijava.backend.allocation.AllocationResult.SpillEvent.Kind.SPILL;
-import static minijava.ir.utils.FirmUtils.modeToWidth;
+import static minijava.backend.operands.OperandUtils.imm;
+import static minijava.backend.operands.OperandUtils.reg;
 import static org.jooq.lambda.Seq.seq;
 
 import java.util.ArrayList;
@@ -38,10 +40,8 @@ import minijava.backend.operands.AddressingMode;
 import minijava.backend.operands.ImmediateOperand;
 import minijava.backend.operands.MemoryOperand;
 import minijava.backend.operands.Operand;
-import minijava.backend.operands.OperandWidth;
 import minijava.backend.operands.RegisterOperand;
 import minijava.backend.registers.AMD64Register;
-import minijava.backend.registers.Register;
 import minijava.backend.registers.VirtualRegister;
 import org.jooq.lambda.function.Function2;
 
@@ -96,9 +96,8 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
       return;
     }
     VirtualRegister virtual = afterDef.interval.register;
-    OperandWidth slotWidth = modeToWidth(virtual.value.getMode());
-    RegisterOperand src = new RegisterOperand(slotWidth, assigned);
-    MemoryOperand dest = allocationResult.spillLocation(slotWidth, virtual);
+    RegisterOperand src = new RegisterOperand(virtual.value, assigned);
+    MemoryOperand dest = allocationResult.spillLocation(virtual);
     lowered.add(new Mov(src, dest));
   }
 
@@ -108,9 +107,8 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
     AMD64Register assigned = allocationResult.allocation.get(beforeUse.interval);
     assert assigned != null;
     VirtualRegister virtual = beforeUse.interval.register;
-    OperandWidth slotWidth = modeToWidth(virtual.value.getMode());
-    MemoryOperand src = allocationResult.spillLocation(slotWidth, virtual);
-    RegisterOperand dest = new RegisterOperand(slotWidth, assigned);
+    MemoryOperand src = allocationResult.spillLocation(virtual);
+    RegisterOperand dest = new RegisterOperand(virtual.value, assigned);
     lowered.add(new Mov(src, dest));
   }
 
@@ -171,12 +169,12 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
 
   @Override
   public void visit(Enter enter) {
-    RegisterOperand rsp = wholeRegister(AMD64Register.SP);
-    RegisterOperand rbp = wholeRegister(AMD64Register.BP);
+    RegisterOperand rsp = reg(AMD64Register.SP);
+    RegisterOperand rbp = reg(AMD64Register.BP);
     lowered.add(new Push(rbp));
     lowered.add(new Mov(rsp, rbp));
     int activationRecordSize = activationRecordSize(allocationResult);
-    ImmediateOperand minuend = new ImmediateOperand(OperandWidth.Quad, activationRecordSize);
+    ImmediateOperand minuend = imm(activationRecordSize);
     lowered.add(new Sub(minuend, rsp));
   }
 
@@ -191,10 +189,6 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
     return SystemVAbi.BYTES_PER_ACTIVATION_RECORD_SLOT * maxNumberOfSpills;
   }
 
-  private static RegisterOperand wholeRegister(Register register) {
-    return new RegisterOperand(OperandWidth.Quad, register);
-  }
-
   @Override
   public void visit(IDiv idiv) {
     lowered.add(new IDiv(substituteHardwareRegisters(idiv.divisor, currentUse())));
@@ -202,8 +196,8 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
 
   @Override
   public void visit(Leave leave) {
-    RegisterOperand rsp = wholeRegister(AMD64Register.SP);
-    RegisterOperand rbp = wholeRegister(AMD64Register.BP);
+    RegisterOperand rsp = reg(AMD64Register.SP);
+    RegisterOperand rbp = reg(AMD64Register.BP);
     lowered.add(new Mov(rbp, rsp));
     lowered.add(new Pop(rbp));
   }
@@ -246,7 +240,17 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
     return virtualOperand.match(
         imm -> imm,
         reg -> {
-          return allocationResult.hardwareOperandAt(reg.width, reg.register, position);
+          if (reg.register instanceof AMD64Register) {
+            return reg;
+          }
+          VirtualRegister vreg = (VirtualRegister) reg.register;
+          Operand operand = allocationResult.hardwareOperandAt(vreg, position);
+          if (!equal(reg.irNode, vreg.value)) {
+            // May happen for Conv nodes, where the referenced register represents an other value
+            // than the node.
+            operand = operand.withChangedNode(reg.irNode);
+          }
+          return operand;
         },
         mem -> {
           BlockPosition use = position;
@@ -263,8 +267,15 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
           // Addressing modes in instruction selection.
           assert mem.mode.base == null || base != null;
           assert mem.mode.index == null || index != null;
-          return new MemoryOperand(
-              mem.width, new AddressingMode(mem.mode.displacement, base, index, mem.mode.scale));
+          AddressingMode mode =
+              new AddressingMode(mem.mode.displacement, base, index, mem.mode.scale);
+          MemoryOperand op = new MemoryOperand(mem.width, mode);
+          if (mem.irNode != null) {
+            // Store is lowered in a way that possibly modeToWidth(mem.irNode) != mem.width
+            // So we have to do this 'by hand'.
+            op.irNode = mem.irNode;
+          }
+          return op;
         });
   }
 
