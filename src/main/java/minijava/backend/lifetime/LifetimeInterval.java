@@ -120,6 +120,7 @@ public class LifetimeInterval {
     assert position.isDef() : "Was not a definition";
     LiveRange lifetime = getLifetimeInBlock(position.block);
     uses.put(position, new UseSite(position, def.mayBeReplacedByMemoryAccess));
+    System.out.println(this);
     assert lifetime != null : "There should be no defs without a later use.";
     setLiveRange(lifetime.from(position.pos));
   }

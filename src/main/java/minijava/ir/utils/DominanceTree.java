@@ -5,9 +5,8 @@ import firm.Graph;
 import firm.nodes.Block;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Set;
 
 public class DominanceTree {
   public final Node root;
@@ -59,63 +58,22 @@ public class DominanceTree {
     return new DominanceTree(root);
   }
 
-  private static void insert(Node tree, Block block) {
-    assert Dominance.dominates(tree.block, block);
+  private static void insert(Node parent, Block block) {
+    assert Dominance.dominates(parent.block, block);
 
-    Node dominator = dominatingNode(tree.children, block);
+    Node dominator = dominatingNode(parent.children, block);
     while (dominator != null) {
-      tree = dominator;
-      dominator = dominatingNode(tree.children, block);
+      parent = dominator;
+      dominator = dominatingNode(parent.children, block);
     }
 
     // Node will be a new child. Also check if we dominate any other child and reassign them.
-    Node node = new Node(block);
-    for (Node dominated : dominatedNodes(tree.children, node.block)) {
-      tree.children.remove(dominated);
-      node.children.add(dominated);
+    Node newChild = new Node(block);
+    for (Node dominated : dominatedNodes(parent.children, newChild.block)) {
+      parent.children.remove(dominated);
+      newChild.children.add(dominated);
     }
-    addChildPlacingLoopBodiesBeforeExits(tree, node);
-  }
-
-  private static void addChildPlacingLoopBodiesBeforeExits(Node parent, Node node) {
-    if (reachableFromABackEdge(parent.block, node.block)) {
-      // The node is part of the loop body, so insert it at the front
-      parent.children.add(0, node);
-    } else {
-      // There is no path back to the parent, so this is a loop exit (if it was a loop)
-      // Adding it to the back is preferable.
-      parent.children.add(node);
-    }
-  }
-
-  private static boolean reachableFromABackEdge(Block header, Block block) {
-    for (int predNum : NodeUtils.incomingBackEdges(header)) {
-      Block footer = (Block) header.getPred(predNum).getBlock();
-      if (isTransitivePred(footer, block)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private static boolean isTransitivePred(Block source, Block target) {
-    ArrayDeque<Block> toVisit = new ArrayDeque<>();
-    Set<Block> visited = new HashSet<>();
-    toVisit.add(source);
-    while (!toVisit.isEmpty()) {
-      Block cur = toVisit.removeFirst();
-      if (visited.contains(cur)) {
-        continue;
-      }
-      visited.add(cur);
-
-      if (cur.equals(target)) {
-        return true;
-      }
-
-      NodeUtils.getPredecessorBlocks(cur).forEach(toVisit::add);
-    }
-    return false;
+    parent.children.add(newChild);
   }
 
   private static List<Node> dominatedNodes(List<Node> nodes, Block block) {
@@ -129,12 +87,45 @@ public class DominanceTree {
   }
 
   private static Node dominatingNode(List<Node> nodes, Block block) {
+    Node candidate = null;
     for (Node node : nodes) {
       if (Dominance.dominates(node.block, block)) {
-        return node;
+        assert candidate == null : "The dominator should be unique, if present";
+        candidate = node;
       }
     }
-    return null;
+    return candidate;
+  }
+
+  /**
+   * Imposes an order among children of the same direct dominator. Useful for first ordering for
+   * dominance, then after a topological sort.
+   */
+  public void sortChildren(Comparator<Node> comparator) {
+    ArrayDeque<Node> toVisit = new ArrayDeque<>();
+    toVisit.add(root);
+    while (!toVisit.isEmpty()) {
+      Node cur = toVisit.removeFirst();
+      cur.children.sort(comparator);
+      toVisit.addAll(cur.children);
+    }
+  }
+
+  @Override
+  public String toString() {
+    StringBuilder builder = new StringBuilder();
+    prettyPrintSExpr(root, builder);
+    return builder.toString();
+  }
+
+  private void prettyPrintSExpr(Node parent, StringBuilder builder) {
+    builder.append('(');
+    builder.append(parent.block.getNr());
+    for (Node child : parent.children) {
+      builder.append(' ');
+      prettyPrintSExpr(child, builder);
+    }
+    builder.append(')');
   }
 
   public static class Node {

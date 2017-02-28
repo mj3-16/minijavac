@@ -1,5 +1,6 @@
 package minijava.backend;
 
+import static java.util.Comparator.comparing;
 import static org.jooq.lambda.Seq.seq;
 
 import firm.Graph;
@@ -24,7 +25,7 @@ import minijava.backend.syntax.GasSyntax;
 import minijava.ir.optimize.ProgramMetrics;
 import minijava.ir.utils.DominanceTree;
 import minijava.ir.utils.GraphUtils;
-import org.jooq.lambda.Seq;
+import org.jooq.lambda.tuple.Tuple2;
 
 public class Backend {
 
@@ -63,12 +64,24 @@ public class Backend {
   }
 
   private static List<CodeBlock> linearizeCfg(Map<Block, CodeBlock> blocks, Graph graph) {
-    Seq<Block> allBlocks =
+    List<Block> topologicalOrder =
         seq(GraphUtils.topologicalOrder(graph))
             .ofType(Block.class)
-            .filter(b -> !b.equals(graph.getEndBlock()));
+            .filter(b -> !b.equals(graph.getEndBlock()))
+            .toList();
 
-    DominanceTree tree = DominanceTree.ofBlocks(allBlocks);
+    DominanceTree tree = DominanceTree.ofBlocks(topologicalOrder);
+
+    // Dominance is good for a first partial-order approximation. For a total order we then sort
+    // children uncomparable by dominance by their index in the topological order.
+    // This has the benefit of loop headers occuring before bodies and the bodies themselves
+    // happening in a sensible order.
+
+    Map<Block, Integer> topologicalIndex =
+        seq(topologicalOrder).zipWithIndex().toMap(Tuple2::v1, t -> t.v2.intValue());
+
+    tree.sortChildren(comparing(child -> topologicalIndex.get(child.block)));
+
     List<CodeBlock> linearization = seq(tree.preorder()).map(blocks::get).toList();
 
     for (int i = 0; i < linearization.size(); i++) {
