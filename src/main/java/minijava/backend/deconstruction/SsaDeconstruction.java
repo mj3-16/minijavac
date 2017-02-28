@@ -54,7 +54,6 @@ public class SsaDeconstruction {
     Map<CodeBlock, Set<Move>> toResolve = new HashMap<>();
 
     for (CodeBlock pred : linearization) {
-      Set<Move> movesAfterPred = new HashSet<>();
       Set<CodeBlock> successors = pred.exit.getSuccessors();
       boolean predHasMultipleSuccs = successors.size() > 1;
       for (CodeBlock succ : successors) {
@@ -120,11 +119,7 @@ public class SsaDeconstruction {
       }
 
       if (!src.equals(dest)) {
-        System.out.println("li = " + li);
-        System.out.println("endOfPred = " + endOfPred);
-        System.out.println("src = " + src);
-        System.out.println("beginOfSucc = " + beginOfSucc);
-        System.out.println("dest = " + dest);
+        assert !seq(toResolve).map(m -> m.dest).contains(dest);
         toResolve.add(new Move(src, dest));
       }
     }

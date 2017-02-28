@@ -19,7 +19,11 @@ class SpillSlotAllocator {
     }
     // When we can't reuse a spill slot, we just allocate a new one, which (assuming contiguous use
     // of spill slots) will have index spillSlots.size().
-    slot = freeSpillSlots.isEmpty() ? spillSlots.size() : freeSpillSlots.first();
+    slot = spillSlots.size();
+    if (!freeSpillSlots.isEmpty()) {
+      slot = freeSpillSlots.first();
+      freeSpillSlots.remove(slot);
+    }
     spillSlots.put(register, slot);
   }
 
