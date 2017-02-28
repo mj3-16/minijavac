@@ -162,15 +162,11 @@ public class Cli {
   /** Compiles (with/out optimizations) with the firm backend. */
   private void compileFirm(InputStream in, int optimizationLevel) throws IOException {
     Compiler.produceFirmIR(in, optimizationLevel);
-    Compiler.compile(Backend.FIRM, "a.out", shouldProduceDebuggableBinary());
+    Compiler.compile(Backend.FIRM, "a.out");
   }
 
   private static boolean shouldPrintGraphs() {
     return EnvVar.MJ_GRAPH.isSetToOne();
-  }
-
-  private boolean shouldProduceDebuggableBinary() {
-    return EnvVar.MJ_DBG.isSetToOne();
   }
 
   public static void dumpGraphsIfNeeded(String appendix) {
@@ -188,7 +184,7 @@ public class Cli {
 
   private void runFirm(InputStream in) throws IOException {
     Compiler.produceFirmIR(in, 0);
-    Compiler.compile(Backend.FIRM, "a.out", shouldProduceDebuggableBinary());
+    Compiler.compile(Backend.FIRM, "a.out");
     runCompiledProgram("a.out");
   }
 
@@ -211,7 +207,7 @@ public class Cli {
 
   private void compile(InputStream in, int optimizationLevel) throws IOException {
     Compiler.produceFirmIR(in, optimizationLevel);
-    Compiler.compile(Backend.OWN, "a.out", shouldProduceDebuggableBinary());
+    Compiler.compile(Backend.OWN, "a.out");
   }
 
   private static class Parameters {

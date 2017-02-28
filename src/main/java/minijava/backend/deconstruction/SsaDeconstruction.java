@@ -1,7 +1,6 @@
 package minijava.backend.deconstruction;
 
 import static com.google.common.collect.Lists.newArrayList;
-import static minijava.ir.utils.FirmUtils.modeToWidth;
 import static org.jooq.lambda.Seq.seq;
 
 import firm.Relation;
@@ -22,7 +21,6 @@ import minijava.backend.instructions.Ret;
 import minijava.backend.lifetime.BlockPosition;
 import minijava.backend.lifetime.LifetimeInterval;
 import minijava.backend.operands.Operand;
-import minijava.backend.operands.OperandWidth;
 
 public class SsaDeconstruction {
   private final List<CodeBlock> linearization;
@@ -50,6 +48,8 @@ public class SsaDeconstruction {
   }
 
   private void resolvePhisAndSplitIntervals() {
+    System.out.println();
+    System.out.println("SsaDeconstruction.resolvePhisAndSplitIntervals");
     // For each control flow edge...
     Map<CodeBlock, Set<Move>> toResolve = new HashMap<>();
 
@@ -105,7 +105,6 @@ public class SsaDeconstruction {
     BlockPosition beginOfSucc = BlockPosition.beginOf(succ);
     for (LifetimeInterval li : liveAtBegin(succ)) {
       boolean isPhiOfSucc = isDefinedByPhi(succ, li);
-      OperandWidth width = modeToWidth(li.register.value.getMode());
       Operand dest = allocationResult.hardwareOperandAt(li.register, beginOfSucc);
       Operand src;
       if (isPhiOfSucc) {

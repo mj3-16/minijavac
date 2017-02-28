@@ -1,5 +1,6 @@
 package minijava.backend.cleanup;
 
+import firm.Graph;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -7,9 +8,17 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import minijava.backend.instructions.*;
+import minijava.backend.instructions.Add;
+import minijava.backend.instructions.Call;
+import minijava.backend.instructions.IMul;
+import minijava.backend.instructions.Instruction;
+import minijava.backend.instructions.Jcc;
+import minijava.backend.instructions.Jmp;
+import minijava.backend.instructions.Label;
+import minijava.backend.instructions.Mov;
+import minijava.backend.instructions.Sub;
 import minijava.backend.operands.Operand;
-import minijava.ir.emit.NameMangler;
+import minijava.ir.utils.MethodInformation;
 import org.jooq.lambda.Seq;
 
 public class PeepholeOptimizer {
@@ -30,9 +39,9 @@ public class PeepholeOptimizer {
     return op.match(imm -> imm.value == value, reg -> false, mem -> false);
   }
 
-  public PeepholeOptimizer(List<Instruction> instructions) {
+  public PeepholeOptimizer(Graph graph, List<Instruction> instructions) {
     this.instructions = instructions;
-    usedLabels.add(NameMangler.mangledMainMethodName());
+    usedLabels.add(new MethodInformation(graph).ldName);
   }
 
   private List<Instruction> optimize() {
@@ -62,8 +71,8 @@ public class PeepholeOptimizer {
     }
   }
 
-  public static List<Instruction> optimize(List<Instruction> instructions) {
-    return new PeepholeOptimizer(instructions).optimize();
+  public static List<Instruction> optimize(Graph graph, List<Instruction> instructions) {
+    return new PeepholeOptimizer(graph, instructions).optimize();
   }
 
   private static <T extends Instruction> Rule rule(

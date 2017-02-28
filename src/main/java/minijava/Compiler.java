@@ -213,12 +213,11 @@ public class Compiler {
     }
   }
 
-  public static void compile(Backend backend, String outFile, boolean produceDebuggableBinary)
-      throws IOException {
+  public static void compile(Backend backend, String outFile) throws IOException {
     lower();
     Cli.dumpGraphsIfNeeded("after-lowering");
     String asmFile = backend.lowerToAssembler(outFile);
-    assemble(asmFile, outFile, produceDebuggableBinary);
+    assemble(asmFile, outFile);
   }
 
   private static void lower() {
@@ -242,8 +241,7 @@ public class Compiler {
         .forEach(framework::optimizeUntilFixedpoint);
   }
 
-  private static void assemble(
-      String assemblerFile, String outputFile, boolean produceDebuggableBinary) throws IOException {
+  private static void assemble(String assemblerFile, String outputFile) throws IOException {
     File runtime = getRuntimeFile();
 
     boolean useGC = EnvVar.MJ_USE_GC.isSetToOne();
@@ -255,7 +253,7 @@ public class Compiler {
 
     gccApp += " " + EnvVar.MJ_GCC_APP.value();
 
-    if (produceDebuggableBinary) {
+    if (EnvVar.MJ_DBG.isSetToOne()) {
       gccApp = " -g3";
     } else {
       gccApp = " -O3";

@@ -36,7 +36,6 @@ import minijava.backend.block.CodeBlock;
 import minijava.backend.block.CodeBlock.ExitArity.One;
 import minijava.backend.block.PhiFunction;
 import minijava.backend.instructions.CodeBlockInstruction;
-import minijava.backend.instructions.Enter;
 import minijava.backend.instructions.Instruction;
 import minijava.backend.instructions.Leave;
 import minijava.backend.instructions.Mov;
@@ -309,7 +308,11 @@ public class InstructionSelector extends NodeVisitor.Default {
 
   @Override
   public void visit(Start node) {
-    getCodeBlock(graph.getStartBlock()).instructions.add(0, new Enter());
+    List<CodeBlockInstruction> newInstructions = matcher.match(node);
+    CodeBlock block = getCodeBlockOfNode(node);
+    // This is somewhat ugly, us we duplicate most of invokeTreeMatcher. We do so only to
+    // specify the index 0 here, so that no instructions come before the prologue
+    block.instructions.addAll(0, newInstructions);
   }
 
   @Override

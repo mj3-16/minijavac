@@ -1,5 +1,7 @@
 package minijava.backend;
 
+import static minijava.ir.utils.FirmUtils.modeToWidth;
+
 import firm.nodes.Proj;
 import minijava.backend.operands.AddressingMode;
 import minijava.backend.operands.MemoryOperand;
@@ -33,16 +35,19 @@ public class SystemVAbi {
    * The first six (integer/pointer) parameters are passed through ARG_REGISTERS, the others on the
    * stack.
    */
-  public static Operand argument(Proj irNode) {
-    int index = irNode.getNum();
+  public static Operand argument(Proj proj) {
+    int index = proj.getNum();
+    // We don't consider the hardware slot the definition of the proj, rather the defining copy
+    // which will use this as the source.
+    OperandWidth width = modeToWidth(proj.getMode());
     if (index < ARG_REGISTERS.length) {
-      return new RegisterOperand(irNode, ARG_REGISTERS[index]);
+      return new RegisterOperand(width, ARG_REGISTERS[index]);
     }
     index -= ARG_REGISTERS.length;
     index += SLOTS_BETWEEN_BP_AND_ARGS; // Saved BP + return address
     int offset = index * BYTES_PER_ACTIVATION_RECORD_SLOT;
     AddressingMode address = AddressingMode.offsetFromRegister(AMD64Register.BP, offset);
-    return new MemoryOperand(irNode, address);
+    return new MemoryOperand(width, address);
   }
 
   /** Analogous to {@link #argument}, but addresses stack slots relative from the callers SP. */

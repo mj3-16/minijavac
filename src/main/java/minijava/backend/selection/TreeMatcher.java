@@ -2,16 +2,18 @@ package minijava.backend.selection;
 
 import static minijava.backend.registers.AMD64Register.SP;
 import static minijava.ir.utils.FirmUtils.modeToWidth;
+import static org.jooq.lambda.Seq.seq;
 
+import firm.BackEdges;
 import firm.Mode;
 import firm.TargetValue;
 import firm.nodes.Node;
 import firm.nodes.NodeVisitor;
 import firm.nodes.Phi;
 import firm.nodes.Proj;
-import firm.nodes.Start;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import minijava.backend.SystemVAbi;
 import minijava.backend.instructions.Add;
 import minijava.backend.instructions.And;
@@ -19,6 +21,7 @@ import minijava.backend.instructions.Call;
 import minijava.backend.instructions.Cmp;
 import minijava.backend.instructions.CodeBlockInstruction;
 import minijava.backend.instructions.Cqto;
+import minijava.backend.instructions.Enter;
 import minijava.backend.instructions.IDiv;
 import minijava.backend.instructions.IMul;
 import minijava.backend.instructions.Instruction;
@@ -38,7 +41,6 @@ import minijava.backend.registers.AMD64Register;
 import minijava.backend.registers.VirtualRegister;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.MethodInformation;
-import org.jooq.lambda.Seq;
 import org.jooq.lambda.function.Function2;
 
 class TreeMatcher extends NodeVisitor.Default {
@@ -96,6 +98,29 @@ class TreeMatcher extends NodeVisitor.Default {
     }
     instructions.add(new Call(calleeLabel, arguments));
     allocateStackSpace(-parameterRegionSize);
+    if (info.hasReturnValue) {
+      // We have to handle these immediately, since the proj might be visited at a point where
+      // eax was already overwritten.
+      getProjOnSuccessorProj(call, 0)
+          .ifPresent(
+              proj -> {
+                RegisterOperand ret =
+                    new RegisterOperand(modeToWidth(proj.getMode()), SystemVAbi.RETURN_REGISTER);
+                defineAsCopy(ret, proj);
+              });
+    }
+  }
+
+  private static Optional<Proj> getProjOnSuccessorProj(firm.nodes.Node startOrCall, int index) {
+    return seq(BackEdges.getOuts(startOrCall))
+        .map(be -> be.node)
+        .ofType(Proj.class)
+        .filter(proj -> proj.getMode().equals(Mode.getT()))
+        .flatMap(t -> seq(BackEdges.getOuts(t)))
+        .map(be -> be.node)
+        .ofType(Proj.class)
+        .filter(proj -> proj.getNum() == index)
+        .findFirst();
   }
 
   private void allocateStackSpace(int bytes) {
@@ -188,20 +213,6 @@ class TreeMatcher extends NodeVisitor.Default {
 
     Node pred = proj.getPred();
     switch (pred.getOpCode()) {
-      case iro_Proj:
-        // the pred is either a Call or a Start
-        Node startOrCall = pred.getPred(0);
-        switch (startOrCall.getOpCode()) {
-          case iro_Start:
-            projectArgument(proj, (firm.nodes.Start) startOrCall);
-            break;
-          case iro_Call:
-            assert proj.getNum() == 0
-                : "Projecting return value " + proj.getNum() + " on " + startOrCall;
-            projectReturnValue(proj);
-            break;
-        }
-        break;
       case iro_Load:
         projectLoad(proj, pred);
         break;
@@ -209,9 +220,12 @@ class TreeMatcher extends NodeVisitor.Default {
       case iro_Mod:
         projectDivOrMod(proj, pred);
         break;
+      case iro_Proj:
+        // the pred is either a Call or a Start, which we already handled.
+        break;
       case iro_Start:
       case iro_Call:
-        // We ignore these, the projs on these are what's interesting
+        // Proj M, ignore (should not happen anyway)
         break;
       default:
         assert false : "Can't handle Proj on " + pred;
@@ -254,15 +268,20 @@ class TreeMatcher extends NodeVisitor.Default {
     return AddressingMode.atRegister(ptr.register);
   }
 
-  private void projectReturnValue(Proj proj) {
-    RegisterOperand operand = new RegisterOperand(proj, SystemVAbi.RETURN_REGISTER);
-    defineAsCopy(operand, proj);
-  }
-
-  private void projectArgument(Proj proj, Start start) {
-    assert proj.getPred().getPred(0).equals(start);
-    Operand arg = SystemVAbi.argument(proj);
-    defineAsCopy(arg, proj);
+  @Override
+  public void visit(firm.nodes.Start start) {
+    instructions.add(new Enter());
+    // We also have to 'save' hardware registers into virtual ones, so that they are spilled
+    // appropriately. We probably don't need to do that for stack arguments, but this is something
+    // to worry for later...
+    int paramNumber = new MethodInformation(start.getGraph()).paramNumber;
+    for (int i = 0; i < paramNumber; i++) {
+      getProjOnSuccessorProj(start, i)
+          .ifPresent(
+              proj -> {
+                defineAsCopy(SystemVAbi.argument(proj), proj);
+              });
+    }
   }
 
   @Override
@@ -325,7 +344,7 @@ class TreeMatcher extends NodeVisitor.Default {
   private void saveDefinitions() {
     for (Instruction instruction : instructions) {
       for (VirtualRegister register :
-          Seq.seq(instruction.defs()).map(use -> use.register).ofType(VirtualRegister.class)) {
+          seq(instruction.defs()).map(use -> use.register).ofType(VirtualRegister.class)) {
         if (mapping.getDefinition(register) == null) {
           // There may be multiple instructions 'defining' a register (e.g. 2-adress code overwriting its right op).
           // This means we don't truly have SSA form, but nothing relies on the fact that the values don't change.

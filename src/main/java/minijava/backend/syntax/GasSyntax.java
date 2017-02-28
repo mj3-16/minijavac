@@ -1,22 +1,55 @@
 package minijava.backend.syntax;
 
 import static minijava.ir.utils.FirmUtils.relationToInstructionSuffix;
+import static org.jooq.lambda.Seq.seq;
 
+import firm.Graph;
+import firm.nodes.Node;
 import java.util.List;
+import java.util.Map.Entry;
+import minijava.backend.allocation.AllocationResult;
 import minijava.backend.block.PhiFunction;
-import minijava.backend.instructions.*;
+import minijava.backend.instructions.Add;
+import minijava.backend.instructions.And;
+import minijava.backend.instructions.Call;
+import minijava.backend.instructions.Cmp;
+import minijava.backend.instructions.Cqto;
+import minijava.backend.instructions.Enter;
+import minijava.backend.instructions.IDiv;
+import minijava.backend.instructions.IMul;
+import minijava.backend.instructions.Instruction;
+import minijava.backend.instructions.Jcc;
+import minijava.backend.instructions.Jmp;
+import minijava.backend.instructions.Label;
+import minijava.backend.instructions.Leave;
+import minijava.backend.instructions.Mov;
+import minijava.backend.instructions.Neg;
+import minijava.backend.instructions.Pop;
+import minijava.backend.instructions.Push;
+import minijava.backend.instructions.Ret;
+import minijava.backend.instructions.Setcc;
+import minijava.backend.instructions.Sub;
+import minijava.backend.instructions.Test;
+import minijava.backend.instructions.TwoAddressInstruction;
+import minijava.backend.instructions.Xchg;
 import minijava.backend.operands.AddressingMode;
+import minijava.backend.operands.ImmediateOperand;
+import minijava.backend.operands.MemoryOperand;
 import minijava.backend.operands.Operand;
 import minijava.backend.operands.OperandWidth;
+import minijava.backend.operands.RegisterOperand;
 import minijava.backend.registers.AMD64Register;
 import minijava.ir.emit.NameMangler;
 
 public class GasSyntax implements Instruction.Visitor {
-  private final List<Instruction> instructions;
-  private final StringBuilder builder = new StringBuilder();
+  private final StringBuilder builder;
+  private final Graph graph;
+  private final AllocationResult allocationResult;
 
-  private GasSyntax(List<Instruction> instructions) {
-    this.instructions = instructions;
+  private GasSyntax(StringBuilder builder, Graph graph, AllocationResult allocationResult) {
+    this.builder = builder;
+    this.graph = graph;
+    this.allocationResult = allocationResult;
   }
 
   @Override
@@ -53,11 +86,17 @@ public class GasSyntax implements Instruction.Visitor {
 
   @Override
   public void visit(Pop pop) {
+    if (pop.output.irNode != null) {
+      appendCommentLine(pop.output.irNode.toString(), true);
+    }
     formatInstruction(pop, pop.output.width, pop.output);
   }
 
   @Override
   public void visit(Push push) {
+    if (push.input.irNode != null) {
+      appendCommentLine(push.input.irNode.toString(), true);
+    }
     formatInstruction(push, push.input.width, push.input);
   }
 
@@ -68,6 +107,9 @@ public class GasSyntax implements Instruction.Visitor {
 
   @Override
   public void visit(Xchg xchg) {
+    if (xchg.left.irNode != null && xchg.right.irNode != null) {
+      appendCommentLine(xchg.left.irNode + " <-> " + xchg.right.irNode, true);
+    }
     formatInstruction(xchg, xchg.left.width, xchg.left, xchg.right);
   }
 
@@ -93,6 +135,9 @@ public class GasSyntax implements Instruction.Visitor {
 
   @Override
   public void visit(Cmp cmp) {
+    if (cmp.left.irNode != null && cmp.right.irNode != null) {
+      appendCommentLine("Compare " + cmp.left.irNode + " to " + cmp.right.irNode, true);
+    }
     formatInstruction(cmp, cmp.left.width, cmp.left, cmp.right);
   }
 
@@ -104,6 +149,9 @@ public class GasSyntax implements Instruction.Visitor {
 
   @Override
   public void visit(IDiv idiv) {
+    if (idiv.divisor.irNode != null) {
+      appendCommentLine("Divides by " + idiv.divisor.irNode, true);
+    }
     formatInstruction(idiv, idiv.divisor.width, idiv.divisor);
   }
 
@@ -120,11 +168,34 @@ public class GasSyntax implements Instruction.Visitor {
 
   @Override
   public void visit(Mov mov) {
+    if (mov.src instanceof ImmediateOperand) {
+      appendCommentLine("Define " + mov.src.irNode, true);
+    } else if (mov.src.irNode != null && mov.src.irNode.equals(mov.dest.irNode)) {
+      if (mov.src instanceof MemoryOperand) {
+        AddressingMode mode = ((MemoryOperand) mov.src).mode;
+        if (mode.base == AMD64Register.BP) {
+          appendCommentLine("Reload/Resolve " + mov.src.irNode, true);
+        } else {
+          appendCommentLine("Load " + mov.src.irNode, true);
+        }
+      } else if (mov.dest instanceof MemoryOperand) {
+        appendCommentLine("Spill/Resolve " + mov.dest.irNode, true);
+      } else {
+        // Considering all handled cases this must be reg to reg
+        assert mov.src instanceof RegisterOperand && mov.dest instanceof RegisterOperand;
+        appendCommentLine("Resolving move of " + mov.dest.irNode, true);
+      }
+    } else if (mov.src.irNode != null || mov.dest.irNode != null) {
+      appendCommentLine(String.format("Copy %s to %s", mov.src.irNode, mov.dest.irNode), true);
+    }
     formatInstruction(mov, mov.dest.width, mov.src, mov.dest);
   }
 
   @Override
   public void visit(Neg neg) {
+    if (neg.inout.irNode != null) {
+      appendCommentLine("Define " + neg.inout.irNode, true);
+    }
     formatInstruction(neg, neg.inout.width, neg.inout);
   }
 
@@ -145,10 +216,15 @@ public class GasSyntax implements Instruction.Visitor {
 
   @Override
   public void visit(Test test) {
+    if (test.left.irNode != null && test.left.irNode.equals(test.right.irNode)) {
+      appendCommentLine("Rematerialize " + test.left.irNode, true);
+    }
     formatInstruction(test, test.left.width, test.left, test.right);
   }
 
   private void formatTwoAddressInstruction(TwoAddressInstruction tai) {
+    appendCommentLine(
+        String.format("Defines %s (lhs: %s)", tai.right.irNode, tai.left.irNode), true);
     formatInstruction(tai, tai.left.width, tai.left, tai.right);
   }
 
@@ -262,14 +338,6 @@ public class GasSyntax implements Instruction.Visitor {
     return "";
   }
 
-  private StringBuilder formatAssembler() {
-    appendLine(".p2align 4, 0x90, 15", true);
-    appendLine(".globl " + NameMangler.mangledMainMethodName(), true);
-    appendLine();
-    instructions.forEach(i -> i.accept(this));
-    return builder;
-  }
-
   private void appendLine() {
     builder.append(System.lineSeparator());
   }
@@ -286,7 +354,42 @@ public class GasSyntax implements Instruction.Visitor {
     builder.append("    ");
   }
 
-  public static StringBuilder formatAssembler(List<Instruction> instructions) {
-    return new GasSyntax(instructions).formatAssembler();
+  private void formatGraphInstructions(List<Instruction> instructions) {
+    appendCommentLine("Stack frame layout:", false);
+    seq(allocationResult.spillSlots.entrySet())
+        .groupBy(Entry::getValue)
+        .forEach(
+            (slot, registers) -> {
+              List<Node> values = seq(registers).map(e -> e.getKey().value).toList();
+              appendCommentLine(String.format("%5d: %s", slot, values), false);
+            });
+
+    instructions.forEach(i -> i.accept(this));
+    appendLine();
+  }
+
+  private void appendCommentLine(String comment, boolean indent) {
+    if (indent) {
+      builder.append("    ");
+    }
+    builder.append("// ");
+    appendLine(comment, false);
+  }
+
+  public static void formatGraphInstructions(
+      StringBuilder builder,
+      List<Instruction> instructions,
+      Graph graph,
+      AllocationResult allocationResult) {
+    new GasSyntax(builder, graph, allocationResult).formatGraphInstructions(instructions);
+  }
+
+  public static void formatHeader(StringBuilder builder) {
+    builder.append(".p2align 4, 0x90, 15");
+    builder.append(System.lineSeparator());
+    builder.append(".globl ");
+    builder.append(NameMangler.mangledMainMethodName());
+    builder.append(System.lineSeparator());
+    builder.append(System.lineSeparator());
   }
 }

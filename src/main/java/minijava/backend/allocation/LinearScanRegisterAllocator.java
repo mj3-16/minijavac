@@ -75,7 +75,7 @@ public class LinearScanRegisterAllocator {
       }
     }
 
-    mergeAndUnassignIntervalsWithoutUsages();
+    mergeSpilledIntervals();
     //optimizeSplitPositions();
 
     return new AllocationResult(allocation, splitLifetimes, spillSlotAllocator.spillSlots);
@@ -149,11 +149,11 @@ public class LinearScanRegisterAllocator {
         getLockedHints(current.toHints, current.register, this::getFirstSplitLifetime);
     // This order will favor locked registers mentioned in both toHints and fromHints.
     List<AMD64Register> order =
-        seq(Sets.union(lockedToHints, lockedFromHints))
+        seq(Sets.intersection(lockedToHints, lockedFromHints))
             .append(lockedToHints)
             .append(lockedFromHints)
-            .distinct()
             .filter(allocatable::contains)
+            .distinct()
             .toList();
 
     for (AMD64Register locked : order) {
@@ -164,9 +164,8 @@ public class LinearScanRegisterAllocator {
         return tuple(locked, conflict);
       }
 
-      boolean goodEnough = current.endsBefore(conflict.conflictingPosition());
-      boolean notWorseThanBest = bestCandidate.v2.equals(conflict);
-      if (goodEnough || notWorseThanBest) {
+      boolean notWorseThanBest = bestCandidate.v2.compareTo(conflict) <= 0;
+      if (notWorseThanBest) {
         // locked is a better candidate
         return tuple(locked, conflict);
       }
@@ -404,19 +403,21 @@ public class LinearScanRegisterAllocator {
     }
   }
 
-  private void mergeAndUnassignIntervalsWithoutUsages() {
+  private void mergeSpilledIntervals() {
     for (List<LifetimeInterval> splits : splitLifetimes.values()) {
+      boolean interesting = false;
       List<LifetimeInterval> oldSplits = new ArrayList<>(splits);
       Iterator<LifetimeInterval> it = oldSplits.iterator();
       List<LifetimeInterval> toMerge = new ArrayList<>();
       splits.clear();
       while (it.hasNext()) {
         LifetimeInterval current = it.next();
-        if (current.uses.isEmpty()) {
-          // These will not have a register assigned later.
+        if (allocation.get(current) == null) {
           toMerge.add(current);
         } else {
-          // So there are uses and possibly a register assigned.
+          // So current has a register assigned, denoting the end of the current spill.
+          assert !toMerge.isEmpty() || splits.isEmpty()
+              : "Two consecutive splits with different registers";
           coalesceAndAddUnassignedSplit(splits, toMerge);
           splits.add(current);
         }
@@ -431,7 +432,6 @@ public class LinearScanRegisterAllocator {
       // First we merge all consecutive intervals without uses into a new one without
       // an assigned register.
       LifetimeInterval merged = coalesceIntervals(toMerge);
-      assert merged.uses.isEmpty();
       splits.add(merged);
       allocation.remove(merged);
       toMerge.clear();

@@ -2,15 +2,12 @@ package minijava.backend;
 
 import static org.jooq.lambda.Seq.seq;
 
-import com.google.common.collect.BiMap;
 import firm.Graph;
 import firm.Program;
 import firm.nodes.Block;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import minijava.backend.allocation.AllocationResult;
@@ -32,12 +29,11 @@ import org.jooq.lambda.Seq;
 public class Backend {
 
   public static String lowerAssembler(String outFile) throws IOException {
+    StringBuilder asm = new StringBuilder();
+    GasSyntax.formatHeader(asm);
     ProgramMetrics metrics = ProgramMetrics.analyse(Program.getGraphs());
-    List<Instruction> instructions = new ArrayList<>();
-    Map<Block, CodeBlock> blocks = new HashMap<>();
     for (Graph graph : metrics.reachableFromMain()) {
-      BiMap<Block, CodeBlock> currentFunction = InstructionSelector.selectInstructions(graph);
-      blocks.putAll(currentFunction);
+      Map<Block, CodeBlock> blocks = InstructionSelector.selectInstructions(graph);
       List<CodeBlock> linearization = linearizeCfg(blocks, graph);
       linearization.forEach(CodeBlock::printDebugInfo);
       LifetimeAnalysisResult lifetimes = LifetimeAnalysis.analyse(linearization);
@@ -52,19 +48,17 @@ public class Backend {
           LinearScanRegisterAllocator.allocateRegisters(lifetimes); //, newHashSet(DI, SI));
       allocationResult.printDebugInfo();
 
-      instructions.addAll(
-          SsaDeconstruction.assembleInstructionList(linearization, allocationResult));
+      List<Instruction> deconstructed =
+          SsaDeconstruction.assembleInstructionList(linearization, allocationResult);
+      List<Instruction> instructions = PeepholeOptimizer.optimize(graph, deconstructed);
+      GasSyntax.formatGraphInstructions(asm, instructions, graph, allocationResult);
     }
-
-    instructions = PeepholeOptimizer.optimize(instructions);
 
     String asmFile = outFile + ".s";
-    StringBuilder asm = GasSyntax.formatAssembler(instructions);
     try (BufferedWriter writer = new BufferedWriter(new FileWriter(asmFile))) {
-      System.out.println(asm);
+      System.out.print(asm);
       writer.append(asm);
     }
-
     return asmFile;
   }
 
