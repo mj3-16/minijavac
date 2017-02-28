@@ -330,8 +330,11 @@ class TreeMatcher extends NodeVisitor.Default {
     Operand right = operandForNode(node.getRight());
     // This is a little like cheating: To ensure the right argument (which is input and output) gets
     // assigned the same register, we write to it after its actual definition.
-    RegisterOperand result = defineAsCopy(right, node);
-    instructions.add(factory.apply(left, result));
+    // We also flip left and right arguments, as for the case of non-commutative operators like
+    // Sub the left operand should be the subtrahend, not the minuend.
+    // If we pursue BUPM later on, this will be gone anyway.
+    RegisterOperand result = defineAsCopy(left, node);
+    instructions.add(factory.apply(right, result));
   }
 
   private RegisterOperand defineAsCopy(Operand src, Node value) {

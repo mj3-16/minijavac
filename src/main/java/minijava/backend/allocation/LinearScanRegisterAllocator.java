@@ -405,7 +405,6 @@ public class LinearScanRegisterAllocator {
 
   private void mergeSpilledIntervals() {
     for (List<LifetimeInterval> splits : splitLifetimes.values()) {
-      boolean interesting = false;
       List<LifetimeInterval> oldSplits = new ArrayList<>(splits);
       Iterator<LifetimeInterval> it = oldSplits.iterator();
       List<LifetimeInterval> toMerge = new ArrayList<>();
