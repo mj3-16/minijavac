@@ -7,6 +7,9 @@ import static org.jooq.lambda.Seq.seq;
 import firm.BackEdges;
 import firm.Mode;
 import firm.TargetValue;
+import firm.nodes.Div;
+import firm.nodes.Load;
+import firm.nodes.Mod;
 import firm.nodes.Node;
 import firm.nodes.NodeVisitor;
 import firm.nodes.Phi;
@@ -41,6 +44,7 @@ import minijava.backend.registers.AMD64Register;
 import minijava.backend.registers.VirtualRegister;
 import minijava.ir.utils.FirmUtils;
 import minijava.ir.utils.MethodInformation;
+import minijava.ir.utils.NodeUtils;
 import org.jooq.lambda.function.Function2;
 
 class TreeMatcher extends NodeVisitor.Default {
@@ -162,7 +166,6 @@ class TreeMatcher extends NodeVisitor.Default {
 
   @Override
   public void visit(firm.nodes.Conv node) {
-    OperandWidth width = modeToWidth(node.getMode());
     Operand op = operandForNode(node.getPred(0));
     VirtualRegister reg = mapping.registerForNode(node);
     instructions.add(new Mov(op.withChangedNode(node), new RegisterOperand(node, reg)));
@@ -170,12 +173,23 @@ class TreeMatcher extends NodeVisitor.Default {
 
   @Override
   public void visit(firm.nodes.Div node) {
-    // Handled in projectDivOrMod
+    NodeUtils.getProjSuccessorWithNum(node, Div.pnRes)
+        .ifPresent(
+            proj -> {
+              projectDivOrMod(proj, node);
+            });
   }
 
   @Override
   public void visit(firm.nodes.Load load) {
-    // We handle the Proj on load instead.
+    // We will completely omit the load if it isn't used anyway. This is OK per the spec, as a seg
+    // fault counts as undefined behavior.
+    NodeUtils.getProjSuccessorWithNum(load, Load.pnRes)
+        .ifPresent(
+            proj -> {
+              AddressingMode address = followIndirecion(load.getPtr());
+              defineAsCopy(new MemoryOperand(proj, address), proj);
+            });
   }
 
   @Override
@@ -188,7 +202,11 @@ class TreeMatcher extends NodeVisitor.Default {
 
   @Override
   public void visit(firm.nodes.Mod node) {
-    // Handled in projectDivOrMod
+    NodeUtils.getProjSuccessorWithNum(node, Mod.pnRes)
+        .ifPresent(
+            proj -> {
+              projectDivOrMod(proj, node);
+            });
   }
 
   @Override
@@ -213,19 +231,15 @@ class TreeMatcher extends NodeVisitor.Default {
 
     Node pred = proj.getPred();
     switch (pred.getOpCode()) {
+        // It's mostly not OK for side effects to handle result projs only when we visit them:
+        // memory edges may force the side-effect to take place before we use their results.
+        // As such, we handle projs when visiting the side effects.
       case iro_Load:
-        projectLoad(proj, pred);
-        break;
       case iro_Div:
       case iro_Mod:
-        projectDivOrMod(proj, pred);
-        break;
       case iro_Proj:
-        // the pred is either a Call or a Start, which we already handled.
-        break;
       case iro_Start:
       case iro_Call:
-        // Proj M, ignore (should not happen anyway)
         break;
       default:
         assert false : "Can't handle Proj on " + pred;

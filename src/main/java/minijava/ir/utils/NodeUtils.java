@@ -223,4 +223,12 @@ public class NodeUtils {
   public static Seq<Block> getPredecessorBlocks(Block cur) {
     return seq(cur.getPreds()).map(Node::getBlock).cast(Block.class);
   }
+
+  public static Optional<Proj> getProjSuccessorWithNum(Node node, int num) {
+    return seq(BackEdges.getOuts(node))
+        .map(be -> be.node)
+        .ofType(Proj.class)
+        .filter(proj -> proj.getNum() == num)
+        .findFirst();
+  }
 }

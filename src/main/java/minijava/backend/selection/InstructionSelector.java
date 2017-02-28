@@ -21,6 +21,7 @@ import firm.nodes.Cmp;
 import firm.nodes.Cond;
 import firm.nodes.End;
 import firm.nodes.Jmp;
+import firm.nodes.Load;
 import firm.nodes.Node;
 import firm.nodes.NodeVisitor;
 import firm.nodes.Phi;
@@ -260,6 +261,22 @@ public class InstructionSelector extends NodeVisitor.Default {
       getCodeBlock(irBlock).instructions.remove(setcc);
     }
     currentlyVisibleModeb.put(irBlock, node);
+  }
+
+  @Override
+  public void visit(Load node) {
+    // We have to generate the instructions for this the earliest it is forced.
+    // This is crucial to get right when the value is used much later than the actual side-effect
+    // should happen.
+    // e.g.
+    //
+    // obj.x = 0;
+    // int j = obj.x;
+    // obj.x = 1;
+    // System.out.println(j);
+    //
+    // This should print 0, as expected.
+    invokeTreeMatcher(node);
   }
 
   @Override
