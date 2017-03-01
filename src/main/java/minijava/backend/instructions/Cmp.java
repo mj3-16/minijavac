@@ -15,7 +15,7 @@ public class Cmp extends CodeBlockInstruction {
     super(newArrayList(left, right), newArrayList());
     this.left = left;
     this.right = right;
-    if (!(right instanceof MemoryOperand)) {
+    if (!(right instanceof MemoryOperand) && !left.equals(right)) {
       setMayBeMemory(left);
     }
   }

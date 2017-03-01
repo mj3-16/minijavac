@@ -19,7 +19,7 @@ public class Test extends CodeBlockInstruction {
     checkArgument(!(left instanceof ImmediateOperand), "Test's left operand can't be an immediate");
     this.left = left;
     this.right = right;
-    if (!(right instanceof MemoryOperand)) {
+    if (!(right instanceof MemoryOperand) && !left.equals(right)) {
       setMayBeMemory(right);
     }
   }

@@ -171,8 +171,6 @@ public class LifetimeInterval {
     // That's why we only modify the from part for the after split.
     // This also destroys SSA form of the intervals: If we split within a loop, both the before and
     // after definitions are reaching.
-    System.out.println("before = " + before);
-    System.out.println("after = " + after);
     return new Split<>(before, after);
   }
 

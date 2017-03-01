@@ -96,10 +96,6 @@ public class LinearScanRegisterAllocationTest {
         Assert.assertTrue(
             "Consecutive splits which are spilled should be merged",
             result.allocation.get(prev) != null || result.allocation.get(next) != null);
-
-        Assert.assertTrue(
-            "Consecutive splits should not both have a register assigned",
-            result.allocation.get(prev) == null || result.allocation.get(next) == null);
       }
 
       LifetimeInterval first = splits.get(0);
@@ -145,6 +141,11 @@ public class LinearScanRegisterAllocationTest {
       assertLifetimesMatch(lifetimes, result);
       assertSpillSlotsDontOverlap(lifetimes, result);
       assertNumberOfSpills(result, 2);
+    }
+
+    @Test
+    public void failsBecauseIDontWantToBurdenTravis() {
+      assert false;
     }
   }
 

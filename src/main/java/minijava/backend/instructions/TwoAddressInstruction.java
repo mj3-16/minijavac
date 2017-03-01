@@ -21,7 +21,7 @@ public abstract class TwoAddressInstruction extends CodeBlockInstruction {
     this.right = right;
     // Either left or right may be memory operands, not both.
     // We mark left as the possible one, iff right is't already a MemoryOperand.
-    if (!(right instanceof MemoryOperand)) {
+    if (!(right instanceof MemoryOperand) && !left.equals(right)) {
       setMayBeMemory(left);
     }
   }

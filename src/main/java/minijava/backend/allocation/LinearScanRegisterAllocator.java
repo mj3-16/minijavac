@@ -287,12 +287,9 @@ public class LinearScanRegisterAllocator {
       // There were no uses in the interval, so we can just lay it dormant in a spill slot.
       spillSlotAllocator.allocateSpillSlot(current.register);
       getLifetimeIntervals(current.register).add(current);
-    } else if (firstUse.compareTo(farthestNextUse) > 0
-        || firstUse.equals(farthestNextUse) && firstRegUse.compareTo(farthestNextUse) > 0) {
-      // first usage is after any other conflicting interval's next usage, or it is used at
-      // any other interval's next usage but we can use a MemoryOperand.
-      // current is to be spilled immediately after its definition (which probably is in a prior
-      // interval).
+    } else if (firstUse.compareTo(farthestNextUse) > 0) {
+      // first usage is after any other conflicting interval's next usage.
+      // We have to spill current before its first use that requires a register.
       LifetimeInterval before = spillSplitAndSuspendBeforeConflict(current, firstRegUse);
       // This will have assigned a spill slot, but the before part is not present anywhere in our data structures.
       // We don't assign it a register, but we still have to note that it's part of the splits.
@@ -303,7 +300,10 @@ public class LinearScanRegisterAllocator {
       // This will delete the unsplit interval and instead re-add the first split part, assigned
       // to the old register, but will re-insert the other conflicting split half into unhandled.
       for (LifetimeInterval interval : filterByAllocatedRegister(active, assignedRegister)) {
-        // FIXME: what if interval starts at start?
+        assert interval.from().compareTo(start) <= 0 : "We are moving backwards";
+        assert interval.from().compareTo(start) < 0
+                || ConflictSite.atOrNever(interval.firstUse()).compareTo(firstUse) > 0
+            : "We wouldn't make progress";
         // We split it at start, reflecting the fact that at this position there is no longer
         // a register assigned.
         LifetimeInterval before =
@@ -411,12 +411,10 @@ public class LinearScanRegisterAllocator {
       splits.clear();
       while (it.hasNext()) {
         LifetimeInterval current = it.next();
-        if (allocation.get(current) == null) {
+        if (allocation.get(current) == null || current.uses.isEmpty()) {
           toMerge.add(current);
         } else {
           // So current has a register assigned, denoting the end of the current spill.
-          assert !toMerge.isEmpty() || splits.isEmpty()
-              : "Two consecutive splits with different registers";
           coalesceAndAddUnassignedSplit(splits, toMerge);
           splits.add(current);
         }

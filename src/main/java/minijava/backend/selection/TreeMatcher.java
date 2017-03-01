@@ -240,8 +240,11 @@ class TreeMatcher extends NodeVisitor.Default {
         break;
       case iro_Load:
       case iro_Proj:
-      case iro_Start:
+        assert mapping.hasRegisterAssigned(proj)
+            : "We rely upon side-effect handling when they occur: " + proj;
+        break;
       case iro_Call:
+      case iro_Start:
         break;
       default:
         assert false : "Can't handle Proj on " + pred;
