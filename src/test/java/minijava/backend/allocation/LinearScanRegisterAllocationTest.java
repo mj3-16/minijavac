@@ -146,11 +146,6 @@ public class LinearScanRegisterAllocationTest {
       assertSpillSlotsDontOverlap(lifetimes, result);
       assertNumberOfSpills(result, 2);
     }
-
-    @Test
-    public void failsBecauseIDontWantToBurdenTravis() {
-      assert false;
-    }
   }
 
   @RunWith(Parameterized.class)

@@ -236,6 +236,8 @@ class TreeMatcher extends NodeVisitor.Default {
         // As such, we handle projs when visiting the side effects.
       case iro_Load:
       case iro_Div:
+        pred.accept(this);
+        break;
       case iro_Mod:
       case iro_Proj:
       case iro_Start:
