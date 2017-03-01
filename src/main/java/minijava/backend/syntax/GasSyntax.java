@@ -9,29 +9,7 @@ import java.util.List;
 import java.util.Map.Entry;
 import minijava.backend.allocation.AllocationResult;
 import minijava.backend.block.PhiFunction;
-import minijava.backend.instructions.Add;
-import minijava.backend.instructions.And;
-import minijava.backend.instructions.Call;
-import minijava.backend.instructions.Cmp;
-import minijava.backend.instructions.Cqto;
-import minijava.backend.instructions.Enter;
-import minijava.backend.instructions.IDiv;
-import minijava.backend.instructions.IMul;
-import minijava.backend.instructions.Instruction;
-import minijava.backend.instructions.Jcc;
-import minijava.backend.instructions.Jmp;
-import minijava.backend.instructions.Label;
-import minijava.backend.instructions.Leave;
-import minijava.backend.instructions.Mov;
-import minijava.backend.instructions.Neg;
-import minijava.backend.instructions.Pop;
-import minijava.backend.instructions.Push;
-import minijava.backend.instructions.Ret;
-import minijava.backend.instructions.Setcc;
-import minijava.backend.instructions.Sub;
-import minijava.backend.instructions.Test;
-import minijava.backend.instructions.TwoAddressInstruction;
-import minijava.backend.instructions.Xchg;
+import minijava.backend.instructions.*;
 import minijava.backend.operands.AddressingMode;
 import minijava.backend.operands.ImmediateOperand;
 import minijava.backend.operands.MemoryOperand;
@@ -192,6 +170,12 @@ public class GasSyntax implements Instruction.Visitor {
   }
 
   @Override
+  public void visit(Movs mov) {
+    appendCommentLine("Widening move from " + mov.src.irNode + " to " + mov.dest.irNode, true);
+    formatInstruction(mov, new OperandWidth[] {mov.src.width, mov.dest.width}, mov.src, mov.dest);
+  }
+
+  @Override
   public void visit(Neg neg) {
     if (neg.inout.irNode != null) {
       appendCommentLine("Define " + neg.inout.irNode, true);
@@ -239,9 +223,16 @@ public class GasSyntax implements Instruction.Visitor {
   }
 
   private void formatInstruction(Instruction instruction, OperandWidth width, Operand... output) {
+    formatInstruction(instruction, new OperandWidth[] {width}, output);
+  }
+
+  private void formatInstruction(
+      Instruction instruction, OperandWidth[] widths, Operand... output) {
     indent();
     builder.append(toMnemonic(instruction));
-    builder.append(widthToInstructionSuffix(width));
+    for (OperandWidth width : widths) {
+      builder.append(widthToInstructionSuffix(width));
+    }
     boolean first = true;
     for (Operand operand : output) {
       if (!first) {

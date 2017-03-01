@@ -18,21 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import minijava.backend.SystemVAbi;
-import minijava.backend.instructions.Add;
-import minijava.backend.instructions.And;
-import minijava.backend.instructions.Call;
-import minijava.backend.instructions.Cmp;
-import minijava.backend.instructions.CodeBlockInstruction;
-import minijava.backend.instructions.Cqto;
-import minijava.backend.instructions.Enter;
-import minijava.backend.instructions.IDiv;
-import minijava.backend.instructions.IMul;
-import minijava.backend.instructions.Instruction;
-import minijava.backend.instructions.Mov;
-import minijava.backend.instructions.Neg;
-import minijava.backend.instructions.Setcc;
-import minijava.backend.instructions.Sub;
-import minijava.backend.instructions.TwoAddressInstruction;
+import minijava.backend.instructions.*;
 import minijava.backend.operands.AddressingMode;
 import minijava.backend.operands.ImmediateOperand;
 import minijava.backend.operands.MemoryOperand;
@@ -168,7 +154,12 @@ class TreeMatcher extends NodeVisitor.Default {
   public void visit(firm.nodes.Conv node) {
     Operand op = operandForNode(node.getPred(0));
     VirtualRegister reg = mapping.registerForNode(node);
-    instructions.add(new Mov(op.withChangedNode(node), new RegisterOperand(node, reg)));
+    boolean isWidening = modeToWidth(node.getMode()).sizeInBytes > op.width.sizeInBytes;
+    if (isWidening) {
+      instructions.add(new Movs(op, new RegisterOperand(node, reg)));
+    } else {
+      instructions.add(new Mov(op.withChangedNode(node), new RegisterOperand(node, reg)));
+    }
   }
 
   @Override

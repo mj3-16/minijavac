@@ -15,26 +15,7 @@ import minijava.backend.SystemVAbi;
 import minijava.backend.allocation.AllocationResult;
 import minijava.backend.block.CodeBlock;
 import minijava.backend.block.PhiFunction;
-import minijava.backend.instructions.Add;
-import minijava.backend.instructions.And;
-import minijava.backend.instructions.Call;
-import minijava.backend.instructions.Cmp;
-import minijava.backend.instructions.CodeBlockInstruction;
-import minijava.backend.instructions.Cqto;
-import minijava.backend.instructions.Enter;
-import minijava.backend.instructions.IDiv;
-import minijava.backend.instructions.IMul;
-import minijava.backend.instructions.Instruction;
-import minijava.backend.instructions.Label;
-import minijava.backend.instructions.Leave;
-import minijava.backend.instructions.Mov;
-import minijava.backend.instructions.Neg;
-import minijava.backend.instructions.Pop;
-import minijava.backend.instructions.Push;
-import minijava.backend.instructions.Setcc;
-import minijava.backend.instructions.Sub;
-import minijava.backend.instructions.Test;
-import minijava.backend.instructions.TwoAddressInstruction;
+import minijava.backend.instructions.*;
 import minijava.backend.lifetime.BlockPosition;
 import minijava.backend.operands.AddressingMode;
 import minijava.backend.operands.ImmediateOperand;
@@ -207,6 +188,13 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
     Operand src = substituteHardwareRegisters(mov.src, currentUse());
     Operand dest = substituteHardwareRegisters(mov.dest, currentDef());
     lowered.add(new Mov(src, dest));
+  }
+
+  @Override
+  public void visit(Movs mov) {
+    Operand src = substituteHardwareRegisters(mov.src, currentUse());
+    Operand dest = substituteHardwareRegisters(mov.dest, currentDef());
+    lowered.add(new Movs(src, dest));
   }
 
   @Override

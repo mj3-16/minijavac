@@ -58,6 +58,8 @@ public abstract class CodeBlockInstruction extends Instruction {
 
     default void visit(Mov mov) {}
 
+    default void visit(Movs movs) {}
+
     default void visit(Neg neg) {}
 
     default void visit(Setcc setcc) {}
