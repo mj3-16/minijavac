@@ -243,9 +243,9 @@ class TreeMatcher extends NodeVisitor.Default {
   }
 
   private void projectDivOrMod(Proj proj, Node node) {
+    Operand divisor = operandForNode(node.getPred(2));
     RegisterOperand dividend = cqto(operandForNode(node.getPred(1)));
     assert dividend.register == AMD64Register.A;
-    Operand divisor = operandForNode(node.getPred(2));
 
     instructions.add(new IDiv(divisor));
 

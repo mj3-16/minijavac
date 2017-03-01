@@ -13,7 +13,10 @@ public class IDiv extends CodeBlockInstruction {
 
   public IDiv(Operand divisor) {
     super(
-        newArrayList(new RegisterOperand(divisor.width, AMD64Register.A), divisor),
+        newArrayList(
+            new RegisterOperand(divisor.width, AMD64Register.A),
+            new RegisterOperand(divisor.width, AMD64Register.D),
+            divisor),
         toOperands(divisor.width, Seq.of(AMD64Register.A, AMD64Register.D)));
     this.divisor = divisor;
     setMayBeMemory(divisor);
