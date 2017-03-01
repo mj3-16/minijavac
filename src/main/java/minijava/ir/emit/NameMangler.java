@@ -95,7 +95,7 @@ public class NameMangler {
       }
       params.forEach(x -> builder.append(x));
     }
-    return builder.toString();
+    return adjustLdNameToPlatform(builder.toString());
   }
 
   private static String sArg(int argIdx) {
