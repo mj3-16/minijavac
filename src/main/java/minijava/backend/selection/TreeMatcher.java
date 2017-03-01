@@ -234,11 +234,11 @@ class TreeMatcher extends NodeVisitor.Default {
         // It's mostly not OK for side effects to handle result projs only when we visit them:
         // memory edges may force the side-effect to take place before we use their results.
         // As such, we handle projs when visiting the side effects.
-      case iro_Load:
       case iro_Div:
+      case iro_Mod:
         pred.accept(this);
         break;
-      case iro_Mod:
+      case iro_Load:
       case iro_Proj:
       case iro_Start:
       case iro_Call:
