@@ -78,14 +78,23 @@ class TreeMatcher extends NodeVisitor.Default {
     String calleeLabel = info.ldName;
     int parameterRegionSize = SystemVAbi.parameterRegionSize(info);
     allocateStackSpace(parameterRegionSize);
+
+    // We need to emit the instructions for calculating the arguments first.
+    // Only then we can move them into their respective ABI parameter slots. Otherwise
+    // register constraints are messing stuff up.
     List<Operand> arguments = new ArrayList<>(info.paramNumber);
     for (int i = 0; i < info.paramNumber; ++i) {
       // + 2 accounts for mem pred and callee address
-      Operand src = operandForNode(call.getPred(i + 2));
+      arguments.add(operandForNode(call.getPred(i + 2)));
+    }
+
+    for (int i = 0; i < arguments.size(); i++) {
+      Operand src = arguments.get(i);
       Operand dest = SystemVAbi.parameter(i, src.width);
       instructions.add(new Mov(src, dest));
-      arguments.add(dest);
+      arguments.set(i, dest);
     }
+
     instructions.add(new Call(calleeLabel, arguments));
     allocateStackSpace(-parameterRegionSize);
     if (info.hasReturnValue) {
@@ -165,10 +174,7 @@ class TreeMatcher extends NodeVisitor.Default {
   @Override
   public void visit(firm.nodes.Div node) {
     NodeUtils.getProjSuccessorWithNum(node, Div.pnRes)
-        .ifPresent(
-            proj -> {
-              projectDivOrMod(proj, node);
-            });
+        .ifPresent(proj -> projectDivOrMod(proj, node));
   }
 
   @Override
@@ -194,10 +200,7 @@ class TreeMatcher extends NodeVisitor.Default {
   @Override
   public void visit(firm.nodes.Mod node) {
     NodeUtils.getProjSuccessorWithNum(node, Mod.pnRes)
-        .ifPresent(
-            proj -> {
-              projectDivOrMod(proj, node);
-            });
+        .ifPresent(proj -> projectDivOrMod(proj, node));
   }
 
   @Override
@@ -264,12 +267,6 @@ class TreeMatcher extends NodeVisitor.Default {
     instructions.add(new Mov(op, a));
     instructions.add(new Cqto(op.width));
     return a;
-  }
-
-  private void projectLoad(Proj proj, Node pred) {
-    Node ptr = pred.getPred(1);
-    AddressingMode address = followIndirecion(ptr);
-    defineAsCopy(new MemoryOperand(proj, address), proj);
   }
 
   private AddressingMode followIndirecion(Node ptrNode) {

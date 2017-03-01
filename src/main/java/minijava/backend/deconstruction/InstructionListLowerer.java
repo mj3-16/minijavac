@@ -45,8 +45,6 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
     List<CodeBlockInstruction> highLevel = block.instructions;
     BlockPosition phiDef = BlockPosition.definedBy(block, -1);
     for (AllocationResult.SpillEvent afterPhiDef : allocationResult.spillEvents.get(phiDef)) {
-      System.out.println("phiDef = " + phiDef);
-      System.out.println("afterPhiDef = " + afterPhiDef);
       addSpill(afterPhiDef);
     }
     for (int i = 0; i < highLevel.size(); ++i) {
@@ -54,18 +52,17 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
       BlockPosition def = BlockPosition.definedBy(block, i);
       BlockPosition use = BlockPosition.usedBy(block, i);
       for (AllocationResult.SpillEvent beforeUse : allocationResult.spillEvents.get(use)) {
-        System.out.println("use = " + use);
-        System.out.println("beforeUse = " + beforeUse);
         addReload(beforeUse);
       }
       highLevel.get(i).accept(this);
       for (AllocationResult.SpillEvent afterDef : allocationResult.spillEvents.get(def)) {
-        System.out.println("def = " + def);
-        System.out.println("afterDef = " + afterDef);
         addSpill(afterDef);
       }
     }
-    // TODO: reload before phi?
+    BlockPosition phiUse = BlockPosition.endOf(block);
+    for (AllocationResult.SpillEvent beforePhiUse : allocationResult.spillEvents.get(phiUse)) {
+      addReload(beforePhiUse);
+    }
     return lowered;
   }
 

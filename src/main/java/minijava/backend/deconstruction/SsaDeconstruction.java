@@ -48,8 +48,6 @@ public class SsaDeconstruction {
   }
 
   private void resolvePhisAndSplitIntervals() {
-    System.out.println();
-    System.out.println("SsaDeconstruction.resolvePhisAndSplitIntervals");
     // For each control flow edge...
     Map<CodeBlock, Set<Move>> toResolve = new HashMap<>();
 
@@ -110,7 +108,6 @@ public class SsaDeconstruction {
         // li is the interval of a Phi of succ. We don't go through the virtual Phis of succ, but to the allocated
         // Phis at the Label instruction (which always is the first instruction of a lowered block).
         Label label = (Label) resolvedBlocks.get(succ).get(0);
-        System.out.println(li);
         PhiFunction def =
             seq(label.physicalPhis).filter(phi -> phi.output.equals(dest)).findFirst().get();
         src = def.inputs.get(pred);

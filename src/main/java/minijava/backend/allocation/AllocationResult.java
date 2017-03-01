@@ -69,7 +69,6 @@ public class AllocationResult {
               continue;
             }
             BlockPosition use = following.firstUse();
-            System.out.println(following + " -> " + allocation.get(following));
             assert use != null;
             assert use.isUse() : "A following use wasn't really a use";
             events.put(use, new SpillEvent(RELOAD, following));
