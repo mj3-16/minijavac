@@ -1,6 +1,5 @@
 package minijava.backend;
 
-import static java.util.Comparator.comparing;
 import static org.jooq.lambda.Seq.seq;
 
 import firm.Graph;
@@ -9,8 +8,7 @@ import firm.nodes.Block;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import minijava.backend.allocation.AllocationResult;
 import minijava.backend.allocation.LinearScanRegisterAllocator;
 import minijava.backend.block.CodeBlock;
@@ -23,9 +21,9 @@ import minijava.backend.lifetime.LifetimeInterval;
 import minijava.backend.selection.InstructionSelector;
 import minijava.backend.syntax.GasSyntax;
 import minijava.ir.optimize.ProgramMetrics;
-import minijava.ir.utils.DominanceTree;
+import minijava.ir.utils.Dominance;
 import minijava.ir.utils.GraphUtils;
-import org.jooq.lambda.tuple.Tuple2;
+import minijava.ir.utils.NodeUtils;
 
 public class Backend {
 
@@ -70,24 +68,44 @@ public class Backend {
             .filter(b -> !b.equals(graph.getEndBlock()))
             .toList();
 
-    DominanceTree tree = DominanceTree.ofBlocks(topologicalOrder);
+    // GraphUtils.topologicalOrder computes a linearization where each predecessor comes before its successors (modulo
+    // back edges, Phis and Blocks that is). However this order will not respect dominance: E.g. loop headers always
+    // come after loop bodies due to the way we break loops.
+    // Just like in the text book topo sort, we can use this topological order for a visitor order in a DFS ignoring
+    // back edges (thus respecting dominance!) to get a linearization with the desired properties.
 
-    // Dominance is good for a first partial-order approximation. For a total order we then sort
-    // children uncomparable by dominance by their index in the topological order.
-    // This has the benefit of loop headers occuring before bodies and the bodies themselves
-    // happening in a sensible order.
-
-    Map<Block, Integer> topologicalIndex =
-        seq(topologicalOrder).zipWithIndex().toMap(Tuple2::v1, t -> t.v2.intValue());
-
-    tree.sortChildren(comparing(child -> topologicalIndex.get(child.block)));
-
-    List<CodeBlock> linearization = seq(tree.preorder()).map(blocks::get).toList();
+    List<CodeBlock> linearization =
+        seq(dfsFinishOrderIgnoringBackEdges(topologicalOrder)).map(blocks::get).toList();
 
     for (int i = 0; i < linearization.size(); i++) {
       linearization.get(i).linearizedOrdinal = i;
     }
 
     return linearization;
+  }
+
+  private static List<Block> dfsFinishOrderIgnoringBackEdges(List<Block> visitOrder) {
+    List<Block> ret = new ArrayList<>();
+    Set<Block> visited = new HashSet<>();
+    visitOrder.forEach(b -> dfsFinishOrderIgnoringBackEdgesHelper(b, visited, ret));
+    return ret;
+  }
+
+  private static void dfsFinishOrderIgnoringBackEdgesHelper(
+      Block cur, Set<Block> visited, List<Block> ret) {
+    if (visited.contains(cur)) {
+      return;
+    }
+    visited.add(cur);
+
+    for (Block pred : NodeUtils.getPredecessorBlocks(cur)) {
+      if (Dominance.dominates(cur, pred)) {
+        // Back edge!
+        continue;
+      }
+      dfsFinishOrderIgnoringBackEdgesHelper(pred, visited, ret);
+    }
+
+    ret.add(cur);
   }
 }

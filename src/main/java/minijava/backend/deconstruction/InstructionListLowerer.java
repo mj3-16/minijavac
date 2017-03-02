@@ -7,10 +7,8 @@ import static minijava.backend.operands.OperandUtils.imm;
 import static minijava.backend.operands.OperandUtils.reg;
 import static org.jooq.lambda.Seq.seq;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import com.google.common.collect.TreeMultimap;
+import java.util.*;
 import minijava.backend.SystemVAbi;
 import minijava.backend.allocation.AllocationResult;
 import minijava.backend.block.CodeBlock;
@@ -44,26 +42,36 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
 
     List<CodeBlockInstruction> highLevel = block.instructions;
     BlockPosition phiDef = BlockPosition.definedBy(block, -1);
-    for (AllocationResult.SpillEvent afterPhiDef : allocationResult.spillEvents.get(phiDef)) {
+    TreeMultimap<BlockPosition, AllocationResult.SpillEvent> spillEvents =
+        copy(allocationResult.spillEvents);
+    for (AllocationResult.SpillEvent afterPhiDef : spillEvents.removeAll(phiDef)) {
       addSpill(afterPhiDef);
     }
     for (int i = 0; i < highLevel.size(); ++i) {
       instructionCounter = i;
       BlockPosition def = BlockPosition.definedBy(block, i);
       BlockPosition use = BlockPosition.usedBy(block, i);
-      for (AllocationResult.SpillEvent beforeUse : allocationResult.spillEvents.get(use)) {
+      for (AllocationResult.SpillEvent beforeUse : spillEvents.removeAll(use)) {
         addReload(beforeUse);
       }
       highLevel.get(i).accept(this);
-      for (AllocationResult.SpillEvent afterDef : allocationResult.spillEvents.get(def)) {
+      for (AllocationResult.SpillEvent afterDef : spillEvents.removeAll(def)) {
         addSpill(afterDef);
       }
     }
     BlockPosition phiUse = BlockPosition.endOf(block);
-    for (AllocationResult.SpillEvent beforePhiUse : allocationResult.spillEvents.get(phiUse)) {
+    for (AllocationResult.SpillEvent beforePhiUse : spillEvents.removeAll(phiUse)) {
       addReload(beforePhiUse);
     }
+    assert spillEvents.keySet().subSet(phiDef, true, phiUse, true).isEmpty()
+        : "Didn't handle all spill events";
     return lowered;
+  }
+
+  private static <K, V> TreeMultimap<K, V> copy(TreeMultimap<K, V> map) {
+    TreeMultimap<K, V> copy = TreeMultimap.create(map.keyComparator(), map.valueComparator());
+    copy.putAll(map);
+    return copy;
   }
 
   private void addSpill(AllocationResult.SpillEvent afterDef) {

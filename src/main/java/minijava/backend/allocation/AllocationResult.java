@@ -127,7 +127,11 @@ public class AllocationResult {
 
   public MemoryOperand spillLocation(VirtualRegister register) {
     Node irNode = register.value;
-    int offset = (spillSlots.get(register) + 1) * SystemVAbi.BYTES_PER_ACTIVATION_RECORD_SLOT;
+    Integer slot = spillSlots.get(register);
+    if (slot == null) {
+      return null;
+    }
+    int offset = (slot + 1) * SystemVAbi.BYTES_PER_ACTIVATION_RECORD_SLOT;
     return new MemoryOperand(irNode, new AddressingMode(-offset, AMD64Register.BP));
   }
 
