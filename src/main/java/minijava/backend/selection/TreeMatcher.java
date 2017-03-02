@@ -181,12 +181,15 @@ class TreeMatcher extends NodeVisitor.Default {
   public void visit(firm.nodes.Load load) {
     // We will completely omit the load if it isn't used anyway. This is OK per the spec, as a seg
     // fault counts as undefined behavior.
-    NodeUtils.getProjSuccessorWithNum(load, Load.pnRes)
-        .ifPresent(
-            proj -> {
-              AddressingMode address = followIndirecion(load.getPtr());
-              defineAsCopy(new MemoryOperand(proj, address), proj);
-            });
+    AddressingMode address = followIndirection(load.getPtr());
+    Optional<Proj> proj = NodeUtils.getProjSuccessorWithNum(load, Load.pnRes);
+    if (proj.isPresent()) {
+      defineAsCopy(new MemoryOperand(proj.get(), address), proj.get());
+    } else {
+      // This is a little weird, as optimizations should make sure we don't have Loads without projs in the first place.
+      // Regardless, we have to use the ptr operand.
+      instructions.add(new Nop(new MemoryOperand(OperandWidth.Long, address)));
+    }
   }
 
   @Override
@@ -269,7 +272,7 @@ class TreeMatcher extends NodeVisitor.Default {
     return a;
   }
 
-  private AddressingMode followIndirecion(Node ptrNode) {
+  private AddressingMode followIndirection(Node ptrNode) {
     // TODO: When making use of addressing modes, we want to get that instead here.
     RegisterOperand ptr = operandForNode(ptrNode);
     return AddressingMode.atRegister(ptr.register);
@@ -293,7 +296,7 @@ class TreeMatcher extends NodeVisitor.Default {
 
   @Override
   public void visit(firm.nodes.Store store) {
-    AddressingMode address = followIndirecion(store.getPtr());
+    AddressingMode address = followIndirection(store.getPtr());
     Operand value = operandForNode(store.getValue());
     OperandWidth width = modeToWidth(store.getValue().getMode());
     MemoryOperand dest = new MemoryOperand(width, address);

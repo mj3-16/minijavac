@@ -209,6 +209,12 @@ public class InstructionListLowerer implements CodeBlockInstruction.Visitor {
   }
 
   @Override
+  public void visit(Nop nop) {
+    Operand op = substituteHardwareRegisters(nop.op, currentUse());
+    lowered.add(new Nop(op));
+  }
+
+  @Override
   public void visit(Setcc setcc) {
     Operand output = substituteHardwareRegisters(setcc.output, currentDef());
     lowered.add(new Setcc(output, setcc.relation));

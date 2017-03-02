@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Set;
 import minijava.backend.block.CodeBlock;
 import minijava.backend.block.PhiFunction;
+import minijava.backend.instructions.CodeBlockInstruction;
 import minijava.backend.instructions.Instruction;
 import minijava.backend.operands.Operand;
 import minijava.backend.operands.RegisterOperand;
@@ -56,11 +57,16 @@ public class LifetimeAnalysis {
     for (int i = block.instructions.size() - 1; i >= 0; --i) {
       Instruction instruction = block.instructions.get(i);
       BlockPosition def = BlockPosition.definedBy(block, i);
+      CodeBlockInstruction inst = block.instructions.get(i);
       BlockPosition use = BlockPosition.usedBy(block, i);
       for (Use definition : instruction.defs()) {
         definition.register.match(
             vr -> {
               LifetimeInterval interval = getInterval(vr);
+              System.out.println(inst);
+              System.out.println(def);
+              System.out.println(interval);
+              System.out.println(interval.register.value);
               interval.setDef(def, definition);
               Set<Register> hints = instruction.registerHints();
               if (hints.contains(vr)) {

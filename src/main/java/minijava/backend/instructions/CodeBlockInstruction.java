@@ -62,6 +62,8 @@ public abstract class CodeBlockInstruction extends Instruction {
 
     default void visit(Neg neg) {}
 
+    default void visit(Nop nop) {}
+
     default void visit(Setcc setcc) {}
 
     default void visit(Sub sub) {}

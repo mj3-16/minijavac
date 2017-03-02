@@ -184,6 +184,12 @@ public class GasSyntax implements Instruction.Visitor {
   }
 
   @Override
+  public void visit(Nop nop) {
+    appendCommentLine("(Unnecessary) nop", true);
+    formatInstruction(nop, nop.op.width, nop.op);
+  }
+
+  @Override
   public void visit(Setcc setcc) {
     indent();
     builder.append("set");
