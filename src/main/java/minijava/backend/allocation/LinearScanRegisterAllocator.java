@@ -158,12 +158,6 @@ public class LinearScanRegisterAllocator {
 
     for (AMD64Register locked : order) {
       ConflictSite conflict = nextConflicts.get(locked);
-      if (!conflict.doesConflictAtAll()) {
-        // There was no use of that register (before a back edge ...).
-        // This is a good candidate nonetheless.
-        return tuple(locked, conflict);
-      }
-
       boolean notWorseThanBest = bestCandidate.v2.compareTo(conflict) <= 0;
       if (notWorseThanBest) {
         // locked is a better candidate
@@ -282,7 +276,6 @@ public class LinearScanRegisterAllocator {
 
     // firstUse might not conflict if there aren't any further uses (e.g. if the interval was split)
     ConflictSite firstUse = ConflictSite.atOrNever(current.firstUse());
-    ConflictSite firstRegUse = ConflictSite.atOrNever(current.firstUseNeedingARegister());
     if (!firstUse.doesConflictAtAll()) {
       // There were no uses in the interval, so we can just lay it dormant in a spill slot.
       spillSlotAllocator.allocateSpillSlot(current.register);
@@ -290,6 +283,7 @@ public class LinearScanRegisterAllocator {
     } else if (firstUse.compareTo(farthestNextUse) > 0) {
       // first usage is after any other conflicting interval's next usage.
       // We have to spill current before its first use that requires a register.
+      ConflictSite firstRegUse = ConflictSite.atOrNever(current.firstUseNeedingARegister());
       LifetimeInterval before = spillSplitAndSuspendBeforeConflict(current, firstRegUse);
       // This will have assigned a spill slot, but the before part is not present anywhere in our data structures.
       // We don't assign it a register, but we still have to note that it's part of the splits.
@@ -300,15 +294,29 @@ public class LinearScanRegisterAllocator {
       // This will delete the unsplit interval and instead re-add the first split part, assigned
       // to the old register, but will re-insert the other conflicting split half into unhandled.
       for (LifetimeInterval interval : filterByAllocatedRegister(active, assignedRegister)) {
-        assert interval.from().compareTo(start) <= 0 : "We are moving backwards";
-        assert interval.from().compareTo(start) < 0
-                || ConflictSite.atOrNever(interval.firstUse()).compareTo(firstUse) > 0
-            : "We wouldn't make progress";
-        // We split it at start, reflecting the fact that at this position there is no longer
-        // a register assigned.
-        LifetimeInterval before =
-            spillSplitAndSuspendBeforeConflict(interval, ConflictSite.at(start));
-        renameInterval(interval, before);
+        System.out.println("current = " + current);
+        System.out.println("interval = " + interval);
+        int compareFirstUse = ConflictSite.atOrNever(interval.firstUse()).compareTo(firstUse);
+        int compareStart = interval.from().compareTo(start);
+        assert compareFirstUse >= 0 : "We should've split current instead";
+        assert compareStart <= 0 : "We are moving backwards";
+        if (compareFirstUse == 0 && compareStart == 0) {
+          // Splitting at start won't make any progress: We would hit this line of code again, just with
+          // interval and current swapped. Instead, we split interval at its next use requiring a register.
+          // When this point is it, this should always be possible: E.g. there will never be an instruction
+          // That blocks all registers at the same position (Phis) that doesn't allow memory use.
+          ConflictSite firstRegUse = ConflictSite.atOrNever(interval.firstUseNeedingARegister());
+          LifetimeInterval before = spillSplitAndSuspendBeforeConflict(interval, firstRegUse);
+          renameInterval(interval, before);
+          allocation.remove(before);
+          active.remove(before);
+        } else {
+          // We split it at start, reflecting the fact that at this position there is no longer
+          // a register assigned.
+          LifetimeInterval before =
+              spillSplitAndSuspendBeforeConflict(interval, ConflictSite.at(start));
+          renameInterval(interval, before);
+        }
       }
 
       for (LifetimeInterval interval : filterByAllocatedRegister(inactive, assignedRegister)) {

@@ -1,5 +1,8 @@
 package minijava.backend;
 
+import static com.google.common.collect.Sets.newHashSet;
+import static minijava.backend.registers.AMD64Register.DI;
+import static minijava.backend.registers.AMD64Register.SI;
 import static org.jooq.lambda.Seq.seq;
 
 import firm.Graph;
@@ -44,7 +47,7 @@ public class Backend {
       }
 
       AllocationResult allocationResult =
-          LinearScanRegisterAllocator.allocateRegisters(lifetimes); //, newHashSet(DI, SI));
+          LinearScanRegisterAllocator.allocateRegisters(lifetimes, newHashSet(DI, SI));
       allocationResult.printDebugInfo();
 
       List<Instruction> deconstructed =
