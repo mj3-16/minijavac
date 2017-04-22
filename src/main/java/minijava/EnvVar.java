@@ -3,13 +3,14 @@ package minijava;
 import java.util.ArrayList;
 
 public enum EnvVar {
-  MJ_OPTIMIZE("Set to \"0\" to turn off optimizations in general."),
   MJ_OPT_USE_INLINER("Set to \"0\" to turn off inliner in optimizations."),
   MJ_GRAPH("Set to \"1\" to turn on graph printing."),
   MJ_DBG,
   MJ_USE_GC("Set to \"1\" to use the bdwgc."),
   MJ_GCC_APP,
-  MJ_FILENAME;
+  MJ_FILENAME,
+  MJ_OUTPUTFILENAME("Specifies output file name."),
+  MJ_OPT_TIME("Set timeout for optimizations in seconds.");
 
   public final String description;
 

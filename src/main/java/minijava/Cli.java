@@ -59,6 +59,7 @@ public class Cli {
                           }),
                       Arrays.stream(EnvVar.getAllEnvVarDescriptions()))
                   .toArray(String[]::new));
+  private String outputFile = "a.out";
 
   private final PrintStream out;
   private final PrintStream err;
@@ -68,6 +69,10 @@ public class Cli {
     this.out = new PrintStream(out);
     this.err = new PrintStream(err);
     this.fileSystem = fileSystem;
+
+    if (EnvVar.MJ_OUTPUTFILENAME.isAvailable()) {
+      outputFile = EnvVar.MJ_OUTPUTFILENAME.value();
+    }
   }
 
   int run(String... args) {
@@ -161,7 +166,7 @@ public class Cli {
   /** Compiles (with/out optimizations) with the firm backend. */
   private void compileFirm(InputStream in, int optimizationLevel) throws IOException {
     Compiler.produceFirmIR(in, optimizationLevel);
-    Compiler.compile(Backend.FIRM, "a.out", shouldProduceDebuggableBinary());
+    Compiler.compile(Backend.FIRM, outputFile, shouldProduceDebuggableBinary());
   }
 
   private static boolean shouldPrintGraphs() {
@@ -187,8 +192,8 @@ public class Cli {
 
   private void runFirm(InputStream in) throws IOException {
     Compiler.produceFirmIR(in, 0);
-    Compiler.compile(Backend.FIRM, "a.out", shouldProduceDebuggableBinary());
-    runCompiledProgram("a.out");
+    Compiler.compile(Backend.FIRM, outputFile, shouldProduceDebuggableBinary());
+    runCompiledProgram(outputFile);
   }
 
   private void runCompiledProgram(String outFile) throws IOException {
@@ -210,7 +215,7 @@ public class Cli {
 
   private void compile(InputStream in, int optimizationLevel) throws IOException {
     Compiler.produceFirmIR(in, optimizationLevel);
-    Compiler.compile(Backend.OWN, "a.out", shouldProduceDebuggableBinary());
+    Compiler.compile(Backend.OWN, outputFile, shouldProduceDebuggableBinary());
   }
 
   private static class Parameters {
